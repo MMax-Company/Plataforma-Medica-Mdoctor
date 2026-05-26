@@ -1,6 +1,6 @@
 # Mdoctor Backend
 
-Backend principal da Plataforma Medica MDoctor / Doctor Prescreve. Ele concentra as regras clinicas, elegibilidade, prontuario, Memed, entrega de receita, autenticacao JWT, painel admin e integracoes de producao.
+Backend principal do Mdoctor Survive. Ele concentra as regras clinicas, elegibilidade, prontuario, Memed, entrega de receita, autenticacao JWT, painel admin e integracoes de producao.
 
 ## Rotas principais
 
