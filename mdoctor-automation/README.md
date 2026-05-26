@@ -1,6 +1,6 @@
 # Mdoctor Automation
 
-Servico de automacao do Mdoctor Survive. Ele recebe webhooks externos, valida a origem, normaliza payloads e encaminha a regra de negocio para o `mdoctor-backend`, mantendo o backend como fonte oficial do spec.
+Servico de automacao da Plataforma Medica MDoctor / Doctor Prescreve. Ele recebe webhooks externos, valida a origem, normaliza payloads e encaminha a regra de negocio para o `mdoctor-backend`, mantendo o backend como fonte oficial do spec.
 
 ## Rotas
 
