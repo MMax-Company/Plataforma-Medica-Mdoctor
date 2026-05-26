@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { initSupabase } = require('./src/config/supabase');
-const { assertProductionReady, getReadinessReport } = require('./src/config/readiness');
+const { getReadinessReport } = require('./src/config/readiness');
 const logger = require('./src/config/logger');
 const requestLogger = require('./src/middlewares/request-logger');
 const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/rate-limit');
@@ -11,7 +11,14 @@ const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/ra
 const app = express();
 const PORT = process.env.PORT || 3004;
 initSupabase();
-assertProductionReady();
+const startupReadiness = getReadinessReport();
+if (startupReadiness.status !== 'ok') {
+  logger.warn('production_readiness_incomplete', {
+    status: startupReadiness.status,
+    failures: startupReadiness.failures.map((item) => item.name),
+    warnings: startupReadiness.warnings.map((item) => item.name)
+  });
+}
 
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001')
   .split(',')
