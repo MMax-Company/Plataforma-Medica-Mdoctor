@@ -179,3 +179,24 @@ on public.entregas_receita for all to service_role using (true) with check (true
 drop policy if exists "service_role_full_receitas_memed" on public.receitas_memed;
 create policy "service_role_full_receitas_memed"
 on public.receitas_memed for all to service_role using (true) with check (true);
+
+-- Receitas legadas: se existir, proteger tabela exposta ao PostgREST.
+do $$
+begin
+  if to_regclass('public.receitas') is not null then
+    alter table public.receitas enable row level security;
+    alter table public.receitas force row level security;
+
+    revoke all on table public.receitas from anon, authenticated;
+    grant all on table public.receitas to service_role;
+
+    drop policy if exists "service_role_full_access_receitas" on public.receitas;
+    create policy "service_role_full_access_receitas"
+    on public.receitas
+    for all
+    to service_role
+    using (true)
+    with check (true);
+  end if;
+end
+$$;
