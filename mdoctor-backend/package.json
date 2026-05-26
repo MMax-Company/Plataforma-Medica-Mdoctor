@@ -125,7 +125,8 @@
     "undici-types": "^7.24.6",
     "unpipe": "^1.0.0",
     "vary": "^1.1.2",
-    "wrappy": "^1.0.2"
+    "wrappy": "^1.0.2",
+    "ws": "^8.21.0"
   },
   "scripts": {
     "check": "node --check server.js && node --check src/config/logger.js && node --check src/config/supabase.js && node --check src/config/readiness.js && node --check src/middlewares/request-logger.js && node --check src/middlewares/rate-limit.js && node --check src/store/atendimentos.store.js && node --check src/store/receitas.store.js && node --check src/routes/atendimentos.routes.js && node --check src/routes/admin.routes.js && node --check src/routes/memed.routes.js && node --check src/routes/whatsapp.routes.js && node --check src/whatsapp/whatsapp.service.js && node --check scripts/production-readiness-check.js",

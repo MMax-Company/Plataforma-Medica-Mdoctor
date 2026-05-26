@@ -1,5 +1,6 @@
 // src/config/supabase.js
 const { createClient } = require('@supabase/supabase-js');
+const WebSocket = require('ws');
 
 let supabase = null;
 let initialized = false;
@@ -15,7 +16,10 @@ function initSupabase() {
   }
 
   if (!hasPlaceholder && url.startsWith('https://')) {
-    supabase = createClient(url, key, { auth: { persistSession: false } });
+    supabase = createClient(url, key, {
+      auth: { persistSession: false },
+      realtime: { transport: WebSocket }
+    });
     initialized = true;
     console.log('✅ Supabase conectado (PostgreSQL + Storage + Auth)');
     return true;
