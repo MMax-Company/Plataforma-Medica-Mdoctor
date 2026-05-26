@@ -1,0 +1,32 @@
+{
+  "name": "Doctor Prescreve - WhatsApp Router",
+  "active": true,
+  "nodes": [
+    {
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "parameters": { "path": "whatsapp-webhook", "httpMethod": "POST", "responseMode": "onReceived" }
+    },
+    {
+      "name": "Encaminhar Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [460, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL || 'http://localhost:3004' }}/api/whatsapp/webhook",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }] },
+        "bodyParameters": { "parameters": [
+          { "name": "from", "value": "={{ $json.body.from || $json.body.From }}" },
+          { "name": "text", "value": "={{ $json.body.text || $json.body.Body }}" },
+          { "name": "rawMessage", "value": "={{ $json.body }}" }
+        ]}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": { "main": [[{ "node": "Encaminhar Backend", "type": "main", "index": 0 }]] }
+  },
+  "meta": { "spec_compliance": "§6 Automation, §11 Regras só no Backend" }
+}

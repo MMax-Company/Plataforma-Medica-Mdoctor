@@ -1,0 +1,13 @@
+{
+  "name": "mdoctor-survive",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev-all.js",
+    "dev:all": "node scripts/dev-all.js",
+    "dev:backend": "npm --prefix mdoctor-backend run dev",
+    "dev:panel": "npm --prefix mdoctor-panel run dev",
+    "dev:automation": "npm --prefix mdoctor-automation run dev",
+    "pre-github-check": "node scripts/pre-github-check.js"
+  }
+}

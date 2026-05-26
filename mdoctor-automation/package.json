@@ -1,0 +1,18 @@
+{
+  "name": "mdoctor-automation",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "check": "node --check server.js && node --check services/backend-client.js && node --check services/security.js && node --check workers/message-processor.js && node --check test-webhook.js && node --check test-pipeline.js",
+    "dev": "node server.js",
+    "start": "node server.js",
+    "smoke": "node test-webhook.js",
+    "worker": "node workers/message-processor.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.8",
+    "redis": "^4.6.13",
+    "dotenv": "^16.4.5"
+  }
+}

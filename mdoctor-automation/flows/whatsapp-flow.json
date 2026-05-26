@@ -1,0 +1,34 @@
+{
+  "name": "Doctor Prescreve - WhatsApp Flow",
+  "nodes": [
+    {
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "parameters": {
+        "path": "whatsapp-webhook",
+        "httpMethod": "POST"
+      }
+    },
+    {
+      "name": "Processar Mensagem",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "const msg = $input.first().json;\nreturn { json: { from: msg.from || msg.From, text: msg.text || msg.Body, rawMessage: msg } };"
+      }
+    },
+    {
+      "name": "Enviar Resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.BACKEND_URL || 'http://localhost:3004' }}/api/whatsapp/webhook",
+        "body": "={{ $input.first().json }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": { "main": [[{ "node": "Processar Mensagem", "type": "main", "index": 0 }]] },
+    "Processar Mensagem": { "main": [[{ "node": "Enviar Resposta", "type": "main", "index": 0 }]] }
+  }
+}
