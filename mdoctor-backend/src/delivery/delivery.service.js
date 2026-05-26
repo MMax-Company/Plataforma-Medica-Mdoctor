@@ -11,7 +11,8 @@ function isProduction() {
 }
 
 function canUseDevelopmentMock() {
-  return !isProduction() && process.env.DELIVERY_MOCK_ENABLED !== 'false';
+  if (!isProduction()) return process.env.DELIVERY_MOCK_ENABLED !== 'false';
+  return process.env.ALLOW_PRODUCTION_DELIVERY_MOCK === 'true' && process.env.DELIVERY_MOCK_ENABLED === 'true';
 }
 
 function maskTarget(target = '') {

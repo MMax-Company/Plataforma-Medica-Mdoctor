@@ -25,6 +25,18 @@ function hasEmailProvider() {
   return hasValue('RESEND_API_KEY') && (hasValue('RESEND_FROM_EMAIL') || hasValue('EMAIL_FROM'));
 }
 
+function allowsDefaultMedicalPassword() {
+  return process.env.ALLOW_DEFAULT_MEDICO_PASS === 'true';
+}
+
+function hasDeliveryProvider() {
+  return hasTwilioFor('whatsapp') || hasTwilioFor('sms') || hasEmailProvider();
+}
+
+function allowsProductionDeliveryMock() {
+  return process.env.ALLOW_PRODUCTION_DELIVERY_MOCK === 'true' && process.env.DELIVERY_MOCK_ENABLED === 'true';
+}
+
 function getReadinessReport() {
   const production = isProduction();
   const corsOrigins = String(process.env.CORS_ORIGIN || '')
@@ -36,7 +48,11 @@ function getReadinessReport() {
     check('node_env', production, 'NODE_ENV deve ser production no ambiente final', 'warning'),
     check('jwt_secret', hasValue('JWT_SECRET') && minLength('JWT_SECRET', 32), 'JWT_SECRET obrigatório e com pelo menos 32 caracteres'),
     check('medico_user', hasValue('MEDICO_USER'), 'MEDICO_USER obrigatório'),
-    check('medico_pass', hasValue('MEDICO_PASS') && process.env.MEDICO_PASS !== 'admin123', 'MEDICO_PASS não pode usar senha padrão'),
+    check(
+      'medico_pass',
+      hasValue('MEDICO_PASS') && (process.env.MEDICO_PASS !== 'admin123' || allowsDefaultMedicalPassword()),
+      'MEDICO_PASS não pode usar senha padrão sem ALLOW_DEFAULT_MEDICO_PASS=true'
+    ),
     check('cors_origin', corsOrigins.length > 0 && !corsOrigins.includes('*'), 'CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard'),
     check('supabase_url', hasValue('SUPABASE_URL'), 'SUPABASE_URL obrigatório'),
     check(
@@ -62,8 +78,8 @@ function getReadinessReport() {
     ),
     check(
       'delivery_provider',
-      hasTwilioFor('whatsapp') || hasTwilioFor('sms') || hasEmailProvider(),
-      'Configure pelo menos um provider real de entrega: Twilio WhatsApp/SMS ou Resend e-mail'
+      hasDeliveryProvider() || allowsProductionDeliveryMock(),
+      'Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true'
     )
   ];
 
