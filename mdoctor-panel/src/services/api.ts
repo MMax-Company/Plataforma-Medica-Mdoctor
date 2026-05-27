@@ -1,3 +1,7 @@
+import { API_BASE } from '@/config/api';
+
+export { API_BASE };
+
 export interface EligibilityRequest {
   condition: string;
   previous_prescription?: boolean;
@@ -12,8 +16,6 @@ export interface EligibilityResponse {
   reason: string;
   timestamp: string;
 }
-
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004';
 
 export async function checkEligibility(data: EligibilityRequest): Promise<EligibilityResponse> {
   const res = await fetch(`${API_BASE}/api/eligibility`, {

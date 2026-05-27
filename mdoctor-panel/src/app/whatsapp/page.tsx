@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { API_BASE } from '@/config/api';
 
 export default function WhatsAppStatusPage() {
   const [status, setStatus] = useState<any>(null);
@@ -7,7 +8,7 @@ export default function WhatsAppStatusPage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const res = await fetch('http://localhost:3004/api/whatsapp/status');
+        const res = await fetch(`${API_BASE}/api/whatsapp/status`);
         const data = await res.json();
         setStatus(data);
       } catch (e) { console.error('Erro:', e); }
