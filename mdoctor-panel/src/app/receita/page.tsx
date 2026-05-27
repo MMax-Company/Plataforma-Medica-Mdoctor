@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { API_BASE } from '@/services/api';
 import { requireSession } from '@/services/auth.service';
 import { getMemedConfig, getMemedToken, saveMemedReceipt, type MemedConfig } from '@/services/memed.service';
+import { Button, Card, PageHeader, StatusPill } from '@/components/ui/DesignSystem';
 
 type Atendimento = {
   id: string;
@@ -193,28 +194,30 @@ function ReceitaMemedContent() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] p-6 text-[#1E1E1E]">
-      <div className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <a href={atendimentoId ? `/atendimento/${atendimentoId}` : '/fila'} className="text-sm font-semibold text-[#1557FF]">
-            Voltar
-          </a>
-          <h1 className="mt-2 text-2xl font-bold">Prescrição Memed</h1>
-          <p className="text-sm text-[#5B6475]">{status}</p>
-        </div>
-        <button
-          onClick={openPrescription}
-          disabled={!scriptLoaded.current}
-          className="h-11 rounded-[14px] bg-[#1557FF] px-5 text-sm font-semibold text-white shadow-sm disabled:opacity-50"
-        >
-          {ready ? 'Reabrir Memed' : 'Abrir Memed'}
-        </button>
+      <div className="mb-5">
+        <a href={atendimentoId ? `/atendimento/${atendimentoId}` : '/fila'} className="mb-3 inline-flex text-sm font-semibold text-[#1557FF]">
+          Voltar
+        </a>
+        <PageHeader
+          eyebrow="Prescrição digital"
+          title="Prescrição Memed"
+          subtitle={status}
+          action={(
+            <Button onClick={openPrescription} disabled={!scriptLoaded.current}>
+              {ready ? 'Reabrir Memed' : 'Abrir Memed'}
+            </Button>
+          )}
+        />
       </div>
 
       {error && <div className="mb-4 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
       <section className="grid gap-4 xl:grid-cols-[320px_1fr]">
-        <aside className="rounded-[20px] border border-[#E5EAF2] bg-white p-4 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
-          <h2 className="text-base font-bold">Atendimento</h2>
+        <Card className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-bold">Atendimento</h2>
+            <StatusPill tone={atendimento ? 'success' : 'secondary'}>{atendimento ? 'Selecionado' : 'Pendente'}</StatusPill>
+          </div>
           <dl className="mt-4 space-y-3 text-sm">
             <div>
               <dt className="font-semibold text-[#5B6475]">Paciente</dt>
@@ -233,14 +236,14 @@ function ReceitaMemedContent() {
               <dd className="mt-1">{atendimento?.risco || 'Não definido'}</dd>
             </div>
           </dl>
-        </aside>
+        </Card>
 
-        <div className="overflow-auto rounded-[20px] border border-[#E5EAF2] bg-white p-4 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+        <Card className="overflow-auto p-4">
           <div
             id={config?.containerId || 'prescricao-memed'}
             className="relative h-[calc(100vh-190px)] min-h-[700px] min-w-[820px] bg-white"
           />
-        </div>
+        </Card>
       </section>
     </main>
   );

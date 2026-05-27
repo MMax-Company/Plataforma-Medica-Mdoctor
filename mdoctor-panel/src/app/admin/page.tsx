@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE } from '@/services/api';
 import { authHeaders, clearSession, requireSession } from '@/services/auth.service';
+import { Button, Card, MetricCard, StatusPill } from '@/components/ui/DesignSystem';
 
 type Check = {
   name: string;
@@ -118,15 +119,11 @@ export default function AdminPage() {
               {data.user.name} · {data.user.role.toUpperCase()}
             </span>
           )}
-          <a href="/fila" className="h-10 rounded-[14px] border border-[#1E1E1E] bg-white px-4 py-3 text-xs font-bold">
-            FILA
+          <a href="/fila" className="inline-flex h-10 items-center rounded-[14px] border border-[#1E1E1E] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+            Fila
           </a>
-          <button onClick={fetchStatus} className="h-10 rounded-[14px] bg-[#1557FF] px-4 text-xs font-bold text-white">
-            ATUALIZAR
-          </button>
-          <button onClick={logout} className="h-10 rounded-[14px] bg-[#FADADA] px-4 text-xs font-bold">
-            SAIR
-          </button>
+          <Button onClick={fetchStatus} className="h-10 text-xs">Atualizar</Button>
+          <Button onClick={logout} tone="soft" className="h-10 text-xs">Sair</Button>
         </div>
       </header>
       <div className="h-1 bg-[#F4B000]" />
@@ -136,7 +133,7 @@ export default function AdminPage() {
 
         {data && (
           <>
-            <div className="mb-5 rounded-[20px] border border-[#E5EAF2] bg-white p-5 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+            <Card className="mb-5 p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-xs font-black text-[#5B6475]">STATUS DO AMBIENTE</p>
@@ -150,15 +147,15 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <a href={`${API_BASE}/readyz`} target="_blank" className="h-10 rounded-[14px] border border-[#1E1E1E] bg-white px-4 py-3 text-xs font-bold">
-                    ABRIR READYZ
+                  <a href={`${API_BASE}/readyz`} target="_blank" className="inline-flex h-10 items-center rounded-[14px] border border-[#1E1E1E] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                    Abrir readiness
                   </a>
-                  <a href="/receita" className="h-10 rounded-[14px] border border-[#E5EAF2] bg-white px-4 py-3 text-xs font-bold">
-                    TESTAR MEMED
+                  <a href="/receita" className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                    Testar Memed
                   </a>
                 </div>
               </div>
-            </div>
+            </Card>
 
             <div className="mb-5 grid gap-4 lg:grid-cols-5">
               {[
@@ -168,10 +165,7 @@ export default function AdminPage() {
                 ['Entregues', data.metrics.delivered],
                 ['Recusados', data.metrics.rejected]
               ].map(([label, value]) => (
-                <article key={label} className="rounded-[20px] border border-[#E5EAF2] bg-white p-5 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
-                  <p className="text-xs font-bold text-[#5B6475]">{label}</p>
-                  <p className="mt-2 text-2xl font-black">{value}</p>
-                </article>
+                <MetricCard key={label} label={String(label)} value={value} />
               ))}
             </div>
 
@@ -190,9 +184,9 @@ export default function AdminPage() {
                         <p className="font-bold">{item.name}</p>
                         <p className="mt-1 text-[#5B6475]">{item.message}</p>
                       </div>
-                      <span className={`shrink-0 rounded-[12px] px-3 py-1 text-xs font-black ${badgeClass(item.ok)}`}>
+                      <StatusPill tone={item.ok ? 'success' : item.severity === 'fail' ? 'danger' : 'gold'} className="shrink-0">
                         {item.ok ? 'OK' : item.severity.toUpperCase()}
-                      </span>
+                      </StatusPill>
                     </div>
                   ))}
                 </div>

@@ -1,4 +1,4 @@
-import { API_BASE } from './api';
+import { ApiError, apiClient } from './api';
 
 export type AuthUser = {
   id: string;
@@ -54,27 +54,31 @@ export function clearSession() {
 }
 
 export async function login(username: string, password: string): Promise<AuthSession> {
-  const response = await fetch(`${API_BASE}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
+  const data = await apiClient.post<{ success: boolean; token: string; user: AuthUser; error?: string }>('/api/auth/login', {
+    username,
+    email: username,
+    password,
   });
-  const data = await response.json();
-  if (!response.ok || !data.success) throw new Error(data.error || 'Falha no login');
+
+  if (!data.success) throw new Error(data.error || 'Falha no login');
   const session = { token: data.token, user: data.user };
   saveSession(session);
   return session;
+}
+
+export function isOfflineAuthError(error: unknown) {
+  return error instanceof ApiError && ['missing_api_url', 'timeout', 'network'].includes(error.code);
 }
 
 export async function requireSession() {
   const token = getAuthToken();
   if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
-  const response = await fetch(`${API_BASE}/api/auth/me`, {
-    headers: authHeaders()
+  const data = await apiClient.get<{ success: boolean; user: AuthUser; error?: string }>('/api/auth/me', {
+    headers: authHeaders(),
   });
-  const data = await response.json();
-  if (!response.ok || !data.success) {
+
+  if (!data.success) {
     clearSession();
     throw new Error(data.error || 'Sessão expirada. Faça login novamente.');
   }
