@@ -1,1 +1,5 @@
-export default function Home(){return(<main className="min-h-screen flex items-center justify-center p-6"><div className="text-center"><h1 className="text-3xl font-bold text-blue-600 mb-4">🩺 Doctor Prescreve</h1><p className="text-gray-600">Backend: <span className="text-green-600">http://localhost:3004</span> ✅</p></div></main>);}
+import { redirect } from 'next/navigation';
+
+export default function Home() {
+  redirect('/login');
+}

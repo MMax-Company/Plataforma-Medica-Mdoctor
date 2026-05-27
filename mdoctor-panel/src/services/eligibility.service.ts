@@ -1,4 +1,5 @@
 // src/services/eligibility.service.ts
+import { API_BASE } from '@/config/api';
 
 export interface EligibilityRequest {
   condition: string;
@@ -14,8 +15,6 @@ export interface EligibilityResponse {
   reason: string;
   timestamp: string;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004';
 
 export async function checkEligibility(data: EligibilityRequest): Promise<EligibilityResponse> {
   try {

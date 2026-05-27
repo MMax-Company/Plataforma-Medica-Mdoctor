@@ -1,4 +1,5 @@
 // src/services/memed.service.ts
+import { API_BASE } from '@/config/api';
 import { authHeaders } from './auth.service';
 export interface Medication {
   name: string;
@@ -52,8 +53,6 @@ export interface MemedReceiptPayload {
   pdfUrl?: string;
   payload?: unknown;
 }
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3004';
 
 async function readJson<T>(response: Response): Promise<T> {
   const data = await response.json();
