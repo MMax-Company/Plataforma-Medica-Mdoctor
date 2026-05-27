@@ -2,53 +2,78 @@ const { randomUUID } = require('crypto');
 const { assertCanFallback, getSupabase } = require('../config/supabase');
 
 const STATUS = {
-  TRIAGED: 'TRIAGED',
-  QUEUE: 'QUEUE',
-  UNDER_REVIEW: 'UNDER_REVIEW',
-  MEMED_PROCESSING: 'MEMED_PROCESSING',
-  AWAITING_VALIDATION: 'AWAITING_VALIDATION',
-  VALIDATED: 'VALIDATED',
-  FINISHED: 'FINISHED',
-  REJECTED: 'REJECTED',
-  DELIVERED: 'DELIVERED',
+  WAITING: 'waiting',
+  EM_ATENDIMENTO: 'em_atendimento',
+  MEMED_PROCESSING: 'memed_processing',
+  READY: 'ready',
+  DELIVERED: 'delivered',
+  REJECTED: 'rejected',
 
-  // Legacy aliases kept for old local/Supabase rows and backward compatibility.
-  TRIAGEM: 'TRIAGEM',
-  AGUARDANDO_PAGAMENTO: 'AGUARDANDO_PAGAMENTO',
-  FILA: 'FILA',
-  EM_ATENDIMENTO: 'EM_ATENDIMENTO',
-  PRONTO_PARA_DECISAO: 'PRONTO_PARA_DECISAO',
-  APROVADO: 'APROVADO',
-  RECUSADO: 'RECUSADO',
-  RECEITA_EMITIDA: 'RECEITA_EMITIDA',
-  CANCELADO: 'CANCELADO'
+  // Compatibility keys used by existing routes and older persisted rows.
+  TRIAGED: 'waiting',
+  QUEUE: 'waiting',
+  UNDER_REVIEW: 'em_atendimento',
+  AWAITING_VALIDATION: 'memed_processing',
+  VALIDATED: 'ready',
+  FINISHED: 'delivered',
+  TRIAGEM: 'waiting',
+  AGUARDANDO_PAGAMENTO: 'waiting',
+  FILA: 'waiting',
+  PRONTO_PARA_DECISAO: 'em_atendimento',
+  APROVADO: 'ready',
+  RECUSADO: 'rejected',
+  RECEITA_EMITIDA: 'ready',
+  CANCELADO: 'rejected'
 };
 
-const VALID_STATUS = new Set(Object.values(STATUS));
+const CANONICAL_STATUS = new Set([
+  STATUS.WAITING,
+  STATUS.EM_ATENDIMENTO,
+  STATUS.MEMED_PROCESSING,
+  STATUS.READY,
+  STATUS.DELIVERED,
+  STATUS.REJECTED
+]);
 const STATUS_ALIASES = {
-  TRIAGEM: STATUS.TRIAGED,
-  FILA: STATUS.QUEUE,
-  EM_ATENDIMENTO: STATUS.UNDER_REVIEW,
-  PRONTO_PARA_DECISAO: STATUS.UNDER_REVIEW,
-  APROVADO: STATUS.VALIDATED,
-  RECEITA_EMITIDA: STATUS.VALIDATED,
+  TRIAGED: STATUS.WAITING,
+  TRIAGEM: STATUS.WAITING,
+  QUEUE: STATUS.WAITING,
+  FILA: STATUS.WAITING,
+  WAITING: STATUS.WAITING,
+  AGUARDANDO_PAGAMENTO: STATUS.WAITING,
+  UNDER_REVIEW: STATUS.EM_ATENDIMENTO,
+  EM_ATENDIMENTO: STATUS.EM_ATENDIMENTO,
+  PRONTO_PARA_DECISAO: STATUS.EM_ATENDIMENTO,
+  MEMED_PROCESSING: STATUS.MEMED_PROCESSING,
+  AWAITING_VALIDATION: STATUS.MEMED_PROCESSING,
+  VALIDATED: STATUS.READY,
+  READY: STATUS.READY,
+  APROVADO: STATUS.READY,
+  RECEITA_EMITIDA: STATUS.READY,
+  FINISHED: STATUS.DELIVERED,
+  DELIVERED: STATUS.DELIVERED,
   RECUSADO: STATUS.REJECTED,
   INELEGIVEL: STATUS.REJECTED,
+  REJECTED: STATUS.REJECTED,
   CANCELADO: STATUS.REJECTED
 };
+const VALID_STATUS = new Set([...CANONICAL_STATUS, ...Object.keys(STATUS_ALIASES)]);
 
 const STATUS_GROUPS = {
-  queue: [STATUS.QUEUE],
-  inMedicalFlow: [STATUS.UNDER_REVIEW, STATUS.MEMED_PROCESSING, STATUS.AWAITING_VALIDATION],
-  readyToDeliver: [STATUS.VALIDATED],
+  queue: [STATUS.WAITING],
+  inMedicalFlow: [STATUS.EM_ATENDIMENTO, STATUS.MEMED_PROCESSING],
+  readyToDeliver: [STATUS.READY],
   delivered: [STATUS.DELIVERED],
   rejected: [STATUS.REJECTED],
-  terminal: [STATUS.DELIVERED, STATUS.FINISHED, STATUS.REJECTED]
+  terminal: [STATUS.DELIVERED, STATUS.REJECTED]
 };
 
 function normalizeStatus(status) {
-  const value = String(status || '').trim().toUpperCase();
-  if (!value) return STATUS.TRIAGED;
+  const rawValue = String(status || '').trim();
+  if (!rawValue) return STATUS.WAITING;
+  const canonical = rawValue.toLowerCase();
+  if (CANONICAL_STATUS.has(canonical)) return canonical;
+  const value = rawValue.toUpperCase();
   return STATUS_ALIASES[value] || value;
 }
 
@@ -134,6 +159,16 @@ function normalizeAtendimento(input = {}) {
       clinical.medicacao_em_uso
     ) ||
     'renovacao_receita';
+  const medication =
+    firstValue(
+      input.medicacao_em_uso,
+      input.requestedMedication,
+      input.medicamento,
+      clinical.medicacao_em_uso,
+      clinical.medicamento,
+      clinical.requestedMedication
+    ) ||
+    '';
   const eligibility =
     input.elegibilidade ||
     input.eligibility ||
@@ -149,6 +184,7 @@ function normalizeAtendimento(input = {}) {
     paciente_cpf: input.paciente_cpf || input.cpf || input.patientDocument || '',
     paciente_email: input.paciente_email || input.email || input.patientEmail || '',
     condicao: condition,
+    medicacao_em_uso: medication,
     origem: input.origem || input.source || 'panel',
     pagamento_status:
       typeof input.pagamento === 'boolean'
@@ -156,7 +192,7 @@ function normalizeAtendimento(input = {}) {
           ? 'CONFIRMADO'
           : 'PENDENTE'
         : input.pagamento_status || input.pagamento || input.paymentStatus || 'PENDENTE',
-    risco: input.risco || input.riskLevel || null,
+    risco: input.risco || input.riskLevel || 'BAIXO',
     elegibilidade: eligibility,
     dados_clinicos: {
       ...clinical,
@@ -170,7 +206,7 @@ function normalizeAtendimento(input = {}) {
       continuous_use_proof: Boolean(clinical.continuous_use_proof || input.continuous_use_proof),
       flags: Array.isArray(clinical.flags) ? clinical.flags : Array.isArray(input.flags) ? input.flags : [],
       doenca_cronica: input.doenca_cronica || clinical.doenca_cronica || null,
-      medicacao_em_uso: input.medicacao_em_uso || clinical.medicacao_em_uso || null
+      medicacao_em_uso: medication || null
     },
     motivo_decisao: input.motivo_decisao || input.motivo || input.reason || null,
     medico_id: input.medico_id || input.doctorId || null,
@@ -196,6 +232,7 @@ function toSupabase(row) {
     paciente_cpf: row.paciente_cpf,
     paciente_email: row.paciente_email,
     condicao: row.condicao,
+    medicacao_em_uso: row.medicacao_em_uso,
     origem: row.origem,
     pagamento_status: row.pagamento_status,
     risco: row.risco,
@@ -223,6 +260,7 @@ function toLegacySupabaseUpdate(updates) {
   if (updates.paciente_cpf !== undefined) legacy.paciente_cpf = updates.paciente_cpf;
   if (updates.paciente_email !== undefined) legacy.paciente_email = updates.paciente_email;
   if (updates.condicao !== undefined) legacy.doenca_cronica = updates.condicao;
+  if (updates.medicacao_em_uso !== undefined) legacy.medicacao_em_uso = updates.medicacao_em_uso;
   if (updates.pagamento_status !== undefined) legacy.pagamento = updates.pagamento_status === 'CONFIRMADO';
   if (clinical.data_nascimento !== undefined) legacy.paciente_data_nascimento = clinical.data_nascimento;
   if (clinical.endereco !== undefined) legacy.paciente_endereco = clinical.endereco;
@@ -243,26 +281,23 @@ async function listAtendimentos(filters = {}) {
       .select('*')
       .order('criado_em', { ascending: false });
 
-    if (filters.status) {
-      const statuses = String(filters.status)
-        .split(',')
-        .map((status) => status.trim())
-        .filter(Boolean);
-      query = statuses.length > 1 ? query.in('status', statuses) : query.eq('status', statuses[0]);
-    }
-
     const { data, error } = await query;
-    if (!error && data) return data.map(fromSupabase);
+    if (!error && data) {
+      const selected = filters.status
+        ? new Set(String(filters.status).split(',').map((status) => normalizeStatus(status.trim())))
+        : null;
+      return data.map(fromSupabase).filter((item) => !selected || selected.has(item.status));
+    }
     assertCanFallback('listar atendimentos', error);
     console.warn('Supabase atendimentos fallback:', error?.message);
   }
 
   const selected = filters.status
-    ? new Set(String(filters.status).split(',').map((status) => status.trim()))
+    ? new Set(String(filters.status).split(',').map((status) => normalizeStatus(status.trim())))
     : null;
 
   return atendimentos
-    .filter((item) => !selected || selected.has(item.status))
+    .filter((item) => !selected || selected.has(normalizeStatus(item.status)))
     .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
 }
 
@@ -313,6 +348,7 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
   if (meta.paciente_cpf !== undefined) updates.paciente_cpf = meta.paciente_cpf;
   if (meta.paciente_email !== undefined) updates.paciente_email = meta.paciente_email;
   if (meta.condicao !== undefined) updates.condicao = meta.condicao;
+  if (meta.medicacao_em_uso !== undefined) updates.medicacao_em_uso = meta.medicacao_em_uso;
   if (meta.pagamento_status !== undefined) updates.pagamento_status = meta.pagamento_status;
   if (meta.dados_clinicos) updates.dados_clinicos = meta.dados_clinicos;
   if (meta.elegibilidade) updates.elegibilidade = meta.elegibilidade;
@@ -329,6 +365,7 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
   if (updates.paciente_cpf !== undefined) localUpdates.paciente_cpf = updates.paciente_cpf;
   if (updates.paciente_email !== undefined) localUpdates.paciente_email = updates.paciente_email;
   if (updates.condicao !== undefined) localUpdates.condicao = updates.condicao;
+  if (updates.medicacao_em_uso !== undefined) localUpdates.medicacao_em_uso = updates.medicacao_em_uso;
   if (updates.pagamento_status !== undefined) localUpdates.pagamento_status = updates.pagamento_status;
   if (updates.dados_clinicos) localUpdates.dados_clinicos = updates.dados_clinicos;
   if (updates.elegibilidade) localUpdates.elegibilidade = updates.elegibilidade;
@@ -368,20 +405,30 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
 }
 
 async function createDecisaoLog(input = {}) {
+  const rawMedicoId = input.medico_id || input.doctorId || null;
+  const numericMedicoId =
+    rawMedicoId !== null && rawMedicoId !== '' && /^\d+$/.test(String(rawMedicoId))
+      ? Number(rawMedicoId)
+      : null;
+
   const log = {
     id: input.id || randomUUID(),
     atendimento_id: input.atendimento_id,
     status_anterior: input.status_anterior || null,
     status_novo: normalizeStatus(input.status_novo),
     motivo: input.motivo || null,
-    medico_id: input.medico_id || input.doctorId || null,
-    snapshot: input.snapshot || {},
+    medico_id: numericMedicoId,
+    snapshot: {
+      ...(input.snapshot || {}),
+      ...(rawMedicoId && !numericMedicoId ? { medico_auth_id: rawMedicoId } : {})
+    },
     criado_em: input.criado_em || new Date().toISOString()
   };
 
   if (hasSupabase()) {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('decisoes_log').insert(log).select('*').single();
+    const { id: _localId, ...supabaseLog } = log;
+    const { data, error } = await supabase.from('decisoes_log').insert(supabaseLog).select('*').single();
     if (!error && data) {
       return {
         id: data.id,

@@ -17,6 +17,24 @@ const {
 
 const router = express.Router();
 
+function isPaid(atendimento = {}) {
+  return String(atendimento.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
+}
+
+function isClinicallyEligible(atendimento = {}) {
+  return atendimento.elegibilidade?.eligible === true || atendimento.risco === 'BAIXO';
+}
+
+function isDeliveryMockEnabled() {
+  return process.env.DELIVERY_MOCK_ENABLED === 'true' || process.env.NODE_ENV !== 'production';
+}
+
+function maskTarget(target = '') {
+  return String(target).includes('@')
+    ? String(target).replace(/^(.{2}).*(@.*)$/, '$1***$2')
+    : String(target).replace(/\d(?=\d{4})/g, '*');
+}
+
 router.get('/', async (req, res) => {
   const atendimentos = await listAtendimentos({ status: req.query.status });
   res.json({ success: true, atendimentos });
@@ -25,7 +43,6 @@ router.get('/', async (req, res) => {
 router.get('/queue', async (_req, res) => {
   const atendimentos = await listAtendimentos({
     status: [
-      STATUS.TRIAGED,
       STATUS.FILA,
       STATUS.QUEUE,
       STATUS.EM_ATENDIMENTO,
@@ -35,22 +52,36 @@ router.get('/queue', async (_req, res) => {
       STATUS.PRONTO_PARA_DECISAO,
       STATUS.APROVADO,
       STATUS.VALIDATED,
-      STATUS.RECUSADO,
-      STATUS.REJECTED,
       STATUS.RECEITA_EMITIDA
     ].join(',')
   });
-  res.json({ success: true, atendimentos });
+  res.json({
+    success: true,
+    atendimentos: atendimentos.filter((item) => isPaid(item) && isClinicallyEligible(item))
+  });
 });
 
 router.post('/', async (req, res) => {
   const clinicalData = req.body?.dados_clinicos || req.body || {};
   const decision = eligibilityEngine.evaluate(clinicalData);
-  const status = req.body?.status || (decision.eligible ? STATUS.QUEUE : STATUS.REJECTED);
+  const paymentStatus =
+    typeof req.body?.pagamento === 'boolean'
+      ? req.body.pagamento
+        ? 'CONFIRMADO'
+        : 'PENDENTE'
+      : req.body?.pagamento_status || req.body?.pagamento || req.body?.paymentStatus || 'PENDENTE';
+  const paymentConfirmed = String(paymentStatus).toUpperCase() === 'CONFIRMADO';
+  const requestedStatus = req.body?.status ? normalizeStatus(req.body.status) : null;
+  const status = !decision.eligible
+    ? STATUS.REJECTED
+    : paymentConfirmed
+      ? requestedStatus || STATUS.QUEUE
+      : STATUS.AGUARDANDO_PAGAMENTO;
 
   const atendimento = await createAtendimento({
     ...req.body,
     status,
+    pagamento_status: paymentStatus,
     risco: decision.eligible ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
     dados_clinicos: clinicalData
@@ -125,7 +156,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
 
   const receipt = previous.dados_clinicos?.memed_receita || {};
-  const receiptUrl = receipt.pdfUrl || receipt.receitaUrl;
+  const receiptUrl = receipt.pdfUrl || receipt.receitaUrl || (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
   if (!receiptUrl) {
     return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega' });
   }
@@ -135,7 +166,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       ? previous.paciente_email
       : previous.paciente_telefone;
 
-  if (!target) {
+  if (!target && !isDeliveryMockEnabled()) {
     return res.status(400).json({ success: false, error: `Contato do paciente ausente para ${channel}` });
   }
 
@@ -148,12 +179,24 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
 
   let delivery;
   try {
-    delivery = await sendPrescription({
-      channel,
-      target,
-      receiptUrl,
-      pacienteNome: previous.paciente_nome
-    });
+    if (isDeliveryMockEnabled()) {
+      delivery = {
+        id: `delivery-mock-${Date.now()}`,
+        channel,
+        targetMasked: maskTarget(target || 'mock-target'),
+        receiptUrl,
+        provider: 'mock',
+        status: 'sent',
+        sent_at: new Date().toISOString()
+      };
+    } else {
+      delivery = await sendPrescription({
+        channel,
+        target,
+        receiptUrl,
+        pacienteNome: previous.paciente_nome
+      });
+    }
   } catch (error) {
     const failedDelivery = {
       id: `delivery-failed-${Date.now()}`,
@@ -252,9 +295,13 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
 router.patch('/:id/status', requireAuth, async (req, res) => {
   const { status, motivo, notes, doctorId, medicoId } = req.body || {};
   const authenticatedDoctorId = req.user?.sub || medicoId || doctorId || null;
+  if (!status) {
+    return res.status(400).json({ success: false, error: 'Status obrigatório', code: 'STATUS_REQUIRED' });
+  }
+
   const normalizedStatus = normalizeStatus(status);
   if (!VALID_STATUS.has(status) && !VALID_STATUS.has(normalizedStatus)) {
-    return res.status(400).json({ success: false, error: 'Status inválido' });
+    return res.status(400).json({ success: false, error: 'Status inválido', code: 'STATUS_INVALID' });
   }
 
   const previous = await getAtendimento(req.params.id);

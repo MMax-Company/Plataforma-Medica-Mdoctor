@@ -13,14 +13,22 @@ function requireAuth(req, res, next) {
   const [scheme, token] = header.split(' ');
 
   if (scheme !== 'Bearer' || !token) {
-    return res.status(401).json({ success: false, error: 'Token de autenticação ausente' });
+    return res.status(401).json({
+      success: false,
+      error: 'Token de autenticação ausente',
+      code: 'AUTH_TOKEN_MISSING'
+    });
   }
 
   try {
     req.user = jwt.verify(token, getJwtSecret());
     return next();
   } catch {
-    return res.status(401).json({ success: false, error: 'Token de autenticação inválido ou expirado' });
+    return res.status(401).json({
+      success: false,
+      error: 'Token de autenticação inválido ou expirado',
+      code: 'AUTH_TOKEN_INVALID'
+    });
   }
 }
 
