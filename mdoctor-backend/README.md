@@ -72,6 +72,35 @@ Memed real ainda nao e obrigatoria nesta fase. Quando a integracao estiver indis
 
 WhatsApp real tambem nao e chamado diretamente no MVP local. Com `DELIVERY_MOCK_ENABLED=true`, a entrega marca o atendimento como `delivered` usando registro mockado.
 
+## Supabase MVP
+
+O backend usa Supabase quando estas variaveis estiverem configuradas:
+
+```env
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_BUCKET_DOCUMENTS=documents
+SUPABASE_BUCKET_PRESCRIPTIONS=prescriptions
+SUPABASE_BUCKET_MEDICAL_RECORDS=medical-records
+SUPABASE_BUCKET_CONSENTS=consents
+SUPABASE_BUCKET_LOGS=logs
+```
+
+O `SUPABASE_SERVICE_ROLE_KEY` deve existir somente no backend. Nunca use essa chave no painel ou em variaveis `NEXT_PUBLIC_*`.
+
+Migration MVP:
+
+```text
+mdoctor-backend/supabase/migrations/20260527_backend_mvp_storage.sql
+```
+
+Ela cria as tabelas `patients`, `atendimentos`, `prescriptions` e `audit_logs`, habilita RLS e cria policies para `service_role`.
+
+Se Supabase nao estiver configurado ou falhar em ambiente com fallback permitido, o backend usa `fallback_local` e preserva o painel funcionando. O status aparece em `GET /readyz` no campo `storage`.
+
+Mais detalhes em `SUPABASE_SETUP.md`.
+
 ## Producao
 
 Configure as variaveis do `.env.production.example` no provedor de deploy:

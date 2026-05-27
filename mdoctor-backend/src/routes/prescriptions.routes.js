@@ -1,6 +1,8 @@
 const express = require('express');
 const memed = require('../integrations/memed.service');
 const { requireAuth } = require('../auth/auth.middleware');
+const { createAuditLog } = require('../store/audit.store');
+const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
 
 const router = express.Router();
 
@@ -45,18 +47,51 @@ function mockPdfBuffer(id) {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const result = await memed.createPrescription(req.body || {});
-    if (result.success) return res.status(201).json(result);
+    if (result.success) {
+      const saved = await savePrescription({
+        atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
+        patient_id: req.body?.patient_id || req.body?.patientId || null,
+        status: 'ready',
+        provider: 'memed',
+        provider_prescription_id: result.prescriptionId,
+        pdf_url: result.pdfUrl,
+        medications: req.body?.medications || [],
+        payload: result.data || result
+      });
+      return res.status(201).json({ ...result, data: saved });
+    }
 
     const prescriptionId = `mock-${Date.now()}`;
+    const saved = await savePrescription({
+      id: prescriptionId,
+      atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
+      patient_id: req.body?.patient_id || req.body?.patientId || null,
+      status: 'mock',
+      provider: 'mock',
+      pdf_url: `/api/prescriptions/${prescriptionId}/pdf`,
+      medications: req.body?.medications || [],
+      payload: mockPrescriptionResponse(prescriptionId, result.error, req.body || {}).data
+    });
     return res.status(201).json({
       ...mockPrescriptionResponse(prescriptionId, result.error, req.body || {}),
+      data: { ...mockPrescriptionResponse(prescriptionId, result.error, req.body || {}).data, stored: saved },
       prescriptionId,
       pdfUrl: `/api/prescriptions/${prescriptionId}/pdf`
     });
   } catch (error) {
     const prescriptionId = `mock-${Date.now()}`;
+    const saved = await savePrescription({
+      id: prescriptionId,
+      atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
+      patient_id: req.body?.patient_id || req.body?.patientId || null,
+      status: 'mock',
+      provider: 'mock',
+      pdf_url: `/api/prescriptions/${prescriptionId}/pdf`,
+      payload: mockPrescriptionResponse(prescriptionId, error.message, req.body || {}).data
+    });
     return res.status(201).json({
       ...mockPrescriptionResponse(prescriptionId, error.message, req.body || {}),
+      data: { ...mockPrescriptionResponse(prescriptionId, error.message, req.body || {}).data, stored: saved },
       prescriptionId,
       pdfUrl: `/api/prescriptions/${prescriptionId}/pdf`
     });
@@ -65,14 +100,62 @@ router.post('/', requireAuth, async (req, res) => {
 
 router.get('/:id', requireAuth, async (req, res) => {
   try {
+    const stored = await getPrescriptionByAtendimento(req.params.id);
+    if (stored) {
+      await createAuditLog({
+        entity_type: 'prescription',
+        entity_id: stored.id,
+        action: 'prescription_lookup',
+        actor: req.user?.sub || 'backend',
+        payload: { atendimento_id: stored.atendimento_id, provider: stored.provider, status: stored.status }
+      });
+      return res.json({
+        success: true,
+        data: {
+          id: stored.id,
+          mode: stored.provider || 'stored',
+          medication: Array.isArray(stored.medications) && stored.medications.length ? stored.medications.join(', ') : 'Medicamento conforme avaliação médica',
+          dosage: stored.payload?.dosage || 'Conforme posologia definida pelo médico',
+          instructions: stored.payload?.instructions || 'Receita recuperada do armazenamento do backend.',
+          duration: stored.payload?.duration || '30 dias',
+          issuedBy: stored.payload?.issuedBy || process.env.MEDICO_NOME || 'Médico responsável',
+          createdAt: stored.created_at,
+          pdfUrl: stored.pdf_url || `/api/prescriptions/${stored.id}/pdf`,
+          stored
+        },
+        mode: stored.provider || 'stored'
+      });
+    }
+
     if (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-')) {
+      await createAuditLog({
+        entity_type: 'prescription',
+        entity_id: req.params.id,
+        action: 'prescription_mock_fallback',
+        actor: req.user?.sub || 'backend',
+        payload: { reason: 'mock id' }
+      });
       return res.json(mockPrescriptionResponse(req.params.id));
     }
 
     const result = await memed.getPrescriptionById(req.params.id);
     if (result.success) return res.json(result);
+    await createAuditLog({
+      entity_type: 'prescription',
+      entity_id: req.params.id,
+      action: 'prescription_mock_fallback',
+      actor: req.user?.sub || 'backend',
+      payload: { reason: result.error || 'Memed indisponível' }
+    });
     return res.json(mockPrescriptionResponse(req.params.id, result.error));
   } catch (error) {
+    await createAuditLog({
+      entity_type: 'prescription',
+      entity_id: req.params.id,
+      action: 'prescription_mock_fallback',
+      actor: req.user?.sub || 'backend',
+      payload: { error: error.message }
+    });
     return res.json(mockPrescriptionResponse(req.params.id, error.message));
   }
 });

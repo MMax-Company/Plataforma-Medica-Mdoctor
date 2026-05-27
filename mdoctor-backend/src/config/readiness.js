@@ -39,6 +39,7 @@ function allowsProductionDeliveryMock() {
 
 function getReadinessReport() {
   const production = isProduction();
+  const { getSupabaseStatus } = require('./supabase');
   const corsOrigins = String(process.env.CORS_ORIGIN || '')
     .split(',')
     .map((origin) => origin.trim())
@@ -90,6 +91,7 @@ function getReadinessReport() {
   return {
     status,
     production,
+    storage: getSupabaseStatus(),
     checkedAt: new Date().toISOString(),
     checks,
     failures,

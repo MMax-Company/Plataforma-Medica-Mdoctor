@@ -1,5 +1,6 @@
 const { randomUUID } = require('crypto');
-const { assertCanFallback, getSupabase } = require('../config/supabase');
+const { assertCanFallback, getSupabase, reportSupabaseError } = require('../config/supabase');
+const { createAuditLog } = require('./audit.store');
 
 const STATUS = {
   WAITING: 'waiting',
@@ -119,6 +120,20 @@ function hasSupabase() {
   } catch {
     return false;
   }
+}
+
+async function recordSupabaseFallback(context, error, payload = {}) {
+  reportSupabaseError(error);
+  await createAuditLog({
+    entity_type: payload.entity_type || 'atendimento',
+    entity_id: payload.entity_id || null,
+    action: 'supabase_fallback_local',
+    payload: {
+      context,
+      error: error?.message || String(error || 'Erro Supabase'),
+      ...payload
+    }
+  });
 }
 
 function normalizeAtendimento(input = {}) {
@@ -288,6 +303,7 @@ async function listAtendimentos(filters = {}) {
         : null;
       return data.map(fromSupabase).filter((item) => !selected || selected.has(item.status));
     }
+    await recordSupabaseFallback('listar atendimentos', error, { entity_type: 'atendimento_list' });
     assertCanFallback('listar atendimentos', error);
     console.warn('Supabase atendimentos fallback:', error?.message);
   }
@@ -306,6 +322,7 @@ async function getAtendimento(id) {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('atendimentos').select('*').eq('id', id).single();
     if (!error && data) return fromSupabase(data);
+    await recordSupabaseFallback('buscar atendimento', error, { entity_id: id });
     assertCanFallback('buscar atendimento', error);
     console.warn('Supabase atendimento detail fallback:', error?.message);
   }
@@ -325,6 +342,7 @@ async function createAtendimento(input) {
       .single();
 
     if (!error && data) return fromSupabase(data);
+    await recordSupabaseFallback('criar atendimento', error, { entity_id: atendimento.id });
     assertCanFallback('criar atendimento', error);
     console.warn('Supabase atendimento insert fallback:', error?.message);
   }
@@ -393,6 +411,7 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
     }
 
     if (!error && data) return fromSupabase(data);
+    await recordSupabaseFallback('atualizar atendimento', error, { entity_id: id, status: normalizedStatus });
     assertCanFallback('atualizar atendimento', error);
     console.warn('Supabase atendimento update fallback:', error?.message);
   }
@@ -426,23 +445,30 @@ async function createDecisaoLog(input = {}) {
   };
 
   if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { id: _localId, ...supabaseLog } = log;
-    const { data, error } = await supabase.from('decisoes_log').insert(supabaseLog).select('*').single();
-    if (!error && data) {
+    try {
+      const data = await createAuditLog({
+        id: log.id,
+        entity_type: 'atendimento',
+        entity_id: log.atendimento_id,
+        action: 'status_change',
+        actor: rawMedicoId || 'backend',
+        payload: log,
+        created_at: log.criado_em
+      });
       return {
         id: data.id,
-        atendimento_id: data.atendimento_id,
-        status_anterior: data.status_anterior || null,
-        status_novo: data.status_novo || log.status_novo,
-        motivo: data.motivo || null,
-        medico_id: data.medico_id || null,
-        snapshot: data.snapshot || {},
-        criado_em: data.criado_em || log.criado_em
+        atendimento_id: log.atendimento_id,
+        status_anterior: log.status_anterior,
+        status_novo: log.status_novo,
+        motivo: log.motivo,
+        medico_id: log.medico_id,
+        snapshot: log.snapshot,
+        criado_em: data.created_at || log.criado_em
       };
+    } catch (error) {
+      await recordSupabaseFallback('registrar decisao', error, { entity_id: log.atendimento_id, status: log.status_novo });
+      assertCanFallback('registrar decisao', error);
     }
-    assertCanFallback('registrar decisao', error);
-    console.warn('Supabase decisoes_log fallback:', error?.message);
   }
 
   decisoesLog.unshift(log);
@@ -470,6 +496,7 @@ async function listDecisoesLog(atendimentoId) {
         criado_em: row.criado_em
       }));
     }
+    await recordSupabaseFallback('listar decisoes', error, { entity_id: atendimentoId });
     assertCanFallback('listar decisoes', error);
     console.warn('Supabase decisoes_log list fallback:', error?.message);
   }
@@ -500,6 +527,7 @@ async function listRecentDecisoesLog(limit = 30) {
         criado_em: row.criado_em
       }));
     }
+    await recordSupabaseFallback('listar decisoes recentes', error, { entity_type: 'decisoes_log' });
     assertCanFallback('listar decisoes recentes', error);
     console.warn('Supabase decisoes_log recent fallback:', error?.message);
   }
@@ -528,6 +556,7 @@ async function createEntregaReceitaLog(input = {}) {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('entregas_receita').insert(log).select('*').single();
     if (!error && data) return data;
+    await recordSupabaseFallback('registrar entrega de receita', error, { entity_id: log.atendimento_id, entity_type: 'entrega_receita' });
     assertCanFallback('registrar entrega de receita', error);
     console.warn('Supabase entregas_receita fallback:', error?.message);
   }
