@@ -1,4 +1,19 @@
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+const localEnvPath = path.join(__dirname, '.env.local');
+const shouldLoadLocalEnv = (
+  process.env.NODE_ENV !== 'production' &&
+  !process.env.RAILWAY_ENVIRONMENT &&
+  !process.env.RAILWAY_PROJECT_ID &&
+  fs.existsSync(localEnvPath)
+);
+const loadedEnvFile = shouldLoadLocalEnv ? '.env.local' : '.env';
+
+require('dotenv').config({
+  path: path.join(__dirname, loadedEnvFile),
+  override: shouldLoadLocalEnv
+});
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -7,6 +22,39 @@ const { getReadinessReport } = require('./src/config/readiness');
 const logger = require('./src/config/logger');
 const requestLogger = require('./src/middlewares/request-logger');
 const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/rate-limit');
+
+function isLocalRuntime() {
+  const environmentName = process.env.ENVIRONMENT_NAME || '';
+  return process.env.NODE_ENV !== 'production' && environmentName !== 'staging';
+}
+
+function applyLocalSafetyDefaults() {
+  if (!isLocalRuntime()) return;
+  process.env.WHATSAPP_ENABLED = 'false';
+  process.env.DELIVERY_MOCK_ENABLED = 'true';
+}
+
+function logEnvironmentBanner() {
+  logger.info('environment_startup_banner', {
+    nodeEnv: process.env.NODE_ENV || 'development',
+    environmentName: process.env.ENVIRONMENT_NAME || (isLocalRuntime() ? 'local' : 'unset'),
+    envFile: loadedEnvFile,
+    dataEnv: process.env.DATA_ENV || 'unset',
+    port: process.env.PORT || 3004,
+    baseUrl: process.env.BASE_URL || null,
+    corsOrigin: process.env.CORS_ORIGIN || null,
+    supabaseConfigured: Boolean(process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY)),
+    memedEnvironment: process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || 'development',
+    memedConfigured: Boolean(process.env.MEMED_API_KEY && process.env.MEMED_SECRET_KEY),
+    stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+    whatsappEnabled: process.env.WHATSAPP_ENABLED === 'true',
+    deliveryMockEnabled: process.env.DELIVERY_MOCK_ENABLED === 'true',
+    legacyCompatEnabled: process.env.LEGACY_COMPAT_ENABLED === 'true'
+  });
+}
+
+applyLocalSafetyDefaults();
+logEnvironmentBanner();
 
 const app = express();
 const PORT = process.env.PORT || 3004;
@@ -49,6 +97,7 @@ app.use('/api/whatsapp/webhook', makeRateLimit({
 }));
 app.use(express.json({limit:'1mb',strict:false}));
 app.use(express.urlencoded({extended:true}));
+app.use(require('./src/legacy-compat').legacyCompatRoutes);
 
 const healthHandler = (req,res)=>res.json({status:'OK',service:'Backend-MDoctor',port:PORT,timestamp:new Date().toISOString()});
 app.get('/health', healthHandler);
