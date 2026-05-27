@@ -1,5 +1,13 @@
 # Deploy Produção - MDoctor Survive
 
+## Blindagem Railway/GitHub
+
+O repositorio oficial para evolucao e `MMax-Company/Plataforma-Medica-Mdoctor`.
+
+O Railway ainda pode conter servicos apontando para `MMax-Company/Mdoctor-Prescreve`, que deve ser tratado como legado de producao ate a migracao ser concluida. Antes de alterar source repo, root directory, variaveis ou start command no Railway, consulte `docs/TRANSICAO-RAILWAY-GITHUB.md`.
+
+Nao migrar todos os servicos de uma vez. A transicao deve ser feita por servico, com health check e logs validados antes do proximo passo.
+
 ## Ordem recomendada
 
 1. Aplicar o schema no Supabase:
@@ -19,6 +27,7 @@
 7. Subir automation e confirmar `/healthz`.
 8. Entrar em `/admin` e resolver qualquer item pendente do readiness.
 9. Validar fluxo vivo: triagem, fila, Memed, receita, entrega e auditoria.
+10. Registrar no checklist rapido se Stripe ficara no SPEC V1 ou em fase posterior.
 
 ## Variáveis que bloqueiam produção
 
@@ -31,6 +40,13 @@
 - Pelo menos um provider real de entrega:
   - Twilio WhatsApp/SMS, ou
   - Resend e-mail.
+
+## Itens que nao devem ser prometidos antes do teste real
+
+- Stripe pronto, enquanto checkout e webhook assinado nao estiverem implementados.
+- Criptografia AES aplicada aos dados sensiveis, enquanto nao houver implementacao confirmada.
+- N8N como orquestrador completo, enquanto os fluxos reais nao estiverem publicados e validados.
+- Receita entregue automaticamente por WhatsApp, enquanto Memed e provider de entrega nao forem testados ponta a ponta.
 
 ## Health checks
 
