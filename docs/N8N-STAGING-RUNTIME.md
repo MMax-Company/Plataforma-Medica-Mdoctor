@@ -46,19 +46,24 @@ Generated Railway public domain:
 ## Runtime Health Check
 
 - Service deployment status in staging: `SUCCESS` (instance running).
-- Public URL check currently returns `502`.
-
-Observed runtime logs indicate n8n booting and migrations finishing, then editor bound locally (`http://localhost:5678`), suggesting network binding/config still needs final tuning for Railway ingress.
+- Public URL check: resolved (`200`).
+- Endpoints validated:
+  - `GET /` -> `200`
+  - `GET /healthz` -> `200`
+  - `GET /rest/settings` -> `200`
+  - `POST /webhook-test/ping` -> `404` (expected when workflow/webhook is not yet created, confirms route reachability)
 
 ## Admin/Env Notes
 
-Current env snapshot for `n8n-staging` includes Railway defaults only.
-
-Recommended minimal runtime vars for ingress stabilization (staging only):
+Ingress stabilized in staging with these vars:
 
 - `N8N_HOST=0.0.0.0`
 - `N8N_PORT=5678`
-- `N8N_PROTOCOL=https`
+- `PORT=5678`
+- `N8N_PROTOCOL=http`
+- `N8N_PROXY_HOPS=1`
+- `WEBHOOK_URL=https://n8n-staging-staging-2dfe.up.railway.app`
+- `N8N_EDITOR_BASE_URL=https://n8n-staging-staging-2dfe.up.railway.app`
 
 Recommended security vars before use:
 
@@ -69,8 +74,8 @@ Recommended security vars before use:
 
 ## Current Blocker
 
-- Applying additional env vars failed due Railway API timeout during this session (`backboard.railway.com/graphql/v2` timeout).
-- As a result, runtime exists and is isolated, but external access remains blocked (`502`) pending env tuning/redeploy.
+- No blocking issue for ingress at this moment.
+- Remaining setup before real usage is operational hardening (basic auth, encryption key, workflow credentials), all in staging only.
 
 ## Risk Assessment
 
@@ -90,4 +95,4 @@ Recommended security vars before use:
 
 - n8n staging runtime created: **yes** (dedicated env/service).
 - Public URL available: **yes**.
-- Runtime externally usable right now: **not yet** (`502` until env tuning is applied).
+- Runtime externally usable right now: **yes** (`502` resolved).
