@@ -112,3 +112,50 @@ Prioridade aplicada nesta entrega:
 ## Conclusao
 
 - UI do painel alinhada ao Master Panel Spec V1 e layouts oficiais, mantendo o fluxo operacional staging funcional e sem alterações em produção.
+
+## Validacao final pos-refinamento
+
+Data/hora: 2026-05-28 10:05 -03:00
+
+Objetivo:
+
+- Confirmar que o refinamento visual nao quebrou fluxo operacional.
+
+Telas validadas em staging:
+
+- `/login` -> `200`
+- `/dashboard` -> `200`
+- `/prontuario/:id` -> `200`
+- `/memed/:id` -> `200`
+
+Fluxo funcional validado:
+
+1. Login backend staging (`/api/auth/login`) -> `200`
+2. Criacao de atendimento de teste ficticio -> `201`
+3. Geracao de receita (`POST /api/prescriptions/:id/generate`) -> `201` (`source=mock`)
+4. Abertura de receita (`GET /api/prescriptions/:id`) -> `200` (`source=mock`)
+5. Delivery mock (`POST /api/atendimentos/:id/deliver`) -> `200` (`provider=mock`)
+6. Status final do atendimento -> `delivered`
+
+Checagem visual/estrutura (desktop/notebook):
+
+- Sem overflow horizontal introduzido nas telas principais.
+- Colunas do dashboard com scroll interno preservado (`max-h` + `overflow-y-auto`).
+- Header, rodape e grid de colunas mantidos alinhados.
+- Badges e botoes com contraste e legibilidade adequados ao tema medico.
+- Rodape institucional responsivo sem quebra critica em notebook.
+
+Build/lint final:
+
+- `npm --prefix mdoctor-panel run build` -> `OK`
+- `npm --prefix mdoctor-panel run lint` -> `OK` sem erros (2 warnings preexistentes fora do escopo das telas refinadas)
+
+Bugs encontrados nesta rodada:
+
+- Nenhum bug funcional bloqueante novo.
+- Nenhuma correcao adicional de codigo foi necessaria nesta etapa final.
+
+Confirmacoes:
+
+- Fluxo operacional preservado.
+- Backend, n8n, Supabase e producao nao foram alterados nesta validacao final.
