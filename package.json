@@ -8,6 +8,7 @@
     "dev:backend": "npm --prefix mdoctor-backend run dev",
     "dev:panel": "npm --prefix mdoctor-panel run dev",
     "dev:automation": "npm --prefix mdoctor-automation run dev",
-    "pre-github-check": "node scripts/pre-github-check.js"
+    "pre-github-check": "node scripts/pre-github-check.js",
+    "check:repository": "node scripts/check-repository-identity.js"
   }
 }

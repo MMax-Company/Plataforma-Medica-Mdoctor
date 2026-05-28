@@ -19,9 +19,9 @@ Crie o ambiente local a partir de `.env.local.example` ou `.env.example`. Variav
 
 ```env
 PORT=3004
-JWT_SECRET=dev_secret_change_me
+JWT_SECRET=
 MEDICO_USER=admin
-MEDICO_PASS=admin123
+MEDICO_PASS=change-me-local
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_KEY=

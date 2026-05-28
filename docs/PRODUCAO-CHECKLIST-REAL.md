@@ -2,6 +2,8 @@
 
 Use este checklist para transformar o beta privado em operacao real.
 
+Resumo honesto do estado atual: o projeto ja tem base operacional forte, mas ainda precisa validar Supabase real, Memed real, provider real de entrega e variaveis de producao antes de ser tratado como 100% pronto.
+
 ## 1. Supabase
 
 1. Abrir o SQL Editor do Supabase.
@@ -70,7 +72,16 @@ Executar ponta a ponta:
 7. Entregar receita `DELIVERED`.
 8. Conferir auditoria no painel master.
 
-## 5. GitHub
+## 5. Escopo pendente
+
+Nao marcar como pronto sem validacao no codigo e no ambiente:
+
+- Stripe: checkout, webhook assinado, idempotencia e auditoria de pagamento.
+- AES-256-CBC: apenas declarar se a criptografia estiver implementada e usada nos dados sensiveis.
+- N8N completo: confirmar fluxos ativos, webhooks publicos e segredos.
+- PDF Memed: confirmar captura real de URL/PDF/protocolo com prescritor valido.
+
+## 6. GitHub
 
 Subir codigo e exemplos, nao subir:
 

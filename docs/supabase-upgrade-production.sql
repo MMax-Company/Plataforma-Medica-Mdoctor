@@ -141,6 +141,25 @@ create index if not exists receitas_memed_atendimento_idx on public.receitas_mem
 create index if not exists receitas_memed_receita_id_idx on public.receitas_memed(receita_id);
 create index if not exists receitas_memed_status_idx on public.receitas_memed(status);
 
+-- Entregas: cria tabela caso o schema antigo ainda nao tenha auditoria de envio.
+create table if not exists public.entregas_receita (
+  id text primary key,
+  atendimento_id uuid references public.atendimentos(id) on delete cascade,
+  canal text not null,
+  provider text,
+  provider_message_id text,
+  status text not null,
+  target_masked text,
+  erro text,
+  snapshot jsonb default '{}'::jsonb,
+  criado_em timestamptz not null default now(),
+  constraint entregas_receita_canal_check check (canal in ('whatsapp', 'email', 'sms')),
+  constraint entregas_receita_status_check check (status in ('sent', 'failed', 'delivered', 'queued'))
+);
+
+create index if not exists entregas_receita_atendimento_idx on public.entregas_receita(atendimento_id, criado_em desc);
+create index if not exists entregas_receita_status_idx on public.entregas_receita(status);
+
 -- RLS e grants: backend usa service role; clientes publicos nao acessam direto.
 alter table public.atendimentos enable row level security;
 alter table public.decisoes_log enable row level security;

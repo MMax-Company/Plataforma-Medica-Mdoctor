@@ -9,6 +9,12 @@ Este mapa separa o que ja esta implementado do que ainda bloqueia o produto comp
 - Painel medico/admin: 75-82%
 - Produto completo SPEC V1: 65-72%
 
+## Leitura executiva
+
+O Mdoctor Survive esta alinhado com a ideia original de telemedicina assincrona: triagem, fila medica, painel operacional, Memed, automacao e entrega. O estado correto e MVP avancado com base real de producao, ainda dependente de validacoes externas e credenciais reais para fechar 100%.
+
+O Spec V1 do Master Panel deve ser tratado como base inicial do painel, nao como escopo total do produto. A visao consolidada esta em `docs/VISAO-UNIFICADA-MDOCTOR-SURVIVE.md`.
+
 ## Ja alinhado ao SPEC
 
 - Backend modular em Express.
@@ -46,6 +52,8 @@ Algumas analises antigas citam HTML inline do painel dentro de `server.js`. Isso
 
 Tambem nao considerar Stripe ou AES como prontos nesta versao sem confirmar implementacao real no codigo atual.
 
+O servico `mdoctor-automation` cobre a camada de orquestracao por webhooks e encaminhamento. Quando o texto mencionar N8N como "cerebro", tratar como visao arquitetural/operacional, nao como garantia de todos os fluxos completos ja em producao.
+
 ## Gaps para SPEC 100%
 
 1. Infra real
@@ -69,6 +77,10 @@ Tambem nao considerar Stripe ou AES como prontos nesta versao sem confirmar impl
    - Teste ponta a ponta com prescritor real.
 
 4. Painel premium
+   - Criar design system compartilhado antes de expandir novas telas.
+   - Refatorar login para o layout de duas colunas do Spec V1.
+   - Remover tela inicial provisoria com status de localhost.
+   - Padronizar botoes, cards, inputs, badges, metric cards e toasts.
    - Refinar microinteracoes.
    - Revisar responsividade mobile/tablet.
    - Validar acessibilidade basica.

@@ -3,7 +3,9 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..');
 const ignoredDirs = new Set(['node_modules', '.next', '.git', '.railway', 'dist', 'build', 'coverage', 'whatsapp_auth']);
-const allowedEnvExamples = new Set(['.env.example', '.env.production.example']);
+function isEnvExample(fileName) {
+  return /^\.env(?:\.[a-z0-9_-]+)?\.example$/i.test(fileName);
+}
 
 const secretPatterns = [
   { name: 'Stripe secret key', pattern: /sk_(live|test)_[A-Za-z0-9]+/ },
@@ -18,6 +20,33 @@ const secretPatterns = [
 const problems = [];
 const warnings = [];
 
+function checkRepositoryIdentity() {
+  const configPath = path.join(root, '.git', 'config');
+  const gitConfig = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
+
+  if (!gitConfig.includes('github.com/MMax-Company/Plataforma-Medica-Mdoctor.git')) {
+    problems.push('remote origin deve apontar para MMax-Company/Plataforma-Medica-Mdoctor');
+  }
+
+  if (gitConfig.includes('github.com/MMax-Company/Mdoctor-Prescreve.git')) {
+    problems.push('remote origin aponta para o repositorio legado Mdoctor-Prescreve');
+  }
+
+  const requiredPaths = [
+    'mdoctor-backend/server.js',
+    'mdoctor-panel/package.json',
+    'mdoctor-automation/server.js',
+    'docs/TRANSICAO-RAILWAY-GITHUB.md',
+    'REPOSITORY-OFFICIAL.md'
+  ];
+
+  for (const requiredPath of requiredPaths) {
+    if (!fs.existsSync(path.join(root, requiredPath))) {
+      problems.push(`estrutura oficial ausente: ${requiredPath}`);
+    }
+  }
+}
+
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignoredDirs.has(entry.name)) continue;
@@ -29,7 +58,7 @@ function walk(dir) {
       continue;
     }
 
-    if (entry.name.startsWith('.env') && !allowedEnvExamples.has(entry.name)) {
+    if (entry.name.startsWith('.env') && !isEnvExample(entry.name)) {
       warnings.push(`${relative}: arquivo .env real existe localmente; não transfira para o GitHub`);
       continue;
     }
@@ -48,6 +77,7 @@ function walk(dir) {
   }
 }
 
+checkRepositoryIdentity();
 walk(root);
 
 if (problems.length) {

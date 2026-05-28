@@ -18,9 +18,15 @@ function prefix(name, data, stream) {
 }
 
 for (const service of services) {
+  const env = {
+    ...process.env,
+    NODE_ENV: process.env.NODE_ENV === 'production' ? 'development' : process.env.NODE_ENV || 'development',
+    MDOCTOR_LOCAL_DEV: 'true'
+  };
+
   const child = spawn(isWindows ? `${service.command}.cmd` : service.command, service.args, {
     cwd: path.join(__dirname, '..', service.cwd),
-    env: process.env,
+    env,
     stdio: ['inherit', 'pipe', 'pipe'],
     shell: isWindows
   });

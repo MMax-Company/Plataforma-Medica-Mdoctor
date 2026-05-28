@@ -93,10 +93,14 @@ async function main() {
   console.log(`Supabase alvo: ${maskUrl(url)}`);
 
   let failed = report.failures.length + (fallbackDisabled ? 0 : 1);
+  let schemaFailed = false;
   for (const table of REQUIRED_TABLES) {
     const result = await checkTable(supabase, table);
     printResult(`table:${table.name}`, result.ok, result.ok ? 'acessivel com colunas esperadas' : result.error);
-    if (!result.ok) failed += 1;
+    if (!result.ok) {
+      schemaFailed = true;
+      failed += 1;
+    }
   }
 
   const storage = await checkStorage(supabase);
@@ -107,10 +111,17 @@ async function main() {
       ? `acessivel${storage.expected ? `, bucket ${storage.expected} presente` : ''}`
       : storage.error
   );
-  if (!storage.ok) failed += 1;
+  if (!storage.ok) {
+    schemaFailed = true;
+    failed += 1;
+  }
 
   if (failed) {
-    console.error('Acao recomendada: execute docs/supabase-upgrade-production.sql no SQL Editor do Supabase e rode este check novamente.');
+    if (schemaFailed) {
+      console.error('Acao recomendada: execute docs/supabase-upgrade-production.sql no SQL Editor do Supabase e rode este check novamente.');
+    } else {
+      console.error('Acao recomendada: corrigir variaveis de ambiente de producao e rodar este check novamente.');
+    }
     console.error(`Production check falhou com ${failed} pendencia(s).`);
     process.exit(1);
   }
