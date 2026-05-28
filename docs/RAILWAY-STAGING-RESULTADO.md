@@ -703,3 +703,38 @@ Confirmacoes:
 - Sem ativacao de Stripe
 - Sem ativacao de WhatsApp provider real
 - Sem ativacao de Memed producao
+
+## WhatsApp provider staging - preparo controlado
+
+Data/hora: 2026-05-28 07:38 -03:00
+
+Diagnostico:
+
+- Provider WhatsApp de staging ainda nao foi definido/configurado.
+- Backend atual suporta envio real via Twilio quando credenciais existirem, mas staging permanece sem estas credenciais.
+- Fluxo de delivery continua controlado em mock.
+
+Contrato de envio preparado (target state):
+
+- destinatario (E.164)
+- mensagem
+- link/PDF da receita
+- status de envio
+- erro
+- retry
+- correlationId
+- audit log
+
+Validacao do fluxo controlado (sem provider real):
+
+- n8n/backend webhook: atendimento criado com `200`.
+- Idempotencia: segundo envio com mesma key retornou `duplicate=true`.
+- Delivery: `POST /api/atendimentos/:id/deliver` retornou `200` com `provider=mock`.
+- Painel staging permaneceu operacional.
+
+Conclusao:
+
+- Provider definido: nao.
+- Provider ativado em staging: nao.
+- Fallback mock preservado: sim.
+- Delivery controlado: OK.
