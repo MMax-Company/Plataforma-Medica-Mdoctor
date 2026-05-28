@@ -117,7 +117,8 @@ For n8n -> webhook requests:
 
 - `Content-Type: application/json`
 - `X-Correlation-Id: <uuid-v4>`
-- `X-Idempotency-Key: <provider-message-id-or-uuid>`
+- `Idempotency-Key: <provider-message-id-or-uuid>` (preferred by backend)
+- `X-Idempotency-Key: <provider-message-id-or-uuid>` (accepted by n8n flow conventions)
 - `X-N8N-Workflow: <workflow-name-or-id>`
 
 For authenticated backend actions:
@@ -159,6 +160,15 @@ n8n behavior:
 
 - If duplicate key within 24h window: do not call webhook again
 - Store last backend response for replay-safe behavior
+
+Backend webhook behavior (staging):
+
+- Reads idempotency identifier in this order:
+  1. `Idempotency-Key` header
+  2. `rawMessage.messageId`
+- If already processed, returns `200` with known result and `duplicate: true`.
+- On duplicate, no new atendimento is created.
+- Audit log action: `webhook_duplicate_ignored`.
 
 ## Correlation
 

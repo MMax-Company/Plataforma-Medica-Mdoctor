@@ -3,7 +3,7 @@ const eligibilityEngine = require('../eligibility/engine');
 const logger = require('../config/logger');
 const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
-const { STATUS, createAtendimento } = require('../store/atendimentos.store');
+const { STATUS, createAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 
 const router = express.Router();
 
@@ -66,7 +66,52 @@ router.post('/webhook', async (req, res) => {
   }
 
   const { from, text = '', rawMessage } = req.body || {};
+  const headerIdempotencyKey = String(req.get('Idempotency-Key') || '').trim();
+  const payloadMessageId = String(rawMessage?.messageId || req.body?.messageId || '').trim();
+  const idempotencyKey = headerIdempotencyKey || payloadMessageId;
+
   if (!from) return res.status(400).json({ success: false, error: 'from obrigatório' });
+
+  if (idempotencyKey) {
+    const history = await listAtendimentos();
+    const duplicated = history.find((item) => {
+      if (item?.origem !== 'whatsapp') return false;
+      const itemClinical = item?.dados_clinicos || {};
+      const itemRawMessage = itemClinical.rawMessage || {};
+      const storedKey = String(itemClinical.idempotency_key || '').trim();
+      const storedMessageId = String(itemRawMessage.messageId || '').trim();
+      return storedKey === idempotencyKey || storedMessageId === idempotencyKey;
+    });
+
+    if (duplicated) {
+      const reply = duplicated.elegibilidade?.eligible
+        ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
+        : `Não foi possível seguir com renovação automática: ${duplicated.elegibilidade?.reason || 'Solicitação inelegível'}. Procure atendimento médico.`;
+
+      await createAuditLog({
+        entity_type: 'whatsapp_webhook',
+        entity_id: duplicated.id,
+        action: 'webhook_duplicate_ignored',
+        actor: 'n8n',
+        payload: {
+          requestId,
+          from,
+          idempotencyKey,
+          atendimento_id: duplicated.id
+        }
+      });
+
+      return res.json({
+        success: true,
+        duplicate: true,
+        idempotencyKey,
+        reply,
+        patient: null,
+        atendimento: duplicated,
+        decision: duplicated.elegibilidade || null
+      });
+    }
+  }
 
   const patientData = {
     name: from,
@@ -76,7 +121,8 @@ router.post('/webhook', async (req, res) => {
     flags: parseFlags(text),
     notes: text,
     source: 'whatsapp',
-    rawMessage
+    rawMessage,
+    idempotency_key: idempotencyKey || null
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
@@ -106,6 +152,7 @@ router.post('/webhook', async (req, res) => {
     payload: {
       requestId,
       from,
+      idempotencyKey: idempotencyKey || null,
       eligible: decision.eligible,
       atendimento_id: atendimento.id
     }

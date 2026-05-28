@@ -537,3 +537,31 @@ Confirmacoes:
 
 - Sem alteracao de producao.
 - Sem alteracao de Stripe/pagamentos.
+
+## WhatsApp webhook - idempotencia minima
+
+Data/hora: 2026-05-28 06:56 -03:00
+
+Implementacao:
+
+- Idempotencia aplicada em `POST /api/whatsapp/webhook`.
+- Identificador aceito em ordem:
+  - header `Idempotency-Key`
+  - payload `rawMessage.messageId`
+- Se identificador ja processado:
+  - retorna `200` com `duplicate=true`
+  - reaproveita resultado conhecido
+  - nao cria novo atendimento
+
+Auditoria:
+
+- Evento de duplicidade ignorada:
+  - `entity_type=whatsapp_webhook`
+  - `action=webhook_duplicate_ignored`
+
+Validacao:
+
+- Primeiro envio com chave: cria atendimento.
+- Segundo envio com mesma chave/messageId: sem duplicacao.
+- `/readyz` permanece estavel.
+- Painel staging preservado (`/login` e `/dashboard` com 200).
