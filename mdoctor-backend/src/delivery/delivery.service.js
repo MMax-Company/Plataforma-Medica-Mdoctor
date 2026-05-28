@@ -1,4 +1,5 @@
 const twilio = require('twilio');
+const evolutionProvider = require('../services/providers/evolution.provider');
 
 const CHANNEL_LABELS = {
   whatsapp: 'WhatsApp',
@@ -33,6 +34,43 @@ function normalizePhone(phone = '') {
 function buildMessage({ pacienteNome, receiptUrl, channel }) {
   const greeting = pacienteNome ? `Olá, ${pacienteNome}.` : 'Olá.';
   return `${greeting} Sua receita Doctor Prescreve foi validada pelo médico e está disponível neste link: ${receiptUrl}`;
+}
+
+function resolveWhatsAppProvider() {
+  const configured = String(process.env.WHATSAPP_PROVIDER || 'mock').trim().toLowerCase();
+  if (configured === 'evolution') return 'evolution';
+  return 'mock';
+}
+
+async function getWhatsAppProviderStatus() {
+  const selected = resolveWhatsAppProvider();
+  const evolutionConfigured = evolutionProvider.isConfigured();
+  let evolutionHealth = null;
+
+  if (selected === 'evolution' || evolutionConfigured) {
+    try {
+      evolutionHealth = await evolutionProvider.healthCheck();
+    } catch (error) {
+      evolutionHealth = {
+        ok: false,
+        configured: evolutionConfigured,
+        provider: 'evolution',
+        message: error.message
+      };
+    }
+  }
+
+  const mockMode = selected === 'mock' || !evolutionConfigured || canUseDevelopmentMock();
+
+  return {
+    provider: selected,
+    mode: mockMode ? 'mock' : 'real',
+    deliveryMockEnabled: canUseDevelopmentMock(),
+    evolution: {
+      configured: evolutionConfigured,
+      ...(evolutionHealth || {})
+    }
+  };
 }
 
 function getTwilioClient() {
@@ -102,11 +140,36 @@ async function sendViaResend({ target, message, receiptUrl }) {
   };
 }
 
-async function sendPrescription({ channel, target, receiptUrl, pacienteNome }) {
+async function sendPrescription({ channel, target, receiptUrl, pacienteNome, correlationId, idempotencyKey }) {
   const message = buildMessage({ pacienteNome, receiptUrl, channel });
   let providerResult = null;
 
-  if (channel === 'whatsapp' || channel === 'sms') {
+  if (channel === 'whatsapp') {
+    const provider = resolveWhatsAppProvider();
+
+    if (provider === 'evolution') {
+      try {
+        providerResult = await evolutionProvider.sendTextMessage({
+          to: target,
+          text: message,
+          correlationId,
+          idempotencyKey
+        });
+      } catch (error) {
+        if (!canUseDevelopmentMock()) {
+          throw error;
+        }
+        providerResult = {
+          provider: 'mock-fallback',
+          providerMessageId: `mock-fallback-${Date.now()}`,
+          providerStatus: 'sent',
+          warning: `Evolution indisponível (${error.code || 'PROVIDER_ERROR'}): fallback mock aplicado`
+        };
+      }
+    }
+  }
+
+  if (!providerResult && (channel === 'whatsapp' || channel === 'sms')) {
     providerResult = await sendViaTwilio({ channel, target, message });
   }
 
@@ -143,5 +206,6 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome }) {
 module.exports = {
   CHANNEL_LABELS,
   maskTarget,
-  sendPrescription
+  sendPrescription,
+  getWhatsAppProviderStatus
 };

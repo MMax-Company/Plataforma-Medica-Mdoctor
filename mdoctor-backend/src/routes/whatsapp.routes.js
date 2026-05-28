@@ -5,6 +5,7 @@ const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
+const { getWhatsAppProviderStatus } = require('../delivery/delivery.service');
 const {
   normalizeCondition,
   parseClinicalFlags,
@@ -31,6 +32,21 @@ router.get('/status', (_req, res) => {
     success: true,
     enabled: process.env.WHATSAPP_ENABLED === 'true',
     mode: process.env.NODE_ENV === 'production' ? 'production' : 'development'
+  });
+});
+
+router.get('/provider-status', async (_req, res) => {
+  const requestId = _req.requestId || 'unknown';
+  const correlationId = _req.correlationId || _req.get('X-Correlation-Id') || requestId;
+  const providerStatus = await getWhatsAppProviderStatus();
+
+  return res.json({
+    success: true,
+    correlationId,
+    provider: providerStatus.provider,
+    mode: providerStatus.mode,
+    deliveryMockEnabled: providerStatus.deliveryMockEnabled,
+    evolution: providerStatus.evolution
   });
 });
 

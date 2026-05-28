@@ -1,0 +1,97 @@
+# Evolution API Staging Preparation
+
+Data/hora: 2026-05-28 11:xx -03:00
+
+## Objetivo
+
+Preparar arquitetura de provider WhatsApp para staging com suporte a Evolution API, preservando fallback/mock atual e sem qualquer impacto em produção.
+
+## Arquitetura provider-based
+
+Selecao de provider por env:
+
+- `WHATSAPP_PROVIDER=mock|evolution`
+- default seguro: `mock`
+
+Componentes:
+
+- Mock provider (comportamento atual preservado em `delivery.service`)
+- Evolution provider (`mdoctor-backend/src/services/providers/evolution.provider.js`)
+- Selector de provider no delivery (`mdoctor-backend/src/delivery/delivery.service.js`)
+
+## Provider Evolution API
+
+Servico implementado:
+
+- `sendTextMessage`
+- `sendDocumentMessage`
+- `healthCheck`
+- `normalizeResponse`
+
+Comportamento:
+
+- So tenta envio real quando `WHATSAPP_PROVIDER=evolution` e envs de Evolution estao configuradas.
+- Em falha de Evolution:
+  - se mock permitido (`DELIVERY_MOCK_ENABLED=true` em staging), aplica fallback controlado
+  - logs/retorno mantem rastreabilidade de provider
+  - sem quebra de fluxo clinico
+
+## Endpoint de status do provider
+
+Novo endpoint:
+
+- `GET /api/whatsapp/provider-status`
+
+Retorna:
+
+- provider atual
+- modo (`mock|real`)
+- status de mock habilitado
+- health/config da Evolution (quando aplicavel)
+
+## Variaveis de ambiente (sem secrets)
+
+Adicionadas em `.env.example` e `.env.staging.example`:
+
+- `WHATSAPP_PROVIDER=mock`
+- `EVOLUTION_API_URL`
+- `EVOLUTION_API_KEY`
+- `EVOLUTION_INSTANCE`
+- `EVOLUTION_TIMEOUT_MS`
+
+Nenhum valor sensivel real foi commitado.
+
+## Preservacao de fluxo e seguranca
+
+Mantido:
+
+- fallback/mock como padrao
+- correlationId
+- idempotencia do webhook
+- audit logs e tracking de entrega
+- persistencia em Supabase
+- contratos publicos existentes
+
+Nao alterado:
+
+- producao
+- Stripe
+- Memed producao
+- n8n/Typebot structure principal
+
+## Riscos e observacoes
+
+- Evolution API pode variar por versao; `healthCheck` e `normalizeResponse` tratam respostas heterogeneas.
+- Ativacao real do provider deve ocorrer apenas apos smoke test controlado em staging.
+
+## Proximos passos para ativacao controlada
+
+1. Definir credenciais Evolution apenas no backend staging.
+2. Ajustar:
+   - `WHATSAPP_PROVIDER=evolution`
+   - `EVOLUTION_API_URL`
+   - `EVOLUTION_API_KEY`
+   - `EVOLUTION_INSTANCE`
+3. Validar `GET /api/whatsapp/provider-status`.
+4. Testar envio ficticio em staging.
+5. Confirmar fallback mock em caso de falha.

@@ -243,7 +243,9 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
         channel,
         target,
         receiptUrl,
-        pacienteNome: previous.paciente_nome
+        pacienteNome: previous.paciente_nome,
+        correlationId,
+        idempotencyKey: `${req.params.id}:${channel}:${correlationId}`
       });
     }
   } catch (error) {
