@@ -137,7 +137,9 @@ async function getWhatsAppProviderStatus() {
     },
     evolution: {
       configured: evolutionConfigured,
+      configuredParts: evolutionProvider.getConfiguredParts(),
       runtime: evolutionProvider.getRuntimeState(),
+      safeReadEndpoints: evolutionProvider.SAFE_READ_ENDPOINTS,
       ...(evolutionHealth || {})
     }
   };

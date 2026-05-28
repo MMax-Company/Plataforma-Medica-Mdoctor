@@ -184,3 +184,57 @@ Conclusao da rodada:
 - Dry-run/sandbox ativo em staging: sim.
 - Envio real de mensagem: nao.
 - Fallback seguro preservado: sim.
+
+## Estudo tecnico oficial (Evolution Foundation)
+
+Referencia obrigatoria: [evolution-foundation/evolution-api](https://github.com/evolution-foundation/evolution-api)
+
+Pontos confirmados no repositorio oficial (main, v2.3.7):
+
+| Item | Valor oficial confirmado |
+| --- | --- |
+| Imagem Docker recomendada | `evoapicloud/evolution-api:latest` (compose oficial; legado `atendai/evolution-api` nao e o padrao atual) |
+| Porta padrao | `8080` (`SERVER_PORT=8080`) |
+| Variavel de autenticacao | `AUTHENTICATION_API_KEY` (mapeada no backend como `EVOLUTION_API_KEY`) |
+| Header de autenticacao | `apikey` (documentacao oficial; nao usar `Authorization` como padrao Evolution) |
+| Health/info | `GET /` (sem auth) retorna `version`, `manager`, `documentation` |
+| Fetch instances | `GET /instance/fetchInstances` com header `apikey` |
+| Connection state | `GET /instance/connectionState/{instanceName}` com header `apikey` |
+| Estados de conexao | `open`, `close`, `connecting` |
+| Manager UI | `{SERVER_URL}/manager` quando habilitado |
+| Documentacao externa | campo `documentation` em `GET /` (ex.: docs Evolution Foundation) |
+
+Endpoints perigosos (nao chamados pelo backend Doctor Prescreve):
+
+- `GET /instance/connect/{instanceName}` (gera QR)
+- `POST /instance/restart/{instanceName}`
+- `DELETE /instance/logout/{instanceName}`
+- `DELETE /instance/delete/{instanceName}`
+- `POST /instance/create`
+
+## Alinhamento do provider backend
+
+Ajustes aplicados em `mdoctor-backend/src/services/providers/evolution.provider.js`:
+
+- Healthcheck em 3 probes seguros:
+  - `probeApiInfo` -> `GET /`
+  - `probeFetchInstances` -> `GET /instance/fetchInstances`
+  - `probeConnectionState` -> `GET /instance/connectionState/{instance}`
+- Autenticacao alinhada ao oficial: somente header `apikey`.
+- `provider-status` enriquecido com:
+  - `configured`, `configuredParts`
+  - `apiReachable`, `apiVersion`, `swaggerUrl`, `managerUrl`
+  - `instanceName`, `instanceFound`, `instanceState`
+  - `connected`, `disconnected`, `connecting`
+  - `timeout`, `lastError`, `lastTimeoutAt`
+  - `safeReadEndpoints`
+- Falha parcial de configuracao nao quebra fluxo; fallback/mock permanece ativo.
+- Dry-run/sandbox preservados no delivery.
+
+Validacao local pos-ajuste:
+
+- `npm --prefix mdoctor-backend run check`: OK
+- `node --check` nos arquivos alterados: OK
+- Staging (antes do redeploy desta alteracao):
+  - `/health`, `/readyz`, `/api/whatsapp/test-send`: OK em dry-run
+  - `provider-status`: campos novos exigem redeploy do backend staging

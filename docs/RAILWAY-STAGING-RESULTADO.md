@@ -1029,3 +1029,25 @@ Confirmacoes:
 - Provider-status OK: sim.
 - Mensagem real enviada: nao.
 - Producao intacta: sim.
+
+## Evolution provider alinhado a documentacao oficial
+
+Data/hora: 2026-05-28 12:xx -03:00
+
+Escopo:
+
+- Revisao tecnica com base em `https://github.com/evolution-foundation/evolution-api`.
+- Ajuste seguro do provider backend (somente leitura segura + status).
+- Sem chamadas a endpoints perigosos (connect/restart/logout/delete).
+- Dry-run/sandbox preservados.
+
+Resultado tecnico:
+
+- Provider backend alinhado aos endpoints oficiais seguros (`/`, `fetchInstances`, `connectionState`).
+- `provider-status` preparado para exibir telemetria completa de reachability/instancia.
+- Validacao local de checks: OK.
+- Staging manteve dry-run ativo (`test-send` -> `provider=dry-run`) mesmo sem credenciais Evolution reais.
+
+Observacao operacional:
+
+- Para refletir os novos campos de `provider-status` no ambiente remoto, executar redeploy apenas de `mdoctor-backend-staging` apos merge/push desta alteracao.

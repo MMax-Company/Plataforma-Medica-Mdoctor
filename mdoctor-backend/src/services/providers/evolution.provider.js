@@ -1,4 +1,11 @@
 const DEFAULT_TIMEOUT_MS = 12000;
+
+const SAFE_READ_ENDPOINTS = [
+  'GET /',
+  'GET /instance/fetchInstances',
+  'GET /instance/connectionState/{instanceName}'
+];
+
 const providerRuntime = {
   lastError: null,
   lastTimeoutAt: null,
@@ -19,15 +26,70 @@ function getConfig() {
   };
 }
 
+function getConfiguredParts(config = getConfig()) {
+  return {
+    url: Boolean(config.baseUrl),
+    apiKey: Boolean(config.apiKey),
+    instance: Boolean(config.instance)
+  };
+}
+
 function isConfigured() {
-  const config = getConfig();
-  return Boolean(config.baseUrl && config.apiKey && config.instance);
+  const parts = getConfiguredParts();
+  return parts.url && parts.apiKey && parts.instance;
 }
 
 function authHeaders(apiKey) {
   return {
-    apikey: apiKey,
-    Authorization: `Bearer ${apiKey}`
+    apikey: apiKey
+  };
+}
+
+function normalizeInstancesList(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.instances)) return data.instances;
+  if (Array.isArray(data?.data)) return data.data;
+  if (data?.instance) return [data];
+  return [];
+}
+
+function extractInstanceRecord(item = {}) {
+  const instance = item?.instance || item;
+  const instanceName =
+    instance?.instanceName ||
+    instance?.name ||
+    item?.instanceName ||
+    item?.name ||
+    null;
+
+  const state =
+    instance?.state ||
+    instance?.status ||
+    instance?.connectionStatus?.state ||
+    instance?.connectionStatus ||
+    item?.state ||
+    item?.status ||
+    'unknown';
+
+  return {
+    instanceName,
+    state: String(state || 'unknown').toLowerCase()
+  };
+}
+
+function findInstanceRecord(list = [], instanceName = '') {
+  if (!instanceName) return null;
+  return list.find((item) => extractInstanceRecord(item).instanceName === instanceName) || null;
+}
+
+function normalizeConnectionState(rawState = 'unknown') {
+  const state = String(rawState || 'unknown').toLowerCase();
+
+  return {
+    instanceState: state,
+    connected: state === 'open' || state.includes('connected'),
+    disconnected: state === 'close' || state.includes('close') || state.includes('disconnected'),
+    connecting: state === 'connecting' || state.includes('connecting')
   };
 }
 
@@ -80,6 +142,213 @@ function normalizeResponse(data = {}, metadata = {}) {
     providerMessageId: messageId,
     providerStatus: status,
     raw: data
+  };
+}
+
+async function probeApiInfo(config) {
+  if (!config.baseUrl) {
+    return {
+      apiReachable: false,
+      skipped: true,
+      reason: 'missing_base_url'
+    };
+  }
+
+  try {
+    const { response, data } = await requestJson(
+      `${config.baseUrl}/`,
+      { method: 'GET' },
+      config.timeoutMs
+    );
+
+    return {
+      apiReachable: response.ok,
+      httpStatus: response.status,
+      apiVersion: data?.version || null,
+      managerUrl: data?.manager || null,
+      swaggerUrl: data?.documentation || `${config.baseUrl}/docs`,
+      message: data?.message || null,
+      timeout: false
+    };
+  } catch (error) {
+    return {
+      apiReachable: false,
+      timeout: error.code === 'PROVIDER_TIMEOUT',
+      message: error.message,
+      code: error.code || 'PROVIDER_ERROR'
+    };
+  }
+}
+
+async function probeFetchInstances(config) {
+  if (!config.baseUrl || !config.apiKey) {
+    return {
+      skipped: true,
+      reason: !config.baseUrl ? 'missing_base_url' : 'missing_api_key'
+    };
+  }
+
+  try {
+    const { response, data } = await requestJson(
+      `${config.baseUrl}/instance/fetchInstances`,
+      {
+        method: 'GET',
+        headers: authHeaders(config.apiKey)
+      },
+      config.timeoutMs
+    );
+
+    const instances = normalizeInstancesList(data);
+    const matched = findInstanceRecord(instances, config.instance);
+    const matchedRecord = matched ? extractInstanceRecord(matched) : null;
+
+    return {
+      ok: response.ok,
+      httpStatus: response.status,
+      instancesCount: instances.length,
+      instanceFound: Boolean(matched),
+      instanceName: config.instance || null,
+      instanceState: matchedRecord?.state || null,
+      timeout: false
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      timeout: error.code === 'PROVIDER_TIMEOUT',
+      message: error.message,
+      code: error.code || 'PROVIDER_ERROR'
+    };
+  }
+}
+
+async function probeConnectionState(config) {
+  if (!config.baseUrl || !config.apiKey || !config.instance) {
+    return {
+      skipped: true,
+      reason: 'missing_url_api_key_or_instance'
+    };
+  }
+
+  try {
+    const { response, data } = await requestJson(
+      `${config.baseUrl}/instance/connectionState/${encodeURIComponent(config.instance)}`,
+      {
+        method: 'GET',
+        headers: authHeaders(config.apiKey)
+      },
+      config.timeoutMs
+    );
+
+    const rawState =
+      data?.instance?.state ||
+      data?.state ||
+      data?.status ||
+      'unknown';
+
+    const normalized = normalizeConnectionState(rawState);
+    providerRuntime.lastHealthState = normalized.instanceState;
+    providerRuntime.lastHealthAt = new Date().toISOString();
+
+    return {
+      ok: response.ok,
+      httpStatus: response.status,
+      instanceName: config.instance,
+      ...normalized,
+      timeout: false
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      timeout: error.code === 'PROVIDER_TIMEOUT',
+      message: error.message,
+      code: error.code || 'PROVIDER_ERROR',
+      instanceName: config.instance,
+      instanceState: providerRuntime.lastHealthState || 'unknown',
+      connected: false,
+      disconnected: true,
+      connecting: false
+    };
+  }
+}
+
+async function healthCheck() {
+  const config = getConfig();
+  const configuredParts = getConfiguredParts(config);
+  const configured = configuredParts.url && configuredParts.apiKey && configuredParts.instance;
+
+  if (!configuredParts.url) {
+    return {
+      ok: false,
+      configured: false,
+      configuredParts,
+      provider: 'evolution',
+      instanceName: config.instance || null,
+      apiReachable: false,
+      message: 'Evolution API não configurada (EVOLUTION_API_URL ausente)',
+      safeReadEndpoints: SAFE_READ_ENDPOINTS
+    };
+  }
+
+  const apiInfo = await probeApiInfo(config);
+  const fetchInstances = configuredParts.apiKey ? await probeFetchInstances(config) : { skipped: true, reason: 'missing_api_key' };
+  const connectionState = configured ? await probeConnectionState(config) : { skipped: true, reason: 'missing_instance_or_api_key' };
+
+  const stateFromConnection = connectionState.instanceState || fetchInstances.instanceState || providerRuntime.lastHealthState;
+  const normalized = normalizeConnectionState(stateFromConnection);
+
+  providerRuntime.lastHealthState = normalized.instanceState;
+  providerRuntime.lastHealthAt = new Date().toISOString();
+
+  const timeout = Boolean(apiInfo.timeout || fetchInstances.timeout || connectionState.timeout);
+  const apiReachable = Boolean(apiInfo.apiReachable);
+  const instanceFound = configuredParts.instance ? Boolean(fetchInstances.instanceFound) : false;
+  const ok =
+    configured &&
+    apiReachable &&
+    (connectionState.skipped || connectionState.ok !== false) &&
+    !timeout;
+
+  if (!ok && !providerRuntime.lastError) {
+    providerRuntime.lastError = {
+      message:
+        connectionState.message ||
+        fetchInstances.message ||
+        apiInfo.message ||
+        'Evolution API indisponível ou parcialmente configurada',
+      code: connectionState.code || fetchInstances.code || apiInfo.code || 'PROVIDER_UNAVAILABLE',
+      at: new Date().toISOString()
+    };
+  }
+
+  if (ok) {
+    providerRuntime.lastError = null;
+  }
+
+  return {
+    ok,
+    configured,
+    configuredParts,
+    provider: 'evolution',
+    instanceName: config.instance || null,
+    apiReachable,
+    apiVersion: apiInfo.apiVersion || null,
+    swaggerUrl: apiInfo.swaggerUrl || null,
+    managerUrl: apiInfo.managerUrl || null,
+    instanceFound,
+    instanceState: normalized.instanceState,
+    connected: normalized.connected,
+    disconnected: normalized.disconnected,
+    connecting: normalized.connecting,
+    state: normalized.instanceState,
+    timeout,
+    lastError: providerRuntime.lastError,
+    lastTimeoutAt: providerRuntime.lastTimeoutAt,
+    safeReadEndpoints: SAFE_READ_ENDPOINTS,
+    probes: {
+      apiInfo,
+      fetchInstances,
+      connectionState
+    }
   };
 }
 
@@ -188,74 +457,6 @@ async function sendDocumentMessage({ to, documentUrl, fileName = 'receita.pdf', 
   }
 }
 
-async function healthCheck() {
-  const config = getConfig();
-  if (!isConfigured()) {
-    return {
-      ok: false,
-      configured: false,
-      provider: 'evolution',
-      instance: config.instance || null,
-      message: 'Evolution API não configurada'
-    };
-  }
-
-  try {
-    const { response, data } = await requestJson(
-      `${config.baseUrl}/instance/connectionState/${encodeURIComponent(config.instance)}`,
-      {
-        method: 'GET',
-        headers: {
-          ...authHeaders(config.apiKey)
-        }
-      },
-      config.timeoutMs
-    );
-
-    const state =
-      data?.instance?.state ||
-      data?.state ||
-      data?.status ||
-      'unknown';
-
-    providerRuntime.lastHealthState = state;
-    providerRuntime.lastHealthAt = new Date().toISOString();
-
-    return {
-      ok: response.ok,
-      configured: true,
-      provider: 'evolution',
-      instance: config.instance,
-      connected: String(state).toLowerCase().includes('open') || String(state).toLowerCase().includes('connected'),
-      disconnected: String(state).toLowerCase().includes('close') || String(state).toLowerCase().includes('disconnected'),
-      state,
-      httpStatus: response.status,
-      timeout: false,
-      lastError: providerRuntime.lastError,
-      lastTimeoutAt: providerRuntime.lastTimeoutAt,
-      data
-    };
-  } catch (error) {
-    providerRuntime.lastError = {
-      message: error.message,
-      code: error.code || 'PROVIDER_ERROR',
-      at: new Date().toISOString()
-    };
-    return {
-      ok: false,
-      configured: true,
-      provider: 'evolution',
-      instance: config.instance,
-      connected: false,
-      disconnected: true,
-      state: providerRuntime.lastHealthState || 'unknown',
-      timeout: error.code === 'PROVIDER_TIMEOUT',
-      lastError: providerRuntime.lastError,
-      lastTimeoutAt: providerRuntime.lastTimeoutAt
-    };
-  }
-}
-
 function getRuntimeState() {
   return {
     ...providerRuntime
@@ -264,10 +465,16 @@ function getRuntimeState() {
 
 module.exports = {
   getConfig,
+  getConfiguredParts,
   isConfigured,
   sendTextMessage,
   sendDocumentMessage,
   healthCheck,
+  probeApiInfo,
+  probeFetchInstances,
+  probeConnectionState,
   normalizeResponse,
-  getRuntimeState
+  normalizeConnectionState,
+  getRuntimeState,
+  SAFE_READ_ENDPOINTS
 };
