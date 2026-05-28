@@ -261,3 +261,155 @@ Proximos passos:
 2. Confirmar manualmente o alvo do painel staging antes de qualquer deploy do painel.
 3. Validar `/login`, `/dashboard` e fluxo mock no painel.
 4. Manter Supabase/Memed/WhatsApp reais fora ate o staging base estar validado.
+
+## Supabase staging real - tentativa de ativacao
+
+Data/hora: 2026-05-28 05:22 -03:00
+
+Escopo autorizado:
+
+- Somente backend staging `mdoctor-backend-staging`.
+- Nenhuma alteracao em producao.
+- Nenhum segredo salvo em codigo ou documentacao.
+
+Configuracao aplicada no Railway backend staging:
+
+- `SUPABASE_URL` configurada.
+- `SUPABASE_ANON_KEY` configurada.
+- `SUPABASE_SERVICE_ROLE_KEY` configurada somente no backend.
+- `SUPABASE_BUCKET_PRESCRIPTIONS=receitas`.
+
+Validacao imediata apos configuracao:
+
+- `GET /readyz` retornou `storage.mode=supabase`, `supabase.connected=true`, `fallback_local=false`.
+
+Validacao apos redeploy do backend staging:
+
+- `GET /readyz` retornou `storage.mode=fallback_local`, `supabase.connected=false`.
+- Erro reportado: `Could not find the table 'public.audit_logs' in the schema cache`.
+
+Leitura tecnica:
+
+- O backend esta preparado para persistencia real com fallback seguro.
+- A migration do repositorio (`20260527_backend_mvp_storage.sql`) cria `patients`, `atendimentos`, `prescriptions`, `audit_logs`, RLS/policies e buckets.
+- O projeto Supabase staging alvo ainda nao reflete integralmente esse schema no Data API, impedindo manter `storage.mode=supabase` de forma estavel.
+
+Status da ativacao:
+
+- Parcial: conectou com Supabase, mas regrediu para fallback por inconsistencia de schema (`audit_logs` ausente no cache da API).
+- Painel staging permaneceu operacional (`/login` e `/dashboard` 200).
+- Produção permaneceu intocada.
+
+## Supabase staging real - estabilizacao de schema
+
+Data/hora: 2026-05-28 05:43 -03:00
+
+Objetivo:
+
+- Estabilizar `storage.mode=supabase` e `supabase.connected=true` sem tocar producao.
+
+Diagnostico de schema no Supabase staging:
+
+- A API OpenAPI do schema `public` foi inspecionada com service role.
+- `public.audit_logs` nao aparece no schema exposto.
+- O backend continua registrando erro em `/readyz`:
+  - `Could not find the table 'public.audit_logs' in the schema cache`
+- Tabelas legadas expostas incluem `atendimentos`, `patients`, `prescriptions`, `decisoes_log`, `entregas_receita`, entre outras.
+
+Acoes aplicadas no Supabase staging:
+
+- Validacao de buckets executada.
+- Buckets faltantes criados:
+  - `documents`
+  - `prescriptions`
+  - `receitas`
+  - `medical-records`
+  - `consents`
+  - `logs`
+
+Estado dos endpoints apos redeploy do backend staging:
+
+- `GET /health`: OK
+- `GET /readyz`: `storage.mode=fallback_local`, `supabase.connected=false`
+- `GET /api/atendimentos`: OK
+- `GET /api/prescriptions/:id`: OK
+
+Estado do painel staging:
+
+- `/login`: 200
+- `/dashboard`: 200
+- Fluxo mock permaneceu operacional.
+
+Conclusao tecnica:
+
+- A estabilizacao final depende de ajuste de schema no projeto Supabase staging para disponibilizar `public.audit_logs` (ou aplicar a migration SQL completa nesse projeto).
+- Sem esse ajuste de schema, o backend permanece corretamente em fallback seguro.
+
+## Validacao final apos SQL compativel aplicado
+
+Data/hora: 2026-05-28 06:12 -03:00
+
+Resultado da verificacao:
+
+- `public.audit_logs` ficou acessivel via PostgREST com service role.
+- Buckets staging conferidos:
+  - `documents`
+  - `prescriptions`
+  - `receitas`
+  - `medical-records`
+  - `consents`
+  - `logs`
+
+Bloqueio remanescente para estabilizacao:
+
+- O backend volta para fallback quando tenta criar atendimento no Supabase:
+  - erro: `new row for relation "atendimentos" violates check constraint "atendimentos_status_check"`
+- Esse constraint pertence ao schema legado atual de `atendimentos` e rejeita status canonicos usados pelo backend (`waiting`, `em_atendimento`, etc.).
+- Enquanto esse check constraint nao for ajustado para os status atuais, `storage.mode` nao permanece estavel em `supabase`.
+
+Estado no encerramento da validacao:
+
+- `GET /health`: OK
+- `GET /readyz`: `storage.mode=fallback_local`, `supabase.connected=false`
+- `GET /api/atendimentos`: OK (com fallback)
+- `GET /api/prescriptions/:id`: OK (mock)
+- Painel staging permaneceu operacional (`/login` e `/dashboard` com 200).
+
+Observacao:
+
+- Nenhuma alteracao em producao.
+- Nenhum segredo foi salvo em codigo ou documentacao.
+
+## Validacao final - storage Supabase estabilizado
+
+Data/hora: 2026-05-28 06:20 -03:00
+
+Escopo executado:
+
+- Redeploy somente do backend staging `mdoctor-backend-staging`.
+- Validacoes de saude, persistencia e painel sem alterar producao.
+
+Resultados apos correcao do constraint `atendimentos_status_check`:
+
+- `GET /health`: OK
+- `GET /readyz`: `storage.mode=supabase`, `supabase.connected=true`, `error=null`
+- `GET /api/atendimentos`: OK
+- `GET /api/prescriptions/:id`: OK (source mock)
+
+Persistencia apos restart/redeploy:
+
+- Atendimento de validacao `038d3205-2ee2-4ef8-b97e-802fcb0e2ac2` permaneceu acessivel apos novo redeploy.
+- Status persistido manteve `ready`.
+- Contagem de atendimentos permaneceu consistente.
+
+Painel staging:
+
+- `/login`: 200
+- `/dashboard`: 200
+- Fluxo mock basico permaneceu funcional.
+
+Conclusao:
+
+- Storage Supabase staging estabilizado no backend.
+- Fallback local permanece disponivel como mecanismo de seguranca, mas nao esta ativo no estado final.
+- Producao permaneceu intocada.
