@@ -609,3 +609,44 @@ Garantias:
 - Rate limit continua ativo em `POST /api/whatsapp/webhook`.
 - Idempotencia continua ativa para `Idempotency-Key` / `messageId`.
 - Sem impacto no fallback/mock.
+
+## Validacao final E2E staging
+
+Data/hora: 2026-05-28 07:24 -03:00
+
+Escopo validado:
+
+- Backend staging (`/health`, `/readyz`)
+- Painel staging (`/login`, `/dashboard`)
+- Supabase real (`storage.mode=supabase`, `supabase.connected=true`)
+- Webhook seguro (`X-MDoctor-Webhook-Secret`)
+- Idempotencia (`Idempotency-Key` + duplicate)
+- Correlation tracing (`X-Correlation-Id` em header/body/audit)
+- Rate limit (`429`)
+- Prescription generate (mock)
+- Delivery mock
+
+Resultados:
+
+- `POST /api/whatsapp/webhook` com headers de seguranca/correlation/idempotencia:
+  - primeiro envio: `200`, atendimento criado
+  - segundo envio com mesma chave: `200`, `duplicate=true`, sem duplicacao
+- `POST /api/prescriptions/:id/generate`: `201`
+- `POST /api/atendimentos/:id/deliver`: `200`, provider `mock`
+- Status final do atendimento: `delivered`
+- Persistencia em Supabase confirmada para atendimento e audit logs
+- Evento auditado de duplicate: `webhook_duplicate_ignored`
+- Evento auditado de rate limit: `webhook_rate_limited`
+
+Persistencia apos restart:
+
+- Backend staging reiniciado (redeploy controlado sem alteracao de codigo)
+- Atendimento de teste permaneceu persistido com status `delivered`
+- `/readyz` permaneceu com `mode=supabase` e `fallback_local=false`
+
+Confirmacoes:
+
+- Producao intacta
+- Sem ativacao de Stripe/pagamentos
+- Sem ativacao de WhatsApp provider real
+- Sem ativacao de Memed producao
