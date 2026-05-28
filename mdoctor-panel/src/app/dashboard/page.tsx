@@ -3,10 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Header } from '@/components/dashboard/Header';
-import { MetricCards } from '@/components/dashboard/MetricCards';
 import { QueueColumn } from '@/components/dashboard/QueueColumn';
 import { ReadyPrescriptionColumn } from '@/components/dashboard/ReadyPrescriptionColumn';
-import { Sidebar } from '@/components/dashboard/Sidebar';
 import { UnderReviewColumn } from '@/components/dashboard/UnderReviewColumn';
 import { clearSession, getAuthToken } from '@/services/auth.service';
 import { useDashboardStore } from '@/stores/useDashboardStore';
@@ -17,7 +15,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const {
     patients,
-    metrics,
     loading,
     usingMockFallback,
     error,
@@ -65,44 +62,45 @@ export default function DashboardPage() {
     window.setTimeout(() => setDeliveryMessage(null), 3500);
   };
 
+  const sendEmailMock = async (patientId: string) => {
+    await sendWhatsApp(patientId);
+    setDeliveryMessage('Receita enviada por e-mail');
+    window.setTimeout(() => setDeliveryMessage(null), 3500);
+  };
+
+  const sendSmsMock = async (patientId: string) => {
+    await sendWhatsApp(patientId);
+    setDeliveryMessage('Receita enviada por SMS');
+    window.setTimeout(() => setDeliveryMessage(null), 3500);
+  };
+
   const logout = () => {
     clearSession();
     window.localStorage.removeItem(MOCK_SESSION_KEY);
     router.replace('/login');
   };
 
+  const openAnyMedicalRecord = () => {
+    const candidate = waitingPatients[0] || underReviewPatients[0] || readyPatients[0];
+    if (candidate) {
+      router.push(`/prontuario/${candidate.id}`);
+      return;
+    }
+    setDeliveryMessage('Nenhum atendimento disponível para abrir prontuário agora.');
+    window.setTimeout(() => setDeliveryMessage(null), 3000);
+  };
+
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#1E1E1E]">
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Header />
+      <div className="flex min-h-screen flex-col">
+        <Header onLogout={logout} onOpenMedicalRecord={openAnyMedicalRecord} />
 
-          <div className="space-y-6 p-6">
-            <section className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-[#1557FF]">Operacao em tempo real</p>
-                <h2 className="mt-1 text-2xl font-semibold text-[#1E1E1E]">Fila medica Doctor Prescreve</h2>
-                <p className="mt-2 max-w-2xl text-sm text-[#5B6475]">
-                  Primeira versao operacional com dados mockados, pronta para receber Supabase realtime,
-                  autenticacao JWT, Memed SDK e WhatsApp API nas proximas etapas.
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg border border-[#E5EAF2] bg-white px-4 py-3 text-sm text-[#5B6475]">
-                  SLA medio <span className="font-semibold text-[#0BA84F]">12 min</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="h-11 rounded-md border border-[#D9E2F0] bg-white px-4 text-sm font-semibold text-[#5B6475] transition-colors hover:bg-[#EEF4FF] hover:text-[#1557FF]"
-                >
-                  Sair
-                </button>
-              </div>
-            </section>
-
-            <MetricCards metrics={metrics} />
+        <div className="mx-auto flex w-full max-w-[1680px] flex-1 flex-col space-y-5 p-4 xl:p-6">
+          <section className="rounded-[20px] border border-[#E5EAF2] bg-white px-5 py-4 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+            <p className="text-sm font-semibold text-[#1557FF]">Operação em tempo real</p>
+            <h2 className="mt-1 text-xl font-bold text-[#1E1E1E]">Painel médico operacional</h2>
+            <p className="mt-1 text-sm text-[#5B6475]">Fila de espera, em atendimento e receitas prontas com fluxo staging validado.</p>
+          </section>
 
             {usingMockFallback && error && (
               <div className="rounded-lg border border-[#FFF0BF] bg-[#FFF8E0] px-4 py-3 text-sm font-semibold text-[#8A6200]">
@@ -148,11 +146,21 @@ export default function DashboardPage() {
                   patients={readyPatients}
                   onViewPrescription={viewPrescription}
                   onSendWhatsApp={sendWhatsAppMock}
+                  onSendEmail={sendEmailMock}
+                  onSendSms={sendSmsMock}
                 />
               </section>
             )}
           </div>
-        </div>
+
+        <footer className="mt-auto border-t border-[#E5EAF2] bg-white/80">
+          <div className="mx-auto flex w-full max-w-[1680px] flex-wrap items-center justify-center gap-x-5 gap-y-1 px-4 py-3 text-xs font-medium text-[#5B6475]">
+            <span>Ambiente protegido LGPD</span>
+            <span>Doctor Prescreve - Plataforma de Prescrição Médica</span>
+            <span>CNPJ: 50.871.173/0001-53</span>
+            <span>© 2026 Todos os direitos reservados.</span>
+          </div>
+        </footer>
       </div>
     </main>
   );

@@ -9,7 +9,7 @@ interface QueueColumnProps {
 
 export function QueueColumn({ patients, onAttend }: QueueColumnProps) {
   return (
-    <section className="min-h-[560px] rounded-lg border border-[#E5EAF2] bg-white">
+    <section className="rounded-[20px] border border-[#E5EAF2] bg-white shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
       <div className="flex items-center justify-between border-b border-[#EEF2F7] px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#EEF4FF] text-[#1557FF]">
@@ -22,7 +22,7 @@ export function QueueColumn({ patients, onAttend }: QueueColumnProps) {
         </div>
         <span className="rounded-md bg-[#F1F5F9] px-2.5 py-1 text-xs font-bold text-[#253044]">{patients.length}</span>
       </div>
-      <div className="space-y-3 p-3">
+      <div className="max-h-[calc(100vh-280px)] space-y-3 overflow-y-auto p-3">
         {patients.map((patient) => (
           <PatientCard key={patient.id} patient={patient} variant="waiting" onAttend={onAttend} />
         ))}

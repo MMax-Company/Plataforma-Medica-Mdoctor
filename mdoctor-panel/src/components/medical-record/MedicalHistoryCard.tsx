@@ -17,18 +17,11 @@ export function MedicalHistoryCard({ record }: MedicalHistoryCardProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF8E0] text-[#9A6A00]">
-            <Activity className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-[#1E1E1E]">História clínica</h2>
-            <p className="text-sm text-[#5B6475]">Resumo capturado na triagem</p>
-          </div>
-        </div>
+        <h2 className="text-base font-bold text-[#1E1E1E]">HISTÓRIA CLÍNICA</h2>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-[#9A6A00]" />
           <Badge tone={riskTone[record.medicalHistory.risk]}>Risco {record.medicalHistory.risk}</Badge>
           <Badge>Chatbot {record.medicalHistory.chatbotCompletedAt}</Badge>
         </div>

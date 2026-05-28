@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft } from 'lucide-react';
 import { ClinicalBlock } from '@/components/medical-record/ClinicalBlock';
 import { DecisionActions } from '@/components/medical-record/DecisionActions';
 import { EligibilityBanner } from '@/components/medical-record/EligibilityBanner';
@@ -9,6 +10,8 @@ import { MedicalHistoryCard } from '@/components/medical-record/MedicalHistoryCa
 import { MedicalNotes } from '@/components/medical-record/MedicalNotes';
 import { MedicalRecordHeader } from '@/components/medical-record/MedicalRecordHeader';
 import { PatientDataCard } from '@/components/medical-record/PatientDataCard';
+import { Button } from '@/components/ui/button';
+import { clearSession } from '@/services/auth.service';
 import { getAuthToken } from '@/services/auth.service';
 import { useDashboardStore } from '@/stores/useDashboardStore';
 import type { MedicalRecord } from '@/types/medical-record';
@@ -101,6 +104,11 @@ export default function MedicalRecordPage() {
   ];
 
   const backToDashboard = () => router.push('/dashboard');
+  const logout = () => {
+    clearSession();
+    window.localStorage.removeItem(MOCK_SESSION_KEY);
+    router.replace('/login');
+  };
 
   const rejectAttendance = () => {
     rejectMedicalRecord(patient.id);
@@ -119,9 +127,20 @@ export default function MedicalRecordPage() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#1E1E1E]">
-      <MedicalRecordHeader patientName={patient.name} onBack={backToDashboard} />
+      <MedicalRecordHeader onLogout={logout} />
 
-      <div className="mx-auto max-w-[1440px] space-y-6 p-6">
+      <div className="mx-auto max-w-[1680px] space-y-5 p-4 xl:p-6">
+        <section className="space-y-3">
+          <Button variant="outline" onClick={backToDashboard} className="h-11 px-4">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para painel
+          </Button>
+          <div className="text-center">
+            <h1 className="text-[28px] font-bold tracking-wide text-[#1E1E1E]">PRONTUÁRIO MÉDICO</h1>
+            <p className="text-sm text-[#5B6475]">Avalie as informações do paciente e aprove o atendimento</p>
+          </div>
+        </section>
+
         {loading && (
           <div className="rounded-lg border border-[#E5EAF2] bg-white px-4 py-3 text-sm font-semibold text-[#5B6475]">
             Carregando prontuario...
@@ -145,10 +164,10 @@ export default function MedicalRecordPage() {
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
           <div className="space-y-5">
             <PatientDataCard patient={patient} />
-            <MedicalHistoryCard record={record} />
           </div>
 
           <div className="space-y-5">
+            <MedicalHistoryCard record={record} />
             <section className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
               {clinicalBlocks.map((block) => (
                 <ClinicalBlock key={block.title} title={block.title} content={block.content} />
