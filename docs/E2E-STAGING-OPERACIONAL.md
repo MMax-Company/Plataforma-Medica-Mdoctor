@@ -108,3 +108,31 @@ Fluxo clinico operacional (mock controlado):
 - Nenhuma alteracao em producao Railway.
 - Nenhum secret commitado.
 - Nenhum envio real para paciente real.
+
+## Revalidacao apos ativacao do webhook n8n
+
+Data/hora: 2026-05-28 09:35 -03:00
+
+Atualizacao do bloqueio:
+
+- Webhook `typebot-webhook` publicado/ativo no n8n staging.
+- Endpoint:
+  - `POST https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+
+Resultado da nova rodada:
+
+- Chamada Typebot->n8n: `200`
+- n8n->backend staging: `200`, atendimento criado no backend
+- Repeticao com mesma `Idempotency-Key`: `duplicate=true`
+- `correlationId` preservado no ciclo
+- `audit_logs` Supabase confirmados:
+  - `webhook_processed`
+  - `webhook_duplicate_ignored`
+- Painel staging:
+  - `/dashboard` -> `200`
+
+Conclusao atualizada:
+
+- Fluxo Typebot->n8n->backend em staging: **OK**
+- Fluxo de duplicate/idempotencia via n8n staging: **OK**
+- Producao permaneceu intacta: **sim**

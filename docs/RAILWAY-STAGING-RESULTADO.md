@@ -875,3 +875,42 @@ Decisao nesta etapa:
 - Nenhuma alteracao de codigo aplicada.
 - Nenhuma mudanca em producao.
 - Fluxo parcial validado com sucesso no backend/painel/Supabase em modo controlado.
+
+## Correcao do bloqueio E2E - ativacao webhook typebot no n8n staging
+
+Data/hora: 2026-05-28 09:35 -03:00
+
+Problema de origem:
+
+- `POST https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+- retorno `404` (`webhook not registered`)
+
+Acao aplicada (somente staging):
+
+- Workflow minimo criado/publicado no `n8n-staging` para:
+  - `POST /webhook/typebot-webhook`
+- Workflow implementa:
+  - recepcao de payload Typebot
+  - propagacao de `X-Correlation-Id`
+  - propagacao de `Idempotency-Key`
+  - chamada ao backend staging:
+    - `POST /api/whatsapp/webhook`
+  - header `X-MDoctor-Webhook-Secret`
+  - resposta JSON ao caller
+
+Validacao apos ativacao:
+
+- `POST /webhook/typebot-webhook`: `200`
+- backend staging criou atendimento
+- repeticao da mesma key: `duplicate=true`
+- `audit_logs` Supabase confirmados:
+  - `webhook_processed`
+  - `webhook_duplicate_ignored`
+- painel staging `/dashboard`: `200`
+
+Confirmacoes de seguranca:
+
+- Nenhuma alteracao em backend/painel.
+- Nenhuma alteracao em n8n producao.
+- Nenhuma alteracao em producao Railway.
+- Sem commit de secrets.

@@ -96,3 +96,38 @@ Recommended security vars before use:
 - n8n staging runtime created: **yes** (dedicated env/service).
 - Public URL available: **yes**.
 - Runtime externally usable right now: **yes** (`502` resolved).
+
+## Typebot Webhook Activation (staging)
+
+Data/hora: 2026-05-28 09:35 -03:00
+
+Status:
+
+- Workflow ativo no n8n staging: **sim**
+- Webhook path publicado: `POST /webhook/typebot-webhook`
+- URL final:
+  - `https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+
+Fluxo implementado no workflow ativo:
+
+- Recebe payload do Typebot staging-safe.
+- Propaga `X-Correlation-Id` (header recebido ou gerado).
+- Propaga `Idempotency-Key` (header recebido ou `messageId` payload).
+- Encaminha para backend staging:
+  - `POST https://mdoctor-backend-staging-staging.up.railway.app/api/whatsapp/webhook`
+- Inclui header:
+  - `X-MDoctor-Webhook-Secret`
+- Retorna JSON ao caller (Typebot/n8n client) com resultado do backend.
+
+Validacao operacional:
+
+- `POST /webhook/typebot-webhook` passou de `404` para `200`.
+- Repeticao com mesma key retornou `duplicate=true`.
+- `audit_logs` no Supabase confirmados (`webhook_processed` e `webhook_duplicate_ignored`).
+- Painel staging manteve `/dashboard` com `200`.
+
+Observacoes de seguranca:
+
+- Alteracoes realizadas somente no runtime `n8n-staging`.
+- Nao houve alteracao em `n8n Node` de producao.
+- Nenhum segredo foi commitado no repositorio.
