@@ -817,3 +817,61 @@ Procedimento seguro se credenciais Memed de producao forem fornecidas manualment
 3. Fazer redeploy apenas do backend staging.
 4. Reexecutar o mesmo teste com paciente/atendimento ficticios.
 5. Se houver erro Memed, manter fallback mock e nao liberar fluxo real.
+
+## E2E operacional completo - ciclo Typebot/n8n/backend/painel
+
+Data/hora: 2026-05-28 09:20 -03:00
+
+Objetivo:
+
+- Validar fluxo operacional ponta a ponta:
+  - Typebot staging-safe -> n8n staging -> backend staging -> Supabase -> painel -> prescription mock -> delivery mock.
+
+Dados de teste utilizados:
+
+- Somente dados ficticios.
+- Paciente ficticio, CPF de teste, telefone de teste, email de teste.
+- Doenca cronica elegivel e sem sinais de alerta.
+
+Resultado por etapa:
+
+1. Typebot -> n8n staging webhook:
+   - Endpoint testado: `POST https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+   - Resultado: `404`
+   - Resposta n8n: webhook nao registrado para rota de producao.
+   - Evidencia: `"The requested webhook \"POST typebot-webhook\" is not registered."`
+   - Impacto: bloqueia trecho Typebot -> n8n neste ciclo.
+
+2. Backend staging (validacao operacional controlada):
+   - `GET /health`: `200`
+   - `GET /readyz`: `200`
+   - `POST /api/auth/login`: `200`
+   - `POST /api/whatsapp/webhook` com `X-MDoctor-Webhook-Secret`, `X-Correlation-Id`, `Idempotency-Key`:
+     - primeira chamada: `200`, `duplicate=false`
+     - segunda chamada (mesma key): `200`, `duplicate=true`
+     - `correlationId` preservado nas duas respostas
+   - Criacao de atendimento fallback para continuidade do E2E: `201`
+   - `POST /api/prescriptions/:id/generate`: `201`, `source=mock`
+   - `POST /api/atendimentos/:id/deliver`: `200`, `provider=mock`, status final `delivered`
+   - `GET /api/prescriptions/:id`: `200`, `source=mock`
+
+3. Supabase staging:
+   - Persistencia operacional manteve-se ativa durante o ciclo.
+   - Receita mock e transicoes de atendimento foram registradas via backend staging.
+
+4. Painel staging:
+   - `/login`: `200`
+   - `/dashboard`: `200`
+   - Sem regressao operacional durante o ciclo.
+
+Analise do bloqueio:
+
+- Causa: workflow n8n de producao URL (`/webhook/typebot-webhook`) nao ativo/publicado no runtime staging.
+- Tipo: bloqueio externo de configuracao operacional (nao de codigo backend/painel).
+- Correcao minima possivel sem mexer em producao: ativar/publicar workflow correspondente no n8n staging para registrar o webhook de producao.
+
+Decisao nesta etapa:
+
+- Nenhuma alteracao de codigo aplicada.
+- Nenhuma mudanca em producao.
+- Fluxo parcial validado com sucesso no backend/painel/Supabase em modo controlado.
