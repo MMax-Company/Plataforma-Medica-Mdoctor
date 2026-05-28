@@ -5,7 +5,8 @@ const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
-const { getWhatsAppProviderStatus } = require('../delivery/delivery.service');
+const { requireAuth } = require('../auth/auth.middleware');
+const { getWhatsAppProviderStatus, sendPrescription, isSandboxMode } = require('../delivery/delivery.service');
 const {
   normalizeCondition,
   parseClinicalFlags,
@@ -43,11 +44,80 @@ router.get('/provider-status', async (_req, res) => {
   return res.json({
     success: true,
     correlationId,
-    provider: providerStatus.provider,
-    mode: providerStatus.mode,
-    deliveryMockEnabled: providerStatus.deliveryMockEnabled,
-    evolution: providerStatus.evolution
+    ...providerStatus
   });
+});
+
+router.post('/test-send', requireAuth, async (req, res) => {
+  const requestId = req.requestId || 'unknown';
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || requestId;
+  const environmentName = String(process.env.ENVIRONMENT_NAME || process.env.NODE_ENV || '').toLowerCase();
+  const sandboxEnabled = isSandboxMode();
+
+  if (environmentName === 'production') {
+    return res.status(403).json({ success: false, error: 'Endpoint disponível apenas fora de produção', correlationId });
+  }
+
+  if (!sandboxEnabled) {
+    return res.status(403).json({ success: false, error: 'WHATSAPP_SANDBOX_MODE=true é obrigatório', correlationId });
+  }
+
+  const { to, message, receiptUrl, pacienteNome = 'Paciente Teste' } = req.body || {};
+
+  if (!to || !message) {
+    return res.status(400).json({ success: false, error: 'Campos obrigatórios: to e message', correlationId });
+  }
+
+  if (Array.isArray(to) || String(to).includes(',')) {
+    return res.status(400).json({ success: false, error: 'Bulk send bloqueado no sandbox', correlationId });
+  }
+
+  try {
+    const delivery = await sendPrescription({
+      channel: 'whatsapp',
+      target: to,
+      receiptUrl: receiptUrl || 'https://example.invalid/receita-teste.pdf',
+      pacienteNome,
+      correlationId,
+      idempotencyKey: `test-send:${to}:${Date.now()}`,
+      manualTrigger: true
+    });
+
+    await createAuditLog({
+      entity_type: 'whatsapp_test_send',
+      action: 'test_send_executed',
+      actor: req.user?.sub || 'backend',
+      payload: {
+        requestId,
+        correlationId,
+        to: String(to).replace(/\d(?=\d{4})/g, '*'),
+        sandboxMode: true,
+        provider: delivery.provider,
+        providerStatus: delivery.providerStatus,
+        warning: delivery.warning || null
+      }
+    });
+
+    return res.json({ success: true, correlationId, sandboxMode: true, delivery });
+  } catch (error) {
+    await createAuditLog({
+      entity_type: 'whatsapp_test_send',
+      action: 'test_send_failed',
+      actor: req.user?.sub || 'backend',
+      payload: {
+        requestId,
+        correlationId,
+        error: error.message,
+        code: error.code || 'TEST_SEND_FAILED'
+      }
+    });
+    return res.status(400).json({
+      success: false,
+      correlationId,
+      error: error.message,
+      code: error.code || 'TEST_SEND_FAILED'
+    });
+  }
 });
 
 router.post('/webhook', async (req, res) => {

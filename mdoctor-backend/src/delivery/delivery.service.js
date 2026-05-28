@@ -6,6 +6,10 @@ const CHANNEL_LABELS = {
   sms: 'SMS',
   email: 'e-mail'
 };
+const sandboxStore = {
+  recentByNumber: new Map(),
+  recentGlobal: []
+};
 
 function isProduction() {
   return process.env.NODE_ENV === 'production';
@@ -14,6 +18,14 @@ function isProduction() {
 function canUseDevelopmentMock() {
   if (!isProduction()) return process.env.DELIVERY_MOCK_ENABLED !== 'false';
   return process.env.ALLOW_PRODUCTION_DELIVERY_MOCK === 'true' && process.env.DELIVERY_MOCK_ENABLED === 'true';
+}
+
+function isSandboxMode() {
+  return String(process.env.WHATSAPP_SANDBOX_MODE || 'false') === 'true';
+}
+
+function isDryRunMode() {
+  return String(process.env.WHATSAPP_DRY_RUN || 'false') === 'true';
 }
 
 function maskTarget(target = '') {
@@ -42,10 +54,58 @@ function resolveWhatsAppProvider() {
   return 'mock';
 }
 
+function antiSpamConfig() {
+  return {
+    maxPerWindow: Number(process.env.WHATSAPP_SANDBOX_RATE_LIMIT_MAX || 10),
+    windowMs: Number(process.env.WHATSAPP_SANDBOX_RATE_LIMIT_WINDOW_MS || 60000),
+    minIntervalMs: Number(process.env.WHATSAPP_SANDBOX_MIN_INTERVAL_MS || 15000)
+  };
+}
+
+function trimRecent(now, cfg) {
+  sandboxStore.recentGlobal = sandboxStore.recentGlobal.filter((item) => now - item.at < cfg.windowMs);
+  for (const [key, list] of sandboxStore.recentByNumber.entries()) {
+    const filtered = list.filter((at) => now - at < cfg.windowMs);
+    if (filtered.length === 0) {
+      sandboxStore.recentByNumber.delete(key);
+    } else {
+      sandboxStore.recentByNumber.set(key, filtered);
+    }
+  }
+}
+
+function enforceAntiSpam(target, cfg) {
+  const now = Date.now();
+  const normalized = normalizePhone(target);
+  trimRecent(now, cfg);
+  const currentList = sandboxStore.recentByNumber.get(normalized) || [];
+  const globalCount = sandboxStore.recentGlobal.length;
+
+  if (globalCount >= cfg.maxPerWindow) {
+    const error = new Error('Limite global de sandbox atingido para janela atual');
+    error.code = 'SANDBOX_RATE_LIMIT';
+    throw error;
+  }
+
+  const lastByNumber = currentList[currentList.length - 1];
+  if (lastByNumber && now - lastByNumber < cfg.minIntervalMs) {
+    const error = new Error('Intervalo mínimo por número ainda não atingido');
+    error.code = 'SANDBOX_MIN_INTERVAL';
+    throw error;
+  }
+
+  currentList.push(now);
+  sandboxStore.recentByNumber.set(normalized, currentList);
+  sandboxStore.recentGlobal.push({ at: now, target: normalized });
+}
+
 async function getWhatsAppProviderStatus() {
   const selected = resolveWhatsAppProvider();
   const evolutionConfigured = evolutionProvider.isConfigured();
   let evolutionHealth = null;
+  const sandbox = isSandboxMode();
+  const dryRun = isDryRunMode();
+  const antiSpam = antiSpamConfig();
 
   if (selected === 'evolution' || evolutionConfigured) {
     try {
@@ -60,14 +120,24 @@ async function getWhatsAppProviderStatus() {
     }
   }
 
-  const mockMode = selected === 'mock' || !evolutionConfigured || canUseDevelopmentMock();
+  const fallbackActive = selected === 'mock' || !evolutionConfigured || canUseDevelopmentMock();
+  const mockMode = fallbackActive || dryRun || sandbox;
 
   return {
     provider: selected,
     mode: mockMode ? 'mock' : 'real',
     deliveryMockEnabled: canUseDevelopmentMock(),
+    sandboxMode: sandbox,
+    dryRun,
+    fallbackActive,
+    antiSpam: {
+      ...antiSpam,
+      trackedNumbers: sandboxStore.recentByNumber.size,
+      trackedEvents: sandboxStore.recentGlobal.length
+    },
     evolution: {
       configured: evolutionConfigured,
+      runtime: evolutionProvider.getRuntimeState(),
       ...(evolutionHealth || {})
     }
   };
@@ -140,13 +210,51 @@ async function sendViaResend({ target, message, receiptUrl }) {
   };
 }
 
-async function sendPrescription({ channel, target, receiptUrl, pacienteNome, correlationId, idempotencyKey }) {
+async function sendPrescription({ channel, target, receiptUrl, pacienteNome, correlationId, idempotencyKey, manualTrigger = false }) {
   const message = buildMessage({ pacienteNome, receiptUrl, channel });
   let providerResult = null;
+  const provider = resolveWhatsAppProvider();
+  const sandbox = isSandboxMode();
+  const dryRun = isDryRunMode();
+  const antiSpam = antiSpamConfig();
 
   if (channel === 'whatsapp') {
-    const provider = resolveWhatsAppProvider();
+    enforceAntiSpam(target, antiSpam);
+  }
 
+  if (channel === 'whatsapp' && dryRun) {
+    providerResult = {
+      provider: 'dry-run',
+      providerMessageId: `dry-run-${Date.now()}`,
+      providerStatus: 'simulated',
+      warning: 'WHATSAPP_DRY_RUN ativo: envio apenas simulado',
+      simulatedPayload: {
+        provider,
+        targetMasked: maskTarget(target),
+        receiptUrl,
+        correlationId
+      }
+    };
+  }
+
+  if (!providerResult && channel === 'whatsapp') {
+    if (sandbox && provider === 'evolution' && !manualTrigger) {
+      if (canUseDevelopmentMock()) {
+        providerResult = {
+          provider: 'mock-fallback',
+          providerMessageId: `sandbox-fallback-${Date.now()}`,
+          providerStatus: 'sent',
+          warning: 'WHATSAPP_SANDBOX_MODE ativo: envio automático bloqueado, fallback mock aplicado'
+        };
+      } else {
+        const error = new Error('Sandbox ativo: envio Evolution requer chamada manual explícita');
+        error.code = 'SANDBOX_MANUAL_REQUIRED';
+        throw error;
+      }
+    }
+  }
+
+  if (!providerResult && channel === 'whatsapp') {
     if (provider === 'evolution') {
       try {
         providerResult = await evolutionProvider.sendTextMessage({
@@ -207,5 +315,8 @@ module.exports = {
   CHANNEL_LABELS,
   maskTarget,
   sendPrescription,
-  getWhatsAppProviderStatus
+  getWhatsAppProviderStatus,
+  resolveWhatsAppProvider,
+  isSandboxMode,
+  isDryRunMode
 };

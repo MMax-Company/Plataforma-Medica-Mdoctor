@@ -48,12 +48,46 @@ Retorna:
 - modo (`mock|real`)
 - status de mock habilitado
 - health/config da Evolution (quando aplicavel)
+- estado de sandbox/dry-run
+- anti-spam ativo e telemetria de janela
+- runtime (`lastError`, `lastTimeoutAt`, `connected/disconnected`)
+
+## Sandbox mode e dry-run
+
+Novas protecoes:
+
+- `WHATSAPP_SANDBOX_MODE=true`
+  - bloqueia envio Evolution automatico no fluxo operacional
+  - exige chamada manual explicita para testes (`/api/whatsapp/test-send`)
+  - bloqueia tentativa de bulk no endpoint de teste
+- `WHATSAPP_DRY_RUN=true`
+  - simula envio
+  - nao envia para provider real
+  - retorna payload simulado com warning e provider `dry-run`
+
+## Anti-spam no sandbox
+
+Controles adicionados:
+
+- limite global por janela:
+  - `WHATSAPP_SANDBOX_RATE_LIMIT_MAX`
+  - `WHATSAPP_SANDBOX_RATE_LIMIT_WINDOW_MS`
+- intervalo minimo por numero:
+  - `WHATSAPP_SANDBOX_MIN_INTERVAL_MS`
+- erros de protecao:
+  - `SANDBOX_RATE_LIMIT`
+  - `SANDBOX_MIN_INTERVAL`
 
 ## Variaveis de ambiente (sem secrets)
 
 Adicionadas em `.env.example` e `.env.staging.example`:
 
 - `WHATSAPP_PROVIDER=mock`
+- `WHATSAPP_SANDBOX_MODE`
+- `WHATSAPP_DRY_RUN`
+- `WHATSAPP_SANDBOX_RATE_LIMIT_MAX`
+- `WHATSAPP_SANDBOX_RATE_LIMIT_WINDOW_MS`
+- `WHATSAPP_SANDBOX_MIN_INTERVAL_MS`
 - `EVOLUTION_API_URL`
 - `EVOLUTION_API_KEY`
 - `EVOLUTION_INSTANCE`
@@ -95,3 +129,17 @@ Nao alterado:
 3. Validar `GET /api/whatsapp/provider-status`.
 4. Testar envio ficticio em staging.
 5. Confirmar fallback mock em caso de falha.
+
+## Endpoint seguro de teste manual
+
+Novo endpoint:
+
+- `POST /api/whatsapp/test-send`
+
+Protecoes:
+
+- auth obrigatoria (`Bearer`)
+- fora de producao
+- exige `WHATSAPP_SANDBOX_MODE=true`
+- bloqueia envio em massa/bulk
+- registra `audit_logs` em sucesso/falha
