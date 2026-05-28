@@ -10,14 +10,14 @@ Branch esperada: `codex/legacy-compat-infra`
 
 Servicos de staging:
 
-- `mdoctor-backend-staging`
-- `painel-medico-staging`
+- `Backend-MDoctor-Staging`
+- `Painel-MDoctor-Staging`
 
 Nao reutilizar servicos de producao. Nao migrar dominio customizado. Nao copiar variaveis sensiveis de producao sem revisao.
 
 ## Servico Backend
 
-Servico Railway sugerido: `mdoctor-backend-staging`
+Servico Railway sugerido: `Backend-MDoctor-Staging`
 
 Root directory:
 
@@ -47,6 +47,7 @@ Build/start:
 - Build command: `npm install`.
 - Start command: `npm start`.
 - Dockerfile tambem esta pronto para container Node 20 com `CMD ["npm", "start"]`.
+- Porta: usar `PORT` injetado pelo Railway; o backend tambem aceita `PORT=3004` em staging/local.
 
 Healthcheck:
 
@@ -68,7 +69,7 @@ CORS_ORIGIN=https://<painel-staging>.up.railway.app
 LOG_LEVEL=info
 DISABLE_LOCAL_DB_FALLBACK=false
 
-JWT_SECRET=<staging-secret-forte>
+JWT_SECRET_DEVE_SER_DEFINIDO_NO_RAILWAY=staging-secret-forte
 MEDICO_USER=<usuario-staging>
 MEDICO_PASS=<senha-staging>
 MEDICO_ROLE=admin
@@ -76,8 +77,8 @@ MEDICO_NOME=Medico Staging
 
 SUPABASE_URL=<supabase-staging-url-ou-vazio>
 SUPABASE_ANON_KEY=<supabase-staging-anon-ou-vazio>
-SUPABASE_SERVICE_KEY=<supabase-staging-service-ou-vazio>
-SUPABASE_SERVICE_ROLE_KEY=<supabase-staging-service-role-ou-vazio>
+SUPABASE_SERVICE_KEY_DEVE_SER_DEFINIDA_SOMENTE_NO_BACKEND=supabase-staging-service-ou-vazio
+SUPABASE_SERVICE_ROLE_KEY_DEVE_SER_DEFINIDA_SOMENTE_NO_BACKEND=supabase-staging-service-role-ou-vazio
 SUPABASE_BUCKET_DOCUMENTS=documents
 SUPABASE_BUCKET_PRESCRIPTIONS=prescriptions
 SUPABASE_BUCKET_MEDICAL_RECORDS=medical-records
@@ -112,12 +113,14 @@ Notas:
 
 - Para staging sem Supabase real, deixar `DISABLE_LOCAL_DB_FALLBACK=false`.
 - Para staging com Supabase real, aplicar migrations antes e configurar `SUPABASE_SERVICE_ROLE_KEY`.
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` podem ficar vazios apenas no staging tecnico com fallback/mock.
+- Para staging real com persistencia, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` sao obrigatorios no backend.
 - Nunca expor `SUPABASE_SERVICE_ROLE_KEY` no painel.
 - Stripe, Typebot, Memed real e WhatsApp real permanecem desligados nesta fase.
 
 ## Servico Painel
 
-Servico Railway sugerido: `painel-medico-staging`
+Servico Railway sugerido: `Painel-MDoctor-Staging`
 
 Root directory:
 
@@ -149,6 +152,8 @@ Build/start:
 - Instala com `npm ci`.
 - Roda `npm run build`.
 - Inicia com `npm start`.
+- Build command, se usar Dockerfile: deixar o Dockerfile conduzir o build.
+- Start command: `npm start`.
 - Aceita `ARG NEXT_PUBLIC_API_URL`.
 - Aceita `ARG NEXT_PUBLIC_APP_ENV`.
 - Aceita `ARG NEXT_PUBLIC_ENABLE_MOCK_FALLBACK`.
@@ -178,7 +183,7 @@ Notas:
 
 1. Confirmar que a branch `codex/legacy-compat-infra` esta atualizada no GitHub.
 2. Criar ambiente Railway `staging`, separado de `production`.
-3. Criar servico `mdoctor-backend-staging` com root `mdoctor-backend`.
+3. Criar servico `Backend-MDoctor-Staging` com root `mdoctor-backend`.
 4. Configurar variaveis seguras do backend staging.
 5. Deployar backend staging.
 6. Gerar dominio Railway do backend staging.
@@ -191,7 +196,7 @@ POST https://<backend-staging>.up.railway.app/api/auth/login
 GET https://<backend-staging>.up.railway.app/api/atendimentos
 ```
 
-8. Criar servico `painel-medico-staging` com root `mdoctor-panel`.
+8. Criar servico `Painel-MDoctor-Staging` com root `mdoctor-panel`.
 9. Configurar `NEXT_PUBLIC_API_URL` do painel apontando para a URL do backend staging.
 10. Deployar painel staging.
 11. Gerar dominio Railway do painel staging.
@@ -273,7 +278,7 @@ DATA_ENV=staging
 PORT=3004
 BASE_URL=https://<backend-staging>.up.railway.app
 CORS_ORIGIN=https://<painel-staging>.up.railway.app
-JWT_SECRET=<staging-secret-forte>
+JWT_SECRET_DEVE_SER_DEFINIDO_NO_RAILWAY=staging-secret-forte
 MEDICO_USER=<usuario-staging>
 MEDICO_PASS=<senha-staging>
 DISABLE_LOCAL_DB_FALLBACK=false
@@ -292,3 +297,25 @@ NEXT_PUBLIC_API_URL=https://<backend-staging>.up.railway.app
 NEXT_PUBLIC_APP_ENV=staging
 NEXT_PUBLIC_ENABLE_MOCK_FALLBACK=true
 ```
+
+## Supabase staging
+
+Antes de staging real com persistencia:
+
+1. Criar projeto Supabase separado de producao.
+2. Aplicar `mdoctor-backend/supabase/migrations/20260527_backend_mvp_storage.sql`.
+3. Confirmar tabelas:
+   - `patients`
+   - `atendimentos`
+   - `prescriptions`
+   - `audit_logs`
+4. Criar/validar buckets privados:
+   - `documents`
+   - `prescriptions`
+   - `medical-records`
+   - `consents`
+   - `logs`
+5. Configurar `SUPABASE_SERVICE_ROLE_KEY` somente no backend.
+6. Nunca configurar service role no painel.
+
+Para smoke test sem Supabase real, manter fallback local ligado e deixar as credenciais Supabase vazias.

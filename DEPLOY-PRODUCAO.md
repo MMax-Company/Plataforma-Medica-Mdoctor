@@ -8,6 +8,15 @@ O Railway ainda pode conter servicos apontando para `MMax-Company/Mdoctor-Prescr
 
 Nao migrar todos os servicos de uma vez. A transicao deve ser feita por servico, com health check e logs validados antes do proximo passo.
 
+## Staging antes de producao
+
+Antes de qualquer alteracao em producao, criar e validar os servicos staging descritos em `docs/RAILWAY-STAGING-SETUP.md`:
+
+- `Backend-MDoctor-Staging`, root `mdoctor-backend`, healthcheck `/health`.
+- `Painel-MDoctor-Staging`, root `mdoctor-panel`, healthcheck `/login`.
+
+O painel staging deve apontar para o backend staging via `NEXT_PUBLIC_API_URL`. Nao usar dominio oficial, variaveis de producao, Stripe live, Memed production ou WhatsApp real enquanto o staging tecnico nao estiver validado.
+
 ## Ordem recomendada
 
 1. Aplicar o schema no Supabase:

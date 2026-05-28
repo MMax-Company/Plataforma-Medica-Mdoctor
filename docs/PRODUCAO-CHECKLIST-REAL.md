@@ -4,6 +4,20 @@ Use este checklist para transformar o beta privado em operacao real.
 
 Resumo honesto do estado atual: o projeto ja tem base operacional forte, mas ainda precisa validar Supabase real, Memed real, provider real de entrega e variaveis de producao antes de ser tratado como 100% pronto.
 
+## 0. Staging Railway obrigatorio
+
+Antes de qualquer deploy ou migracao de producao, validar staging separado:
+
+1. Criar ambiente Railway `staging`, sem alterar `production`.
+2. Criar servico `Backend-MDoctor-Staging` com root `mdoctor-backend`.
+3. Criar servico `Painel-MDoctor-Staging` com root `mdoctor-panel`.
+4. Configurar o painel com `NEXT_PUBLIC_API_URL=https://URL_DO_BACKEND_STAGING`.
+5. Validar `/health`, `/readyz`, `/login`, `/dashboard` e fluxo mock.
+6. Confirmar logs sem erro critico.
+7. Nao apontar dominio oficial antes do staging estar validado.
+
+Use `docs/RAILWAY-STAGING-SETUP.md` e `docs/RAILWAY-STAGING-CHECKLIST-MANUAL.md` como roteiro.
+
 ## 1. Supabase
 
 1. Abrir o SQL Editor do Supabase.

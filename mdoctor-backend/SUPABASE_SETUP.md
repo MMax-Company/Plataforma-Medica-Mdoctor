@@ -21,6 +21,8 @@ consents
 logs
 ```
 
+Para Railway staging real, aplicar a migration antes de desligar o fallback local. Para smoke test tecnico sem banco real, as variaveis Supabase podem ficar vazias e o backend continua em `fallback_local`.
+
 4. Configurar variaveis somente no backend:
 
 ```env
@@ -46,6 +48,8 @@ SUPABASE_BUCKET_LOGS=logs
 RLS fica habilitado em todas as tabelas. As policies permitem acesso para `service_role`, que deve ser usado apenas pelo backend.
 
 Nunca exponha `SUPABASE_SERVICE_ROLE_KEY` no frontend, em variaveis `NEXT_PUBLIC_*`, logs, screenshots ou repositorio.
+
+No Railway, configurar `SUPABASE_SERVICE_ROLE_KEY` somente no servico `Backend-MDoctor-Staging` ou no backend de producao. O servico `Painel-MDoctor-Staging` nao deve receber service role.
 
 ## Fallback local
 
