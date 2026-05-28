@@ -1,6 +1,6 @@
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
-const { sendPrescription } = require('../delivery/delivery.service');
+const { sendPrescription, isDryRunMode } = require('../delivery/delivery.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const {
@@ -228,7 +228,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
 
   let delivery;
   try {
-    if (isDeliveryMockEnabled()) {
+    if (isDeliveryMockEnabled() && !(channel === 'whatsapp' && isDryRunMode())) {
       delivery = {
         id: `delivery-mock-${Date.now()}`,
         channel,

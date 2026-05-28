@@ -131,3 +131,14 @@ Observacoes de seguranca:
 - Alteracoes realizadas somente no runtime `n8n-staging`.
 - Nao houve alteracao em `n8n Node` de producao.
 - Nenhum segredo foi commitado no repositorio.
+
+## Integracao Typebot + Evolution dry-run (2026-05-28)
+
+Validacao E2E:
+
+- `POST /webhook/typebot-webhook` -> `200`
+- encaminhamento para backend staging com secret/correlation/idempotency OK
+- atendimento criado e visivel no painel
+- delivery via backend retorna `provider=dry-run` com `WHATSAPP_DRY_RUN=true`
+
+Detalhes: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`

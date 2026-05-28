@@ -306,3 +306,16 @@ Sequencia recomendada:
 ### Producao
 
 Ver: `docs/EVOLUTION-PRODUCTION-READINESS.md` (plano sem ativacao).
+
+## Integracao com Typebot + n8n (dry-run)
+
+Data/hora: 2026-05-28 12:40 -03:00
+
+Fluxo validado:
+
+- Typebot staging-safe -> n8n `typebot-webhook` -> backend webhook -> atendimento Supabase
+- `provider-status`: Evolution configurada, `dryRun=true`, instancia `connecting`
+- entrega: `provider=dry-run` (sem envio real)
+- `test-send`: dry-run quando dentro do intervalo anti-spam
+
+Referencia completa: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`

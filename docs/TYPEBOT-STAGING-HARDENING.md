@@ -28,6 +28,16 @@ Alteracao aplicada:
   - de: `https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook`
   - para: `https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
 
+## Validacao integrada (2026-05-28)
+
+E2E dry-run Typebot -> n8n -> backend confirmou:
+
+- webhook staging-safe correto (`typebot-webhook` no n8n staging)
+- sem webhook production no arquivo staging-safe
+- payment block preservado
+
+Referencia: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`
+
 Preservado:
 
 - Fluxo clinico

@@ -1132,3 +1132,31 @@ Seguranca preservada:
 Documentacao producao (sem ativar):
 
 - `docs/EVOLUTION-PRODUCTION-READINESS.md`
+
+## E2E Typebot + n8n + Evolution (dry-run)
+
+Data/hora: 2026-05-28 12:40 -03:00
+
+Resultado:
+
+| Bloco | OK |
+| --- | --- |
+| Typebot staging-safe | sim |
+| n8n staging webhook | sim (`200`) |
+| Backend recebeu payload | sim |
+| Evolution dry-run | sim (`provider-status` + `deliver`/`test-send` sem envio real) |
+| Atendimento no painel | sim (`/api/atendimentos` + `/dashboard` 200) |
+| Prescription mock | sim (`201`, `source=mock`) |
+| Mensagem real | nao |
+
+Estado Evolution:
+
+- instancia `mdoctor-staging`: `connecting` (QR pendente)
+
+Pendencia teste real:
+
+- escanear QR no manager Evolution
+- confirmar `open`
+- autorizar desligar `WHATSAPP_DRY_RUN` temporariamente
+
+Documento: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`
