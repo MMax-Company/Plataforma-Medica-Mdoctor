@@ -41,6 +41,7 @@ WHATSAPP_ENABLED=false
 - `GET /api/atendimentos/:id`: detalhe do atendimento/prontuario.
 - `PATCH /api/atendimentos/:id/status`: atualizacao de status protegida por JWT.
 - `GET /api/prescriptions/:id`: receita Memed ou mock seguro.
+- `POST /api/prescriptions/:id/generate`: gera receita em modo Memed ou mock controlado.
 - `POST /api/atendimentos/:id/deliver`: entrega mockada/real conforme ambiente.
 - `POST /api/whatsapp/webhook`: entrada de triagem via WhatsApp.
 - `GET/POST /api/memed`: configuracao, token e registro de receita.
@@ -68,7 +69,19 @@ Rotas protegidas retornam `401` em JSON padronizado quando o token estiver ausen
 
 ## Memed e WhatsApp no MVP
 
-Memed real ainda nao e obrigatoria nesta fase. Quando a integracao estiver indisponivel, `GET /api/prescriptions/:id` retorna uma receita mockada consistente para nao quebrar o painel.
+Memed real ainda nao e obrigatoria nesta fase. Quando a integracao estiver indisponivel, `GET /api/prescriptions/:id` e `POST /api/prescriptions/:id/generate` retornam payload mockado consistente para nao quebrar o painel.
+
+Variaveis Memed:
+
+```env
+MEMED_API_URL=https://integrations.api.memed.com.br/v1
+MEMED_API_KEY=
+MEMED_SECRET_KEY=
+MEMED_ENV=development
+MEMED_TIMEOUT_MS=8000
+```
+
+Sem credenciais, o backend usa `source: "mock"`. Com credenciais validas, usa `source: "memed"`.
 
 WhatsApp real tambem nao e chamado diretamente no MVP local. Com `DELIVERY_MOCK_ENABLED=true`, a entrega marca o atendimento como `delivered` usando registro mockado.
 
@@ -97,7 +110,7 @@ mdoctor-backend/supabase/migrations/20260527_backend_mvp_storage.sql
 
 Ela cria as tabelas `patients`, `atendimentos`, `prescriptions` e `audit_logs`, habilita RLS e cria policies para `service_role`.
 
-Se Supabase nao estiver configurado ou falhar em ambiente com fallback permitido, o backend usa `fallback_local` e preserva o painel funcionando. O status aparece em `GET /readyz` no campo `storage`.
+Se Supabase nao estiver configurado ou falhar em ambiente com fallback permitido, o backend usa `fallback_local` e preserva o painel funcionando. O status aparece em `GET /readyz` nos campos `storage`, `supabase`, `memed`, `auth`, `environment` e `fallback_local`.
 
 Mais detalhes em `SUPABASE_SETUP.md`.
 

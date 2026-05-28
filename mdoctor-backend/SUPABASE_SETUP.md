@@ -51,6 +51,15 @@ Nunca exponha `SUPABASE_SERVICE_ROLE_KEY` no frontend, em variaveis `NEXT_PUBLIC
 
 Se Supabase nao estiver configurado ou falhar em ambiente local/staging com fallback permitido, o backend continua usando store local/mock para nao quebrar o painel MVP.
 
+O endpoint `GET /readyz` informa:
+
+```text
+storage.mode
+supabase.configured
+supabase.connected
+fallback_local
+```
+
 Em producao, use:
 
 ```env

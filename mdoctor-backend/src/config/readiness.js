@@ -40,26 +40,32 @@ function allowsProductionDeliveryMock() {
 function getReadinessReport() {
   const production = isProduction();
   const { getSupabaseStatus } = require('./supabase');
+  const { getMemedStatus } = require('../services/memed.service');
   const corsOrigins = String(process.env.CORS_ORIGIN || '')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  const required = production ? 'fail' : 'warning';
+  const storage = getSupabaseStatus();
+  const memed = getMemedStatus();
   const checks = [
     check('node_env', production, 'NODE_ENV deve ser production no ambiente final', 'warning'),
-    check('jwt_secret', hasValue('JWT_SECRET') && minLength('JWT_SECRET', 32), 'JWT_SECRET obrigatório e com pelo menos 32 caracteres'),
-    check('medico_user', hasValue('MEDICO_USER'), 'MEDICO_USER obrigatório'),
+    check('jwt_secret', hasValue('JWT_SECRET') && minLength('JWT_SECRET', 32), 'JWT_SECRET obrigatório e com pelo menos 32 caracteres', required),
+    check('medico_user', hasValue('MEDICO_USER'), 'MEDICO_USER obrigatório', required),
     check(
       'medico_pass',
       hasValue('MEDICO_PASS') && (process.env.MEDICO_PASS !== 'admin123' || allowsDefaultMedicalPassword()),
-      'MEDICO_PASS não pode usar senha padrão sem ALLOW_DEFAULT_MEDICO_PASS=true'
+      'MEDICO_PASS não pode usar senha padrão sem ALLOW_DEFAULT_MEDICO_PASS=true',
+      required
     ),
-    check('cors_origin', corsOrigins.length > 0 && !corsOrigins.includes('*'), 'CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard'),
-    check('supabase_url', hasValue('SUPABASE_URL'), 'SUPABASE_URL obrigatório'),
+    check('cors_origin', corsOrigins.length > 0 && !corsOrigins.includes('*'), 'CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard', required),
+    check('supabase_url', hasValue('SUPABASE_URL'), 'SUPABASE_URL obrigatório', required),
     check(
       'supabase_service_key',
       hasValue('SUPABASE_SERVICE_ROLE_KEY') || hasValue('SUPABASE_SERVICE_KEY'),
-      'Service key do Supabase obrigatória'
+      'Service key do Supabase obrigatória',
+      required
     ),
     check(
       'local_db_fallback_disabled',
@@ -69,7 +75,8 @@ function getReadinessReport() {
     check(
       'memed_credentials',
       hasValue('MEMED_API_KEY') && hasValue('MEMED_SECRET_KEY'),
-      'Credenciais Memed obrigatórias para prescrição em produção'
+      'Credenciais Memed obrigatórias para prescrição em produção',
+      required
     ),
     check(
       'memed_environment',
@@ -80,7 +87,8 @@ function getReadinessReport() {
     check(
       'delivery_provider',
       hasDeliveryProvider() || allowsProductionDeliveryMock(),
-      'Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true'
+      'Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true',
+      required
     )
   ];
 
@@ -91,7 +99,19 @@ function getReadinessReport() {
   return {
     status,
     production,
-    storage: getSupabaseStatus(),
+    environment: process.env.ENVIRONMENT_NAME || (production ? 'production' : 'local'),
+    auth: {
+      configured: hasValue('JWT_SECRET') && hasValue('MEDICO_USER') && hasValue('MEDICO_PASS'),
+      jwt: hasValue('JWT_SECRET')
+    },
+    storage,
+    supabase: {
+      configured: storage.configured,
+      connected: storage.responding,
+      mode: storage.mode
+    },
+    memed,
+    fallback_local: storage.mode === 'fallback_local',
     checkedAt: new Date().toISOString(),
     checks,
     failures,

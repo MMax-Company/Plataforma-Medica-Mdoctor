@@ -1,7 +1,8 @@
 const express = require('express');
-const memed = require('../integrations/memed.service');
+const memed = require('../services/memed.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
+const { getAtendimento, updateAtendimentoStatus, STATUS } = require('../store/atendimentos.store');
 const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
 
 const router = express.Router();
@@ -27,9 +28,30 @@ function buildMockPrescription(id, payload = {}) {
 function mockPrescriptionResponse(id, warning, payload) {
   return {
     success: true,
+    source: 'mock',
     data: buildMockPrescription(id, payload),
     mode: 'mock',
     warning: warning || 'Memed real indisponível. Exibindo receita simulada.'
+  };
+}
+
+function toResponseFromStored(stored) {
+  return {
+    success: true,
+    source: stored.provider === 'memed' ? 'memed' : 'mock',
+    data: {
+      id: stored.id,
+      mode: stored.provider || 'stored',
+      medication: Array.isArray(stored.medications) && stored.medications.length ? stored.medications.join(', ') : 'Medicamento conforme avaliação médica',
+      dosage: stored.payload?.dosage || 'Conforme posologia definida pelo médico',
+      instructions: stored.payload?.instructions || 'Receita recuperada do armazenamento do backend.',
+      duration: stored.payload?.duration || '30 dias',
+      issuedBy: stored.payload?.issuedBy || process.env.MEDICO_NOME || 'Médico responsável',
+      createdAt: stored.created_at,
+      pdfUrl: stored.pdf_url || `/api/prescriptions/${stored.id}/pdf`,
+      stored
+    },
+    mode: stored.provider || 'stored'
   };
 }
 
@@ -47,7 +69,7 @@ function mockPdfBuffer(id) {
 router.post('/', requireAuth, async (req, res) => {
   try {
     const result = await memed.createPrescription(req.body || {});
-    if (result.success) {
+    if (result.source === 'memed') {
       const saved = await savePrescription({
         atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
         patient_id: req.body?.patient_id || req.body?.patientId || null,
@@ -98,6 +120,63 @@ router.post('/', requireAuth, async (req, res) => {
   }
 });
 
+router.post('/:id/generate', requireAuth, async (req, res) => {
+  try {
+    const atendimento = await getAtendimento(req.params.id);
+    if (!atendimento) {
+      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', code: 'ATENDIMENTO_NOT_FOUND' });
+    }
+
+    const result = await memed.createPrescription({ ...atendimento, ...(req.body || {}) });
+    const saved = await savePrescription({
+      atendimento_id: atendimento.id,
+      patient_id: atendimento.patient_id || null,
+      status: result.source === 'memed' ? 'ready' : 'mock',
+      provider: result.source,
+      provider_prescription_id: result.prescriptionId,
+      pdf_url: result.pdfUrl,
+      medications: [atendimento.medicacao_em_uso || atendimento.dados_clinicos?.medicacao_em_uso || 'Medicamento conforme avaliação médica'],
+      payload: result.data || result
+    });
+
+    const updated = await updateAtendimentoStatus(atendimento.id, STATUS.READY, {
+      motivo: result.source === 'memed' ? 'Receita gerada na Memed' : 'Receita mock gerada para staging',
+      medicoId: req.user?.sub || null,
+      dados_clinicos: {
+        ...(atendimento.dados_clinicos || {}),
+        memed_receita: {
+          receitaId: saved.id,
+          providerPrescriptionId: saved.provider_prescription_id,
+          source: result.source,
+          pdfUrl: saved.pdf_url
+        }
+      }
+    });
+
+    await createAuditLog({
+      entity_type: 'prescription',
+      entity_id: saved.id,
+      action: 'prescription_generate',
+      actor: req.user?.sub || 'backend',
+      payload: { atendimento_id: atendimento.id, source: result.source, warning: result.warning || null }
+    });
+
+    return res.status(201).json({
+      success: true,
+      source: result.source,
+      warning: result.warning || null,
+      prescription: saved,
+      atendimento: updated,
+      data: toResponseFromStored(saved).data
+    });
+  } catch (error) {
+    return res.status(200).json({
+      ...mockPrescriptionResponse(req.params.id, error.message),
+      code: 'PRESCRIPTION_GENERATE_FALLBACK'
+    });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   try {
     const stored = await getPrescriptionByAtendimento(req.params.id);
@@ -109,22 +188,7 @@ router.get('/:id', requireAuth, async (req, res) => {
         actor: req.user?.sub || 'backend',
         payload: { atendimento_id: stored.atendimento_id, provider: stored.provider, status: stored.status }
       });
-      return res.json({
-        success: true,
-        data: {
-          id: stored.id,
-          mode: stored.provider || 'stored',
-          medication: Array.isArray(stored.medications) && stored.medications.length ? stored.medications.join(', ') : 'Medicamento conforme avaliação médica',
-          dosage: stored.payload?.dosage || 'Conforme posologia definida pelo médico',
-          instructions: stored.payload?.instructions || 'Receita recuperada do armazenamento do backend.',
-          duration: stored.payload?.duration || '30 dias',
-          issuedBy: stored.payload?.issuedBy || process.env.MEDICO_NOME || 'Médico responsável',
-          createdAt: stored.created_at,
-          pdfUrl: stored.pdf_url || `/api/prescriptions/${stored.id}/pdf`,
-          stored
-        },
-        mode: stored.provider || 'stored'
-      });
+      return res.json(toResponseFromStored(stored));
     }
 
     if (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-')) {
@@ -138,8 +202,8 @@ router.get('/:id', requireAuth, async (req, res) => {
       return res.json(mockPrescriptionResponse(req.params.id));
     }
 
-    const result = await memed.getPrescriptionById(req.params.id);
-    if (result.success) return res.json(result);
+    const result = await memed.getPrescription(req.params.id);
+    if (result.source === 'memed') return res.json(result);
     await createAuditLog({
       entity_type: 'prescription',
       entity_id: req.params.id,

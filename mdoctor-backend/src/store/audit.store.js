@@ -2,6 +2,7 @@ const { randomUUID } = require('crypto');
 const { assertCanFallback, getSupabase, reportSupabaseError } = require('../config/supabase');
 
 const localAuditLogs = [];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function hasSupabase() {
   try {
@@ -13,13 +14,17 @@ function hasSupabase() {
 }
 
 function normalizeAuditLog(input = {}) {
+  const rawEntityId = input.entity_id || input.entityId || null;
   return {
     id: input.id || randomUUID(),
     entity_type: input.entity_type || input.entityType || 'system',
-    entity_id: input.entity_id || input.entityId || null,
+    entity_id: rawEntityId && UUID_PATTERN.test(String(rawEntityId)) ? String(rawEntityId) : null,
     action: input.action || 'event',
     actor: input.actor || input.medico_id || input.doctorId || 'backend',
-    payload: input.payload || input.snapshot || {},
+    payload: {
+      ...(input.payload || input.snapshot || {}),
+      ...(rawEntityId && !UUID_PATTERN.test(String(rawEntityId)) ? { entity_ref: String(rawEntityId) } : {})
+    },
     created_at: input.created_at || input.criado_em || new Date().toISOString()
   };
 }
