@@ -1160,3 +1160,52 @@ Pendencia teste real:
 - autorizar desligar `WHATSAPP_DRY_RUN` temporariamente
 
 Documento: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`
+
+## Evolution API — volume `/evolution/instances` (staging)
+
+Data/hora: 2026-05-28 ~14:03 -03:00
+
+Escopo: montar persistencia Baileys no servico `evolution-api-staging` (Automation-MDoctor / staging). Sem alterar producao, backend, Postgres, Redis, QR ou dry-run.
+
+### Acao executada
+
+| Item | Valor |
+| --- | --- |
+| Projeto | `Automation-MDoctor` (`fe962e4e-4c41-4c94-9d2d-dbdfe37d0ed4`) |
+| Ambiente | `staging` (`6c77be19-3b24-46a2-9fc2-4511b920f5aa`) |
+| Servico | `evolution-api-staging` (`ab310799-fef4-4f28-8ecf-bdd2c0fa0aaf`) |
+| Volume criado | `evolution-api-staging-volume` (`db90a97f-d9aa-4a1b-80e3-164677e3bf01`) |
+| Mount path | `/evolution/instances` |
+| Tamanho | 5 GB |
+| Comando | `railway volume add --mount-path /evolution/instances` |
+| Redeploy | `railway redeploy --service evolution-api-staging` |
+| Deploy ID | `feb1a7fc-4870-46ce-a728-68d93e8fd396` |
+| Status final | `SUCCESS`, 1 replica running |
+
+### Servicos nao alterados
+
+| Servico | Deploy ID (inalterado) |
+| --- | --- |
+| `Postgres` | `aafec22c-4b41-46bd-bac2-cce0e57b2314` |
+| `Redis` | `767f5fc5-63b8-478a-b087-c722d5bc3ecf` |
+| `mdoctor-backend-staging` | nao tocado nesta rodada |
+
+### Validacao pos-volume
+
+| Check | Resultado |
+| --- | --- |
+| `GET /` Evolution | `200`, version `2.3.7` |
+| `/manager` | `301` |
+| `fetchInstances` | `mdoctor-staging` presente |
+| `connectionState/mdoctor-staging` | `connecting` (QR pendente) |
+| Backend `provider-status` | `dryRun=true`, `sandboxMode=true`, `instanceFound=true` |
+| Volume Railway JSON | `mountPath=/evolution/instances`, `state=READY` |
+
+### Seguranca
+
+- Producao Railway: intocada
+- QR / connect: nao executado
+- `WHATSAPP_DRY_RUN=true`: preservado no backend
+- Secrets: nao commitados
+
+Documentacao: `docs/EVOLUTION-API-STAGING.md` (secao Volume aplicado).

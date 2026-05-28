@@ -50,7 +50,7 @@ Achados do runtime `evolution-api-staging` (read-only):
 | --- | --- | --- |
 | Imagem | `evoapicloud/evolution-api:latest` | Mesma linha, tag fixada (nao apenas `latest`) |
 | Postgres + Redis | Com volume persistente | Servicos dedicados isolados |
-| Volume `/evolution/instances` na API | **Ausente** | **Obrigatorio** montar volume no servico Evolution |
+| Volume `/evolution/instances` na API | **Montado** em staging (`evolution-api-staging-volume`, 5GB) | **Obrigatorio** no servico Evolution producao |
 | Replicas | 1 | Manter 1 replica por instancia Baileys |
 | Worker/fila extra | Nao necessario | Nao obrigatorio para MVP de envio |
 | Sessao WhatsApp | Instancia no DB, estado `close` ate QR | QR controlado + validar `open` antes de trafego real |
@@ -112,7 +112,7 @@ Runbook completo em `docs/EVOLUTION-API-STAGING.md` (secao **Plano: volume `/evo
 | Novo QR (estado atual: QR nunca feito) | **Nao** — aplicar volume **antes** do primeiro QR |
 | Novo QR (se ja estivesse `open` sem volume) | **Provavelmente sim** apos redeploy |
 | Railway destrói servico? | **Nao** — attach volume no servico existente |
-| Staging volume aplicado? | **Nao** — pendente confirmacao do operador |
+| Staging volume aplicado? | **Sim** — 2026-05-28, mount `/evolution/instances`, deploy `feb1a7fc` |
 | Producao | Intocada |
 
 Ordem recomendada para ir a producao:

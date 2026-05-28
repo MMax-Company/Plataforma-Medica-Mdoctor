@@ -331,7 +331,7 @@ Escopo: revisao read-only do runtime `evolution-api-staging` (Automation-MDoctor
 | `evolution-api-staging` | `evoapicloud/evolution-api:latest`, porta `8080`, 1 replica | Alinhado ao compose oficial |
 | `Postgres` | volume `postgres-volume` (5GB) | Persistencia de metadados/migrations Prisma |
 | `Redis` | volume `redis-volume` (AOF em `/data`) | Cache habilitado (`CACHE_REDIS_ENABLED=true`) |
-| Volume no container Evolution | **nenhum** (`volumes: []`) | Diverge do compose oficial (`evolution_instances:/evolution/instances`) |
+| Volume no container Evolution | `evolution-api-staging-volume` → `/evolution/instances` (5GB) | Alinhado ao compose oficial (desde 2026-05-28) |
 
 Compose oficial ([evolution-foundation/evolution-api](https://github.com/evolution-foundation/evolution-api)) espera:
 
@@ -396,9 +396,9 @@ Leitura: registro da instancia **persiste no Postgres** (sobrevive redeploy). Se
 | --- | --- | --- |
 | Postgres (Prisma) | Sim — instancia e settings no banco | Sim para metadados |
 | Redis (AOF + volume) | Sim | Sim para cache |
-| Filesystem `/evolution/instances` | **Nao montado** no servico API | Risco medio apos QR: credenciais Baileys em disco podem ser perdidas em redeploy da API se nao estiverem 100% no banco |
+| Filesystem `/evolution/instances` | **Montado** (`evolution-api-staging-volume`, 5GB) | Credenciais Baileys persistem em redeploy da API (apos QR) |
 
-Recomendacao antes de produção: adicionar volume Railway em `evolution-api-staging` montado em `/evolution/instances` (paridade com compose oficial), **sem** recriar banco e **sem** apagar instancia.
+Volume aplicado em 2026-05-28 no servico `evolution-api-staging` (ver secao **Volume `/evolution/instances` (aplicado em staging)**).
 
 ### Reconnect / riscos
 
@@ -419,8 +419,8 @@ Para o escopo Doctor Prescreve (envio de receita pontual, dry-run, sandbox): **n
 
 ### Conclusao da auditoria
 
-- Arquitetura staging: **adequada para testes** com ressalva do volume de instancias.
-- Railway vs documentacao oficial: **parcialmente alinhado** (falta volume na API).
+- Arquitetura staging: **adequada para testes** com volume de instancias montado.
+- Railway vs documentacao oficial: **alinhado** (Postgres + Redis + volume `/evolution/instances`).
 - Seguro para continuar dry-run + integracao Typebot/n8n/backend: **sim**.
 - Pronto para producao: **nao** — ver `docs/EVOLUTION-PRODUCTION-READINESS.md`.
 
@@ -449,7 +449,7 @@ docker image rm atendai/evolution-api:<tag>
 | Imagem configurada | `evoapicloud/evolution-api:latest` |
 | Correcao necessaria | **nao** (ja oficial) |
 | Deploy status | `SUCCESS`, 1 replica running |
-| Volume `/evolution/instances` | **ausente** (recomendacao pendente; nao alterado) |
+| Volume `/evolution/instances` | **montado** (`evolution-api-staging-volume`, 5GB) |
 
 Nenhum redeploy foi necessario nesta rodada (imagem ja correta).
 
@@ -465,9 +465,40 @@ Nenhum redeploy foi necessario nesta rodada (imagem ja correta).
 
 Instancia `mdoctor-staging` preservada. Postgres e Redis nao foram alterados.
 
-## Plano: volume `/evolution/instances` (preparado, nao aplicado)
+## Volume `/evolution/instances` (aplicado em staging)
 
-Data/hora: 2026-05-28 — analise e runbook apenas. **Nenhuma alteracao foi executada no Railway.**
+Data/hora: 2026-05-28 17:03 UTC — **aplicado no Railway** (projeto Automation-MDoctor / staging).
+
+| Campo | Valor |
+| --- | --- |
+| Servico | `evolution-api-staging` (`ab310799-fef4-4f28-8ecf-bdd2c0fa0aaf`) |
+| Volume ID | `db90a97f-d9aa-4a1b-80e3-164677e3bf01` |
+| Nome | `evolution-api-staging-volume` |
+| Mount path | `/evolution/instances` |
+| Tamanho | 5 GB |
+| Deploy pos-volume | `feb1a7fc-4870-46ce-a728-68d93e8fd396` (`SUCCESS`) |
+| Postgres / Redis | Intocados (mesmos deployment IDs) |
+| Instancia `mdoctor-staging` | Preservada (`fetchInstances` OK) |
+| `connectionState` pos-deploy | `connecting` (QR ainda pendente) |
+| Backend dry-run | `WHATSAPP_DRY_RUN=true`, `sandboxMode=true` (inalterado) |
+
+Validacao pos-aplicacao:
+
+| Endpoint | Resultado |
+| --- | --- |
+| `GET /` | `200`, version `2.3.7` |
+| `/manager` | `301` |
+| `fetchInstances` | `mdoctor-staging` presente |
+| `connectionState/mdoctor-staging` | `connecting` |
+| Backend `provider-status` | `instanceFound=true`, `dryRun=true` |
+
+QR / pareamento: **nao executado** nesta rodada (conforme escopo).
+
+---
+
+## Plano: volume `/evolution/instances` (historico / runbook)
+
+Data/hora: 2026-05-28 — analise inicial; **aplicado** na secao acima.
 
 ### Referencia oficial
 
@@ -481,9 +512,9 @@ Data/hora: 2026-05-28 — analise e runbook apenas. **Nenhuma alteracao foi exec
 | --- | --- | --- | --- |
 | Postgres (`postgres-volume`) | Sim | Instancia `mdoctor-staging`, settings Prisma, historico se flags ativas | Sim |
 | Redis (`redis-volume`, AOF) | Sim | Cache Baileys / filas leves | Sim |
-| `/evolution/instances` no container API | **Nao** | `creds`, keys, store Baileys por instancia | **Nao** (ephemeral do container) |
+| `/evolution/instances` no container API | **Sim** (desde 2026-05-28) | `creds`, keys, store Baileys por instancia | **Sim** (volume Railway) |
 
-Estado atual da instancia: `connectionState=close`, QR **ainda nao concluido**. Registro no Postgres existe; **ainda nao ha sessao WhatsApp pareada** em disco.
+Estado apos mount: `connectionState=connecting`, QR **ainda nao concluido**. Registro no Postgres preservado.
 
 ### Risco atual (sem volume)
 
@@ -603,5 +634,5 @@ Via UI: Service → **Volumes** → Add Volume → mount `/evolution/instances`.
 | Item | Status |
 | --- | --- |
 | Analise documentada | Feito |
-| Volume aplicado no Railway | **Pendente — aguardando sua confirmacao** |
+| Volume aplicado no Railway | **Feito** (2026-05-28) |
 | Producao | Intocada |
