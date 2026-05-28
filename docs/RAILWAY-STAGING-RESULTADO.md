@@ -170,7 +170,7 @@ railway up --detach ...
 5. Se for usar painel existente, confirmar se `painel-medico-staging` deve substituir o nome planejado `Painel-MDoctor-Staging`.
 6. Depois da confirmacao manual, executar comandos com IDs/servicos explicitos, nunca por contexto ambiguo.
 
-## Confirmacoes
+## Confirmacoes do bloqueio inicial
 
 - Producao nao foi alterada.
 - Railway nao recebeu deploy.
@@ -180,3 +180,84 @@ railway up --detach ...
 - WhatsApp real nao foi ativado.
 - Stripe/pagamentos nao foram ativados.
 - Codigo funcional nao foi alterado.
+
+## Backend staging deployment real
+
+Data/hora: 2026-05-28 03:26:23 -03:00
+
+Escopo autorizado:
+
+- Projeto: `Backend-Mdoctor`
+- Project ID: `bed0e3b3-fa4b-4bc2-a7fb-dcabca09cd9b`
+- Environment staging ID: `d297af6e-c5e2-406a-9798-69a02f0e7394`
+- Service staging: `mdoctor-backend-staging`
+- Service ID: `53960eb4-a1be-4d7c-b665-462049e52085`
+
+Variaveis staging configuradas, sem revelar secrets:
+
+- `NODE_ENV=staging`
+- `PORT=3004`
+- `MEMED_ENV=mock`
+- `JWT_SECRET` gerado forte e configurado somente no backend staging
+- `MEDICO_USER` configurado para login staging
+- `MEDICO_PASS` gerada forte e configurada somente no backend staging
+- `MEDICO_ROLE=admin`
+
+Deploys executados:
+
+- `ee90dd65-14a7-4a9c-ad31-ac9d7d12211d`: deploy inicial backend staging, `SUCCESS`
+- `b59c8906-ea70-4515-95a8-df02fb41ae90`: deploy backend staging com env de auth staging, `SUCCESS`
+
+URL backend staging:
+
+```text
+https://mdoctor-backend-staging-staging.up.railway.app
+```
+
+Endpoints validados:
+
+| Endpoint | Resultado | Observacao |
+| --- | --- | --- |
+| `GET /health` | OK | Retornou `status: OK`. |
+| `GET /readyz` | OK com warning | `storage.mode=fallback_local`, `memed.source=mock`; esperado sem Supabase/Memed reais. |
+| `POST /api/auth/login` | OK | Login staging validado com credenciais configuradas no Railway; token nao registrado. |
+| `GET /api/atendimentos` | OK | Validado com Bearer token staging. |
+
+Logs importantes:
+
+```text
+Starting Container
+> mdoctor-backend@1.0.0 start
+> node server.js
+Supabase nao configurado. Backend em modo desenvolvimento.
+production_readiness_incomplete
+whatsapp_disabled
+server_started
+```
+
+Leitura dos logs:
+
+- Container iniciou corretamente.
+- Supabase nao configurado gera warning esperado no staging mock.
+- WhatsApp permaneceu desativado.
+- Servidor iniciou.
+- Requisicoes HTTP de validacao chegaram ao servico.
+
+Confirmacoes apos deploy:
+
+- Producao nao foi alterada.
+- Environment `production` nao foi usado.
+- Service production `web` nao foi usado.
+- Repositorio legado `Mdoctor-Prescreve` nao foi usado.
+- Dominio oficial nao foi alterado.
+- Memed real nao foi ativada.
+- WhatsApp real nao foi ativado.
+- Stripe/pagamentos nao foram ativados.
+- Codigo funcional nao foi alterado.
+
+Proximos passos:
+
+1. Usar a URL do backend staging no painel staging via `NEXT_PUBLIC_API_URL`.
+2. Confirmar manualmente o alvo do painel staging antes de qualquer deploy do painel.
+3. Validar `/login`, `/dashboard` e fluxo mock no painel.
+4. Manter Supabase/Memed/WhatsApp reais fora ate o staging base estar validado.
