@@ -738,3 +738,82 @@ Conclusao:
 - Provider ativado em staging: nao.
 - Fallback mock preservado: sim.
 - Delivery controlado: OK.
+
+## Memed - validacao controlada em staging (sem uso real)
+
+Data/hora: 2026-05-28 09:14 -03:00
+
+Objetivo:
+
+- Validar integracao de prescricoes com seguranca maxima em staging.
+- Nao usar dados reais de paciente.
+- Nao disparar entrega real.
+- Preservar fallback mock e evitar erro bruto 502 para o cliente.
+
+Revisao da implementacao:
+
+- `mdoctor-backend/src/services/memed.service.js`
+  - Leitura de envs: `MEMED_ENV`, `MEMED_API_URL`, `MEMED_API_KEY`, `MEMED_SECRET_KEY`.
+  - Sem credenciais validas, retorna mock controlado.
+  - Em falha da Memed, aplica fallback mock com `warning`/`memedError`.
+- `mdoctor-backend/src/routes/prescriptions.routes.js`
+  - `POST /api/prescriptions/:id/generate` salva receita mesmo em fallback (`provider=mock`) e responde `201`.
+  - Bloco `catch` retorna fallback controlado (`200`) com `code=PRESCRIPTION_GENERATE_FALLBACK`.
+  - `GET /api/prescriptions/:id` retorna receita armazenada; sem armazenamento, cai em mock controlado.
+
+Envs confirmadas para modo Memed real controlado (quando autorizado):
+
+- `MEMED_ENV`
+- `MEMED_API_URL`
+- `MEMED_API_KEY`
+- `MEMED_SECRET_KEY`
+
+Estado atual de staging no momento da validacao:
+
+- `MEMED_ENV=mock`
+- `MEMED_ENVIRONMENT=development`
+- `MEMED_ENABLED=false`
+- Sem `MEMED_API_KEY` e `MEMED_SECRET_KEY` configuradas no backend staging.
+
+Execucao controlada (somente ficticio):
+
+- Backend staging base: `https://mdoctor-backend-staging-staging.up.railway.app`
+- Painel staging: `https://painel-medico-staging-staging.up.railway.app`
+- Atendimento criado com paciente ficticio (`Paciente Ficticio QA Memed`, CPF de teste, telefone/email de teste).
+- Nao houve chamada de delivery.
+
+Validacoes:
+
+- `GET /health`: `200`
+- `GET /readyz`: `200`
+  - `storage.mode=supabase`
+  - `supabase.connected=true`
+  - `memed.source=mock`
+  - `memed.env=mock`
+- `POST /api/prescriptions/:id/generate` (atendimento ficticio): `201`
+  - `source=mock`
+  - `provider=mock`
+  - `warning=Memed não configurada. Receita simulada para staging técnico.`
+- `GET /api/prescriptions/:id`: `200`
+  - `source=mock`
+  - receita recuperada do storage (`storedId` presente)
+- Painel staging:
+  - `/login`: `200`
+  - `/dashboard`: `200`
+
+Conclusao da etapa:
+
+- Memed real testada: nao (credenciais reais nao foram aplicadas nesta etapa).
+- Fallback mock permaneceu ativo e funcional.
+- Receita foi salva no Supabase em modo mock.
+- Nenhum delivery real foi chamado.
+- Producao Railway permaneceu intacta.
+
+Procedimento seguro se credenciais Memed de producao forem fornecidas manualmente:
+
+1. Configurar credenciais **somente** no backend staging (`mdoctor-backend-staging`).
+2. Definir ambiente controlado:
+   - `MEMED_ENV=production_controlled` (ou `production_staging`).
+3. Fazer redeploy apenas do backend staging.
+4. Reexecutar o mesmo teste com paciente/atendimento ficticios.
+5. Se houver erro Memed, manter fallback mock e nao liberar fluxo real.
