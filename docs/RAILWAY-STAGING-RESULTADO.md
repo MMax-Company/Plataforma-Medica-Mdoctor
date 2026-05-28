@@ -442,3 +442,37 @@ Confirmacoes:
 - Nenhuma credencial Memed de producao configurada no Railway staging nesta etapa.
 - Nenhum segredo salvo em codigo ou documentacao.
 - Producao permaneceu intocada.
+
+## WhatsApp/n8n staging - preparo sem pagamentos
+
+Data/hora: 2026-05-28 06:31 -03:00
+
+Escopo:
+
+- Validar trilha WhatsApp/n8n em staging sem tocar Stripe/pagamentos.
+- Manter entrega em modo mock/controlado.
+
+Validacoes executadas:
+
+- `GET /api/whatsapp/status`: OK (`enabled=false`, modo desenvolvimento/staging).
+- `POST /api/whatsapp/webhook`: OK, criando atendimento em fila (`waiting`).
+- `PATCH /api/atendimentos/:id/status`: OK.
+- `POST /api/prescriptions/:id/generate`: OK (`source=mock`).
+- `POST /api/atendimentos/:id/deliver` com `channel=whatsapp`: OK (`provider=mock`, status `delivered`).
+- Persistencia no Supabase:
+  - `audit_logs` com registros relacionados ao atendimento.
+  - `entregas_receita` com entrega registrada.
+- Painel staging preservado:
+  - `/login`: 200
+  - `/dashboard`: 200
+
+Separacao confirmada:
+
+- WhatsApp/n8n validado em trilha independente.
+- Stripe/pagamentos nao ativados e nao alterados.
+
+Conclusao:
+
+- WhatsApp staging mock/controlado pronto para uso tecnico.
+- Para n8n real ainda faltam hardening de autenticacao de webhook, idempotencia e observabilidade.
+- Producao permaneceu intocada.
