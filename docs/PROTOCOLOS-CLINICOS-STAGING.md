@@ -55,3 +55,40 @@ Se qualquer item critico estiver ausente, a renovacao remota deve ser bloqueada 
 - Manter textos de orientacao claros e nao robóticos.
 - Preservar fallback mock quando integracoes externas nao responderem.
 - Nao retornar erro bruto 502 ao medico/painel para fluxos de renovacao.
+
+## Evidencia de validacao (2026-05-28)
+
+Matriz de casos ficticios executada em staging:
+
+- Elegiveis:
+  - HAS
+  - DM2
+  - DLP
+  - hipotireoidismo
+- Inelegiveis:
+  - sinais de alerta (`sinais_alarme`)
+  - documentacao insuficiente (`documentacao_insuficiente`)
+  - medicacao incompativel/contraindicacao (`medicacao_incompativel`)
+
+Campos clinicos obrigatorios validados em todos os casos:
+
+- `eligible`
+- `reason`
+- `reasonCode`
+- `criteriaUsed`
+- `riskLevel`
+- `renewalStatus`
+- `protocolVersion`
+
+Persistencia e auditoria validadas:
+
+- `atendimentos.dados_clinicos` com `clinical_summary`, `protocol_version`, `clinical_audit`
+- `audit_logs.payload` com trilha de protocolo/criterios/correlation
+
+Fluxo clinico operacional validado:
+
+- aprovar elegivel
+- reprovar inelegivel
+- gerar receita mock
+- delivery mock
+- status final coerente (`delivered` para caso aprovado com entrega)

@@ -60,3 +60,41 @@ Campos de rastreio mantidos:
 - Sem mudanca de contratos publicos de API.
 - Sem alteracao de n8n/Typebot structure principal.
 - Fallback/mock preservado.
+
+## Validacao clinica E2E (staging)
+
+Data: 2026-05-28
+
+Validacao executada em ambiente staging real apos deploy do commit `cba26c1` no backend staging.
+
+Resultados consolidados:
+
+- Build/check/lint:
+  - `npm --prefix mdoctor-backend run check` OK
+  - `npm --prefix mdoctor-panel run lint` OK (warnings preexistentes fora do escopo)
+  - `npm --prefix mdoctor-panel run build` OK
+- Endpoints staging:
+  - backend `/health` e `/readyz`: 200
+  - backend `/api/atendimentos`: 200
+  - painel `/login` e `/dashboard`: 200
+- Casos clinicos ficticios validados no webhook backend staging:
+  - HAS, DM2, DLP, hipotireoidismo: elegiveis (`reasonCode=eligible`, `riskLevel=BAIXO`, `renewalStatus=coerente`)
+  - sinais de alerta: bloqueado (`reasonCode=sinais_alarme`)
+  - documentacao insuficiente: bloqueado (`reasonCode=documentacao_insuficiente`)
+  - medicacao incompativel/contraindicacao basica: bloqueado (`reasonCode=medicacao_incompativel`)
+- Persistencia clinica confirmada:
+  - `dados_clinicos.protocol_version=staging-clinical-v1`
+  - `dados_clinicos.clinical_summary` presente
+  - `dados_clinicos.clinical_audit` presente
+- Auditoria Supabase confirmada:
+  - `audit_logs.payload` com `protocolVersion`, `criteriaUsed` e rastros de fluxo
+  - eventos observados: `webhook_processed`, `status_change`, `delivery_completed`
+- Acoes operacionais:
+  - aprovacao caso elegivel: OK
+  - recusa caso inelegivel: OK
+  - geracao Memed mock: OK
+  - delivery mock: OK
+
+Observacao operacional:
+
+- O webhook via n8n staging respondeu em conformidade, mas sem repassar todos os campos clinicos enriquecidos do `rawMessage.original`; por isso, a matriz clinica completa foi validada diretamente no webhook backend staging com o mesmo contrato de seguranca (`X-MDoctor-Webhook-Secret`), sem alterar n8n/Typebot.

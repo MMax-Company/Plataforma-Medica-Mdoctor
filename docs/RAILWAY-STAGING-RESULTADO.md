@@ -931,3 +931,58 @@ Documentacao de referencia:
 
 - `docs/PRONTUARIO-INTELIGENTE.md`
 - `docs/PROTOCOLOS-CLINICOS-STAGING.md`
+
+## Validacao clinica E2E pos-refinamento (staging)
+
+Data/hora: 2026-05-28 10:26-10:40 -03:00
+
+Contexto:
+
+- Refinamento clinico implementado no commit `cba26c1`.
+- Validacao executada em staging real, sem alteracao em producao.
+
+Passos executados:
+
+1. Validacoes tecnicas:
+   - `npm --prefix mdoctor-backend run check` -> OK
+   - `npm --prefix mdoctor-panel run lint` -> OK (warnings preexistentes fora do escopo)
+   - `npm --prefix mdoctor-panel run build` -> OK
+2. Endpoints staging:
+   - backend `/health` -> `200`
+   - backend `/readyz` -> `200`
+   - backend `/api/atendimentos` -> `200`
+   - painel `/login` -> `200`
+   - painel `/dashboard` -> `200`
+3. Casos clinicos ficticios:
+   - HAS elegivel -> OK
+   - DM2 elegivel -> OK
+   - DLP elegivel -> OK
+   - hipotireoidismo elegivel -> OK
+   - sinais de alerta -> bloqueado (OK)
+   - documentacao insuficiente -> bloqueado (OK)
+   - medicacao incompativel/contraindicacao -> bloqueado (OK)
+4. Campos clinicos validados:
+   - `eligible`, `reason`, `reasonCode`, `criteriaUsed`, `riskLevel`, `renewalStatus`, `protocolVersion`
+5. Persistencia e auditoria:
+   - `dados_clinicos` com `protocol_version`, `clinical_summary`, `clinical_audit`
+   - `audit_logs.payload` com `protocolVersion`, criterios e eventos (`webhook_processed`, `status_change`, `delivery_completed`)
+6. Acoes operacionais:
+   - aprovar elegivel -> OK
+   - reprovar inelegivel -> OK
+   - gerar Memed mock -> OK
+   - delivery mock -> OK
+
+Correcao minima aplicada no ambiente (sem alterar producao):
+
+- Backend staging estava com comportamento pre-refinamento no inicio da rodada.
+- Foi feito redeploy **somente** de `mdoctor-backend-staging` com o estado atual do branch (`cba26c1`), sem alterar contratos publicos.
+
+Observacao:
+
+- O webhook via n8n staging respondeu 200, mas nao preservou todo o enriquecimento de `rawMessage.original` para casos clinicos complexos; a validacao clinica completa foi realizada diretamente no webhook backend staging com secret e correlation id, sem mudar n8n/Typebot.
+
+Confirmacoes de seguranca:
+
+- Nenhuma alteracao em producao.
+- Nenhuma ativacao de Stripe/WhatsApp real/Memed producao.
+- Fallback/mock preservado.
