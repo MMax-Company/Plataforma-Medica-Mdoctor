@@ -159,3 +159,56 @@ Confirmacoes:
 
 - Fluxo operacional preservado.
 - Backend, n8n, Supabase e producao nao foram alterados nesta validacao final.
+
+## Revisao visual local com captura automatizada
+
+Data/hora: 2026-05-28 10:45-11:00 -03:00
+
+Objetivo:
+
+- Abrir localmente o frontend de desenvolvimento e validar visualmente as telas principais apos refinamentos UI/clinicos.
+
+Motivo do travamento anterior em `/login`:
+
+- O fluxo antigo de screenshot dependia de sessao preinjetada e do frontend apontando para `NEXT_PUBLIC_API_URL=http://localhost:3004`.
+- Sem backend local ativo, a navegacao podia ficar sem autenticacao efetiva para seguir o fluxo completo de captura.
+
+Metodo de autenticacao aplicado:
+
+1. Tentativa de login real por UI no script (`E-mail ou CPF`, `Senha`, clique em `ACESSAR PAINEL`).
+2. Fallback controlado quando necessario:
+   - `POST /api/auth/login` no backend staging
+   - injecao de `mdoctor_auth_token`, `mdoctor_auth_user` e `mdoctor_panel_mock_session` no `localStorage`
+3. Em seguida, navegacao e captura de telas.
+
+Ambiente local usado para review:
+
+- Frontend local (`next dev`) com backend staging.
+- Nenhuma alteracao em backend/produção.
+
+Screenshots geradas:
+
+- `docs/screenshots/login.png`
+- `docs/screenshots/dashboard.png`
+- `docs/screenshots/prontuario-elegivel.png`
+- `docs/screenshots/prontuario-inelegivel.png`
+- `docs/screenshots/memed-elegivel.png`
+
+Paginas capturadas:
+
+- `/login`
+- `/dashboard`
+- `/prontuario/:id` (elegivel)
+- `/prontuario/:id` (inelegivel)
+- `/memed/:id`
+
+Resultado visual geral:
+
+- Layout, hierarquia visual, cores, badges e cards mantidos no padrao esperado.
+- Prontuario elegivel e inelegivel com diferencas visuais clinicas coerentes (banner, risco, rationale e rastreabilidade).
+- Spacing e legibilidade bons para notebook/desktop.
+- Scroll interno do dashboard preservado.
+
+Bugs visuais pequenos:
+
+- Nao houve bug visual bloqueante novo nesta rodada.
