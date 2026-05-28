@@ -464,3 +464,144 @@ Nenhum redeploy foi necessario nesta rodada (imagem ja correta).
 | Backend `provider-status` | `configured=true`, `instanceFound=true`, `apiVersion=2.3.7` |
 
 Instancia `mdoctor-staging` preservada. Postgres e Redis nao foram alterados.
+
+## Plano: volume `/evolution/instances` (preparado, nao aplicado)
+
+Data/hora: 2026-05-28 — analise e runbook apenas. **Nenhuma alteracao foi executada no Railway.**
+
+### Referencia oficial
+
+- Compose: [evolution-foundation/evolution-api](https://github.com/evolution-foundation/evolution-api) — `evolution_instances:/evolution/instances`
+- Template Railway Evolution: volume obrigatorio em `/evolution/instances` para arquivos de autenticacao WhatsApp; metadados no Postgres
+- Baileys: credenciais multi-arquivo (`useMultiFileAuthState`) gravadas em disco; evento `creds.update` persiste sessao; reconnect apos restart depende desses arquivos + estado no banco
+
+### O que cada camada persiste hoje (staging)
+
+| Camada | Montado / ativo | Conteudo tipico | Sobrevive redeploy API? |
+| --- | --- | --- | --- |
+| Postgres (`postgres-volume`) | Sim | Instancia `mdoctor-staging`, settings Prisma, historico se flags ativas | Sim |
+| Redis (`redis-volume`, AOF) | Sim | Cache Baileys / filas leves | Sim |
+| `/evolution/instances` no container API | **Nao** | `creds`, keys, store Baileys por instancia | **Nao** (ephemeral do container) |
+
+Estado atual da instancia: `connectionState=close`, QR **ainda nao concluido**. Registro no Postgres existe; **ainda nao ha sessao WhatsApp pareada** em disco.
+
+### Risco atual (sem volume)
+
+| Cenario | Impacto |
+| --- | --- |
+| Redeploy / restart do servico `evolution-api-staging` | Metadados da instancia permanecem no Postgres; **arquivos de auth Baileys no filesystem do container sao perdidos** |
+| Apos escanear QR (`connectionState=open`) e depois redeploy | **Alto**: provavel necessidade de **novo QR** ou reconnect falho ate re-parear |
+| Deploy de nova imagem `latest` | Mesmo risco de restart |
+| Escala para 2+ replicas | **Proibido** com Baileys (Railway: 1 volume = 1 replica; Evolution: sessao local) |
+
+Com `WHATSAPP_DRY_RUN=true` o backend nao envia mensagens reais, mas **a sessao Evolution ainda seria afetada** em testes pos-QR.
+
+### Necessidade real do volume
+
+| Pergunta | Resposta |
+| --- | --- |
+| Obrigatorio para criar instancia? | Nao — `mdoctor-staging` ja existe via API/Postgres |
+| Obrigatorio para dry-run backend? | Nao — backend nao depende do filesystem Evolution |
+| Obrigatorio antes de producao / QR real? | **Sim** — alinhamento com compose oficial e template Railway |
+| Substitui Postgres? | **Nao** — complementa (DB + disco) |
+
+### Railway: suporta sem destruir o servico?
+
+| Pergunta | Resposta |
+| --- | --- |
+| Recriar servico `evolution-api-staging`? | **Nao necessario** |
+| Apagar Postgres/Redis? | **Nao** |
+| Apagar instancia `mdoctor-staging`? | **Nao** |
+| Adicionar volume ao servico existente? | **Sim** — `railway volume add` ou UI (Settings → Volumes) |
+| Redeploy necessario? | **Sim** — volume monta no **start** do container; breve downtime (~segundos a ~1 min) |
+| Limite Railway | 1 volume por servico (API ainda tem 0); replicas incompatíveis com volume |
+| Permissões Docker | Se API falhar ao escrever no volume, considerar `RAILWAY_RUN_UID=0` (doc Railway) |
+
+### Precisa novo QR?
+
+| Momento da operacao | Novo QR? |
+| --- | --- |
+| **Agora** (antes do primeiro QR, estado atual) | **Nao** — volume nasce vazio; apos mount, escanear QR **uma vez** com persistencia correta |
+| Depois de `connectionState=open` sem volume | **Provavelmente sim** apos primeiro redeploy sem creds em disco |
+| Depois de `open` + volume ja montado | **Nao** (esperado) — auth em `/evolution/instances` + Postgres |
+
+Resumo para staging atual: **nao precisa refazer QR que nunca foi feito**; o volume deve ser aplicado **antes** do primeiro pareamento.
+
+### Procedimento seguro (executar somente apos confirmacao explicita)
+
+**Pre-requisitos**
+
+1. Confirmar dry-run ativo no backend (`WHATSAPP_DRY_RUN=true`).
+2. Nao chamar `connect` / `restart` / `logout` / `delete` na instancia.
+3. Registrar baseline (local, sem expor secrets):
+
+```bash
+# substituir URL e usar apikey do Railway localmente
+curl -sS -H "apikey: $EVOLUTION_API_KEY" \
+  "https://evolution-api-staging-staging-40d1.up.railway.app/instance/fetchInstances"
+curl -sS -H "apikey: $EVOLUTION_API_KEY" \
+  "https://evolution-api-staging-staging-40d1.up.railway.app/instance/connectionState/mdoctor-staging"
+```
+
+**Passo A — criar e montar volume (somente servico Evolution API)**
+
+No projeto **Automation-MDoctor**, ambiente **staging**, servico **`evolution-api-staging`**:
+
+- Mount path exato: `/evolution/instances`
+- Tamanho sugerido: **5 GB** (plano Hobby; mesmo padrao Postgres/Redis staging)
+- Nome sugerido: `evolution-instances-volume`
+
+Via CLI (com contexto linkado ao projeto/ambiente/servico):
+
+```bash
+# NAO EXECUTADO — runbook
+railway link --project fe962e4e-4c41-4c94-9d2d-dbdfe37d0ed4 \
+  --environment 6c77be19-3b24-46a2-9fc2-4511b920f5aa \
+  --service ab310799-fef4-4f28-8ecf-bdd2c0fa0aaf
+
+railway volume add --mount-path /evolution/instances
+# Railway injeta RAILWAY_VOLUME_MOUNT_PATH em runtime; nao definir manualmente
+```
+
+Via UI: Service → **Volumes** → Add Volume → mount `/evolution/instances`.
+
+**Passo B — redeploy controlado**
+
+- Redeploy **apenas** `evolution-api-staging` (nao Postgres, nao Redis, nao backend).
+- Aguardar `SUCCESS` e 1 replica running.
+
+**Passo C — validacao pos-mudanca**
+
+| Check | Esperado |
+| --- | --- |
+| `GET /` | `200`, version `2.3.7` |
+| `fetchInstances` | `mdoctor-staging` ainda listada |
+| `connectionState` | `close` (ate QR) |
+| `provider-status` backend | `instanceFound=true`, `dryRun=true` |
+| Railway service JSON | `volumes: [{ mountPath: "/evolution/instances", ... }]` |
+
+**Passo D — QR (quando autorizado, fora deste plano)**
+
+- Abrir `/manager`, conectar `mdoctor-staging`, escanear QR.
+- Confirmar `connectionState=open` e que **um segundo redeploy** mantem `open` sem novo QR.
+
+**Envs opcionais (revisar na mesma janela, sem secrets no repo)**
+
+- `DATABASE_SAVE_DATA_INSTANCE=true` (explicitar no Railway; padrao da imagem pode ja salvar)
+- Manter `DEL_INSTANCE=false`
+- Nao alterar `DATABASE_CONNECTION_URI` nem URLs de Postgres/Redis
+
+### Rollback (se algo falhar)
+
+1. **Nao** apagar Postgres/Redis nem deletar instancia.
+2. Se API nao subir: logs Railway; testar `RAILWAY_RUN_UID=0` se erro de permissao em `/evolution/instances`.
+3. Desfazer volume: `railway volume detach` + redeploy — **perde** arquivos gravados no volume; instancia no Postgres permanece.
+4. Backend: manter `WHATSAPP_DRY_RUN=true`.
+
+### Status deste plano
+
+| Item | Status |
+| --- | --- |
+| Analise documentada | Feito |
+| Volume aplicado no Railway | **Pendente — aguardando sua confirmacao** |
+| Producao | Intocada |

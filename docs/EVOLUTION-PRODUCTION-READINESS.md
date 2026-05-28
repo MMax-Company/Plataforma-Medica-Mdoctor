@@ -97,6 +97,29 @@ Detalhes: `docs/EVOLUTION-API-STAGING.md` (secoes Auditoria Docker / Runtime Rai
 - [ ] LGPD/consentimento do paciente alinhados ao canal WhatsApp.
 - [ ] Volume persistente `/evolution/instances` no servico Evolution producao.
 - [ ] `DATABASE_SAVE_DATA_INSTANCE=true` e demais flags de persistencia revisadas explicitamente.
+
+## Plano de volume staging (2026-05-28, nao aplicado)
+
+Runbook completo em `docs/EVOLUTION-API-STAGING.md` (secao **Plano: volume `/evolution/instances`**).
+
+| Decisao | Detalhe |
+| --- | --- |
+| Mount path | `/evolution/instances` |
+| Servico alvo | `evolution-api-staging` apenas |
+| Postgres / Redis | Intocados |
+| Instancia `mdoctor-staging` | Preservada (registro no DB) |
+| Redeploy | Sim, somente Evolution API; downtime curto |
+| Novo QR (estado atual: QR nunca feito) | **Nao** — aplicar volume **antes** do primeiro QR |
+| Novo QR (se ja estivesse `open` sem volume) | **Provavelmente sim** apos redeploy |
+| Railway destrói servico? | **Nao** — attach volume no servico existente |
+| Staging volume aplicado? | **Nao** — pendente confirmacao do operador |
+| Producao | Intocada |
+
+Ordem recomendada para ir a producao:
+
+1. Aplicar e validar volume em **staging** (incluindo teste: QR → `open` → redeploy → ainda `open`).
+2. Replicar o mesmo padrao no runtime Evolution **producao** (servico isolado).
+3. Fixar tag/digest da imagem (nao depender de `latest` mutavel).
 - [ ] Tag de imagem Docker fixada (evitar `latest` mutavel em producao).
 
 ## Recomendacoes operacionais
