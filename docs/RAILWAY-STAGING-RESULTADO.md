@@ -1048,6 +1048,11 @@ Resultado tecnico:
 - Validacao local de checks: OK.
 - Staging manteve dry-run ativo (`test-send` -> `provider=dry-run`) mesmo sem credenciais Evolution reais.
 
-Observacao operacional:
+Validacao em staging apos redeploy (`42c66b4`):
 
-- Para refletir os novos campos de `provider-status` no ambiente remoto, executar redeploy apenas de `mdoctor-backend-staging` apos merge/push desta alteracao.
+- `GET /api/whatsapp/provider-status`: OK com campos novos:
+  - `configuredParts`, `safeReadEndpoints`, `apiReachable`, `instanceName`, `instanceFound`
+- Sem credenciais Evolution reais:
+  - `configured=false`, `apiReachable=false` (comportamento esperado)
+- `POST /api/whatsapp/test-send`: OK, `provider=dry-run`, `providerStatus=simulated`
+- Dry-run/sandbox/fallback preservados.
