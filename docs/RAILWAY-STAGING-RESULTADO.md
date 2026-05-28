@@ -650,3 +650,56 @@ Confirmacoes:
 - Sem ativacao de Stripe/pagamentos
 - Sem ativacao de WhatsApp provider real
 - Sem ativacao de Memed producao
+
+## Integracao n8n real staging (controlada)
+
+Data/hora: 2026-05-28 07:35 -03:00
+
+Objetivo:
+
+- Executar validacao final da integracao n8n real com backend staging, mantendo provider WhatsApp real desativado.
+
+Achado de infraestrutura:
+
+- No Railway atual, o projeto `Automation-MDoctor` possui apenas ambiente `production` para o servico `n8n Node`.
+- Nao foi encontrado ambiente/servico `n8n` de staging dedicado.
+- Por seguranca, **nao** foi utilizada automacao n8n de production para testes de staging.
+
+Validacao tecnica executada no backend staging (contrato n8n):
+
+- `POST /api/whatsapp/webhook` com headers:
+  - `X-MDoctor-Webhook-Secret`
+  - `X-Correlation-Id`
+  - `Idempotency-Key`
+  - `Content-Type: application/json`
+- Resultados:
+  - primeiro envio: `200`, atendimento criado
+  - segundo envio (mesma key): `200`, `duplicate=true`, sem duplicacao
+  - sem secret: `401`
+  - burst de carga: `429` confirmado
+- `audit_logs` no Supabase confirmados para:
+  - `webhook_processed`
+  - `webhook_duplicate_ignored`
+  - `webhook_rate_limited`
+- Correlation tracing confirmado nos payloads auditados (`payload.correlationId`).
+
+Estado dos endpoints:
+
+- `/health`: 200
+- `/readyz`: 200
+- `/api/whatsapp/status`: 200
+- Painel staging:
+  - `/login`: 200
+  - `/dashboard`: 200
+
+Conclusao:
+
+- Backend staging pronto para receber n8n real **quando existir runtime n8n staging dedicado**.
+- Pendencia bloqueante para "n8n staging conectado": ausencia de servico/ambiente n8n staging no Railway.
+
+Confirmacoes:
+
+- Producao intacta
+- Sem ativacao de Stripe
+- Sem ativacao de WhatsApp provider real
+- Sem ativacao de Memed producao

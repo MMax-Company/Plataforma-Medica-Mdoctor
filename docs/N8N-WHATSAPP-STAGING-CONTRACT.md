@@ -20,6 +20,7 @@ Out of scope:
 
 - Backend staging base URL: `https://mdoctor-backend-staging-staging.up.railway.app`
 - Panel staging URL: `https://painel-medico-staging-staging.up.railway.app`
+- n8n runtime requirement: use a dedicated **staging** n8n environment/service. Do not point production n8n to staging tests.
 
 ## Endpoints
 
