@@ -33,6 +33,37 @@ Preservado:
 - Fluxo clinico
 - Blocos de LGPD e elegibilidade
 - Estrutura de grupos/blocos/arestas
+- Bloco de pagamento (sem alteracao)
+
+## Ajustes funcionais aplicados no staging-safe
+
+### Data de nascimento
+
+- Campo de data de nascimento ajustado para orientacao explicita:
+  - formato aceito no Typebot: `dd/mm/aaaa`
+  - placeholder atualizado com exemplo real
+  - mensagem de retry para formato invalido
+  - `inputMode` ajustado para `text` (evita bloquear `/`)
+- Normalizacao esperada no n8n/webhook:
+  - entrada valida `dd/mm/aaaa` -> normalizar para `yyyy-mm-dd`
+  - entrada vazia/invalida -> nao enviar data normalizada (usar `null`/ausente)
+
+### Textos revisados
+
+- LGPD/consentimento com linguagem mais coerente e objetiva
+- Confirmacao de dados revisada
+- Elegibilidade revisada
+- Sinais de alerta revisados
+- Mensagens finais revisadas para clareza e seguranca
+
+### Placeholders seguros de documentos
+
+- Inseridos placeholders de documentos no fluxo:
+  - `SUPABASE_PUBLIC_LGPD_URL`
+  - `SUPABASE_PUBLIC_TELEMEDICINA_TERMO_URL`
+  - `SUPABASE_PUBLIC_PRIVACIDADE_URL`
+  - `SUPABASE_PUBLIC_CONSENTIMENTO_URL`
+  - `SUPABASE_PUBLIC_ORIENTACAO_PACIENTE_URL`
 
 ## Seguranca e LGPD
 
