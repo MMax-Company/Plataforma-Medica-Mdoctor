@@ -169,6 +169,10 @@ Backend webhook behavior (staging):
 - If already processed, returns `200` with known result and `duplicate: true`.
 - On duplicate, no new atendimento is created.
 - Audit log action: `webhook_duplicate_ignored`.
+- Memory cache safety:
+  - TTL-based cleanup via `WEBHOOK_IDEMPOTENCY_TTL_MS`
+  - Max entries cap via `WEBHOOK_IDEMPOTENCY_MAX_ENTRIES`
+  - Periodic cleanup to avoid unbounded growth
 
 ## Correlation
 
@@ -216,6 +220,7 @@ Policy:
 - Env controls:
   - `WEBHOOK_RATE_LIMIT_MAX`
   - `WEBHOOK_RATE_LIMIT_WINDOW_MS`
+  - `RATE_LIMIT_MAX_BUCKETS`
 
 When exceeded:
 

@@ -8,6 +8,7 @@ function toNumber(name, fallback) {
 function makeRateLimit(options = {}) {
   const windowMs = options.windowMs || toNumber('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000);
   const max = options.max || toNumber('RATE_LIMIT_MAX', 300);
+  const maxBuckets = options.maxBuckets || toNumber('RATE_LIMIT_MAX_BUCKETS', 10000);
   const name = options.name || 'default';
 
   return async function rateLimit(req, res, next) {
@@ -19,6 +20,12 @@ function makeRateLimit(options = {}) {
     const current = buckets.get(key);
 
     if (!current || current.resetAt <= now) {
+      if (buckets.size >= maxBuckets) {
+        cleanupRateLimitBuckets();
+      }
+      if (buckets.size >= maxBuckets) {
+        pruneOldestRateLimitBucket();
+      }
       buckets.set(key, { count: 1, resetAt: now + windowMs });
       res.setHeader('RateLimit-Limit', max);
       res.setHeader('RateLimit-Remaining', Math.max(max - 1, 0));
@@ -52,6 +59,18 @@ function makeRateLimit(options = {}) {
 
     return next();
   };
+}
+
+function pruneOldestRateLimitBucket() {
+  let oldestKey = null;
+  let oldestResetAt = Number.POSITIVE_INFINITY;
+  for (const [bucketKey, bucket] of buckets.entries()) {
+    if (bucket.resetAt < oldestResetAt) {
+      oldestResetAt = bucket.resetAt;
+      oldestKey = bucketKey;
+    }
+  }
+  if (oldestKey) buckets.delete(oldestKey);
 }
 
 function cleanupRateLimitBuckets() {

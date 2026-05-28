@@ -589,3 +589,23 @@ Validacao:
 - Rastreabilidade ponta a ponta confirmada em response + audit logs.
 - `/readyz` permaneceu estavel.
 - Painel staging preservado (`/login` e `/dashboard` com 200).
+
+## WhatsApp webhook - cleanup stores em memoria
+
+Data/hora: 2026-05-28 07:15 -03:00
+
+Implementacao:
+
+- Rate-limit store protegido com cap:
+  - `RATE_LIMIT_MAX_BUCKETS`
+  - prune/cleanup automatico para evitar crescimento infinito do `Map`
+- Idempotency store em memoria com seguranca:
+  - cache com TTL (`WEBHOOK_IDEMPOTENCY_TTL_MS`)
+  - limite de entradas (`WEBHOOK_IDEMPOTENCY_MAX_ENTRIES`)
+  - cleanup periodico automatico no backend
+
+Garantias:
+
+- Rate limit continua ativo em `POST /api/whatsapp/webhook`.
+- Idempotencia continua ativa para `Idempotency-Key` / `messageId`.
+- Sem impacto no fallback/mock.

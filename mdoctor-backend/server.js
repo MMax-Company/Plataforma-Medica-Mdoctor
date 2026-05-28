@@ -22,6 +22,7 @@ const { getReadinessReport } = require('./src/config/readiness');
 const logger = require('./src/config/logger');
 const requestLogger = require('./src/middlewares/request-logger');
 const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/rate-limit');
+const { cleanupWebhookIdempotencyCache } = require('./src/store/webhook-idempotency.store');
 const { createAuditLog } = require('./src/store/audit.store');
 
 function isLocalRuntime() {
@@ -154,6 +155,7 @@ app.use((err, req, res, _next) => {
 });
 
 setInterval(cleanupRateLimitBuckets, 60 * 1000).unref();
+setInterval(cleanupWebhookIdempotencyCache, 60 * 1000).unref();
 
 app.listen(PORT,()=>{
   logger.info('server_started', {

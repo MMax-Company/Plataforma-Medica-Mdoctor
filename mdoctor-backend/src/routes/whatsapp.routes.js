@@ -3,7 +3,8 @@ const eligibilityEngine = require('../eligibility/engine');
 const logger = require('../config/logger');
 const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
-const { STATUS, createAtendimento, listAtendimentos } = require('../store/atendimentos.store');
+const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
+const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 
 const router = express.Router();
 
@@ -77,6 +78,38 @@ router.post('/webhook', async (req, res) => {
   if (!from) return res.status(400).json({ success: false, error: 'from obrigatório', correlationId });
 
   if (idempotencyKey) {
+    const remembered = getRememberedWebhookResult(idempotencyKey);
+    if (remembered?.atendimentoId) {
+      const rememberedAtendimento = await getAtendimento(remembered.atendimentoId);
+      if (rememberedAtendimento?.origem === 'whatsapp') {
+        await createAuditLog({
+          entity_type: 'whatsapp_webhook',
+          entity_id: rememberedAtendimento.id,
+          action: 'webhook_duplicate_ignored',
+          actor: 'n8n',
+          payload: {
+            requestId,
+            correlationId,
+            from,
+            idempotencyKey,
+            source: 'memory_cache',
+            atendimento_id: rememberedAtendimento.id
+          }
+        });
+
+        return res.json({
+          success: true,
+          duplicate: true,
+          idempotencyKey,
+          correlationId,
+          reply: remembered.reply || 'Solicitação já recebida anteriormente.',
+          patient: null,
+          atendimento: rememberedAtendimento,
+          decision: remembered.decision || rememberedAtendimento.elegibilidade || null
+        });
+      }
+    }
+
     const history = await listAtendimentos();
     const duplicated = history.find((item) => {
       if (item?.origem !== 'whatsapp') return false;
@@ -102,8 +135,15 @@ router.post('/webhook', async (req, res) => {
           correlationId,
           from,
           idempotencyKey,
+          source: 'persistent_lookup',
           atendimento_id: duplicated.id
         }
+      });
+
+      rememberWebhookResult(idempotencyKey, {
+        atendimentoId: duplicated.id,
+        decision: duplicated.elegibilidade || null,
+        reply
       });
 
       return res.json({
@@ -164,6 +204,14 @@ router.post('/webhook', async (req, res) => {
       atendimento_id: atendimento.id
     }
   });
+
+  if (idempotencyKey) {
+    rememberWebhookResult(idempotencyKey, {
+      atendimentoId: atendimento.id,
+      decision,
+      reply
+    });
+  }
 
   return res.json({ success: true, correlationId, reply, patient, atendimento, decision });
 });
