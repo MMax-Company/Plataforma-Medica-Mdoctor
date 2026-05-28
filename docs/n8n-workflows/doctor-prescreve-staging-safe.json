@@ -1,0 +1,375 @@
+{
+  "name": "Doctor Prescreve - Staging Safe Router",
+  "active": false,
+  "nodes": [
+    {
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "path": "doctor-prescreve-whatsapp",
+        "httpMethod": "POST",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "name": "Build Secure Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first().json || {};\nconst body = input.body || input;\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nconst backendUrl = flowEnv === 'production'\n  ? String($env.BACKEND_URL_PRODUCTION || '').trim()\n  : String($env.BACKEND_URL_STAGING || '').trim();\nif (!backendUrl) {\n  throw new Error('BACKEND_URL_STAGING/BACKEND_URL_PRODUCTION não configurada para FLOW_ENV atual');\n}\nconst from = body.from || body.From || '';\nconst text = body.text || body.Body || '';\nconst providerMessageId = body?.rawMessage?.messageId || body?.messageId || body?.id || `${Date.now()}`;\nconst correlationId = input.headers?.['x-correlation-id'] || input.headers?.['X-Correlation-Id'] || `n8n-${Date.now()}-${Math.random().toString(16).slice(2)}`;\nconst idempotencyKey = String(providerMessageId || `${from}-${Date.now()}`);\nreturn [{\n  json: {\n    flowEnv,\n    backendUrl,\n    correlationId,\n    idempotencyKey,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-MDoctor-Webhook-Secret': String($env.N8N_WEBHOOK_SECRET || ''),\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey,\n      'X-N8N-Workflow': String($env.N8N_WORKFLOW_NAME || 'doctor-prescreve-staging-safe')\n    },\n    payload: {\n      from,\n      text,\n      rawMessage: {\n        provider: 'n8n',\n        messageId: idempotencyKey,\n        timestamp: new Date().toISOString(),\n        channel: 'whatsapp',\n        source: flowEnv,\n        original: body\n      }\n    }\n  }\n}];"
+      }
+    },
+    {
+      "name": "POST Backend Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.backendUrl + '/api/whatsapp/webhook' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.headers['Content-Type'] }}"
+            },
+            {
+              "name": "X-MDoctor-Webhook-Secret",
+              "value": "={{ $json.headers['X-MDoctor-Webhook-Secret'] }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $json.headers['X-Correlation-Id'] }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.headers['Idempotency-Key'] }}"
+            },
+            {
+              "name": "X-N8N-Workflow",
+              "value": "={{ $json.headers['X-N8N-Workflow'] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {
+          "fullResponse": true,
+          "ignoreResponseCode": true,
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "name": "Classify Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const response = $input.first().json || {};\nconst statusCode = Number(response.statusCode || 0);\nconst body = response.body || {};\nconst duplicate = Boolean(body.duplicate);\nlet route = 'OTHER';\nif (statusCode === 200 && duplicate) route = 'DUPLICATE';\nelse if (statusCode === 200) route = 'SUCCESS';\nelse if (statusCode === 401) route = 'UNAUTHORIZED';\nelse if (statusCode === 429) route = 'RATE_LIMITED';\nreturn [{ json: { route, statusCode, duplicate, responseBody: body, headers: response.headers || {}, correlationId: body.correlationId || response.headers?.['x-correlation-id'] || null } }];"
+      }
+    },
+    {
+      "name": "Route Result",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1220,
+        300
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "SUCCESS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "success"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "DUPLICATE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "duplicate"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "UNAUTHORIZED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unauthorized"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "RATE_LIMITED",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rate_limited"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1450,
+        180
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: 'SUCCESS', correlationId: $json.correlationId, backend: $json.responseBody } }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "name": "Respond Duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1450,
+        260
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: 'DUPLICATE', duplicate: true, correlationId: $json.correlationId, backend: $json.responseBody } }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1450,
+        340
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, route: 'UNAUTHORIZED', correlationId: $json.correlationId, backend: $json.responseBody } }}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "name": "Respond Rate Limited",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1450,
+        420
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, route: 'RATE_LIMITED', correlationId: $json.correlationId, backend: $json.responseBody } }}",
+        "options": {
+          "responseCode": 429
+        }
+      }
+    },
+    {
+      "name": "Respond Fallback",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1450,
+        500
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, route: 'OTHER', statusCode: $json.statusCode, correlationId: $json.correlationId, backend: $json.responseBody } }}",
+        "options": {
+          "responseCode": 502
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Build Secure Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Secure Request": {
+      "main": [
+        [
+          {
+            "node": "POST Backend Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Backend Webhook": {
+      "main": [
+        [
+          {
+            "node": "Classify Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Response": {
+      "main": [
+        [
+          {
+            "node": "Route Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Result": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Rate Limited",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Fallback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "template": "doctor-prescreve-staging-safe",
+    "secretsPolicy": "env-only",
+    "environments": [
+      "staging",
+      "production"
+    ]
+  },
+  "pinData": {},
+  "versionId": "doctor-prescreve-staging-safe-v1"
+}
