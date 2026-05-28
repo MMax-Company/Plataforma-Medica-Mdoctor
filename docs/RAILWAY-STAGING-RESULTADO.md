@@ -986,3 +986,46 @@ Confirmacoes de seguranca:
 - Nenhuma alteracao em producao.
 - Nenhuma ativacao de Stripe/WhatsApp real/Memed producao.
 - Fallback/mock preservado.
+
+## Evolution sandbox dry-run ativado (backend staging)
+
+Data/hora: 2026-05-28 11:46 -03:00
+
+Escopo executado:
+
+- Configuracao de envs **somente** no servico `mdoctor-backend-staging`.
+- Redeploy **somente** do backend staging.
+- Sem alteracao em producao, painel, Stripe, Memed producao e WhatsApp real.
+
+Variaveis configuradas no Railway (staging):
+
+- `WHATSAPP_PROVIDER=evolution`
+- `WHATSAPP_SANDBOX_MODE=true`
+- `WHATSAPP_DRY_RUN=true`
+
+Observacao de seguranca:
+
+- `EVOLUTION_API_KEY` real nao foi configurada nesta etapa.
+
+Validacao de endpoints:
+
+- `GET /health`: `200`
+- `GET /readyz`: `200`
+- `GET /api/whatsapp/provider-status`: `200` com:
+  - `provider=evolution`
+  - `sandboxMode=true`
+  - `dryRun=true`
+  - `fallbackActive=true`
+  - `mode=mock`
+- `POST /api/whatsapp/test-send` com auth (`Bearer`): `200` com:
+  - `delivery.provider=dry-run`
+  - `delivery.providerStatus=simulated`
+  - `warning` de simulacao ativa
+
+Confirmacoes:
+
+- Dry-run ativo: sim.
+- Test-send OK: sim.
+- Provider-status OK: sim.
+- Mensagem real enviada: nao.
+- Producao intacta: sim.

@@ -143,3 +143,44 @@ Protecoes:
 - exige `WHATSAPP_SANDBOX_MODE=true`
 - bloqueia envio em massa/bulk
 - registra `audit_logs` em sucesso/falha
+
+## Ativacao dry-run em staging (backend)
+
+Data/hora: 2026-05-28 11:46 -03:00
+
+Escopo aplicado:
+
+- Somente servico `mdoctor-backend-staging` no Railway.
+- Nenhuma alteracao em producao.
+- Nenhuma configuracao de `EVOLUTION_API_KEY` real.
+
+Variaveis ativas no backend staging:
+
+- `WHATSAPP_PROVIDER=evolution`
+- `WHATSAPP_SANDBOX_MODE=true`
+- `WHATSAPP_DRY_RUN=true`
+
+Deploy:
+
+- Redeploy executado apenas do backend staging (`mdoctor-backend-staging`), sem alterar painel/n8n/producao.
+
+Validacoes funcionais:
+
+- `GET /health`: `200` (servico ativo).
+- `GET /readyz`: `200` (staging operacional, com warnings esperados de ambiente nao-final).
+- `GET /api/whatsapp/provider-status`: `200` com:
+  - `provider=evolution`
+  - `sandboxMode=true`
+  - `dryRun=true`
+  - `fallbackActive=true`
+  - `mode=mock`
+- `POST /api/whatsapp/test-send` autenticado: `200` com:
+  - `delivery.provider=dry-run`
+  - `delivery.providerStatus=simulated`
+  - `warning=WHATSAPP_DRY_RUN ativo: envio apenas simulado`
+
+Conclusao da rodada:
+
+- Dry-run/sandbox ativo em staging: sim.
+- Envio real de mensagem: nao.
+- Fallback seguro preservado: sim.
