@@ -319,3 +319,148 @@ Fluxo validado:
 - `test-send`: dry-run quando dentro do intervalo anti-spam
 
 Referencia completa: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`
+
+## Auditoria Docker / Runtime Railway (2026-05-28)
+
+Escopo: revisao read-only do runtime `evolution-api-staging` (Automation-MDoctor / staging), sem alterar producao, sem recriar banco, sem reconectar QR.
+
+### Arquitetura atual
+
+| Componente | Railway staging | Observacao |
+| --- | --- | --- |
+| `evolution-api-staging` | `evoapicloud/evolution-api:latest`, porta `8080`, 1 replica | Alinhado ao compose oficial |
+| `Postgres` | volume `postgres-volume` (5GB) | Persistencia de metadados/migrations Prisma |
+| `Redis` | volume `redis-volume` (AOF em `/data`) | Cache habilitado (`CACHE_REDIS_ENABLED=true`) |
+| Volume no container Evolution | **nenhum** (`volumes: []`) | Diverge do compose oficial (`evolution_instances:/evolution/instances`) |
+
+Compose oficial ([evolution-foundation/evolution-api](https://github.com/evolution-foundation/evolution-api)) espera:
+
+- API + Postgres + Redis na mesma rede
+- volume nomeado para `/evolution/instances`
+- `AUTHENTICATION_API_KEY` no `.env`
+- `SERVER_PORT=8080`
+
+Railway staging atende o nucleo (imagem, porta, Postgres, Redis, API key, URL publica), mas **nao monta volume de instancias** no servico da API.
+
+### Envs obrigatorias (validacao)
+
+| Env | Status | Nota |
+| --- | --- | --- |
+| `SERVER_PORT=8080` | OK | |
+| `SERVER_TYPE=http` | OK | |
+| `SERVER_URL` | OK | URL publica configurada |
+| `DATABASE_PROVIDER=postgresql` | OK | |
+| `DATABASE_CONNECTION_URI` | OK | Referencia interna `Postgres` |
+| `CACHE_REDIS_ENABLED=true` | OK | |
+| `CACHE_REDIS_URI` | OK | Referencia interna `Redis` |
+| `AUTHENTICATION_API_KEY` | OK | Somente no Railway (nao commitada) |
+| `AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES=true` | OK | |
+| `DEL_INSTANCE=false` | OK | Reduz risco de remocao agressiva em memoria |
+
+Envs recomendadas pelo oficial ainda **nao explicitadas** no servico (usam default da imagem):
+
+- `DATABASE_SAVE_DATA_INSTANCE=true` (persistir instancia no banco)
+- `DATABASE_SAVE_DATA_NEW_MESSAGE`, `DATABASE_SAVE_DATA_CONTACTS`, etc. (ajustar conforme necessidade de historico)
+- `CACHE_REDIS_PREFIX_KEY=evolution`
+- `LOG_LEVEL=ERROR,WARN,INFO` (formato com virgulas; valor atual usa espacos)
+
+Nenhuma alteracao foi aplicada nesta auditoria (somente leitura).
+
+### Health / runtime
+
+| Probe | Resultado |
+| --- | --- |
+| `GET /` | `200`, version `2.3.7`, manager disponivel |
+| `GET /instance/fetchInstances` | `200`, instancia `mdoctor-staging` listada |
+| `GET /instance/connectionState/mdoctor-staging` | `200`, `state=close` |
+| Logs Railway | migrations Prisma OK, `start:prod` sem erro apos boot |
+| Replicas | 1 running, 0 crashed |
+
+Backend `provider-status`: `apiReachable=true`, `instanceFound=true`, `instanceState=close`, `dryRun=true`.
+
+### Instancia `mdoctor-staging`
+
+| Campo | Valor |
+| --- | --- |
+| Integracao | `WHATSAPP-BAILEYS` |
+| `fetchInstances.connectionStatus` | `connecting` |
+| `connectionState.state` | `close` |
+| `ownerJid` | `null` (numero ainda nao pareado) |
+| Mensagens/contatos | `_count.Message=0`, `_count.Contact=0` |
+
+Leitura: registro da instancia **persiste no Postgres** (sobrevive redeploy). Sessao WhatsApp **nao esta aberta** porque o QR de teste ainda nao foi concluido — comportamento esperado, nao falha de runtime.
+
+### Persistencia de sessao WhatsApp
+
+| Camada | Staging | Adequado para staging? |
+| --- | --- | --- |
+| Postgres (Prisma) | Sim — instancia e settings no banco | Sim para metadados |
+| Redis (AOF + volume) | Sim | Sim para cache |
+| Filesystem `/evolution/instances` | **Nao montado** no servico API | Risco medio apos QR: credenciais Baileys em disco podem ser perdidas em redeploy da API se nao estiverem 100% no banco |
+
+Recomendacao antes de produção: adicionar volume Railway em `evolution-api-staging` montado em `/evolution/instances` (paridade com compose oficial), **sem** recriar banco e **sem** apagar instancia.
+
+### Reconnect / riscos
+
+| Risco | Severidade | Mitigacao |
+| --- | --- | --- |
+| Redeploy da API sem volume de instancias | Media | Volume em `/evolution/instances` ou confirmar persistencia Baileys so no Postgres |
+| Estado `connecting` (DB) vs `close` (runtime) | Baixa | Normal antes do QR; usar `connectionState` como fonte operacional |
+| Baileys / versao web WhatsApp | Media | Monitorar releases Evolution; nao depender para producao final |
+| Escala horizontal (2+ replicas API) | Alta se aplicada | **Nao escalar** Evolution Baileys sem store compartilhado; manter 1 replica |
+| `DEL_INSTANCE=false` | Positivo | Mantem instancia registrada |
+| Fila/worker extra | Nao necessario agora | API unica suficiente para envio pontual Doctor Prescreve |
+
+Reconnect automatico de QR: **nao executado** nesta auditoria (conforme escopo).
+
+### Fila / worker extra
+
+Para o escopo Doctor Prescreve (envio de receita pontual, dry-run, sandbox): **nao e necessario** worker/fila adicional. RabbitMQ/SQS do Evolution permanecem desligados (padrao oficial).
+
+### Conclusao da auditoria
+
+- Arquitetura staging: **adequada para testes** com ressalva do volume de instancias.
+- Railway vs documentacao oficial: **parcialmente alinhado** (falta volume na API).
+- Seguro para continuar dry-run + integracao Typebot/n8n/backend: **sim**.
+- Pronto para producao: **nao** — ver `docs/EVOLUTION-PRODUCTION-READINESS.md`.
+
+## Auditoria de imagem Docker (2026-05-28)
+
+### Imagem local
+
+| Repositorio | Tag | Digest | Status |
+| --- | --- | --- | --- |
+| `evoapicloud/evolution-api` | `latest` | `sha256:966625532d9076a2381e973a271307d107e6f070450de3abeeea8bd18be07252` | Oficial, OK |
+| `atendai/evolution-api` | — | — | **Nao encontrada** localmente |
+
+Nenhuma imagem legada local para remover. Se no futuro existir `atendai/evolution-api` por engano:
+
+```bash
+# somente apos autorizacao explicita
+docker image ls atendai/evolution-api
+docker image rm atendai/evolution-api:<tag>
+```
+
+### Imagem Railway (`evolution-api-staging`)
+
+| Campo | Valor |
+| --- | --- |
+| Servico | `evolution-api-staging` |
+| Imagem configurada | `evoapicloud/evolution-api:latest` |
+| Correcao necessaria | **nao** (ja oficial) |
+| Deploy status | `SUCCESS`, 1 replica running |
+| Volume `/evolution/instances` | **ausente** (recomendacao pendente; nao alterado) |
+
+Nenhum redeploy foi necessario nesta rodada (imagem ja correta).
+
+### Validacao pos-auditoria
+
+| Endpoint | Resultado |
+| --- | --- |
+| `GET /` | `200`, version `2.3.7` |
+| `/manager` | `301` (redirect esperado) |
+| `fetchInstances` | `200`, instancia `mdoctor-staging` presente |
+| `connectionState/mdoctor-staging` | `200`, `state=close` (QR pendente) |
+| Backend `provider-status` | `configured=true`, `instanceFound=true`, `apiVersion=2.3.7` |
+
+Instancia `mdoctor-staging` preservada. Postgres e Redis nao foram alterados.

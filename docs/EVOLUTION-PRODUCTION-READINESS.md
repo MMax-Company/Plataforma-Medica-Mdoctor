@@ -42,8 +42,27 @@ Runtime Evolution producao (servico separado):
 - `CACHE_REDIS_ENABLED=true`
 - `CACHE_REDIS_URI=<redis producao>`
 
+## Auditoria Docker staging (2026-05-28)
+
+Achados do runtime `evolution-api-staging` (read-only):
+
+| Topico | Staging | Recomendacao producao |
+| --- | --- | --- |
+| Imagem | `evoapicloud/evolution-api:latest` | Mesma linha, tag fixada (nao apenas `latest`) |
+| Postgres + Redis | Com volume persistente | Servicos dedicados isolados |
+| Volume `/evolution/instances` na API | **Ausente** | **Obrigatorio** montar volume no servico Evolution |
+| Replicas | 1 | Manter 1 replica por instancia Baileys |
+| Worker/fila extra | Nao necessario | Nao obrigatorio para MVP de envio |
+| Sessao WhatsApp | Instancia no DB, estado `close` ate QR | QR controlado + validar `open` antes de trafego real |
+| Imagem Docker | `evoapicloud/evolution-api:latest` (staging ja correto) | Fixar digest/tag em producao; nao usar `atendai/evolution-api` |
+
+Auditoria 2026-05-28: local e Railway staging confirmados em `evoapicloud/evolution-api:latest` (digest `sha256:966625532d90…`). Imagem legada `atendai/evolution-api` nao encontrada localmente; Railway nao precisou de troca.
+
+Detalhes: `docs/EVOLUTION-API-STAGING.md` (secoes Auditoria Docker / Runtime Railway e Auditoria de imagem Docker).
+
 ## Riscos
 
+- Deploy Evolution sem volume de sessao pode exigir novo QR apos restart (mesmo com Postgres).
 - Uso de numero pessoal/principal em ambiente de teste pode gerar bloqueio ou mistura de trafego.
 - Evolution Web (Baileys) depende da versao web do WhatsApp; pode quebrar sem aviso.
 - Envio em massa sem controles pode causar banimento do numero.
@@ -76,6 +95,9 @@ Runtime Evolution producao (servico separado):
 - [ ] Fallback mock testado em falha de provider.
 - [ ] Plano de migracao para WhatsApp Cloud API oficial revisado com Meta.
 - [ ] LGPD/consentimento do paciente alinhados ao canal WhatsApp.
+- [ ] Volume persistente `/evolution/instances` no servico Evolution producao.
+- [ ] `DATABASE_SAVE_DATA_INSTANCE=true` e demais flags de persistencia revisadas explicitamente.
+- [ ] Tag de imagem Docker fixada (evitar `latest` mutavel em producao).
 
 ## Recomendacoes operacionais
 
