@@ -116,6 +116,15 @@ type BackendPatient = Partial<Patient> & {
   pagamento_status?: string;
   origem?: string;
   risco?: string;
+  elegibilidade?: {
+    eligible?: boolean;
+    reason?: string;
+    reasonCode?: string;
+    criteriaUsed?: string[];
+    protocolVersion?: string;
+    renewalStatus?: string;
+    riskLevel?: string;
+  };
 };
 
 function fallbackReason(error: unknown) {
@@ -176,6 +185,10 @@ function normalizeSource(source?: string) {
 }
 
 function normalizePatient(item: BackendPatient, index: number): Patient {
+  const clinicalObject =
+    item.dados_clinicos && typeof item.dados_clinicos !== 'string'
+      ? item.dados_clinicos
+      : {};
   const clinicalData =
     typeof item.dados_clinicos === 'string'
       ? item.dados_clinicos
@@ -211,6 +224,22 @@ function normalizePatient(item: BackendPatient, index: number): Patient {
     source: normalizeSource(item.source || item.origem),
     paymentStatus: payment === 'PENDENTE' || payment === 'PENDING' ? 'pending' : 'paid',
     lastPrescription: item.lastPrescription,
+    cpf: String(item.paciente_cpf || readClinicalField(item, 'paciente_cpf') || ''),
+    email: String(item.paciente_email || readClinicalField(item, 'paciente_email') || ''),
+    birthDate: String(readClinicalField(item, 'data_nascimento') || ''),
+    address: String(readClinicalField(item, 'endereco') || ''),
+    eligibility: item.elegibilidade
+      ? {
+          eligible: item.elegibilidade.eligible === true,
+          reason: item.elegibilidade.reason,
+          reasonCode: item.elegibilidade.reasonCode,
+          criteriaUsed: Array.isArray(item.elegibilidade.criteriaUsed) ? item.elegibilidade.criteriaUsed : [],
+          protocolVersion: item.elegibilidade.protocolVersion,
+          renewalStatus: item.elegibilidade.renewalStatus,
+          riskLevel: item.elegibilidade.riskLevel,
+        }
+      : undefined,
+    clinicalData: clinicalObject,
   };
 }
 

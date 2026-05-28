@@ -5,26 +5,25 @@ const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
+const {
+  normalizeCondition,
+  parseClinicalFlags,
+  hasContinuousMedication,
+  hasPreviousPrescription,
+  extractUsageDays,
+  buildClinicalNarrative,
+  getRefusalMessage,
+  PROTOCOL_VERSION
+} = require('../services/clinical-intelligence.service');
 
 const router = express.Router();
 
 function parseCondition(text = '') {
-  const normalized = text.toLowerCase();
-  if (normalized.includes('diabetes')) return 'diabetes_tipo_2';
-  if (normalized.includes('colesterol') || normalized.includes('dislipidemia')) return 'dislipidemia';
-  if (normalized.includes('tireoide') || normalized.includes('hipotireoidismo')) return 'hipotireoidismo';
-  if (normalized.includes('pressao') || normalized.includes('pressão') || normalized.includes('hipertens')) return 'hipertensao';
-  return 'renovacao_receita';
+  return normalizeCondition(text);
 }
 
 function parseFlags(text = '') {
-  const normalized = text.toLowerCase();
-  const flags = [];
-  if (normalized.includes('sintoma novo')) flags.push('sintomas_novos');
-  if (normalized.includes('intern')) flags.push('internacao_recente');
-  if (normalized.includes('crise')) flags.push('crise_clinica');
-  if (normalized.includes('urg')) flags.push('sinais_urgencia');
-  return flags;
+  return parseClinicalFlags(text);
 }
 
 router.get('/status', (_req, res) => {
@@ -159,19 +158,72 @@ router.post('/webhook', async (req, res) => {
     }
   }
 
+  const originalPayload = rawMessage?.original && typeof rawMessage.original === 'object' ? rawMessage.original : {};
+  const notesText = [text, originalPayload?.tempo_uso, originalPayload?.observacoes].filter(Boolean).join(' ');
+  const baseFlags = parseFlags(notesText);
+  const payloadFlags = Array.isArray(originalPayload?.flags) ? originalPayload.flags : [];
+  const mergedFlags = [...new Set([...baseFlags, ...payloadFlags].map((flag) => String(flag || '').trim()).filter(Boolean))];
+
   const patientData = {
     name: from,
     phone: from,
-    condition: parseCondition(text),
-    previous_prescription: /receita|renovar|uso continuo|uso contínuo/i.test(text),
-    flags: parseFlags(text),
+    condition: parseCondition(text || originalPayload?.doenca_cronica || ''),
+    previous_prescription: hasPreviousPrescription({
+      previous_prescription: Boolean(originalPayload?.receita_anterior || originalPayload?.previous_prescription),
+      notes: notesText,
+      text
+    }),
+    continuous_use_proof: hasContinuousMedication({
+      continuous_use_proof: Boolean(originalPayload?.uso_continuo || originalPayload?.continuous_use_proof),
+      notes: notesText,
+      text
+    }),
+    tempo_uso_dias: extractUsageDays({
+      tempo_uso_dias: originalPayload?.tempo_uso_dias,
+      tempo_uso: originalPayload?.tempo_uso,
+      notes: notesText
+    }),
+    flags: mergedFlags,
     notes: text,
     source: 'whatsapp',
     rawMessage,
-    idempotency_key: idempotencyKey || null
+    idempotency_key: idempotencyKey || null,
+    protocol_version: PROTOCOL_VERSION
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
+  const clinicalNarrative = buildClinicalNarrative({
+    patientName: from,
+    condition: patientData.condition,
+    medication: originalPayload?.medicamento || originalPayload?.medicacao_em_uso || 'medicação em uso contínuo',
+    decision
+  });
+
+  const enrichedClinicalData = {
+    ...patientData,
+    original_payload: originalPayload,
+    protocol_version: PROTOCOL_VERSION,
+    clinical_summary: clinicalNarrative.summary,
+    queixa_principal: clinicalNarrative.chiefComplaint,
+    historico_clinico: clinicalNarrative.clinicalHistory,
+    exame_fisico_telemedicina: clinicalNarrative.teleExam,
+    conduta_sugerida: clinicalNarrative.conduct,
+    orientacoes_clinicas: clinicalNarrative.guidance,
+    decision_meta: {
+      reasonCode: decision.reasonCode || null,
+      criteriaUsed: decision.criteriaUsed || [],
+      riskLevel: decision.riskLevel || null,
+      renewalStatus: decision.renewalStatus || null,
+      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION
+    },
+    clinical_audit: {
+      correlationId,
+      idempotencyKey: idempotencyKey || null,
+      mode: 'mock',
+      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION
+    }
+  };
+
   const patient = await createPatient({
     ...patientData,
     status: decision.eligible ? 'pending' : 'rejected'
@@ -183,12 +235,12 @@ router.post('/webhook', async (req, res) => {
     status: decision.eligible ? STATUS.QUEUE : STATUS.REJECTED,
     risco: decision.eligible ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
-    dados_clinicos: patientData
+    dados_clinicos: enrichedClinicalData
   });
 
   const reply = decision.eligible
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
-    : `Não foi possível seguir com renovação automática: ${decision.reason}. Procure atendimento médico.`;
+    : `Não foi possível seguir com renovação automática: ${decision.reason}. ${getRefusalMessage(decision.reasonCode)} `;
 
   await createAuditLog({
     entity_type: 'whatsapp_webhook',
@@ -201,7 +253,10 @@ router.post('/webhook', async (req, res) => {
       from,
       idempotencyKey: idempotencyKey || null,
       eligible: decision.eligible,
-      atendimento_id: atendimento.id
+      atendimento_id: atendimento.id,
+      criteriaUsed: decision.criteriaUsed || [],
+      reasonCode: decision.reasonCode || null,
+      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION
     }
   });
 

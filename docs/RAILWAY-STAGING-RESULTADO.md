@@ -914,3 +914,20 @@ Confirmacoes de seguranca:
 - Nenhuma alteracao em n8n producao.
 - Nenhuma alteracao em producao Railway.
 - Sem commit de secrets.
+
+## Refinamento clinico inteligente do prontuario (staging)
+
+Data/hora: 2026-05-28 10:xx -03:00
+
+Evolucao aplicada:
+
+- Elegibilidade conservadora para HAS/DM2/DLP/hipotireoidismo no backend.
+- Inclusao de metadados clinicos aditivos (`criteriaUsed`, `riskLevel`, `protocolVersion`, `renewalStatus`).
+- Geração de templates clinicos inteligentes (queixa, historia, exame telemedicina, conduta, orientacoes).
+- Persistencia de rastreabilidade em `audit_logs.payload` e `atendimentos.dados_clinicos.clinical_audit`.
+- Refino do prontuario no painel para exibir resumo, badges clinicos, timeline e trilha de auditoria.
+
+Documentacao de referencia:
+
+- `docs/PRONTUARIO-INTELIGENTE.md`
+- `docs/PROTOCOLOS-CLINICOS-STAGING.md`

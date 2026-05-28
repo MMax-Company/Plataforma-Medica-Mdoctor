@@ -4,6 +4,7 @@ const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { getAtendimento, updateAtendimentoStatus, STATUS } = require('../store/atendimentos.store');
 const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
+const { PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
 
 const router = express.Router();
 
@@ -146,6 +147,16 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
       dados_clinicos: {
         ...(atendimento.dados_clinicos || {}),
         correlation_id: correlationId,
+        protocol_version: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
+        clinical_audit: {
+          ...(atendimento?.dados_clinicos?.clinical_audit || {}),
+          approvedBy: req.user?.sub || null,
+          approvedAt: new Date().toISOString(),
+          criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
+          protocolVersion: atendimento?.elegibilidade?.protocolVersion || PROTOCOL_VERSION,
+          mode: result.source || 'mock',
+          correlationId
+        },
         memed_receita: {
           receitaId: saved.id,
           providerPrescriptionId: saved.provider_prescription_id,
@@ -160,7 +171,15 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
       entity_id: saved.id,
       action: 'prescription_generate',
       actor: req.user?.sub || 'backend',
-      payload: { correlationId, atendimento_id: atendimento.id, source: result.source, warning: result.warning || null }
+      payload: {
+        correlationId,
+        atendimento_id: atendimento.id,
+        source: result.source,
+        warning: result.warning || null,
+        criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
+        protocolVersion: atendimento?.elegibilidade?.protocolVersion || PROTOCOL_VERSION,
+        mode: result.source || 'mock'
+      }
     });
 
     return res.status(201).json({

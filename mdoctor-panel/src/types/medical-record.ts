@@ -12,6 +12,10 @@ export interface MedicalRecord {
     approved: boolean;
     message: string;
     criteria: string[];
+    badgeLabel?: string;
+    riskStatus?: string;
+    renewalStatus?: string;
+    protocolVersion?: string;
   };
   clinicalSummary: {
     chiefComplaint: string;
@@ -26,6 +30,15 @@ export interface MedicalRecord {
     previousPrescriptions: string[];
     risk: RiskLevel;
     chatbotCompletedAt: string;
+    timeline: string[];
+    highlightedMedication?: string;
+  };
+  audit: {
+    approvedBy?: string;
+    approvedAt?: string;
+    correlationId?: string;
+    mode?: string;
+    decisionRationale?: string;
   };
   notes: string;
 }

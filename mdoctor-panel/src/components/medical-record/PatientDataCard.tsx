@@ -15,6 +15,11 @@ export function PatientDataCard({ patient }: PatientDataCardProps) {
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
+  const birthDate = patient.birthDate || 'Não informado';
+  const cpf = patient.cpf || 'Não informado';
+  const email = patient.email || `${patient.name.toLowerCase().replace(' ', '.')}@email.com`;
+  const address = patient.address || 'Não informado';
+
   return (
     <Card>
       <CardHeader>
@@ -44,21 +49,21 @@ export function PatientDataCard({ patient }: PatientDataCardProps) {
               <CalendarDays className="h-4 w-4" />
               Data de nascimento
             </span>
-            <span className="font-semibold">15/04/1988</span>
+            <span className="font-semibold">{birthDate}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-[#253044]">
             <span className="inline-flex items-center gap-2 text-[#5B6475]">
               <UserRound className="h-4 w-4" />
               CPF
             </span>
-            <span className="font-semibold">123.456.789-10</span>
+            <span className="font-semibold">{cpf}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-[#253044]">
             <span className="inline-flex items-center gap-2 text-[#5B6475]">
               <AtSign className="h-4 w-4" />
               E-mail
             </span>
-            <span className="truncate text-right font-semibold">{patient.name.toLowerCase().replace(' ', '.')}@email.com</span>
+            <span className="truncate text-right font-semibold">{email}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-[#253044]">
             <span className="inline-flex items-center gap-2 text-[#5B6475]">
@@ -72,7 +77,7 @@ export function PatientDataCard({ patient }: PatientDataCardProps) {
               <MapPin className="h-4 w-4" />
               Endereço
             </span>
-            <span className="text-right font-semibold">Rua das Flores, 123</span>
+            <span className="text-right font-semibold">{address}</span>
           </div>
           <div className="flex items-center justify-between gap-2 text-[#253044]">
             <span className="inline-flex items-center gap-2 text-[#5B6475]">

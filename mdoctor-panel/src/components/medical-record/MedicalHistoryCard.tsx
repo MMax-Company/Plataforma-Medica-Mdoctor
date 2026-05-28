@@ -24,6 +24,7 @@ export function MedicalHistoryCard({ record }: MedicalHistoryCardProps) {
           <Activity className="h-4 w-4 text-[#9A6A00]" />
           <Badge tone={riskTone[record.medicalHistory.risk]}>Risco {record.medicalHistory.risk}</Badge>
           <Badge>Chatbot {record.medicalHistory.chatbotCompletedAt}</Badge>
+          {record.medicalHistory.highlightedMedication ? <Badge tone="blue">{record.medicalHistory.highlightedMedication}</Badge> : null}
         </div>
 
         <div>
@@ -47,6 +48,19 @@ export function MedicalHistoryCard({ record }: MedicalHistoryCardProps) {
             ))}
           </ul>
         </div>
+
+        {record.medicalHistory.timeline.length > 0 ? (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8A94A6]">Timeline clínica</p>
+            <ul className="mt-2 space-y-2 text-sm text-[#253044]">
+              {record.medicalHistory.timeline.map((entry) => (
+                <li key={entry} className="rounded-md border border-[#E5EAF2] bg-white px-3 py-2">
+                  {entry}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

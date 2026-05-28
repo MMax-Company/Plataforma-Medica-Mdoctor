@@ -2,6 +2,7 @@ const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
 const { sendPrescription } = require('../delivery/delivery.service');
 const { requireAuth } = require('../auth/auth.middleware');
+const { createAuditLog } = require('../store/audit.store');
 const {
   VALID_STATUS,
   STATUS,
@@ -14,6 +15,7 @@ const {
   listDecisoesLog,
   createEntregaReceitaLog
 } = require('../store/atendimentos.store');
+const { buildClinicalNarrative, PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
 
 const router = express.Router();
 
@@ -64,6 +66,12 @@ router.get('/queue', async (_req, res) => {
 router.post('/', async (req, res) => {
   const clinicalData = req.body?.dados_clinicos || req.body || {};
   const decision = eligibilityEngine.evaluate(clinicalData);
+  const clinicalNarrative = buildClinicalNarrative({
+    patientName: req.body?.paciente_nome || req.body?.nome || req.body?.name || 'Paciente',
+    condition: req.body?.condicao || req.body?.condition || req.body?.doenca_cronica || clinicalData?.condition,
+    medication: req.body?.medicacao_em_uso || req.body?.medicamento || clinicalData?.medicacao_em_uso,
+    decision
+  });
   const paymentStatus =
     typeof req.body?.pagamento === 'boolean'
       ? req.body.pagamento
@@ -84,7 +92,34 @@ router.post('/', async (req, res) => {
     pagamento_status: paymentStatus,
     risco: decision.eligible ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
-    dados_clinicos: clinicalData
+    dados_clinicos: {
+      ...clinicalData,
+      protocol_version: decision.protocolVersion || PROTOCOL_VERSION,
+      criteria_used: decision.criteriaUsed || [],
+      renewal_status: decision.renewalStatus || null,
+      risk_level: decision.riskLevel || null,
+      clinical_summary: clinicalNarrative.summary,
+      queixa_principal: clinicalNarrative.chiefComplaint,
+      historico_clinico: clinicalNarrative.clinicalHistory,
+      exame_fisico_telemedicina: clinicalNarrative.teleExam,
+      conduta_sugerida: clinicalNarrative.conduct,
+      orientacoes_clinicas: clinicalNarrative.guidance
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: atendimento.id,
+    action: 'atendimento_triage_evaluated',
+    actor: 'backend',
+    payload: {
+      eligible: decision.eligible,
+      reason: decision.reason,
+      reasonCode: decision.reasonCode || null,
+      criteriaUsed: decision.criteriaUsed || [],
+      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION,
+      mode: 'mock'
+    }
   });
 
   res.status(201).json({ success: true, atendimento });
@@ -138,6 +173,19 @@ router.patch('/:id/clinical', requireAuth, async (req, res) => {
       paciente_nome: atendimento.paciente_nome,
       condicao: atendimento.condicao,
       dados_clinicos: mergedClinical
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: req.params.id,
+    action: 'clinical_record_updated',
+    actor: authenticatedDoctorId || 'backend',
+    payload: {
+      protocolVersion: PROTOCOL_VERSION,
+      mode: 'mock',
+      fieldsUpdated: Object.keys(clinical || {}),
+      correlationId: req.correlationId || req.get('X-Correlation-Id') || req.requestId || null
     }
   });
 
@@ -279,7 +327,23 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     snapshot: {
       correlationId,
       delivery,
-      receitaId: receipt.receitaId || null
+      receitaId: receipt.receitaId || null,
+      protocolVersion: PROTOCOL_VERSION,
+      mode: receipt.source || 'mock'
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: req.params.id,
+    action: 'delivery_completed',
+    actor: authenticatedDoctorId || 'backend',
+    payload: {
+      correlationId,
+      channel,
+      provider: delivery.provider,
+      protocolVersion: PROTOCOL_VERSION,
+      mode: receipt.source || 'mock'
     }
   });
 
@@ -312,12 +376,28 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 
   const previous = await getAtendimento(req.params.id);
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
+  const criteriaUsed = previous?.elegibilidade?.criteriaUsed || [];
+  const clinicalAudit = {
+    ...(previous?.dados_clinicos?.clinical_audit || {}),
+    approvedBy: authenticatedDoctorId,
+    approvedAt: new Date().toISOString(),
+    criteriaUsed,
+    protocolVersion: previous?.elegibilidade?.protocolVersion || previous?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
+    mode: previous?.dados_clinicos?.clinical_audit?.mode || 'mock',
+    correlationId,
+    decisionRationale: motivo || notes || previous?.elegibilidade?.reason || null
+  };
 
   const atendimento = await updateAtendimentoStatus(req.params.id, normalizedStatus, {
     motivo,
     notes,
     doctorId: authenticatedDoctorId,
-    medicoId: authenticatedDoctorId
+    medicoId: authenticatedDoctorId,
+    dados_clinicos: {
+      ...(previous?.dados_clinicos || {}),
+      clinical_audit: clinicalAudit
+    }
   });
 
   if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
@@ -332,7 +412,26 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       paciente_nome: atendimento.paciente_nome,
       condicao: atendimento.condicao,
       risco: atendimento.risco,
-      elegibilidade: atendimento.elegibilidade
+      elegibilidade: atendimento.elegibilidade,
+      protocolVersion: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: req.params.id,
+    action: 'status_updated',
+    actor: authenticatedDoctorId || 'backend',
+    payload: {
+      statusBefore: previous.status,
+      statusAfter: normalizedStatus,
+      reason: motivo || notes || null,
+      protocolVersion: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
+      mode: atendimento?.dados_clinicos?.clinical_audit?.mode || 'mock',
+      criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
+      approvedBy: clinicalAudit.approvedBy,
+      approvedAt: clinicalAudit.approvedAt,
+      correlationId
     }
   });
 

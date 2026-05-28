@@ -35,32 +35,71 @@ const fallbackPatient: Patient = {
 };
 
 function buildMedicalRecord(patient: Patient): MedicalRecord {
+  const clinicalData = patient.clinicalData || {};
+  const eligibility = patient.eligibility;
+  const criteria = (eligibility?.criteriaUsed && eligibility.criteriaUsed.length > 0
+    ? eligibility.criteriaUsed
+    : ['Pagamento confirmado', 'Sem contraindicação crítica', 'Dados clínicos completos']) as string[];
+  const renewalStatus = String(clinicalData.renewal_status || eligibility?.renewalStatus || (eligibility?.eligible ? 'coerente' : 'insegura'));
+  const riskStatus = String(clinicalData.risk_level || eligibility?.riskLevel || patient.risk || 'baixo');
+  const flaggedSignals = Array.isArray(clinicalData.flags) ? clinicalData.flags.map((flag) => String(flag)) : [];
+  const timeline = [
+    `Triagem registrada às ${patient.submittedAt}`,
+    clinicalData?.clinical_audit?.approvedAt ? `Última decisão clínica em ${clinicalData.clinical_audit.approvedAt}` : null,
+    clinicalData?.clinical_audit?.correlationId ? `Correlation: ${clinicalData.clinical_audit.correlationId}` : null,
+  ].filter(Boolean) as string[];
+
   return {
     id: patient.id,
     patient,
     eligibility: {
-      approved: true,
-      message: 'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.',
-      criteria: ['Pagamento confirmado', 'Sem contraindicação crítica', 'Dados clínicos completos'],
+      approved: eligibility?.eligible ?? true,
+      message: eligibility?.reason || 'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.',
+      criteria,
+      badgeLabel: eligibility?.eligible ? 'ELEGÍVEL' : 'REVISÃO NECESSÁRIA',
+      riskStatus,
+      renewalStatus,
+      protocolVersion: eligibility?.protocolVersion || String(clinicalData.protocol_version || 'staging-clinical-v1'),
     },
     clinicalSummary: {
-      chiefComplaint: patient.condition,
-      clinicalHistory:
-        'Paciente relata quadro compatível com solicitação informada, sem sinais de alarme na triagem automatizada. Evolução estável e indicação de renovação terapêutica conforme histórico declarado.',
-      physicalExam:
-        'Atendimento remoto. Sem exame físico presencial nesta etapa. Dados subjetivos coletados por chatbot e revisados para decisão médica.',
-      allergies: 'Nega alergias medicamentosas relevantes no formulário de triagem.',
+      chiefComplaint: String(clinicalData.queixa_principal || patient.condition),
+      clinicalHistory: String(
+        clinicalData.historico_clinico ||
+          'Paciente relata quadro compatível com solicitação informada, sem sinais de alarme na triagem automatizada.',
+      ),
+      physicalExam: String(
+        clinicalData.exame_fisico_telemedicina ||
+          'Atendimento remoto sem exame físico presencial nesta etapa. Dados subjetivos revisados para decisão médica.',
+      ),
+      allergies: flaggedSignals.length
+        ? `Sinais de atenção identificados: ${flaggedSignals.join(', ')}.`
+        : 'Sem relato de alergias/contraindicações graves na triagem.',
       currentMedications: patient.lastPrescription
         ? `${patient.requestedMedication}. Última prescrição registrada: ${patient.lastPrescription}.`
         : `${patient.requestedMedication}. Sem outras medicações informadas.`,
-      medicalConduct:
-        'Avaliar aderência ao protocolo clínico, confirmar ausência de contraindicações e decidir aprovação, edição ou reprovação do atendimento.',
+      medicalConduct: String(
+        clinicalData.conduta_sugerida ||
+          'Avaliar aderência ao protocolo clínico, confirmar ausência de contraindicações e decidir aprovação, edição ou reprovação do atendimento.',
+      ),
     },
     medicalHistory: {
-      previousConditions: ['Sem internações recentes informadas', 'Sem gestação informada', 'Sem sinais de urgência clínica'],
+      previousConditions: [
+        `Condição principal: ${patient.condition}`,
+        clinicalData.tempo_uso_dias ? `Tempo de uso informado: ${clinicalData.tempo_uso_dias} dias` : 'Tempo de uso não informado',
+        flaggedSignals.length ? `Flags de triagem: ${flaggedSignals.join(', ')}` : 'Sem flags críticos identificados na triagem',
+      ],
       previousPrescriptions: [patient.lastPrescription || 'Sem receita anterior no painel', patient.requestedMedication],
       risk: patient.risk,
       chatbotCompletedAt: patient.submittedAt,
+      timeline,
+      highlightedMedication: patient.requestedMedication,
+    },
+    audit: {
+      approvedBy: String(clinicalData?.clinical_audit?.approvedBy || ''),
+      approvedAt: String(clinicalData?.clinical_audit?.approvedAt || ''),
+      correlationId: String(clinicalData?.clinical_audit?.correlationId || ''),
+      mode: String(clinicalData?.clinical_audit?.mode || 'mock'),
+      decisionRationale: String(clinicalData?.clinical_audit?.decisionRationale || eligibility?.reason || ''),
     },
     notes: '',
   };
@@ -101,6 +140,14 @@ export default function MedicalRecordPage() {
     { title: 'Alergias', content: record.clinicalSummary.allergies },
     { title: 'Medicações em Uso', content: record.clinicalSummary.currentMedications },
     { title: 'Conduta Médica', content: record.clinicalSummary.medicalConduct },
+    { title: 'Orientações', content: String(patient.clinicalData?.orientacoes_clinicas || 'Orientações clínicas não informadas.') },
+    {
+      title: 'Critérios de Renovação',
+      content:
+        record.eligibility.criteria.length > 0
+          ? record.eligibility.criteria.join(' | ')
+          : 'Critérios clínicos padrão aplicados para decisão conservadora.',
+    },
   ];
 
   const backToDashboard = () => router.push('/dashboard');
@@ -159,7 +206,14 @@ export default function MedicalRecordPage() {
           </div>
         )}
 
-        <EligibilityBanner message={record.eligibility.message} criteria={record.eligibility.criteria} />
+        <EligibilityBanner
+          message={record.eligibility.message}
+          criteria={record.eligibility.criteria}
+          approved={record.eligibility.approved}
+          riskStatus={record.eligibility.riskStatus}
+          renewalStatus={record.eligibility.renewalStatus}
+          protocolVersion={record.eligibility.protocolVersion}
+        />
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
           <div className="space-y-5">
@@ -175,6 +229,19 @@ export default function MedicalRecordPage() {
             </section>
 
             <MedicalNotes value={notes} onChange={(event) => setNotes(event.target.value)} />
+
+            <section className="rounded-[20px] border border-[#E5EAF2] bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#5B6475]">Rastreabilidade clínica</p>
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-[#253044] lg:grid-cols-2">
+                <p>Modo: <span className="font-semibold">{record.audit.mode || 'mock'}</span></p>
+                <p>CorrelationId: <span className="font-semibold">{record.audit.correlationId || 'não informado'}</span></p>
+                <p>Aprovado por: <span className="font-semibold">{record.audit.approvedBy || 'não informado'}</span></p>
+                <p>Aprovado em: <span className="font-semibold">{record.audit.approvedAt || 'não informado'}</span></p>
+              </div>
+              {record.audit.decisionRationale ? (
+                <p className="mt-2 text-sm text-[#3A455A]">Justificativa: {record.audit.decisionRationale}</p>
+              ) : null}
+            </section>
 
             <DecisionActions
               onReject={rejectAttendance}
