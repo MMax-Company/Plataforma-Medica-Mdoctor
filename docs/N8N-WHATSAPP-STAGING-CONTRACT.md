@@ -181,6 +181,27 @@ For `POST /api/whatsapp/webhook` and `POST /api/atendimentos/:id/deliver`:
 - Max attempts: `3`
 - Use same `X-Idempotency-Key` across retries
 
+## Webhook Rate Limit (staging)
+
+Endpoint protected:
+
+- `POST /api/whatsapp/webhook`
+
+Policy:
+
+- IP-based rate limit
+- Default max: `20` requests
+- Default window: `60s`
+- Env controls:
+  - `WEBHOOK_RATE_LIMIT_MAX`
+  - `WEBHOOK_RATE_LIMIT_WINDOW_MS`
+
+When exceeded:
+
+- HTTP `429`
+- Controlled message: `Webhook temporariamente limitado. Tente novamente em instantes.`
+- Audit log action: `webhook_rate_limited`
+
 ## Error Handling
 
 Expected classes:

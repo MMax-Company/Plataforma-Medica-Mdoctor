@@ -505,3 +505,35 @@ Confirmacoes:
 - Sem alteracao de Stripe/pagamentos.
 - Sem alteracao de producao.
 - Sem commit de secrets.
+
+## WhatsApp webhook - rate limit minimo
+
+Data/hora: 2026-05-28 06:50 -03:00
+
+Implementacao:
+
+- Rate limit dedicado aplicado em `POST /api/whatsapp/webhook`.
+- Controle por IP com janela curta.
+- Resposta `429` controlada:
+  - `Webhook temporariamente limitado. Tente novamente em instantes.`
+- Registro de auditoria em excesso:
+  - `entity_type=whatsapp_webhook`
+  - `action=webhook_rate_limited`
+
+Configuracao:
+
+- `WEBHOOK_RATE_LIMIT_MAX` (staging final: `20`)
+- `WEBHOOK_RATE_LIMIT_WINDOW_MS` (staging: `60000`)
+
+Validacao:
+
+- Requisicoes normais: `200`.
+- Excesso em burst de teste: `429` confirmado.
+- `audit_logs` com eventos `webhook_rate_limited` confirmados no Supabase.
+- `/readyz` permaneceu `storage.mode=supabase` e `supabase.connected=true`.
+- Painel staging preservado (`/login` e `/dashboard` com 200).
+
+Confirmacoes:
+
+- Sem alteracao de producao.
+- Sem alteracao de Stripe/pagamentos.

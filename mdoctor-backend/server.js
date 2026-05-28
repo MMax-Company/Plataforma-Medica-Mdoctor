@@ -22,6 +22,7 @@ const { getReadinessReport } = require('./src/config/readiness');
 const logger = require('./src/config/logger');
 const requestLogger = require('./src/middlewares/request-logger');
 const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/rate-limit');
+const { createAuditLog } = require('./src/store/audit.store');
 
 function isLocalRuntime() {
   const environmentName = process.env.ENVIRONMENT_NAME || '';
@@ -93,7 +94,23 @@ app.use('/api/auth', makeRateLimit({
 }));
 app.use('/api/whatsapp/webhook', makeRateLimit({
   name: 'whatsapp_webhook',
-  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 120)
+  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 20),
+  windowMs: Number(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  errorMessage: 'Webhook temporariamente limitado. Tente novamente em instantes.',
+  onLimit: async (req, meta) => {
+    await createAuditLog({
+      entity_type: 'whatsapp_webhook',
+      action: 'webhook_rate_limited',
+      actor: 'system',
+      payload: {
+        requestId: req.requestId || 'unknown',
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+        path: req.originalUrl || req.url,
+        max: meta.max,
+        windowMs: meta.windowMs
+      }
+    });
+  }
 }));
 app.use(express.json({limit:'1mb',strict:false}));
 app.use(express.urlencoded({extended:true}));

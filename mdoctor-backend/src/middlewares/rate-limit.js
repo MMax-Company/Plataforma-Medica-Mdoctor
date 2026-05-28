@@ -10,7 +10,7 @@ function makeRateLimit(options = {}) {
   const max = options.max || toNumber('RATE_LIMIT_MAX', 300);
   const name = options.name || 'default';
 
-  return function rateLimit(req, res, next) {
+  return async function rateLimit(req, res, next) {
     if (req.method === 'OPTIONS') return next();
     if (options.skip?.(req)) return next();
 
@@ -32,9 +32,21 @@ function makeRateLimit(options = {}) {
     res.setHeader('RateLimit-Reset', Math.ceil(current.resetAt / 1000));
 
     if (current.count > max) {
+      if (typeof options.onLimit === 'function') {
+        try {
+          await options.onLimit(req, {
+            name,
+            max,
+            windowMs,
+            key
+          });
+        } catch {
+          // Do not block the rate-limit response when side effects fail.
+        }
+      }
       return res.status(429).json({
         success: false,
-        error: 'Muitas requisicoes. Tente novamente em instantes.'
+        error: options.errorMessage || 'Muitas requisicoes. Tente novamente em instantes.'
       });
     }
 
