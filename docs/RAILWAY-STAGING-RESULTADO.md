@@ -413,3 +413,32 @@ Conclusao:
 - Storage Supabase staging estabilizado no backend.
 - Fallback local permanece disponivel como mecanismo de seguranca, mas nao esta ativo no estado final.
 - Producao permaneceu intocada.
+
+## Memed - restricao de credenciais
+
+Data/hora: 2026-05-28 06:28 -03:00
+
+Decisao operacional:
+
+- Memed sandbox indisponivel para este projeto.
+- Credenciais Memed disponiveis sao de producao.
+- Nao configurar credenciais de producao no backend staging sem autorizacao explicita.
+- Manter Memed em modo mock no staging ate aprovacao formal.
+
+Risco documentado:
+
+- Ativar credenciais de producao em staging pode disparar integracao real em ambiente nao produtivo.
+- Risco de emissao indevida de receita/artefatos fora do fluxo controlado.
+
+Validacao do estado atual (sem configurar secrets Memed):
+
+- Backend staging: OK.
+- Painel staging: OK.
+- Supabase staging: OK (`storage.mode=supabase`, `supabase.connected=true`).
+- Memed mock preservado (`memed.source=mock`, `POST /api/prescriptions/:id/generate` retornando `source=mock`).
+
+Confirmacoes:
+
+- Nenhuma credencial Memed de producao configurada no Railway staging nesta etapa.
+- Nenhum segredo salvo em codigo ou documentacao.
+- Producao permaneceu intocada.
