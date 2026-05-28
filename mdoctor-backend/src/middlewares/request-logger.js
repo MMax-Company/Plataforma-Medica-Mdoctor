@@ -1,12 +1,17 @@
 const logger = require('../config/logger');
+const { randomUUID } = require('crypto');
 
 function requestLogger(req, res, next) {
   const startedAt = process.hrtime.bigint();
-  const requestId =
-    req.headers['x-request-id'] || `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const inboundCorrelationId = String(req.headers['x-correlation-id'] || '').trim();
+  const correlationId = inboundCorrelationId || randomUUID();
+  const requestId = req.headers['x-request-id'] || `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
   req.requestId = requestId;
+  req.correlationId = correlationId;
+  req.headers['x-correlation-id'] = correlationId;
   res.setHeader('X-Request-Id', requestId);
+  res.setHeader('X-Correlation-Id', correlationId);
 
   res.on('finish', () => {
     const durationMs = Number(process.hrtime.bigint() - startedAt) / 1000000;
@@ -14,6 +19,7 @@ function requestLogger(req, res, next) {
 
     logger[level]('http_request', {
       requestId,
+      correlationId,
       method: req.method,
       path: req.originalUrl || req.url,
       status: res.statusCode,

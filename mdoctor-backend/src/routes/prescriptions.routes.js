@@ -121,10 +121,11 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 router.post('/:id/generate', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   try {
     const atendimento = await getAtendimento(req.params.id);
     if (!atendimento) {
-      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', code: 'ATENDIMENTO_NOT_FOUND' });
+      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', code: 'ATENDIMENTO_NOT_FOUND', correlationId });
     }
 
     const result = await memed.createPrescription({ ...atendimento, ...(req.body || {}) });
@@ -144,6 +145,7 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
       medicoId: req.user?.sub || null,
       dados_clinicos: {
         ...(atendimento.dados_clinicos || {}),
+        correlation_id: correlationId,
         memed_receita: {
           receitaId: saved.id,
           providerPrescriptionId: saved.provider_prescription_id,
@@ -158,11 +160,12 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
       entity_id: saved.id,
       action: 'prescription_generate',
       actor: req.user?.sub || 'backend',
-      payload: { atendimento_id: atendimento.id, source: result.source, warning: result.warning || null }
+      payload: { correlationId, atendimento_id: atendimento.id, source: result.source, warning: result.warning || null }
     });
 
     return res.status(201).json({
       success: true,
+      correlationId,
       source: result.source,
       warning: result.warning || null,
       prescription: saved,
@@ -172,12 +175,14 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
   } catch (error) {
     return res.status(200).json({
       ...mockPrescriptionResponse(req.params.id, error.message),
+      correlationId,
       code: 'PRESCRIPTION_GENERATE_FALLBACK'
     });
   }
 });
 
 router.get('/:id', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   try {
     const stored = await getPrescriptionByAtendimento(req.params.id);
     if (stored) {
@@ -186,9 +191,9 @@ router.get('/:id', requireAuth, async (req, res) => {
         entity_id: stored.id,
         action: 'prescription_lookup',
         actor: req.user?.sub || 'backend',
-        payload: { atendimento_id: stored.atendimento_id, provider: stored.provider, status: stored.status }
+        payload: { correlationId, atendimento_id: stored.atendimento_id, provider: stored.provider, status: stored.status }
       });
-      return res.json(toResponseFromStored(stored));
+      return res.json({ ...toResponseFromStored(stored), correlationId });
     }
 
     if (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-')) {
@@ -197,9 +202,9 @@ router.get('/:id', requireAuth, async (req, res) => {
         entity_id: req.params.id,
         action: 'prescription_mock_fallback',
         actor: req.user?.sub || 'backend',
-        payload: { reason: 'mock id' }
+        payload: { correlationId, reason: 'mock id' }
       });
-      return res.json(mockPrescriptionResponse(req.params.id));
+      return res.json({ ...mockPrescriptionResponse(req.params.id), correlationId });
     }
 
     const result = await memed.getPrescription(req.params.id);
@@ -209,18 +214,18 @@ router.get('/:id', requireAuth, async (req, res) => {
       entity_id: req.params.id,
       action: 'prescription_mock_fallback',
       actor: req.user?.sub || 'backend',
-      payload: { reason: result.error || 'Memed indisponível' }
+      payload: { correlationId, reason: result.error || 'Memed indisponível' }
     });
-    return res.json(mockPrescriptionResponse(req.params.id, result.error));
+    return res.json({ ...mockPrescriptionResponse(req.params.id, result.error), correlationId });
   } catch (error) {
     await createAuditLog({
       entity_type: 'prescription',
       entity_id: req.params.id,
       action: 'prescription_mock_fallback',
       actor: req.user?.sub || 'backend',
-      payload: { error: error.message }
+      payload: { correlationId, error: error.message }
     });
-    return res.json(mockPrescriptionResponse(req.params.id, error.message));
+    return res.json({ ...mockPrescriptionResponse(req.params.id, error.message), correlationId });
   }
 });
 

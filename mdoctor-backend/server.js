@@ -104,6 +104,7 @@ app.use('/api/whatsapp/webhook', makeRateLimit({
       actor: 'system',
       payload: {
         requestId: req.requestId || 'unknown',
+        correlationId: req.correlationId || req.get?.('X-Correlation-Id') || req.requestId || 'unknown',
         ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
         path: req.originalUrl || req.url,
         max: meta.max,

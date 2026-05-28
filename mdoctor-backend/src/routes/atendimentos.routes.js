@@ -145,20 +145,21 @@ router.patch('/:id/clinical', requireAuth, async (req, res) => {
 });
 
 router.post('/:id/deliver', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   const { channel = 'whatsapp', doctorId, medicoId } = req.body || {};
   const authenticatedDoctorId = req.user?.sub || medicoId || doctorId || null;
   const allowedChannels = new Set(['whatsapp', 'email', 'sms']);
   if (!allowedChannels.has(channel)) {
-    return res.status(400).json({ success: false, error: 'Canal de entrega inválido' });
+    return res.status(400).json({ success: false, error: 'Canal de entrega inválido', correlationId });
   }
 
   const previous = await getAtendimento(req.params.id);
-  if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+  if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
 
   const receipt = previous.dados_clinicos?.memed_receita || {};
   const receiptUrl = receipt.pdfUrl || receipt.receitaUrl || (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
   if (!receiptUrl) {
-    return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega' });
+    return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega', correlationId });
   }
 
   const target =
@@ -167,7 +168,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       : previous.paciente_telefone;
 
   if (!target && !isDeliveryMockEnabled()) {
-    return res.status(400).json({ success: false, error: `Contato do paciente ausente para ${channel}` });
+    return res.status(400).json({ success: false, error: `Contato do paciente ausente para ${channel}`, correlationId });
   }
 
   const previousClinical = previous.dados_clinicos || {};
@@ -214,6 +215,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       medicoId: authenticatedDoctorId,
       dados_clinicos: {
         ...previousClinical,
+        correlation_id: correlationId,
         memed_receita: receipt,
         entrega_receita: failedDelivery,
         entregas_receita: [failedDelivery, ...previousDeliveries]
@@ -227,6 +229,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       motivo: `Falha na entrega por ${channel}: ${error.message}`,
       medico_id: authenticatedDoctorId,
       snapshot: {
+        correlationId,
         delivery: failedDelivery,
         receitaId: receipt.receitaId || null
       }
@@ -249,6 +252,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       success: false,
       error: error.message,
       code: error.code || 'DELIVERY_FAILED',
+      correlationId,
       atendimento,
       delivery: failedDelivery
     });
@@ -259,6 +263,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     medicoId: authenticatedDoctorId,
     dados_clinicos: {
       ...previousClinical,
+      correlation_id: correlationId,
       memed_receita: receipt,
       entrega_receita: delivery,
       entregas_receita: [delivery, ...previousDeliveries]
@@ -272,6 +277,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     motivo: `Entrega concluída por ${channel}`,
     medico_id: authenticatedDoctorId,
     snapshot: {
+      correlationId,
       delivery,
       receitaId: receipt.receitaId || null
     }
@@ -289,7 +295,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     criado_em: delivery.sent_at
   });
 
-  return res.json({ success: true, atendimento, decisao, delivery });
+  return res.json({ success: true, correlationId, atendimento, decisao, delivery });
 });
 
 router.patch('/:id/status', requireAuth, async (req, res) => {

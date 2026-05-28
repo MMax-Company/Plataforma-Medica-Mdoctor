@@ -565,3 +565,27 @@ Validacao:
 - Segundo envio com mesma chave/messageId: sem duplicacao.
 - `/readyz` permanece estavel.
 - Painel staging preservado (`/login` e `/dashboard` com 200).
+
+## WhatsApp webhook - correlation tracing minimo
+
+Data/hora: 2026-05-28 06:59 -03:00
+
+Implementacao:
+
+- Header aceito: `X-Correlation-Id`.
+- Se ausente, backend gera UUID automaticamente.
+- Correlation id propagado em:
+  - webhook (`POST /api/whatsapp/webhook`)
+  - responses JSON principais (`correlationId`)
+  - `audit_logs` relacionados
+  - deliver (`POST /api/atendimentos/:id/deliver`)
+  - prescriptions (`GET /api/prescriptions/:id` e `POST /api/prescriptions/:id/generate`)
+  - logs estruturados backend (`http_request`)
+
+Validacao:
+
+- Request com `X-Correlation-Id`: retornou o mesmo valor.
+- Request sem `X-Correlation-Id`: backend retornou UUID gerado.
+- Rastreabilidade ponta a ponta confirmada em response + audit logs.
+- `/readyz` permaneceu estavel.
+- Painel staging preservado (`/login` e `/dashboard` com 200).

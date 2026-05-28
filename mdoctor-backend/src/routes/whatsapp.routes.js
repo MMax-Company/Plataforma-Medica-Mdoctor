@@ -38,11 +38,13 @@ router.post('/webhook', async (req, res) => {
   const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
   const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
   const requestId = req.requestId || 'unknown';
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || requestId;
 
   if (configuredSecret) {
     if (!providedSecret || providedSecret !== configuredSecret) {
       logger.warn('whatsapp_webhook_unauthorized', {
         requestId,
+        correlationId,
         hasSecretConfigured: true,
         hasProvidedSecret: Boolean(providedSecret)
       });
@@ -52,15 +54,17 @@ router.post('/webhook', async (req, res) => {
         actor: 'n8n',
         payload: {
           requestId,
+          correlationId,
           hasSecretConfigured: true,
           hasProvidedSecret: Boolean(providedSecret)
         }
       });
-      return res.status(401).json({ success: false, error: 'Webhook não autorizado' });
+      return res.status(401).json({ success: false, error: 'Webhook não autorizado', correlationId });
     }
   } else if (process.env.NODE_ENV !== 'production') {
     logger.warn('whatsapp_webhook_secret_not_configured', {
       requestId,
+      correlationId,
       mode: 'dev_fallback_allowed'
     });
   }
@@ -70,7 +74,7 @@ router.post('/webhook', async (req, res) => {
   const payloadMessageId = String(rawMessage?.messageId || req.body?.messageId || '').trim();
   const idempotencyKey = headerIdempotencyKey || payloadMessageId;
 
-  if (!from) return res.status(400).json({ success: false, error: 'from obrigatório' });
+  if (!from) return res.status(400).json({ success: false, error: 'from obrigatório', correlationId });
 
   if (idempotencyKey) {
     const history = await listAtendimentos();
@@ -95,6 +99,7 @@ router.post('/webhook', async (req, res) => {
         actor: 'n8n',
         payload: {
           requestId,
+          correlationId,
           from,
           idempotencyKey,
           atendimento_id: duplicated.id
@@ -105,6 +110,7 @@ router.post('/webhook', async (req, res) => {
         success: true,
         duplicate: true,
         idempotencyKey,
+        correlationId,
         reply,
         patient: null,
         atendimento: duplicated,
@@ -151,6 +157,7 @@ router.post('/webhook', async (req, res) => {
     actor: 'n8n',
     payload: {
       requestId,
+      correlationId,
       from,
       idempotencyKey: idempotencyKey || null,
       eligible: decision.eligible,
@@ -158,7 +165,7 @@ router.post('/webhook', async (req, res) => {
     }
   });
 
-  return res.json({ success: true, reply, patient, atendimento, decision });
+  return res.json({ success: true, correlationId, reply, patient, atendimento, decision });
 });
 
 module.exports = router;

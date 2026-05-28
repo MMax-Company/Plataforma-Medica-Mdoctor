@@ -181,6 +181,17 @@ Use one correlation id per business event and propagate:
 
 Suggested format: UUID v4 in `X-Correlation-Id`.
 
+Backend behavior (staging):
+
+- Accepts `X-Correlation-Id` when provided.
+- If missing, backend auto-generates a UUID and returns it in `X-Correlation-Id` response header.
+- Correlation id is propagated in:
+  - webhook response body (`correlationId`)
+  - related `audit_logs` payloads
+  - delivery (`POST /api/atendimentos/:id/deliver`) response body
+  - prescriptions endpoints (`/api/prescriptions/:id` and `/api/prescriptions/:id/generate`) response body
+  - backend structured request logs (`http_request`)
+
 ## Retry Policy
 
 For `POST /api/whatsapp/webhook` and `POST /api/atendimentos/:id/deliver`:
