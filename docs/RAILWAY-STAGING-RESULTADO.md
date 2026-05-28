@@ -1056,3 +1056,79 @@ Validacao em staging apos redeploy (`42c66b4`):
   - `configured=false`, `apiReachable=false` (comportamento esperado)
 - `POST /api/whatsapp/test-send`: OK, `provider=dry-run`, `providerStatus=simulated`
 - Dry-run/sandbox/fallback preservados.
+
+## Evolution API staging runtime + backend conectado
+
+Data/hora: 2026-05-28 12:20 -03:00
+
+### Infra criada (Automation-MDoctor / staging)
+
+| Servico | ID (referencia) | Observacao |
+| --- | --- | --- |
+| `evolution-api-staging` | `ab310799-fef4-4f28-8ecf-bdd2c0fa0aaf` | Docker `evoapicloud/evolution-api:latest`, porta `8080` |
+| `Postgres` | `526f76d8-a686-4127-b1cc-85e4f553b5b1` | Banco Evolution |
+| `Redis` | `33b9f4a5-e5d5-476a-909a-419abbc45472` | Cache Evolution |
+
+URL Evolution staging:
+
+```text
+https://evolution-api-staging-staging-40d1.up.railway.app
+```
+
+Manager (QR/pairing):
+
+```text
+https://evolution-api-staging-staging-40d1.up.railway.app/manager
+```
+
+Secrets:
+
+- `AUTHENTICATION_API_KEY` gerada e armazenada **somente** no Railway (nao commitada).
+
+### Instancia WhatsApp
+
+- Nome: `mdoctor-staging`
+- Integracao: `WHATSAPP-BAILEYS`
+- `fetchInstances`: instancia encontrada
+- `connectionState`: `connecting` (aguardando QR com numero de teste)
+- Numero: **teste** (conexao manual pendente via manager)
+
+### Backend staging (`mdoctor-backend-staging`)
+
+Envs aplicadas (sem expor valores):
+
+- `EVOLUTION_API_URL`
+- `EVOLUTION_API_KEY`
+- `EVOLUTION_INSTANCE=mdoctor-staging`
+- `WHATSAPP_PROVIDER=evolution`
+- `WHATSAPP_SANDBOX_MODE=true`
+- `WHATSAPP_DRY_RUN=true`
+
+Validacao pos-configuracao:
+
+| Check | Resultado |
+| --- | --- |
+| `GET /health` | OK |
+| `GET /readyz` | OK (warnings esperados staging) |
+| `GET /api/whatsapp/provider-status` | `configured=true`, `apiReachable=true`, `instanceFound=true`, `instanceState=connecting`, `dryRun=true` |
+| `POST /api/whatsapp/test-send` | `provider=dry-run` (sem envio real) |
+| Painel `/login` | 200 |
+| Painel `/dashboard` | 200 |
+
+Teste real manual:
+
+- **Nao executado** nesta rodada porque instancia ainda nao esta `open` (QR pendente).
+- Recomendado somente apos scan do numero de teste no manager.
+
+Seguranca preservada:
+
+- Rate limit webhook ativo
+- Anti-spam sandbox ativo
+- Audit logs ativos
+- `correlationId` preservado
+- Fallback/mock preservado (`fallbackActive=true`)
+- Producao Railway intacta
+
+Documentacao producao (sem ativar):
+
+- `docs/EVOLUTION-PRODUCTION-READINESS.md`

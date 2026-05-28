@@ -238,3 +238,71 @@ Validacao local pos-ajuste:
 - Staging (antes do redeploy desta alteracao):
   - `/health`, `/readyz`, `/api/whatsapp/test-send`: OK em dry-run
   - `provider-status`: campos novos exigem redeploy do backend staging
+
+## Runtime Evolution API staging conectado
+
+Data/hora: 2026-05-28 12:xx -03:00
+
+### Infraestrutura Railway (Automation-MDoctor / staging)
+
+| Servico | Funcao |
+| --- | --- |
+| `evolution-api-staging` | API Evolution (`evoapicloud/evolution-api:latest`, porta `8080`) |
+| `Postgres` | Banco Evolution |
+| `Redis` | Cache Evolution |
+
+URL publica Evolution staging:
+
+```text
+https://evolution-api-staging-staging-40d1.up.railway.app
+```
+
+Manager UI (QR/pairing manual):
+
+```text
+https://evolution-api-staging-staging-40d1.up.railway.app/manager
+```
+
+### Instancia WhatsApp staging
+
+- Nome: `mdoctor-staging`
+- Integracao: `WHATSAPP-BAILEYS`
+- Estado inicial apos create: `connecting` (aguardando QR/pairing de numero de teste)
+- Numero: usar **somente linha de teste** (nao numero principal de producao)
+
+### Backend staging configurado
+
+Variaveis aplicadas no `mdoctor-backend-staging` (valores somente no Railway):
+
+- `EVOLUTION_API_URL` -> URL Evolution staging
+- `EVOLUTION_API_KEY` -> `AUTHENTICATION_API_KEY` do runtime Evolution
+- `EVOLUTION_INSTANCE=mdoctor-staging`
+- `WHATSAPP_PROVIDER=evolution`
+- `WHATSAPP_SANDBOX_MODE=true`
+- `WHATSAPP_DRY_RUN=true` (mantido ate validacao completa)
+
+### Conectar numero (acao manual obrigatoria)
+
+1. Abrir manager: `/manager`
+2. Selecionar instancia `mdoctor-staging`
+3. Escanear QR ou usar pairing code com WhatsApp de teste
+4. Confirmar `GET /instance/connectionState/mdoctor-staging` com `state=open`
+
+Script auxiliar (sem secrets no repo):
+
+```bash
+EVOLUTION_API_URL=... EVOLUTION_API_KEY=... EVOLUTION_INSTANCE=mdoctor-staging node mdoctor-backend/scripts/evolution-staging-smoke.js
+```
+
+### Teste real controlado (somente apos `open`)
+
+Sequencia recomendada:
+
+1. Validar `provider-status` com `instanceState=open`
+2. Desligar temporariamente `WHATSAPP_DRY_RUN=false` (manter `WHATSAPP_SANDBOX_MODE=true`)
+3. `POST /api/whatsapp/test-send` para numero autorizado de teste
+4. Reativar `WHATSAPP_DRY_RUN=true` ao final
+
+### Producao
+
+Ver: `docs/EVOLUTION-PRODUCTION-READINESS.md` (plano sem ativacao).
