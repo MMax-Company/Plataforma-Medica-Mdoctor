@@ -476,3 +476,32 @@ Conclusao:
 - WhatsApp staging mock/controlado pronto para uso tecnico.
 - Para n8n real ainda faltam hardening de autenticacao de webhook, idempotencia e observabilidade.
 - Producao permaneceu intocada.
+
+## WhatsApp webhook - seguranca minima n8n
+
+Data/hora: 2026-05-28 06:39 -03:00
+
+Implementacao:
+
+- Adicionado controle de segredo por header no endpoint `POST /api/whatsapp/webhook`.
+- Header exigido: `X-MDoctor-Webhook-Secret`.
+- Variavel de ambiente backend: `N8N_WEBHOOK_SECRET`.
+- Quando `N8N_WEBHOOK_SECRET` estiver configurado, chamadas sem header correto retornam `401`.
+- Sem secret configurado em dev/local, webhook continua permitido com warning controlado.
+- Valor do secret nao e exposto em logs.
+
+Validacao staging:
+
+- Com secret configurado no backend staging:
+  - Sem header: `401`.
+  - Com header correto: `200`.
+- Atendimento criado com sucesso e persistido.
+- Auditoria registrada no Supabase:
+  - `webhook_unauthorized`
+  - `webhook_processed`
+
+Confirmacoes:
+
+- Sem alteracao de Stripe/pagamentos.
+- Sem alteracao de producao.
+- Sem commit de secrets.

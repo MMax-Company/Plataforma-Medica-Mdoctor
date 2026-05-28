@@ -1,5 +1,7 @@
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
+const logger = require('../config/logger');
+const { createAuditLog } = require('../store/audit.store');
 const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento } = require('../store/atendimentos.store');
 
@@ -33,6 +35,36 @@ router.get('/status', (_req, res) => {
 });
 
 router.post('/webhook', async (req, res) => {
+  const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
+  const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
+  const requestId = req.requestId || 'unknown';
+
+  if (configuredSecret) {
+    if (!providedSecret || providedSecret !== configuredSecret) {
+      logger.warn('whatsapp_webhook_unauthorized', {
+        requestId,
+        hasSecretConfigured: true,
+        hasProvidedSecret: Boolean(providedSecret)
+      });
+      await createAuditLog({
+        entity_type: 'whatsapp_webhook',
+        action: 'webhook_unauthorized',
+        actor: 'n8n',
+        payload: {
+          requestId,
+          hasSecretConfigured: true,
+          hasProvidedSecret: Boolean(providedSecret)
+        }
+      });
+      return res.status(401).json({ success: false, error: 'Webhook não autorizado' });
+    }
+  } else if (process.env.NODE_ENV !== 'production') {
+    logger.warn('whatsapp_webhook_secret_not_configured', {
+      requestId,
+      mode: 'dev_fallback_allowed'
+    });
+  }
+
   const { from, text = '', rawMessage } = req.body || {};
   if (!from) return res.status(400).json({ success: false, error: 'from obrigatório' });
 
@@ -65,6 +97,19 @@ router.post('/webhook', async (req, res) => {
   const reply = decision.eligible
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
     : `Não foi possível seguir com renovação automática: ${decision.reason}. Procure atendimento médico.`;
+
+  await createAuditLog({
+    entity_type: 'whatsapp_webhook',
+    entity_id: atendimento.id,
+    action: 'webhook_processed',
+    actor: 'n8n',
+    payload: {
+      requestId,
+      from,
+      eligible: decision.eligible,
+      atendimento_id: atendimento.id
+    }
+  });
 
   return res.json({ success: true, reply, patient, atendimento, decision });
 });

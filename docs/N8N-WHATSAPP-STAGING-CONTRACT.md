@@ -126,15 +126,27 @@ For authenticated backend actions:
 - `Content-Type: application/json`
 - `X-Correlation-Id: <uuid-v4>`
 
-## Proposed Authentication and Signature (n8n -> webhook)
+## Webhook Authentication (current behavior)
 
-Current webhook endpoint accepts payload without signature. For controlled rollout, use these controls at n8n and edge:
+Backend webhook now supports shared-secret header auth:
+
+- Header: `X-MDoctor-Webhook-Secret`
+- Backend env: `N8N_WEBHOOK_SECRET`
+
+Rules:
+
+- If `N8N_WEBHOOK_SECRET` is configured, webhook requests must provide the exact header value.
+- Missing/invalid header returns `401`.
+- If the secret is not configured and backend is not production, webhook is allowed with controlled warning log.
+- Secret value is never logged.
+
+## Proposed Signature Hardening (next step)
+
+Recommended additional controls for future hardening:
 
 1. Add `X-Webhook-Signature` using HMAC SHA-256 over raw body
 2. Add `X-Webhook-Timestamp` and reject stale requests (> 5 minutes) at gateway layer
 3. Restrict ingress source by allowlist/IP or trusted proxy
-
-Note: backend code changes are not included in this phase; this is a contract recommendation.
 
 ## Idempotency
 
