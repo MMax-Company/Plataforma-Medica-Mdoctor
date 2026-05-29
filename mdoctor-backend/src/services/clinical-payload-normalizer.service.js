@@ -291,7 +291,12 @@ function normalizeEligibilityStatus(payload = {}, validation = {}) {
   return { eligibility_status: 'eligible', ineligibility_reason: null };
 }
 
-function validateRequiredFields(normalized = {}) {
+function isExternalUploadMode() {
+  return process.env.PRESCRIPTION_EXTERNAL_UPLOAD !== 'false';
+}
+
+function validateRequiredFields(normalized = {}, options = {}) {
+  const externalUpload = options.externalUpload ?? isExternalUploadMode();
   const missing = [];
   if (!normalized.patient_name) missing.push('patient_name');
   if (!normalized.birth_date) missing.push('birth_date');
@@ -303,7 +308,7 @@ function validateRequiredFields(normalized = {}) {
   if (!normalized.chronic_condition) missing.push('chronic_condition');
   if (!normalized.medications?.length) missing.push('medications');
   if (normalized.has_previous_prescription !== true) missing.push('has_previous_prescription');
-  if (!normalized.previous_prescription_file) missing.push('previous_prescription_file');
+  if (!externalUpload && !normalized.previous_prescription_file) missing.push('previous_prescription_file');
 
   if (missing.length) {
     return { ok: false, reason: `Dados obrigatórios incompletos: ${missing.join(', ')}`, missing };
@@ -380,14 +385,18 @@ function normalizeTypebotPayload(body = {}) {
     ...consent
   };
 
-  const requiredCheck = validateRequiredFields(base);
+  const externalUpload = isExternalUploadMode();
+  const requiredCheck = validateRequiredFields(base, { externalUpload });
+  const awaitingExternalUpload =
+    externalUpload && hasPreviousRx === true && !prescriptionFile && requiredCheck.ok && payment.paid;
   const clinicalFlags = [
     ...warnings.warning_flags,
     ...parseClinicalFlags([original.text, original.sinais_alerta].filter(Boolean).join(' ')),
     ...(controlled ? ['contraindicacao_basica'] : []),
     ...(usageDays !== null && usageDays < 30 ? ['renovacao_insegura'] : []),
     ...(hasPreviousRx === false ? ['sem_comprovacao'] : []),
-    ...(!prescriptionFile ? ['sem_comprovacao'] : [])
+    ...(!externalUpload && !prescriptionFile ? ['sem_comprovacao'] : []),
+    ...(awaitingExternalUpload ? ['aguardando_upload_receita'] : [])
   ];
 
   let validationReason = null;
@@ -396,10 +405,18 @@ function normalizeTypebotPayload(body = {}) {
   else if (warnings.has_warning_signs) validationReason = 'Sinais de alerta relatados na triagem';
   else if (controlled) validationReason = 'Medicamento controlado ou fora do protocolo';
   else if (usageDays !== null && usageDays < 30) validationReason = 'Tempo de uso insuficiente para renovação remota';
-  else if (hasPreviousRx !== true || !prescriptionFile) validationReason = 'Receita anterior ou foto ausente';
-  else if (!chronic?.normalized || chronic.normalized === 'renovacao_receita') validationReason = 'Doença crônica fora do protocolo permitido';
+  else if (hasPreviousRx !== true) validationReason = 'Comprovação de receita anterior não confirmada';
+  else if (!externalUpload && !prescriptionFile) validationReason = 'Receita anterior ou foto ausente';
+  else if (!chronic?.normalized || chronic.normalized === 'renovacao_receita')
+    validationReason = 'Doença crônica fora do protocolo permitido';
 
   const eligibility = normalizeEligibilityStatus(original, { ok: !validationReason, reason: validationReason });
+  const canEnterMedicalQueue =
+    eligibility.eligibility_status === 'eligible' &&
+    payment.paid &&
+    requiredCheck.ok &&
+    Boolean(prescriptionFile) &&
+    !awaitingExternalUpload;
 
   return {
     original,
@@ -411,7 +428,9 @@ function normalizeTypebotPayload(body = {}) {
       validation: {
         required: requiredCheck,
         payment_confirmed: payment.paid,
-        can_enter_medical_queue: eligibility.eligibility_status === 'eligible' && payment.paid && requiredCheck.ok
+        external_upload: externalUpload,
+        awaiting_prescription_upload: awaitingExternalUpload,
+        can_enter_medical_queue: canEnterMedicalQueue
       }
     }
   };
@@ -502,16 +521,31 @@ function buildCleanBackendPayload(normalized = {}, meta = {}) {
   };
 }
 
+function hasStoredPreviousPrescription(clinical = {}) {
+  const url = pickFirst(
+    clinical.previous_prescription_url,
+    clinical.foto_receita_url,
+    clinical.previous_prescription_file,
+    clinical.prescription_photo_url
+  );
+  const storagePath = clinical.previous_prescription_storage_path;
+  return Boolean((url && String(url).length > 8) || (storagePath && String(storagePath).length > 3));
+}
+
 function isVisibleInMedicalPanel(atendimento = {}) {
   const clinical = atendimento.dados_clinicos || {};
   if (clinical.queue_type === 'support' || clinical.whatsapp_support === true) return false;
   if (atendimento.condicao === 'suporte_whatsapp') return false;
 
+  const status = String(atendimento.status || '').toLowerCase();
+  if (status === 'awaiting_prescription_upload' || clinical.prescription_upload_pending === true) return false;
+
   const paid = String(atendimento.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
   const eligible = atendimento.elegibilidade?.eligible === true;
-  const rejected = String(atendimento.status || '').toLowerCase() === 'rejected';
+  const rejected = status === 'rejected';
+  const hasPhoto = hasStoredPreviousPrescription(clinical);
 
-  return paid && eligible && !rejected;
+  return paid && eligible && !rejected && hasPhoto;
 }
 
 module.exports = {
@@ -519,6 +553,8 @@ module.exports = {
   normalizeTypebotPayload,
   toPatientEvaluationShape,
   buildCleanBackendPayload,
+  hasStoredPreviousPrescription,
+  isExternalUploadMode,
   isVisibleInMedicalPanel,
   parseMedicationFreeText,
   normalizeBirthDate,

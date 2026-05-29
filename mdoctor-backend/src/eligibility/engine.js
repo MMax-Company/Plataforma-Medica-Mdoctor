@@ -15,6 +15,7 @@ const {
   hasControlledMedication,
   buildCriteriaSummary
 } = require('../services/clinical-intelligence.service');
+const { isExternalUploadMode } = require('../services/clinical-payload-normalizer.service');
 
 const CRITERIA_ALLOW = [CONDITIONS.HAS, CONDITIONS.DM2, CONDITIONS.DLP, CONDITIONS.HIPO];
 
@@ -79,12 +80,17 @@ class EligibilityEngine {
       });
     }
 
+    const awaitingExternalUpload =
+      patientData.prescription_upload_pending === true ||
+      patientData.validation?.awaiting_prescription_upload === true ||
+      flags.includes('aguardando_upload_receita');
+    const externalUpload = isExternalUploadMode();
+    const photoPending = !hasRxPhoto && (awaitingExternalUpload || (externalUpload && hasPreviousRx));
+
     // 1. Validate mandatory clinical history (conservative profile)
-    if (!hasPreviousRx || !hasContinuousUse || !hasRxPhoto) {
+    if (!hasPreviousRx || !hasContinuousUse) {
       return this._rejectedDecision({
-        reason: !hasRxPhoto
-          ? 'Foto legível da receita anterior é obrigatória para renovação'
-          : 'Falta comprovação de uso contínuo e receita anterior válida',
+        reason: 'Falta comprovação de uso contínuo e receita anterior válida',
         reasonCode: 'documentacao_insuficiente',
         condition,
         flags,
@@ -92,8 +98,21 @@ class EligibilityEngine {
         renewalStatus: 'insegura'
       });
     }
+
+    if (!hasRxPhoto && !photoPending) {
+      return this._rejectedDecision({
+        reason: 'Foto legível da receita anterior é obrigatória para renovação',
+        reasonCode: 'documentacao_insuficiente',
+        condition,
+        flags,
+        criteriaUsed: buildCriteriaSummary(['Comprovação de uso contínuo', 'Receita anterior válida'], flags),
+        renewalStatus: 'insegura'
+      });
+    }
+
     criteriaUsed.push('Comprovação de uso contínuo');
     criteriaUsed.push('Receita anterior válida');
+    if (photoPending) criteriaUsed.push('Upload externo da receita pendente');
 
     if (usageDays === null || usageDays < 30) {
       return this._rejectedDecision({
