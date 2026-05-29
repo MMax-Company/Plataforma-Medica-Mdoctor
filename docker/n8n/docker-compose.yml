@@ -36,6 +36,10 @@ services:
       # Credenciais criptografadas — fixe no .env para não perder secrets ao recriar o volume
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
 
+      # Workflow typebot-webhook → POST /api/webhook/triagem
+      - BACKEND_BASE_URL=${BACKEND_BASE_URL:-https://doctor-repositorio-central-production.up.railway.app}
+      - BACKEND_URL=${BACKEND_URL:-}
+
       # Recomendações oficiais Docker
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - N8N_RUNNERS_ENABLED=true

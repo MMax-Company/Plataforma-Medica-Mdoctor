@@ -22,7 +22,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * n8n Code node: normaliza payload Typebot -> backend /api/whatsapp/webhook\n * Espelha clinical-payload-normalizer.service.js (subset executável no n8n)\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst PROTOCOL = 'staging-clinical-v1';\nconst INELIGIBLE_MSG =\n  'Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação.';\n\nfunction pick(...values) {\n  for (const v of values) if (v !== undefined && v !== null && String(v).trim() !== '') return v;\n  return null;\n}\n\nfunction asBool(v) {\n  const s = String(v || '').trim().toLowerCase();\n  if (['sim', 'true', '1', 'yes', 's'].includes(s)) return true;\n  if (['nao', 'não', 'false', '0', 'no', 'n'].includes(s)) return false;\n  return null;\n}\n\nfunction digits(v, max) {\n  const d = String(v || '').replace(/\\D/g, '');\n  if (!d) return null;\n  return max ? d.slice(0, max) : d;\n}\n\nfunction normalizeBirthDate(value) {\n  const raw = String(value || '').trim();\n  if (!raw) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;\n  const d8 = raw.replace(/\\D/g, '');\n  if (d8.length === 8) return `${d8.slice(4, 8)}-${d8.slice(2, 4)}-${d8.slice(0, 2)}`;\n  const m = raw.match(/^(\\d{1,2})[\\/\\-.](\\d{1,2})[\\/\\-.](\\d{4})$/);\n  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;\n  return null;\n}\n\nfunction normalizeCpf(v) {\n  const d = digits(v, 11);\n  return d && d.length === 11 ? d : null;\n}\n\nfunction normalizeWhatsapp(v) {\n  const d = digits(v);\n  if (!d) return null;\n  if (d.length >= 12 && d.startsWith('55')) return `+${d}`;\n  if (d.length >= 10) return `+55${d}`;\n  return null;\n}\n\nfunction normalizeEmail(v) {\n  const e = String(v || '').trim().toLowerCase();\n  return e.includes('@') && e.includes('.') ? e : null;\n}\n\nfunction normalizeCep(v) {\n  const d = digits(v, 8);\n  return d && d.length === 8 ? d : null;\n}\n\nfunction normalizeCondition(v) {\n  const t = String(v || '').toLowerCase();\n  if (t.includes('hipert') || t === 'has') return 'hipertensao';\n  if (t.includes('diabet') || t === 'dm' || t === 'dm2') return 'diabetes_tipo_2';\n  if (t.includes('dislip') || t === 'dlp' || t.includes('colesterol')) return 'dislipidemia';\n  if (t.includes('hipotire') || t.includes('tireoide')) return 'hipotireoidismo';\n  return 'renovacao_receita';\n}\n\nfunction normalizePayment(v) {\n  const s = String(pick(v.payment_status, v.pagamento_status, v.pagamento) || '').toLowerCase();\n  const paid = ['paid', 'pago', 'confirmado', 'confirmed', 'success'].includes(s);\n  return { payment_status: paid ? 'paid' : 'unpaid', pagamento_status: paid ? 'CONFIRMADO' : 'PENDENTE', paid };\n}\n\nfunction mapFrequency(text) {\n  const t = String(text || '').toLowerCase();\n  if (t.includes('12/12') || t.includes('2x') || t.includes('2 x')) return '12/12h';\n  if (t.includes('8/8') || t.includes('3x') || t.includes('3 x')) return '8/8h';\n  if (t.includes('1x') || t.includes('1 x') || t.includes('ao dia')) return '24h';\n  return 'Conforme orientação médica';\n}\n\nfunction parseMedication(text, overrides = {}) {\n  const raw = String(text || '').trim();\n  if (!raw && !overrides.name) return null;\n  const lower = `${raw} ${overrides.frequency || ''}`.toLowerCase();\n  let name = overrides.name || '';\n  let dose = overrides.dose || '';\n  let unit = overrides.unit || 'mg';\n  const dm = raw.match(/(\\d+(?:[.,]\\d+)?)\\s*(mg|g|ml|mcg)?/i);\n  if (dm) {\n    dose = String(dose || dm[1]).replace(',', '.');\n    unit = (dm[2] || unit).toLowerCase();\n  }\n  if (!name) {\n    const nm = raw.match(/^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ\\s-]+?)(?=\\s+\\d|\\s*,|\\s+tomo|$)/i);\n    name = nm ? nm[1].trim() : raw.split(/[,\\d]/)[0].trim();\n  }\n  name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();\n  const frequency = overrides.frequency || mapFrequency(lower);\n  const route = overrides.route || 'oral';\n  const posology =\n    frequency === '12/12h'\n      ? `Tomar 1 comprimido por via oral a cada 12 horas${dose ? ` (${dose}${unit})` : ''}.`\n      : `Tomar conforme prescrição anterior${dose ? ` — ${dose}${unit}` : ''}.`;\n  return { name, dose, unit, route, frequency, posology, usage: 'contínuo', raw_text: raw };\n}\n\nfunction normalizeMedications(body, count) {\n  const n = Math.min(3, Math.max(1, Number(count || 1)));\n  const slots = [\n    { text: pick(body.primeiro_medicamento, body.medication_name), o: { name: body.med1_nome, dose: body.med1_dose, frequency: body.med1_frequencia, route: body.med1_via } },\n    { text: body.segundo_medicamento, o: { name: body.med2_nome, dose: body.med2_dose, frequency: body.med2_frequencia, route: body.med2_via } },\n    { text: body.terceiro_medicamento, o: { name: body.med3_nome, dose: body.med3_dose, frequency: body.med3_frequencia, route: body.med3_via } }\n  ];\n  const meds = [];\n  for (let i = 0; i < n; i++) {\n    const parsed = parseMedication(slots[i].text, slots[i].o);\n    if (parsed) meds.push({ index: i + 1, ...parsed });\n  }\n  return meds;\n}\n\nfunction mapWarningFlags(v) {\n  const n = String(v || '').trim().toLowerCase();\n  if (!n || n === 'nao' || n === 'não' || n.includes('nenhum')) return [];\n  const flags = [];\n  if (n.includes('dor no peito') || n.includes('falta de ar') || n.includes('desmaio')) flags.push('sinais_urgencia');\n  if (n.includes('febre') || n.includes('sangramento')) flags.push('sinais_urgencia');\n  if (!flags.length && n !== 'nao') flags.push('sinais_urgencia');\n  return flags;\n}\n\nfunction usageDays(tempoUso) {\n  const t = String(tempoUso || '').toLowerCase();\n  if (t.includes('mais de 6')) return 180;\n  if (t.includes('1 a 6') || t.includes('1-6')) return 60;\n  if (t.includes('menos de 1')) return 15;\n  return null;\n}\n\nconst fromDigits = digits(body.from || body.whatsapp || body.telefone);\nconst whatsapp = normalizeWhatsapp(fromDigits);\nif (!whatsapp) throw new Error('missing whatsapp/telefone');\n\nconst birthDate = normalizeBirthDate(pick(body.birth_date, body.data_nascimento));\nconst payment = normalizePayment(body);\nconst medications = normalizeMedications(body, body.medication_count);\nconst hasRx = asBool(body.has_previous_prescription) ?? asBool(body.receita_anterior);\nconst rxFile = pick(body.previous_prescription_file, body.foto_receita_url, body.fotoReceitaUrl);\nconst warningFlags = mapWarningFlags(body.sinais_alerta);\nconst hasWarning = asBool(body.has_warning_signs) === true || warningFlags.length > 0;\nconst days = usageDays(body.tempo_uso);\nconst chronic = normalizeCondition(pick(body.chronic_condition, body.doenca_cronica));\n\nlet eligibility_status = String(body.eligibility_status || '').toLowerCase() || 'eligible';\nlet ineligibility_reason = body.ineligibility_reason || null;\nif (hasRx !== true || !rxFile) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Ausência de receita anterior ou foto da receita.';\n} else if (hasWarning) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Sinais de alerta relatados.';\n} else if (!payment.paid) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Pagamento não confirmado.';\n} else if (days !== null && days < 30) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Tempo de uso insuficiente.';\n} else if (chronic === 'renovacao_receita') {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Doença fora do protocolo.';\n}\n\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `typebot-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || `${fromDigits}-${Date.now()}`;\n\nconst clean = {\n  patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),\n  birth_date: birthDate,\n  cpf: normalizeCpf(pick(body.cpf, body.cpf_paciente)),\n  whatsapp,\n  email: normalizeEmail(pick(body.email, body.Email)),\n  address: pick(body.address, body.Endereco, body.endereco),\n  cep: normalizeCep(pick(body.cep, body.CEP)),\n  chronic_condition: chronic,\n  medication_count: medications.length,\n  medications,\n  previous_prescription_file: rxFile,\n  has_previous_prescription: hasRx === true,\n  has_warning_signs: hasWarning,\n  eligibility_status,\n  ineligibility_reason,\n  payment_status: payment.payment_status,\n  protocol: PROTOCOL,\n  source: 'typebot',\n  correlation_id: correlationId,\n  queue_type: 'medical',\n  continuous_use_days: days,\n  lgpd_accepted: asBool(body.lgpd_accepted) === true,\n  privacy_policy_accepted: asBool(body.privacy_policy_accepted) === true,\n  telemedicine_consent_accepted: asBool(body.telemedicine_consent_accepted) === true,\n  non_urgency_notice_accepted: asBool(body.non_urgency_notice_accepted) === true,\n  terms_of_use_accepted: asBool(body.terms_of_use_accepted) === true,\n  accepted_terms_at: pick(body.accepted_terms_at) || (asBool(body.terms_of_use_accepted) ? new Date().toISOString() : null),\n  accepted_terms_links: body.accepted_terms_links || body.acceptedTermsLinks || [],\n  terms_presented: body.terms_presented || body.termsPresented || null,\n  terms_accepted: body.terms_accepted_summary || body.terms_accepted || null,\n  typebot_public_id: pick(body.typebot_public_id, 'doctor-prescreve-8rmljgu')\n};\n\nconst text =\n  String(body.text || '').trim() ||\n  `Triagem ${clean.patient_name || ''} | ${chronic} | ${medications[0]?.name || ''} | elegível: ${eligibility_status}`;\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      payload: {\n        from: fromDigits,\n        text,\n        rawMessage: {\n          provider: 'typebot',\n          messageId: idempotencyKey,\n          timestamp: new Date().toISOString(),\n          channel: 'whatsapp',\n          source: flowEnv,\n          original: {\n            ...body,\n            ...clean,\n            pagamento_status: payment.pagamento_status,\n            data_nascimento: birthDate,\n            normalized_at: new Date().toISOString()\n          }\n        }\n      },\n      clean\n    }\n  }\n];\n"
+        "jsCode": "/**\n * n8n Code node: Typebot / webhook → POST /api/webhook/triagem (Doctor Prescreve)\n * Sync into typebot-webhook-staging.json when editing.\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nfunction pick(...values) {\n  for (const v of values) {\n    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n}\n\nfunction digits(v) {\n  return String(v || '').replace(/\\D/g, '');\n}\n\nconst correlationId =\n  headers['x-correlation-id'] ||\n  headers['X-Correlation-Id'] ||\n  body.correlation_id ||\n  `typebot-${Date.now()}`;\n\nconst idempotencyKey =\n  headers['idempotency-key'] ||\n  headers['Idempotency-Key'] ||\n  body.idempotency_key ||\n  `triagem-${digits(body.paciente?.telefone || body.telefone)}-${Date.now()}`;\n\nlet paciente;\nlet triagem;\n\nif (body.paciente && body.triagem) {\n  paciente = {\n    nome: pick(body.paciente.nome),\n    telefone: pick(body.paciente.telefone),\n    cpf: pick(body.paciente.cpf),\n    email: pick(body.paciente.email)\n  };\n  triagem = {\n    doencas: pick(body.triagem.doencas),\n    medicacao_em_uso: pick(body.triagem.medicacao_em_uso),\n    tempo_uso: pick(body.triagem.tempo_uso),\n    receita_anterior: pick(body.triagem.receita_anterior),\n    sinais_alerta: pick(body.triagem.sinais_alerta),\n    observacoes: pick(body.triagem.observacoes)\n  };\n} else {\n  const telefone = digits(\n    pick(body.telefone, body.whatsapp, body.from, body.paciente_telefone, body.phone)\n  );\n  paciente = {\n    nome: pick(body.patient_name, body.nome, body.Nome_Completo, body.paciente_nome),\n    telefone: telefone || pick(body.telefone, body.whatsapp),\n    cpf: digits(pick(body.cpf, body.cpf_paciente)),\n    email: pick(body.email, body.Email, body.paciente_email)\n  };\n  triagem = {\n    doencas: pick(\n      body.triagem?.doencas,\n      body.doenca_cronica,\n      body.chronic_condition,\n      body.doencas,\n      body.condition\n    ),\n    medicacao_em_uso: pick(\n      body.triagem?.medicacao_em_uso,\n      body.medicacao_em_uso,\n      body.primeiro_medicamento,\n      body.medication_name\n    ),\n    tempo_uso: pick(body.triagem?.tempo_uso, body.tempo_uso),\n    receita_anterior: pick(\n      body.triagem?.receita_anterior,\n      body.receita_anterior,\n      body.has_previous_prescription\n    ),\n    sinais_alerta: pick(body.triagem?.sinais_alerta, body.sinais_alerta),\n    observacoes: pick(body.triagem?.observacoes, body.observacoes, body.text)\n  };\n}\n\nif (!paciente.nome) throw new Error('paciente.nome é obrigatório');\nif (!triagem.doencas) throw new Error('triagem.doencas é obrigatório');\nif (!paciente.telefone) throw new Error('paciente.telefone é obrigatório');\n\nconst triagemPayload = { paciente, triagem };\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      triagemPayload\n    }\n  }\n];\n"
       },
       "id": "tb-build",
       "name": "Build Payload",
@@ -36,17 +36,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(/\\/$/, '') + '/api/whatsapp/webhook' }}",
+        "url": "={{ ($env.BACKEND_BASE_URL || $env.BACKEND_URL || 'https://doctor-repositorio-central-production.up.railway.app').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
-            },
-            {
-              "name": "X-MDoctor-Webhook-Secret",
-              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
             },
             {
               "name": "X-Correlation-Id",
@@ -64,19 +60,19 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json.payload }}",
+        "jsonBody": "={{ $json.triagemPayload }}",
         "options": {
           "timeout": 30000,
           "response": {
             "response": {
-              "fullResponse": false,
+              "fullResponse": true,
               "neverError": true
             }
           }
         }
       },
       "id": "tb-post",
-      "name": "POST Backend",
+      "name": "POST Triagem Backend",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -87,31 +83,82 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const backend = $input.first().json || {};\nconst ctx = $('Build Payload').first().json;\nreturn [{ json: { ok: true, correlationId: ctx.correlationId, duplicate: Boolean(backend.duplicate), atendimento: backend.atendimento || null, success: backend.success !== false } }];"
+        "jsCode": "/**\n * n8n Code node: monta resposta Typebot após POST /api/webhook/triagem\n */\nconst item = $input.first();\nconst json = item.json || {};\nlet statusCode = item.statusCode || json.statusCode || 200;\nlet body = json;\n\nif (json.body !== undefined) {\n  try {\n    body = typeof json.body === 'string' ? JSON.parse(json.body) : json.body;\n  } catch {\n    body = { raw: json.body };\n  }\n}\n\nconst ctx = $('Build Payload').first().json;\nconst httpOk = Number(statusCode) >= 200 && Number(statusCode) < 300;\nconst apiSuccess = body?.success !== false && !body?.error;\nconst ok = httpOk && apiSuccess;\n\nconst atendimentoId =\n  body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;\n\nreturn [\n  {\n    json: {\n      ok,\n      statusCode: Number(statusCode),\n      correlationId: ctx.correlationId,\n      typebotResponse: ok\n        ? {\n            success: true,\n            message: body?.message || 'Triagem recebida com sucesso',\n            atendimentoId\n          }\n        : {\n            success: false,\n            message: body?.message || body?.error || 'Erro ao processar triagem'\n          }\n    }\n  }\n];\n"
       },
-      "id": "tb-wrap",
-      "name": "Wrap Response",
+      "id": "tb-route",
+      "name": "Route Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        860,
+        940,
         300
       ]
     },
     {
       "parameters": {
-        "respondWith": "firstEntryJson",
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ok-check",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "tb-if",
+      "name": "Backend OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.typebotResponse }}",
         "options": {
           "responseCode": 200
         }
       },
-      "id": "tb-respond",
-      "name": "Respond",
+      "id": "tb-ok",
+      "name": "Resposta Sucesso",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.3,
       "position": [
-        960,
-        300
+        1420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.typebotResponse }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "tb-err",
+      "name": "Resposta Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1420,
+        420
       ]
     }
   ],
@@ -131,29 +178,47 @@
       "main": [
         [
           {
-            "node": "POST Backend",
+            "node": "POST Triagem Backend",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "POST Backend": {
+    "POST Triagem Backend": {
       "main": [
         [
           {
-            "node": "Wrap Response",
+            "node": "Route Response",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Wrap Response": {
+    "Route Response": {
       "main": [
         [
           {
-            "node": "Respond",
+            "node": "Backend OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backend OK?": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Erro",
             "type": "main",
             "index": 0
           }
