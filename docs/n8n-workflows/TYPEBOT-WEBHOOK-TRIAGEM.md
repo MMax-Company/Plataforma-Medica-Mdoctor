@@ -36,10 +36,26 @@ Staging Mdoctor (`mdoctor-backend-staging`) usa contrato diferente: `/api/whatsa
 
 ## Deploy local
 
+O script usa **PUT** (substituição completa de `nodes`/`connections`). **PATCH** parcial deixa o workflow antigo (`/api/whatsapp/webhook`) ativo na instância.
+
 ```powershell
 # N8N_API_KEY válida em docker/n8n/.env
 .\mdoctor-backend\scripts\deploy-n8n-workflow-local.ps1 `
   -WorkflowFile "docs\n8n-workflows\typebot-webhook-staging.json"
+```
+
+Se ainda aparecer URL antiga após deploy:
+
+```powershell
+$env:N8N_DEPLOY_FORCE_RECREATE = "1"
+.\mdoctor-backend\scripts\deploy-n8n-workflow-local.ps1 `
+  -WorkflowFile "docs\n8n-workflows\typebot-webhook-staging.json"
+```
+
+Forçar um `workflowId` específico:
+
+```powershell
+$env:N8N_WORKFLOW_ID = "uuid-do-workflow-no-n8n"
 ```
 
 Reinicie o container após alterar `BACKEND_BASE_URL` no `.env`:
