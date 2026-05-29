@@ -1,0 +1,155 @@
+{
+  "timestamp": "2026-05-29T21:17:33.892Z",
+  "fase": "homologacao_clinica_fase1_painel",
+  "backend_url": "https://web-production-5f178.up.railway.app",
+  "endpoints": {
+    "fila_medica": "https://web-production-5f178.up.railway.app/api/atendimentos?scope=medical",
+    "detalhe": "https://web-production-5f178.up.railway.app/api/atendimentos/:id",
+    "decisoes": "https://web-production-5f178.up.railway.app/api/atendimentos/:id/decisoes",
+    "approve": "POST https://web-production-5f178.up.railway.app/api/atendimentos/:id/clinical/approve (auth)",
+    "reject": "POST https://web-production-5f178.up.railway.app/api/atendimentos/:id/clinical/reject (auth)"
+  },
+  "fila": {
+    "status": 200,
+    "scope": "medical"
+  },
+  "amostras": [
+    {
+      "id": "303bd13f-b747-4283-b420-36da1008f981",
+      "paciente_nome": "Operacao Assistida Real 1780089129805",
+      "status": "waiting",
+      "origem": "typebot-triagem",
+      "pagamento_status": "CONFIRMADO",
+      "condicao": "hipertensão arterial",
+      "elegibilidade": {
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible"
+      },
+      "checks": {
+        "origem_typebot": true,
+        "status_valid": true,
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco_definido": true,
+        "receita_url": true,
+        "triagem_nested": true,
+        "typebot_vars": true,
+        "prontuario_completo": true
+      },
+      "missing_prontuario_fields": [],
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf"
+    },
+    {
+      "id": "860fea72-593a-46dc-a8ae-e555939cbae0",
+      "paciente_nome": "Operacao Assistida Real 1780089098647",
+      "status": "waiting",
+      "origem": "typebot-triagem",
+      "pagamento_status": "CONFIRMADO",
+      "condicao": "hipertensão arterial",
+      "elegibilidade": {
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible"
+      },
+      "checks": {
+        "origem_typebot": true,
+        "status_valid": true,
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco_definido": true,
+        "receita_url": true,
+        "triagem_nested": true,
+        "typebot_vars": true,
+        "prontuario_completo": true
+      },
+      "missing_prontuario_fields": [],
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf"
+    },
+    {
+      "id": "d704bf2f-6a23-4885-9ae5-d2436561b7c2",
+      "paciente_nome": "Homologação Typebot 1780088131105",
+      "status": "waiting",
+      "origem": "typebot-triagem",
+      "pagamento_status": "CONFIRMADO",
+      "condicao": "hipertensão arterial",
+      "elegibilidade": {
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible"
+      },
+      "checks": {
+        "origem_typebot": true,
+        "status_valid": true,
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco_definido": true,
+        "receita_url": true,
+        "triagem_nested": true,
+        "typebot_vars": true,
+        "prontuario_completo": true
+      },
+      "missing_prontuario_fields": [],
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf"
+    },
+    {
+      "id": "8c1af03a-909d-4298-b191-02b93357e15e",
+      "paciente_nome": "E2E Operacional 1780047517444",
+      "status": "waiting",
+      "origem": "whatsapp",
+      "pagamento_status": "CONFIRMADO",
+      "condicao": "has",
+      "elegibilidade": {
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible"
+      },
+      "checks": {
+        "origem_typebot": false,
+        "status_valid": true,
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco_definido": true,
+        "receita_url": true,
+        "triagem_nested": false,
+        "typebot_vars": true,
+        "prontuario_completo": true
+      },
+      "missing_prontuario_fields": [],
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/sign/receitas-anteriores/atendimentos/8c1af03a-909d-4298-b191-02b93357e15e/receita-anterior-1780047520787.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV84ZDQwZTY3Zi01ZDlhLTQzMGYtYjI0Zi0yMDkyODEzZGU2NzgiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJyZWNlaXRhcy1hbnRlcmlvcmVzL2F0ZW5kaW1lbnRvcy84YzFhZjAzYS05MDlkLTQyOTgtYjE5MS0wMmI5MzM1N2UxNWUvcmVjZWl0YS1hbnRlcmlvci0xNzgwMDQ3NTIwNzg3LnBkZiIsImlhdCI6MTc4MDA0NzUyMSwiZXhwIjoxNzgwMDUxMTIxfQ.FU1XnWYDXgH-dxBRehpj_gV9nL8e3Z0nvl0XFIyL-Us"
+    },
+    {
+      "id": "334b0436-7eff-470d-a514-1d098d78e511",
+      "paciente_nome": "Fechamento 1780047507532",
+      "status": "waiting",
+      "origem": "whatsapp",
+      "pagamento_status": "CONFIRMADO",
+      "condicao": "has",
+      "elegibilidade": {
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible"
+      },
+      "checks": {
+        "origem_typebot": false,
+        "status_valid": true,
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco_definido": true,
+        "receita_url": true,
+        "triagem_nested": false,
+        "typebot_vars": true,
+        "prontuario_completo": true
+      },
+      "missing_prontuario_fields": [],
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/sign/receitas-anteriores/atendimentos/334b0436-7eff-470d-a514-1d098d78e511/receita-anterior-1780047512823.pdf?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV84ZDQwZTY3Zi01ZDlhLTQzMGYtYjI0Zi0yMDkyODEzZGU2NzgiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJyZWNlaXRhcy1hbnRlcmlvcmVzL2F0ZW5kaW1lbnRvcy8zMzRiMDQzNi03ZWZmLTQ3MGQtYTUxNC0xZDA5OGQ3OGU1MTEvcmVjZWl0YS1hbnRlcmlvci0xNzgwMDQ3NTEyODIzLnBkZiIsImlhdCI6MTc4MDA0NzUxMywiZXhwIjoxNzgwMDUxMTEzfQ.EndIFG6aPHpsWAEMmMoAm3ZxuGQT-S_yB-x-hq7Xbcg"
+    }
+  ],
+  "resumo": {
+    "total_fila": 38,
+    "amostra_analisada": 5,
+    "ok_prontuario": 5,
+    "pendencias": []
+  },
+  "ok": false
+}
