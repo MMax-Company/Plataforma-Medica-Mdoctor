@@ -74,7 +74,12 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     }
   }
 
-  const flatBody = nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem);
+  const typebotContext =
+    body.typebot_context && typeof body.typebot_context === 'object' ? body.typebot_context : {};
+  const flatBody = {
+    ...nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem),
+    ...typebotContext
+  };
   const mapped = mapTypebotPayload({
     ...flatBody,
     correlationId,
