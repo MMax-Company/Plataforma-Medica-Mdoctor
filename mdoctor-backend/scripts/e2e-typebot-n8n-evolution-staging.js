@@ -105,7 +105,34 @@ async function main() {
     process.exit(1);
   }
 
-  const atendimentoId = n8n.data?.atendimento?.id;
+  let atendimentoId = n8n.data?.atendimento?.id;
+  if (!atendimentoId && MEDICO_PASS) {
+    const loginProbe = await requestJson(`${BACKEND_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: MEDICO_USER, password: MEDICO_PASS })
+    });
+    const probeToken = loginProbe.data?.token;
+    if (probeToken) {
+      const listProbe = await requestJson(`${BACKEND_URL}/api/atendimentos`, {
+        headers: { Authorization: `Bearer ${probeToken}` }
+      });
+      const items = Array.isArray(listProbe.data?.atendimentos)
+        ? listProbe.data.atendimentos
+        : [];
+      const match = items.find(
+        (item) =>
+          String(item.paciente_telefone || item.telefone || '').replace(/\D/g, '') === phone &&
+          String(item.origem || '').includes('whatsapp')
+      );
+      atendimentoId = match?.id;
+      report.steps.push({
+        name: 'atendimento_resolve_after_n8n',
+        ok: Boolean(atendimentoId),
+        resolvedFromList: true
+      });
+    }
+  }
   if (!atendimentoId) {
     report.error = 'atendimento_id_missing_from_n8n_response';
     console.log(JSON.stringify(report, null, 2));

@@ -1,121 +1,134 @@
 # E2E Typebot + n8n + Evolution (Staging Dry-Run)
 
-Data/hora: 2026-05-28 12:40 -03:00
+Data/hora: 2026-05-28 23:15 -03:00
 
 ## Escopo
 
-Validar fluxo completo em staging, sem envio real:
+Validar fluxo operacional completo em staging, sem envio real:
 
-`Typebot staging-safe -> n8n staging -> backend staging -> Supabase -> painel -> prescription mock -> delivery dry-run Evolution`
+`WhatsApp (+55 11 92638-5598) -> Evolution (mdoctor-staging) -> n8n -> Typebot bridge -> n8n -> backend -> Supabase -> painel -> delivery dry-run`
 
-Restricoes:
+Restricoes respeitadas:
 
 - Producao intacta
-- Sem Typebot production
-- Sem n8n production
 - `WHATSAPP_DRY_RUN=true` mantido
-- Sem mensagem real
+- Rate limit / idempotencia / correlation preservados
+- Fallback/mock preservados
+- Sem mensagem real em massa
 
-## 1) Typebot staging-safe
+## Componentes
 
-Arquivo: `docs/typebot/typebot-doctor-prescreve-staging-safe.json`
-
-Validacao automatica (`mdoctor-backend/scripts/validate-typebot-staging-safe.js`):
-
-| Check | Resultado |
+| Componente | URL / ID |
 | --- | --- |
-| JSON parseavel | OK |
-| Webhook staging | `https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook` |
-| Webhook production | nao encontrado |
-| Payment block | preservado (1 bloco, nao alterado) |
-| Campos clinicos/LGPD no fluxo | cobertura de hints OK (nome, telefone, cpf, nascimento, condicao, medicacao, continuo, alerta, lgpd, consentimento) |
+| Evolution staging | `https://evolution-api-staging-staging-40d1.up.railway.app` |
+| Instancia | `mdoctor-staging` |
+| Numero conectado | `+55 11 92638-5598` (`5511926385598@s.whatsapp.net`) |
+| n8n staging | `https://n8n-staging-staging-2dfe.up.railway.app` |
+| Webhook Evolution | `POST /webhook/evolution-webhook` (+ paths by-event) |
+| Webhook Typebot | `POST /webhook/typebot-webhook` |
+| Backend staging | `https://mdoctor-backend-staging-staging.up.railway.app` |
+| Painel staging | `https://painel-medico-staging-staging.up.railway.app` |
+
+Workflows versionados no repo:
+
+- `docs/n8n-workflows/evolution-webhook-staging.json`
+- `docs/n8n-workflows/typebot-webhook-staging.json`
+
+Ativacao no runtime (sem secrets no repo):
+
+```bash
+N8N_WORKFLOW_FILE=docs/n8n-workflows/evolution-webhook-staging.json node mdoctor-backend/scripts/n8n-activate-workflow.js
+N8N_WORKFLOW_FILE=docs/n8n-workflows/typebot-webhook-staging.json node mdoctor-backend/scripts/n8n-activate-workflow.js
+```
+
+## 1) Evolution webhook
+
+Configuracao esperada na instancia `mdoctor-staging`:
+
+- URL: `https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook`
+- Eventos: `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`, `CONNECTION_UPDATE`, `QRCODE_UPDATED`
+- `webhookByEvents=true` (paths `/messages-upsert`, etc.)
+
+Bridge staging no n8n: mensagens inbound com keyword `STAGING_E2E_COMPLETE` sao reencaminhadas para `typebot-webhook` (Typebot public API ainda nao publicada em typebot.io).
 
 ## 2) n8n staging
 
-Webhook ativo:
+| Webhook | Status validado |
+| --- | --- |
+| `POST /webhook/evolution-webhook` | `200` (eventos simulados) |
+| `POST /webhook/typebot-webhook` | `200` |
 
-- `POST https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+Validacoes no workflow Evolution:
 
-Comportamento confirmado:
+- `FLOW_ENV=staging`
+- `instanceName=mdoctor-staging`
+- `X-Correlation-Id` / `Idempotency-Key` propagados
 
-- recebe payload Typebot-like
-- propaga `X-Correlation-Id` e `Idempotency-Key`
-- chama backend `POST /api/whatsapp/webhook` com `X-MDoctor-Webhook-Secret`
-- retorna JSON (`200`) com `atendimento.id`
+Observacao: o runtime n8n pode responder `200` com corpo vazio no caller HTTP, mesmo com execucao interna OK. O script E2E resolve `atendimento` via lista autenticada quando necessario.
 
 ## 3) Backend + Evolution dry-run
-
-Backend staging:
-
-- cria atendimento via webhook
-- persiste Supabase
-- calcula elegibilidade clinica
-- registra audit logs
-- mantem Evolution configurada com `dryRun=true`
-
-Evolution staging:
-
-- URL: `https://evolution-api-staging-staging-40d1.up.railway.app`
-- Instancia: `mdoctor-staging`
-- Estado: `connecting` (QR pendente; nao bloqueia dry-run)
 
 `GET /api/whatsapp/provider-status` (amostra):
 
 - `provider=evolution`
-- `configured=true`
-- `apiReachable=true`
-- `instanceFound=true`
-- `instanceState=connecting`
 - `dryRun=true`
 - `sandboxMode=true`
+- `instanceFound=true`
+- `instanceState=open`
 - `fallbackActive=true`
 
-## 4) E2E executado
+Endpoints:
 
-Script: `mdoctor-backend/scripts/e2e-typebot-n8n-evolution-staging.js`
+| Endpoint | Resultado |
+| --- | --- |
+| `GET /health` | `200` |
+| `GET /readyz` | `200` |
+| `GET /api/whatsapp/provider-status` | `200` |
+| `GET /dashboard` (painel) | `200` |
 
-Atendimento de teste (ultima execucao): `fa71be31-4488-4656-9c3f-46836f74bfa4`
+## 4) Scripts E2E
+
+| Script | Funcao |
+| --- | --- |
+| `mdoctor-backend/scripts/e2e-evolution-n8n-typebot-staging.js` | Eventos Evolution -> n8n + health/provider |
+| `mdoctor-backend/scripts/e2e-typebot-n8n-evolution-staging.js` | Typebot-like -> n8n -> backend -> deliver dry-run |
+
+Ultima execucao outbound (`e2e-typebot-n8n-evolution-staging.js`):
 
 | Etapa | Resultado |
 | --- | --- |
-| n8n webhook | `200` |
-| atendimento criado | sim |
-| provider-status Evolution | configurada, dry-run ativo |
-| login painel/backend | `200` |
-| atendimento na lista (`/api/atendimentos`) | sim |
-| approve (`status=ready`) | `200` |
-| prescription generate | `201`, `source=mock` |
-| deliver (`POST /atendimentos/:id/deliver`) | `200`, `provider=dry-run` |
-| test-send repetido em sequencia | `400` anti-spam (esperado em burst) |
+| n8n typebot webhook | `200` |
+| atendimento criado (lista backend) | sim |
+| approve + prescription mock | `200` / `201` mock |
+| deliver | `200`, `provider=dry-run` |
+| test-send burst | `400` anti-spam (esperado) |
 | painel `/dashboard` | `200` |
 
-Observacoes:
+Ultima execucao inbound simulado (`e2e-evolution-n8n-typebot-staging.js`):
 
-- Elegibilidade foi calculada; no payload E2E atual retornou inelegivel por tempo de uso (parser conservador do texto agregado).
-- `test-send` em burst pode retornar `400` por `SANDBOX_MIN_INTERVAL` (protecao ativa).
+| Etapa | Resultado |
+| --- | --- |
+| 5 eventos Evolution -> n8n | `200` cada |
+| `MESSAGES_UPSERT` + `STAGING_E2E_COMPLETE` | `200` (relay interno) |
 
-## 5) Teste real
+## 5) Typebot staging-safe
+
+Arquivo: `docs/typebot/typebot-doctor-prescreve-staging-safe.json`
+
+- Webhook aponta para n8n staging `typebot-webhook`
+- Bot publico em typebot.io: **nao publicado** (`startChat` 404) — usar bridge `STAGING_E2E_COMPLETE` ou publicar bot staging antes de E2E conversacional real
+
+## 6) Teste real WhatsApp
 
 Nao executado nesta rodada.
 
-Pre-requisitos para teste real controlado:
+- `WHATSAPP_DRY_RUN=true` preservado
+- Mensagem real enviada: **nao**
 
-1. Escanear QR da instancia `mdoctor-staging` no manager Evolution
-2. Confirmar `connectionState=open`
-3. Autorizar desligar temporariamente `WHATSAPP_DRY_RUN`
-4. Manter `WHATSAPP_SANDBOX_MODE=true`
-5. Enviar para numero de teste autorizado
-6. Reativar `WHATSAPP_DRY_RUN=true`
-
-## 6) Seguranca preservada
+## 7) Seguranca preservada
 
 - Rate limit webhook ativo
 - Anti-spam sandbox ativo
 - Audit logs ativos
-- `correlationId` preservado
-- Fallback/mock preservado
-- Mensagem real enviada: **nao**
-
-## Ajuste minimo aplicado no backend
-
-`POST /api/atendimentos/:id/deliver` agora respeita `WHATSAPP_DRY_RUN` (nao forca mock quando dry-run WhatsApp esta ativo), permitindo validar `provider=dry-run` no fluxo de entrega.
+- Correlation/idempotency preservados
+- Producao intacta

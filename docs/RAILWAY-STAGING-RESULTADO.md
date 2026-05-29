@@ -1209,3 +1209,53 @@ Escopo: montar persistencia Baileys no servico `evolution-api-staging` (Automati
 - Secrets: nao commitados
 
 Documentacao: `docs/EVOLUTION-API-STAGING.md` (secao Volume aplicado).
+
+## Integracao Evolution + n8n + Typebot (staging E2E)
+
+Data/hora: 2026-05-28 23:15 -03:00
+
+Escopo: fechar fluxo operacional em staging sem tocar producao.
+
+### WhatsApp conectado
+
+| Item | Valor |
+| --- | --- |
+| Numero | `+55 11 92638-5598` |
+| Instancia | `mdoctor-staging` |
+| `connectionState` | `open` |
+
+### Webhooks n8n publicados
+
+| Path | Status |
+| --- | --- |
+| `POST /webhook/evolution-webhook` | `200` |
+| `POST /webhook/typebot-webhook` | `200` |
+
+Workflows no repo: `docs/n8n-workflows/evolution-webhook-staging.json`, `docs/n8n-workflows/typebot-webhook-staging.json`
+
+Ativacao: `mdoctor-backend/scripts/n8n-activate-workflow.js` (credenciais owner apenas no runtime Railway/local, nao commitadas).
+
+### Evolution -> n8n
+
+- URL webhook instancia: `https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook`
+- Eventos: `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`, `CONNECTION_UPDATE`, `QRCODE_UPDATED`
+- Bridge inbound: keyword `STAGING_E2E_COMPLETE` reencaminha para `typebot-webhook`
+
+### Backend / painel
+
+| Check | Resultado |
+| --- | --- |
+| `/health`, `/readyz` | `200` |
+| `/api/whatsapp/provider-status` | `dryRun=true`, `instanceState=open` |
+| Atendimento via fluxo n8n | criado (Supabase) |
+| `deliver` | `provider=dry-run` |
+| Painel `/dashboard` | `200` |
+
+### Preservado
+
+- Producao intocada
+- `WHATSAPP_DRY_RUN=true`
+- Fallback/mock, rate limit, idempotencia, correlation
+- Mensagem real enviada: **nao**
+
+Documento detalhado: `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md`

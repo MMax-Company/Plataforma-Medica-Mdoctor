@@ -494,6 +494,55 @@ Validacao pos-aplicacao:
 
 QR / pareamento: **nao executado** nesta rodada (conforme escopo).
 
+## Limpeza de historico (Manager / Postgres Evolution)
+
+Data/hora: 2026-05-29 — limpeza do historico **visual** da instancia `mdoctor-staging` em staging.
+
+### Pre-validacao
+
+| Check | Resultado |
+| --- | --- |
+| `fetchInstances` | `mdoctor-staging` presente, `connectionStatus=open` |
+| `connectionState` | `open` |
+| Contagens antes | `Message=130235`, `Chat=606`, `Contact=4020` |
+
+### Metodo (Evolution 2.3.7)
+
+A API **nao** expoe endpoint unico para “limpar todo o historico” sem `logout`/`delete` da instancia. O metodo mais seguro para ambiente de testes:
+
+- **Remover somente metadados** gravados pelo Prisma no Postgres da Evolution (`Message`, `MessageUpdate`, `Media`, `Chat`, `Contact`) filtrados por `instanceId`.
+- **Preservar:** registro `Instance`, `Setting`, webhooks, credenciais Baileys em `/evolution/instances`, sessao WhatsApp (`connectionState=open`).
+- **Nao usar:** `DELETE /instance/logout`, `DELETE /instance/delete`, `deleteMessageForEveryone` em massa (apagaria no WhatsApp e e lento).
+
+Script versionado (sem secrets):
+
+- `mdoctor-backend/scripts/evolution-staging-clear-history.sql`
+
+Execucao (operador, com URL publica do Postgres **somente no Railway**, nunca no git):
+
+```bash
+# Exemplo: psql via container local apontando para DATABASE_PUBLIC_URL do servico Postgres staging
+docker run --rm -v "$(pwd)/mdoctor-backend/scripts/evolution-staging-clear-history.sql:/cleanup.sql:ro" \
+  postgres:15 psql "$DATABASE_PUBLIC_URL" -v ON_ERROR_STOP=1 -f /cleanup.sql
+```
+
+### Pos-validacao
+
+| Check | Resultado |
+| --- | --- |
+| `fetchInstances` `_count` | `Message=0`, `Chat=0`, `Contact=0` |
+| `connectionState` | `open` |
+| `provider-status` backend | `instanceFound=true`, `apiReachable=true`, `instanceState=open`, `dryRun=true` |
+| Instancia preservada | `mdoctor-staging` (mesmo `id` e `instanceName`) |
+| Logout / delete instance | **Nao executado** |
+| Backend / producao | **Intocados** |
+
+### Observacoes
+
+- Limpa o painel Evolution e o banco de metadados; **nao apaga** conversas no app WhatsApp do celular.
+- Postgres/Redis/volume do servico **permanecem**; apenas linhas da instancia foram removidas.
+- Para novo sync massivo, manter `syncFullHistory=false` em `Setting` ate validar carga.
+
 ---
 
 ## Plano: volume `/evolution/instances` (historico / runbook)
@@ -636,3 +685,44 @@ Via UI: Service → **Volumes** → Add Volume → mount `/evolution/instances`.
 | Analise documentada | Feito |
 | Volume aplicado no Railway | **Feito** (2026-05-28) |
 | Producao | Intocada |
+
+## Integracao n8n + Typebot (staging operacional)
+
+Data/hora: 2026-05-28 23:15 -03:00
+
+### WhatsApp conectado
+
+- Numero staging: `+55 11 92638-5598`
+- Instancia: `mdoctor-staging`
+- Estado validado via backend `provider-status`: `instanceState=open`
+
+### Webhook Evolution -> n8n
+
+- URL: `https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook`
+- Eventos habilitados: `MESSAGES_UPSERT`, `MESSAGES_UPDATE`, `SEND_MESSAGE`, `CONNECTION_UPDATE`, `QRCODE_UPDATED`
+- Workflow versionado: `docs/n8n-workflows/evolution-webhook-staging.json`
+- Inbound bridge: texto com `STAGING_E2E_COMPLETE` reencaminha para `typebot-webhook` (ate Typebot public API staging estar publicada)
+
+### Webhook Typebot -> backend
+
+- URL: `https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook`
+- Workflow versionado: `docs/n8n-workflows/typebot-webhook-staging.json`
+- Encaminha para `POST /api/whatsapp/webhook` com `X-MDoctor-Webhook-Secret`, correlation e idempotency
+
+### Outbound (backend/painel)
+
+- `POST /api/atendimentos/:id/deliver` com `WHATSAPP_DRY_RUN=true` retorna `provider=dry-run`
+- Fallback mock preservado em falha de provider
+- Anti-spam ativo (`test-send` em burst pode retornar `400`)
+
+### Scripts de validacao
+
+- `mdoctor-backend/scripts/e2e-evolution-n8n-typebot-staging.js`
+- `mdoctor-backend/scripts/e2e-typebot-n8n-evolution-staging.js`
+- `mdoctor-backend/scripts/n8n-activate-workflow.js` (publicar workflow no n8n staging)
+
+### E2E
+
+Ver `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md` e `docs/RAILWAY-STAGING-RESULTADO.md` (secao Integracao Evolution + n8n + Typebot).
+
+Mensagem real enviada nesta rodada: **nao** (`WHATSAPP_DRY_RUN` preservado).

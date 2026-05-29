@@ -1,0 +1,161 @@
+{
+  "name": "Evolution Webhook - Staging",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-base",
+      "name": "Webhook Base",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 300],
+      "webhookId": "evolution-webhook-base"
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook/messages-upsert", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-upsert",
+      "name": "Webhook Messages Upsert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 120],
+      "webhookId": "evolution-webhook-messages-upsert"
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook/messages-update", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-update",
+      "name": "Webhook Messages Update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 200],
+      "webhookId": "evolution-webhook-messages-update"
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook/send-message", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-send",
+      "name": "Webhook Send Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 400],
+      "webhookId": "evolution-webhook-send-message"
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook/connection-update", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-conn",
+      "name": "Webhook Connection Update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 500],
+      "webhookId": "evolution-webhook-connection-update"
+    },
+    {
+      "parameters": { "httpMethod": "POST", "path": "evolution-webhook/qrcode-updated", "responseMode": "responseNode", "options": {} },
+      "id": "evo-wh-qr",
+      "name": "Webhook Qrcode Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [120, 600],
+      "webhookId": "evolution-webhook-qrcode-updated"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst path = String(headers['x-n8n-webhook-path'] || headers['x-original-uri'] || '').toLowerCase();\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst expectedInstance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\nconst instanceName = String(body.instance || body.instanceName || '').trim();\nif (instanceName && instanceName !== expectedInstance) throw new Error(`instanceName mismatch: ${instanceName}`);\n\nlet event = String(body.event || body.type || '').toUpperCase().replace(/\\./g, '_').replace(/-/g, '_');\nif (!event) {\n  if (path.includes('messages-upsert')) event = 'MESSAGES_UPSERT';\n  else if (path.includes('messages-update')) event = 'MESSAGES_UPDATE';\n  else if (path.includes('send-message')) event = 'SEND_MESSAGE';\n  else if (path.includes('connection-update')) event = 'CONNECTION_UPDATE';\n  else if (path.includes('qrcode-updated')) event = 'QRCODE_UPDATED';\n  else event = 'UNKNOWN';\n}\n\nconst allowed = new Set(['MESSAGES_UPSERT','MESSAGES_UPDATE','SEND_MESSAGE','CONNECTION_UPDATE','QRCODE_UPDATED']);\nif (!allowed.has(event)) {\n  return [{ json: { route: 'IGNORED_EVENT', event, correlationId: `evo-${Date.now()}`, log: { ignored: true } } }];\n}\n\nconst data = body.data || body;\nconst key = data.key || body.key || {};\nconst message = data.message || body.message || {};\nconst remoteJid = String(key.remoteJid || data.remoteJid || '').trim();\nconst fromMe = Boolean(key.fromMe ?? data.fromMe ?? false);\nconst messageId = String(key.id || data.id || `${Date.now()}`);\nconst text = String(message.conversation || message.extendedTextMessage?.text || data.text || body.text || '').trim();\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `evo-${event.toLowerCase()}-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || messageId;\nconst inbound = event === 'MESSAGES_UPSERT' && !fromMe && Boolean(remoteJid);\n\nreturn [{ json: {\n  route: inbound ? 'INBOUND_MESSAGE' : 'EVENT_LOG',\n  event, flowEnv, instanceName: instanceName || expectedInstance,\n  correlationId, idempotencyKey, inbound, remoteJid, fromMe, text, messageId,\n  n8nTypebotWebhook: String($env.N8N_TYPEBOT_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook').trim(),\n  log: { event, remoteJid: remoteJid || null, fromMe, hasText: Boolean(text), messageId, path }\n}}];"
+      },
+      "id": "evo-parse",
+      "name": "Parse Evolution Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.route }}", "rightValue": "INBOUND_MESSAGE", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            },
+            {
+              "conditions": { "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }, "conditions": [{ "leftValue": "={{ $json.route }}", "rightValue": "EVENT_LOG", "operator": { "type": "string", "operation": "equals" } }], "combinator": "and" },
+              "renameOutput": true,
+              "outputKey": "event"
+            }
+          ]
+        },
+        "options": { "fallbackOutput": "extra" }
+      },
+      "id": "evo-route",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const ctx = $input.first().json;\nlet relayResult = null;\nif ((ctx.text || '').toUpperCase().includes('STAGING_E2E_COMPLETE')) {\n  const phone = ctx.remoteJid.replace(/\\D/g, '').replace(/@.*/, '');\n  const payload = {\n    nome: `Paciente WhatsApp ${phone.slice(-4)}`,\n    telefone: phone,\n    cpf: '12345678909',\n    email: `wa.${phone}@staging.invalid`,\n    data_nascimento: '15/08/1988',\n    condicao: 'hipertensao',\n    medicacao: 'losartana 50mg',\n    uso_continuo: 'sim',\n    receita_anterior: 'sim',\n    tempo_uso: '180 dias',\n    sinais_alerta: 'NAO',\n    lgpd: 'sim',\n    consentimento: 'sim',\n    from: phone,\n    text: ctx.text,\n    rawMessage: { messageId: ctx.idempotencyKey, channel: 'whatsapp-evolution', original: ctx.log }\n  };\n  relayResult = await this.helpers.httpRequest({\n    method: 'POST',\n    url: ctx.n8nTypebotWebhook,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-Correlation-Id': ctx.correlationId,\n      'Idempotency-Key': ctx.idempotencyKey\n    },\n    body: payload,\n    json: true,\n    timeout: 30000\n  });\n}\nreturn [{ json: { ...ctx, relayResult } }];"
+      },
+      "id": "evo-inbound",
+      "name": "Relay To Typebot Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, relay: $json.relayResult ? { ok: true } : null, log: $json.log } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "evo-respond-inbound",
+      "name": "Respond Inbound",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [1180, 180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, log: $json.log } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "evo-respond-event",
+      "name": "Respond Event Log",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [940, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, route: 'IGNORED', event: $json.event } }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "evo-respond-ignored",
+      "name": "Respond Ignored",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [940, 560]
+    }
+  ],
+  "connections": {
+    "Webhook Base": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Webhook Messages Upsert": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Webhook Messages Update": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Webhook Send Message": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Webhook Connection Update": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Webhook Qrcode Updated": { "main": [[{ "node": "Parse Evolution Event", "type": "main", "index": 0 }]] },
+    "Parse Evolution Event": { "main": [[{ "node": "Route Event", "type": "main", "index": 0 }]] },
+    "Route Event": {
+      "main": [
+        [{ "node": "Relay To Typebot Webhook", "type": "main", "index": 0 }],
+        [{ "node": "Respond Event Log", "type": "main", "index": 0 }],
+        [{ "node": "Respond Ignored", "type": "main", "index": 0 }]
+      ]
+    },
+    "Relay To Typebot Webhook": { "main": [[{ "node": "Respond Inbound", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": { "template": "evolution-webhook-staging", "secretsPolicy": "env-only" }
+}

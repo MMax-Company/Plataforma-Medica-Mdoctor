@@ -1,0 +1,85 @@
+{
+  "name": "Typebot Webhook - Staging",
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "typebot-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tb-wh",
+      "name": "Webhook Typebot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "typebot-webhook-staging"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\nconst from = String(body.from || body.telefone || '').replace(/\\D/g, '');\nif (!from) throw new Error('missing from/telefone');\nconst text = String(body.text || '').trim();\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `typebot-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || body?.rawMessage?.messageId || `${from}-${Date.now()}`;\nreturn [{\n  json: {\n    correlationId,\n    idempotencyKey,\n    payload: {\n      from,\n      text,\n      rawMessage: {\n        provider: 'typebot',\n        messageId: idempotencyKey,\n        timestamp: new Date().toISOString(),\n        channel: 'whatsapp',\n        source: flowEnv,\n        original: body\n      }\n    }\n  }\n}];"
+      },
+      "id": "tb-build",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(/\\/$/, '') + '/api/whatsapp/webhook' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-MDoctor-Webhook-Secret", "value": "={{ $env.N8N_WEBHOOK_SECRET }}" },
+            { "name": "X-Correlation-Id", "value": "={{ $json.correlationId }}" },
+            { "name": "Idempotency-Key", "value": "={{ $json.idempotencyKey }}" },
+            { "name": "X-N8N-Workflow", "value": "typebot-webhook-staging" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": { "timeout": 30000, "response": { "response": { "fullResponse": false, "neverError": true } } }
+      },
+      "id": "tb-post",
+      "name": "POST Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const backend = $input.first().json || {};\nconst ctx = $('Build Payload').first().json;\nreturn [{ json: { ok: true, correlationId: ctx.correlationId, duplicate: Boolean(backend.duplicate), atendimento: backend.atendimento || null, success: backend.success !== false } }];"
+      },
+      "id": "tb-wrap",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstEntryJson",
+        "options": { "responseCode": 200 }
+      },
+      "id": "tb-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Typebot": { "main": [[{ "node": "Build Payload", "type": "main", "index": 0 }]] },
+    "Build Payload": { "main": [[{ "node": "POST Backend", "type": "main", "index": 0 }]] },
+    "POST Backend": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
