@@ -1,5 +1,7 @@
 import { ApiError, apiClient } from '@/services/api';
+import { authHeaders } from '@/services/auth.service';
 import { getPatientById, mockPatients, type ServiceResult } from '@/services/patients';
+import type { DeliveryChannel } from '@/types/panel';
 import type { MockPrescription } from '@/types/memed';
 
 type BackendPrescription = Partial<MockPrescription> & {
@@ -9,9 +11,28 @@ type BackendPrescription = Partial<MockPrescription> & {
   duracao?: string;
 };
 
+type DeliverApiResponse = {
+  success?: boolean;
+  error?: string;
+  code?: string;
+  delivery?: {
+    id?: string;
+    channel?: string;
+    status?: string;
+    sent_at?: string;
+  };
+};
+
+export type PrescriptionDeliveryResult = ServiceResult<{
+  sent: boolean;
+  channel: DeliveryChannel;
+  deliveryId?: string;
+}> & {
+  alreadySent?: boolean;
+};
+
 function fallbackReason(error: unknown) {
   if (error instanceof ApiError) {
-    // 502 aqui indica que a integracao Memed/backend ainda nao esta disponivel.
     if (error.status === 502) {
       return {
         error: 'Memed real indisponivel. Exibindo receita simulada.',
@@ -20,12 +41,12 @@ function fallbackReason(error: unknown) {
     }
 
     return {
-      error: error.code === 'unauthorized' ? 'Sessao local sem autorizacao da API. Usando receita mockada.' : 'API indisponivel. Usando receita mockada.',
+      error: error.message || 'API indisponivel.',
       errorCode: error.code,
     };
   }
 
-  return { error: 'Falha inesperada na API. Usando receita mockada.', errorCode: 'unknown' };
+  return { error: 'Falha inesperada na API.', errorCode: 'unknown' };
 }
 
 function buildMockPrescription(patientId: string): MockPrescription {
@@ -59,7 +80,7 @@ function normalizePrescription(patientId: string, data: BackendPrescription): Mo
 }
 
 function unwrapPrescription(data: BackendPrescription | { data?: BackendPrescription }): BackendPrescription {
-  return 'data' in data && data.data ? data.data : data as BackendPrescription;
+  return 'data' in data && data.data ? data.data : (data as BackendPrescription);
 }
 
 export async function getPrescriptionByPatient(id: string): Promise<ServiceResult<MockPrescription>> {
@@ -87,9 +108,15 @@ export async function getPrescriptionByPatient(id: string): Promise<ServiceResul
 
 export async function validatePrescription(id: string): Promise<ServiceResult<MockPrescription>> {
   try {
-    const data = await apiClient.post<BackendPrescription | { data?: BackendPrescription }>(`/api/prescriptions/${id}`, {
-      status: 'validated',
-    });
+    const validation = await apiClient.post<{ success: boolean; error?: string }>(
+      `/api/atendimentos/${id}/clinical/validate`,
+      { motivo: 'Receita validada pelo médico na etapa Memed' },
+      { headers: authHeaders() },
+    );
+    if (validation.success === false) {
+      throw new ApiError('http', validation.error || 'Falha ao validar receita.', 400);
+    }
+    const data = await apiClient.get<BackendPrescription | { data?: BackendPrescription }>(`/api/prescriptions/${id}`);
     const row = unwrapPrescription(data);
 
     return {
@@ -111,22 +138,59 @@ export async function markPrescriptionReady(id: string): Promise<ServiceResult<M
   return validatePrescription(id);
 }
 
-export async function sendPrescriptionWhatsApp(id: string): Promise<ServiceResult<{ sent: boolean }>> {
+export async function sendPrescriptionDelivery(
+  atendimentoId: string,
+  channel: DeliveryChannel,
+): Promise<PrescriptionDeliveryResult> {
   try {
-    // O frontend apenas solicita entrega ao backend; WhatsApp real fica no backend/n8n/API.
-    const data = await apiClient.post<{ sent: boolean }>(`/api/atendimentos/${id}/deliver`, {
-      channel: 'whatsapp',
-    });
+    const data = await apiClient.post<DeliverApiResponse>(
+      `/api/atendimentos/${atendimentoId}/deliver`,
+      { channel },
+      { headers: authHeaders() },
+    );
+
+    if (data.success === false) {
+      const alreadySent = data.code === 'DELIVERY_ALREADY_SENT';
+      throw new ApiError('http', data.error || 'Falha no envio da receita.', alreadySent ? 409 : 400);
+    }
 
     return {
-      data,
+      data: {
+        sent: true,
+        channel,
+        deliveryId: data.delivery?.id,
+      },
       usingMockFallback: false,
+      alreadySent: false,
     };
   } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        data: { sent: false, channel },
+        usingMockFallback: true,
+        error: error.message,
+        errorCode: error.code,
+        alreadySent: error.status === 409,
+      };
+    }
+
     return {
-      data: { sent: true },
+      data: { sent: false, channel },
       usingMockFallback: true,
-      ...fallbackReason(error),
+      error: 'Falha inesperada no envio da receita.',
+      errorCode: 'unknown',
     };
   }
+}
+
+export async function sendPrescriptionWhatsApp(atendimentoId: string): Promise<PrescriptionDeliveryResult> {
+  return sendPrescriptionDelivery(atendimentoId, 'whatsapp');
+}
+
+export async function sendPrescriptionEmail(atendimentoId: string): Promise<PrescriptionDeliveryResult> {
+  return sendPrescriptionDelivery(atendimentoId, 'email');
+}
+
+export async function sendPrescriptionSms(atendimentoId: string): Promise<PrescriptionDeliveryResult> {
+  return sendPrescriptionDelivery(atendimentoId, 'sms');
 }

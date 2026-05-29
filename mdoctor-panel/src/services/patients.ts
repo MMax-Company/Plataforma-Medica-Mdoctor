@@ -1,5 +1,5 @@
 import { ApiError, apiClient } from '@/services/api';
-import type { Patient, PatientStatus, RiskLevel } from '@/types/panel';
+import type { DeliveryChannel, Patient, PatientStatus, RiskLevel } from '@/types/panel';
 
 export interface ServiceResult<T> {
   data: T;
@@ -22,12 +22,28 @@ export const mockPatients: Patient[] = [
     source: 'Typebot',
     paymentStatus: 'paid',
     lastPrescription: '12/04/2026',
+    eligibility: { eligible: true },
+    clinicalData: {
+      previous_prescription: true,
+      foto_receita_url: 'https://placehold.co/600x800/png?text=Receita+anterior',
+      data_nascimento: '12/03/1992',
+      paciente_cpf: '123.456.789-00',
+      paciente_email: 'camila.rocha@email.com',
+      endereco: 'Av. Paulista, 1000 - São Paulo/SP',
+      cep: '01310-100',
+      queixa_principal: 'Renovação de tratamento para enxaqueca recorrente.',
+      historico_clinico: 'Uso contínuo com relato de estabilidade clínica na triagem.',
+      exame_fisico_telemedicina: 'Telemedicina assíncrona sem exame presencial nesta etapa.',
+      alergias: 'Sem alergias medicamentosas graves relatadas.',
+      medicacao_em_uso: 'Sumatriptana 50mg',
+      conduta_sugerida: 'Conduta: avaliar renovação conservadora conforme protocolo e documentação enviada.',
+    },
   },
   {
     id: 'pat-002',
-    name: 'Roberto Almeida',
+    name: 'Pedro Henrique',
     age: 47,
-    phone: '+55 21 99770-1440',
+    phone: '+55 21 997701440',
     condition: 'Rinite alergica',
     requestedMedication: 'Desloratadina 5mg',
     submittedAt: '09:05',
@@ -35,6 +51,11 @@ export const mockPatients: Patient[] = [
     risk: 'low',
     source: 'WhatsApp',
     paymentStatus: 'paid',
+    eligibility: { eligible: true },
+    clinicalData: {
+      has_previous_prescription: true,
+      previous_prescription_file: 'https://example.com/receita-pedro.jpg',
+    },
   },
   {
     id: 'pat-003',
@@ -68,7 +89,7 @@ export const mockPatients: Patient[] = [
     id: 'pat-005',
     name: 'Juliana Naves',
     age: 38,
-    phone: '+55 51 98210-7720',
+    phone: '+55 51 982107720',
     condition: 'Contracepcao continua',
     requestedMedication: 'Drospirenona + etinilestradiol',
     submittedAt: '09:34',
@@ -77,6 +98,20 @@ export const mockPatients: Patient[] = [
     source: 'WhatsApp',
     paymentStatus: 'paid',
     lastPrescription: 'Hoje',
+    email: 'juliana.naves@email.com',
+    prescriptionValidated: true,
+    clinicalData: {
+      memed_receita: {
+        validated_at: new Date().toISOString(),
+        pdfUrl: 'https://placehold.co/600x800/png?text=Receita+validada',
+        receitaId: 'RX-PAT-005',
+        gerada_em: new Date().toISOString(),
+      },
+      historico_receita: {
+        status_prescricao: 'validated',
+        link_memed: 'https://placehold.co/600x800/png?text=Receita+validada',
+      },
+    },
   },
   {
     id: 'pat-006',
@@ -145,6 +180,10 @@ function normalizeStatus(status?: string): PatientStatus {
     return normalized;
   }
 
+  if (['queue', 'fila', 'triaged', 'triagem', 'aguardando_pagamento'].includes(normalized)) {
+    return 'waiting';
+  }
+
   if (normalized === 'delivered' || normalized === 'entregue') {
     return 'delivered';
   }
@@ -175,6 +214,25 @@ function readClinicalField(item: BackendPatient, field: string) {
   if (!item.dados_clinicos || typeof item.dados_clinicos === 'string') return undefined;
   const value = item.dados_clinicos[field];
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : undefined;
+}
+
+function extractSentChannelsFromClinical(clinical: Record<string, unknown>): DeliveryChannel[] {
+  const deliveries = Array.isArray(clinical.entregas_receita)
+    ? clinical.entregas_receita
+    : clinical.entrega_receita
+      ? [clinical.entrega_receita]
+      : [];
+
+  return deliveries
+    .filter((item) => item && typeof item === 'object' && (item as { status?: string }).status === 'sent')
+    .map((item) => String((item as { channel?: string }).channel || '').toLowerCase())
+    .filter((channel): channel is DeliveryChannel => channel === 'whatsapp' || channel === 'email' || channel === 'sms');
+}
+
+function isReceiptValidated(clinical: Record<string, unknown>) {
+  const receipt = clinical.memed_receita;
+  if (!receipt || typeof receipt !== 'object') return false;
+  return Boolean((receipt as { validated_at?: string; validatedAt?: string }).validated_at || (receipt as { validatedAt?: string }).validatedAt);
 }
 
 function normalizeSource(source?: string) {
@@ -226,8 +284,8 @@ function normalizePatient(item: BackendPatient, index: number): Patient {
     lastPrescription: item.lastPrescription,
     cpf: String(item.paciente_cpf || readClinicalField(item, 'paciente_cpf') || ''),
     email: String(item.paciente_email || readClinicalField(item, 'paciente_email') || ''),
-    birthDate: String(readClinicalField(item, 'data_nascimento') || ''),
-    address: String(readClinicalField(item, 'endereco') || ''),
+    birthDate: String(readClinicalField(item, 'data_nascimento') || readClinicalField(item, 'birth_date') || ''),
+    address: String(readClinicalField(item, 'endereco') || readClinicalField(item, 'address') || ''),
     eligibility: item.elegibilidade
       ? {
           eligible: item.elegibilidade.eligible === true,
@@ -240,7 +298,30 @@ function normalizePatient(item: BackendPatient, index: number): Patient {
         }
       : undefined,
     clinicalData: clinicalObject,
+    queueType:
+      clinicalObject.queue_type === 'support' || item.condicao === 'suporte_whatsapp' ? 'support' : 'medical',
+    sentDeliveryChannels: extractSentChannelsFromClinical(clinicalObject),
+    prescriptionValidated: isReceiptValidated(clinicalObject) || normalizeStatus(item.status) === 'ready',
   };
+}
+
+export async function getSupportPatients(): Promise<ServiceResult<Patient[]>> {
+  try {
+    const data = await apiClient.get<BackendPatient[] | { atendimentos?: BackendPatient[] }>(
+      '/api/atendimentos/support-queue',
+    );
+    const rows = Array.isArray(data) ? data : data.atendimentos || [];
+    return {
+      data: rows.map(normalizePatient),
+      usingMockFallback: false,
+    };
+  } catch (error) {
+    return {
+      data: [],
+      usingMockFallback: true,
+      ...fallbackReason(error),
+    };
+  }
 }
 
 function unwrapAtendimento(data: BackendPatient | { atendimento?: BackendPatient; data?: BackendPatient }): BackendPatient {
@@ -255,7 +336,9 @@ export function getMockPatients() {
 
 export async function getPatients(): Promise<ServiceResult<Patient[]>> {
   try {
-    const data = await apiClient.get<BackendPatient[] | { data?: BackendPatient[]; atendimentos?: BackendPatient[] }>('/api/atendimentos');
+    const data = await apiClient.get<BackendPatient[] | { data?: BackendPatient[]; atendimentos?: BackendPatient[] }>(
+      '/api/atendimentos?scope=medical',
+    );
     const rows = Array.isArray(data) ? data : data.data || data.atendimentos || [];
 
     if (rows.length === 0) {
@@ -268,12 +351,12 @@ export async function getPatients(): Promise<ServiceResult<Patient[]>> {
     }
 
     return {
-      data: rows.map(normalizePatient),
+      data: rows.map(normalizePatient).filter((patient) => patient.queueType !== 'support'),
       usingMockFallback: false,
     };
   } catch (error) {
     return {
-      data: getMockPatients(),
+      data: getMockPatients().filter((patient) => patient.queueType !== 'support'),
       usingMockFallback: true,
       ...fallbackReason(error),
     };

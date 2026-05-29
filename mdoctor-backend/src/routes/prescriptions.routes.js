@@ -141,8 +141,8 @@ router.post('/:id/generate', requireAuth, async (req, res) => {
       payload: result.data || result
     });
 
-    const updated = await updateAtendimentoStatus(atendimento.id, STATUS.READY, {
-      motivo: result.source === 'memed' ? 'Receita gerada na Memed' : 'Receita mock gerada para staging',
+    const updated = await updateAtendimentoStatus(atendimento.id, STATUS.MEMED_PROCESSING, {
+      motivo: result.source === 'memed' ? 'Receita gerada na Memed — em processamento' : 'Receita mock gerada para staging',
       medicoId: req.user?.sub || null,
       dados_clinicos: {
         ...(atendimento.dados_clinicos || {}),

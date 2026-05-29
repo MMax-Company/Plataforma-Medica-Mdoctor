@@ -16,6 +16,10 @@ const {
   createEntregaReceitaLog
 } = require('../store/atendimentos.store');
 const { buildClinicalNarrative, PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
+const { approveAtendimento, rejectAtendimento } = require('../services/clinical-decision.service');
+const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue');
+const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
+const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.service');
 
 const router = express.Router();
 
@@ -37,9 +41,72 @@ function maskTarget(target = '') {
     : String(target).replace(/\d(?=\d{4})/g, '*');
 }
 
+function listPreviousDeliveries(clinical = {}) {
+  if (Array.isArray(clinical.entregas_receita)) return clinical.entregas_receita;
+  if (clinical.entrega_receita) return [clinical.entrega_receita];
+  return [];
+}
+
+function hasSuccessfulDelivery(deliveries = [], channel = '') {
+  return deliveries.some((item) => item?.channel === channel && item?.status === 'sent');
+}
+
+function assertCanDeliverPrescription(atendimento = {}) {
+  const status = String(atendimento.status || '').toLowerCase();
+  const readyStatuses = new Set(['ready', 'validated', 'receita_emitida', 'aprovado']);
+
+  if (!readyStatuses.has(status)) {
+    return {
+      ok: false,
+      statusCode: 422,
+      error: 'Receita só pode ser enviada após validação Memed (status ready).'
+    };
+  }
+
+  const receipt = atendimento.dados_clinicos?.memed_receita || {};
+  if (!receipt.validated_at && !receipt.validatedAt) {
+    return { ok: false, statusCode: 422, error: 'Receita ainda não foi validada pelo médico.' };
+  }
+
+  if (atendimento.dados_clinicos?.memed_bloqueado === true) {
+    return { ok: false, statusCode: 409, error: 'Atendimento reprovado — envio de receita bloqueado.' };
+  }
+
+  return { ok: true };
+}
+
+function buildHistoricoReceita(receipt = {}, doctorId = null, delivery = null) {
+  const timestamp = new Date().toISOString();
+  return {
+    pdf_url: receipt.pdfUrl || receipt.pdf_url || null,
+    imagem_url: receipt.imageUrl || receipt.imagem_url || null,
+    link_memed: receipt.receitaUrl || receipt.link || receipt.pdfUrl || null,
+    receita_id: receipt.receitaId || receipt.providerPrescriptionId || receipt.id || null,
+    status_prescricao: receipt.validated_at || receipt.validatedAt ? 'validated' : 'processing',
+    emitida_em: receipt.gerada_em || receipt.createdAt || timestamp,
+    validada_em: receipt.validated_at || receipt.validatedAt || null,
+    medico_responsavel: doctorId || receipt.validated_by || null,
+    ultimo_canal: delivery?.channel || null,
+    ultimo_envio_em: delivery?.sent_at || null,
+    entregas: delivery ? [delivery] : []
+  };
+}
+
 router.get('/', async (req, res) => {
   const atendimentos = await listAtendimentos({ status: req.query.status });
-  res.json({ success: true, atendimentos });
+  const scope = String(req.query.scope || 'medical').toLowerCase();
+  const filtered =
+    scope === 'all'
+      ? atendimentos
+      : scope === 'support'
+        ? atendimentos.filter((item) => isSupportQueue(item))
+        : atendimentos.filter((item) => isMedicalQueue(item) && isVisibleInMedicalPanel(item));
+  res.json({ success: true, atendimentos: filtered, scope });
+});
+
+router.get('/support-queue', requireAuth, async (_req, res) => {
+  const atendimentos = await listWhatsAppSupportQueue();
+  res.json({ success: true, atendimentos, total: atendimentos.length });
 });
 
 router.get('/queue', async (_req, res) => {
@@ -192,6 +259,111 @@ router.patch('/:id/clinical', requireAuth, async (req, res) => {
   return res.json({ success: true, atendimento, decisao });
 });
 
+router.post('/:id/clinical/approve', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `approve-${Date.now()}`;
+  const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
+  const result = await approveAtendimento(req.params.id, req.body || {}, { doctorId, correlationId });
+
+  if (!result.ok) {
+    return res.status(result.statusCode || 500).json({ success: false, error: result.error, correlationId });
+  }
+
+  return res.json({
+    success: true,
+    correlationId,
+    atendimento: result.atendimento,
+    decisao: result.decisao,
+    memed: result.memed
+  });
+});
+
+router.post('/:id/clinical/reject', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `reject-${Date.now()}`;
+  const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
+  const result = await rejectAtendimento(req.params.id, req.body || {}, { doctorId, correlationId });
+
+  if (!result.ok) {
+    return res.status(result.statusCode || 500).json({ success: false, error: result.error, correlationId });
+  }
+
+  return res.json({
+    success: true,
+    correlationId,
+    atendimento: result.atendimento,
+    decisao: result.decisao,
+    notification: result.notification
+  });
+});
+
+router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `validate-${Date.now()}`;
+  const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
+  const previous = await getAtendimento(req.params.id);
+
+  if (!previous) {
+    return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+  }
+
+  const status = String(previous.status || '').toLowerCase();
+  if (status === 'rejected' || status === 'recusado') {
+    return res.status(409).json({ success: false, error: 'Atendimento reprovado não pode ser validado', correlationId });
+  }
+
+  const receipt = previous.dados_clinicos?.memed_receita || {};
+  const validatedAt = new Date().toISOString();
+  const enrichedReceipt = {
+    ...receipt,
+    validated_at: validatedAt,
+    validated_by: doctorId,
+    status: 'validated'
+  };
+  const historicoReceita = {
+    ...(previous.dados_clinicos?.historico_receita || {}),
+    ...buildHistoricoReceita(enrichedReceipt, doctorId),
+    validada_em: validatedAt,
+    medico_validador: doctorId
+  };
+
+  const atendimento = await updateAtendimentoStatus(req.params.id, STATUS.READY, {
+    motivo: req.body?.motivo || 'Receita validada pelo médico na etapa Memed',
+    medicoId: doctorId,
+    dados_clinicos: {
+      ...(previous.dados_clinicos || {}),
+      memed_receita: enrichedReceipt,
+      historico_receita: historicoReceita,
+      clinical_audit: {
+        ...(previous.dados_clinicos?.clinical_audit || {}),
+        memedValidatedAt: validatedAt,
+        memedValidatedBy: doctorId,
+        correlationId
+      }
+    }
+  });
+
+  const decisao = await createDecisaoLog({
+    atendimento_id: req.params.id,
+    status_anterior: previous.status,
+    status_novo: STATUS.READY,
+    motivo: 'Receita validada pelo médico',
+    medico_id: doctorId,
+    snapshot: {
+      paciente_nome: atendimento?.paciente_nome,
+      memed_receita: atendimento?.dados_clinicos?.memed_receita || receipt,
+      correlationId
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: req.params.id,
+    action: 'memed_prescription_validated',
+    actor: doctorId || 'backend',
+    payload: { correlationId, protocolVersion: PROTOCOL_VERSION }
+  });
+
+  return res.json({ success: true, correlationId, atendimento, decisao });
+});
+
 router.post('/:id/deliver', requireAuth, async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   const { channel = 'whatsapp', doctorId, medicoId } = req.body || {};
@@ -203,6 +375,16 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
 
   const previous = await getAtendimento(req.params.id);
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+
+  const deliverGuard = assertCanDeliverPrescription(previous);
+  if (!deliverGuard.ok) {
+    return res.status(deliverGuard.statusCode || 422).json({
+      success: false,
+      error: deliverGuard.error,
+      code: 'DELIVERY_NOT_ALLOWED',
+      correlationId
+    });
+  }
 
   const receipt = previous.dados_clinicos?.memed_receita || {};
   const receiptUrl = receipt.pdfUrl || receipt.receitaUrl || (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
@@ -220,11 +402,16 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
   }
 
   const previousClinical = previous.dados_clinicos || {};
-  const previousDeliveries = Array.isArray(previousClinical.entregas_receita)
-    ? previousClinical.entregas_receita
-    : previousClinical.entrega_receita
-      ? [previousClinical.entrega_receita]
-      : [];
+  const previousDeliveries = listPreviousDeliveries(previousClinical);
+
+  if (hasSuccessfulDelivery(previousDeliveries, channel)) {
+    return res.status(409).json({
+      success: false,
+      error: `Receita já enviada por ${channel} para este atendimento.`,
+      code: 'DELIVERY_ALREADY_SENT',
+      correlationId
+    });
+  }
 
   let delivery;
   try {
@@ -308,6 +495,15 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     });
   }
 
+  const allDeliveries = [delivery, ...previousDeliveries];
+  const historicoReceita = {
+    ...(previousClinical.historico_receita || buildHistoricoReceita(receipt, authenticatedDoctorId)),
+    ...buildHistoricoReceita(receipt, authenticatedDoctorId, delivery),
+    entregas: allDeliveries,
+    canais_enviados: [...new Set(allDeliveries.filter((item) => item.status === 'sent').map((item) => item.channel))],
+    finalizado_em: new Date().toISOString()
+  };
+
   const atendimento = await updateAtendimentoStatus(req.params.id, STATUS.DELIVERED, {
     motivo: `Receita enviada por ${channel}`,
     medicoId: authenticatedDoctorId,
@@ -315,8 +511,9 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
       ...previousClinical,
       correlation_id: correlationId,
       memed_receita: receipt,
+      historico_receita: historicoReceita,
       entrega_receita: delivery,
-      entregas_receita: [delivery, ...previousDeliveries]
+      entregas_receita: allDeliveries
     }
   });
 

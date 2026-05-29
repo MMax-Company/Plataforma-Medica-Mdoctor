@@ -11,6 +11,8 @@ const {
   extractUsageDays,
   hasContinuousMedication,
   hasPreviousPrescription,
+  hasPrescriptionPhoto,
+  hasControlledMedication,
   buildCriteriaSummary
 } = require('../services/clinical-intelligence.service');
 
@@ -39,12 +41,50 @@ class EligibilityEngine {
     const usageDays = extractUsageDays(patientData);
     const hasContinuousUse = hasContinuousMedication(patientData);
     const hasPreviousRx = hasPreviousPrescription(patientData);
+    const hasRxPhoto = hasPrescriptionPhoto(patientData);
+    const medications = Array.isArray(patientData.medications) ? patientData.medications : [];
+    const controlledMedication = hasControlledMedication(medications, patientData.medication || patientData.medicacao_em_uso);
     const criteriaUsed = [];
 
-    // 1. Validate mandatory clinical history (conservative profile)
-    if (!hasPreviousRx || !hasContinuousUse) {
+    if (patientData.eligibility_status === 'ineligible' || patientData._forceIneligible) {
       return this._rejectedDecision({
-        reason: 'Falta comprovação de uso contínuo e receita anterior válida',
+        reason: patientData._ineligibilityReason || patientData.ineligibility_reason || 'Paciente inelegível na triagem Typebot',
+        reasonCode: 'consulta_presencial',
+        condition,
+        flags,
+        criteriaUsed: buildCriteriaSummary(['Triagem Typebot: inelegível'], flags),
+        renewalStatus: 'insegura'
+      });
+    }
+
+    if (patientData.has_warning_signs === true) {
+      return this._rejectedDecision({
+        reason: 'Sinais de alerta relatados — atendimento presencial recomendado',
+        reasonCode: 'sinais_alarme',
+        condition,
+        flags: [...flags, 'sinais_urgencia'],
+        criteriaUsed: buildCriteriaSummary(['Sem sinais de alerta'], [...flags, 'sinais_urgencia']),
+        renewalStatus: 'insegura'
+      });
+    }
+
+    if (controlledMedication) {
+      return this._rejectedDecision({
+        reason: 'Medicamento controlado ou fora do protocolo de renovação remota',
+        reasonCode: 'medicacao_incompativel',
+        condition,
+        flags: [...flags, 'contraindicacao_basica'],
+        criteriaUsed: buildCriteriaSummary(criteriaUsed, [...flags, 'contraindicacao_basica']),
+        renewalStatus: 'insegura'
+      });
+    }
+
+    // 1. Validate mandatory clinical history (conservative profile)
+    if (!hasPreviousRx || !hasContinuousUse || !hasRxPhoto) {
+      return this._rejectedDecision({
+        reason: !hasRxPhoto
+          ? 'Foto legível da receita anterior é obrigatória para renovação'
+          : 'Falta comprovação de uso contínuo e receita anterior válida',
         reasonCode: 'documentacao_insuficiente',
         condition,
         flags,

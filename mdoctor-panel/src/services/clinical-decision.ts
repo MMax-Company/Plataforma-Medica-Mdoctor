@@ -1,0 +1,129 @@
+import { ApiError, apiClient } from '@/services/api';
+import { authHeaders } from '@/services/auth.service';
+import type { ServiceResult } from '@/services/patients';
+
+type BackendAtendimento = {
+  id?: string;
+  status?: string;
+  paciente_nome?: string;
+  paciente_telefone?: string;
+  dados_clinicos?: Record<string, unknown>;
+};
+
+export const CLINICAL_REJECT_WHATSAPP_MESSAGE =
+  'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.';
+
+function unwrapAtendimento(data: BackendAtendimento | { atendimento?: BackendAtendimento }): BackendAtendimento {
+  if ('atendimento' in data && data.atendimento) return data.atendimento;
+  return data as BackendAtendimento;
+}
+
+export type ClinicalDecisionPayload = {
+  notes?: string;
+  observacao_medica?: string;
+  conduta_medica?: string;
+  motivo?: string;
+  mensagem_whatsapp?: string;
+  dados_clinicos?: Record<string, unknown>;
+};
+
+export type ClinicalDecisionResult = ServiceResult<{ atendimentoId: string; status: string }> & {
+  correlationId?: string;
+  memedWarning?: string | null;
+  notificationSent?: boolean;
+};
+
+type ApiDecisionResponse = {
+  success?: boolean;
+  error?: string;
+  correlationId?: string;
+  atendimento?: BackendAtendimento;
+  memed?: { warning?: string | null; error?: unknown };
+  notification?: { sent?: boolean; skipped?: boolean };
+};
+
+export async function approveClinicalDecision(
+  atendimentoId: string,
+  payload: ClinicalDecisionPayload = {},
+): Promise<ClinicalDecisionResult> {
+  try {
+    const data = await apiClient.post<ApiDecisionResponse>(`/api/atendimentos/${atendimentoId}/clinical/approve`, {
+      observacao_medica: payload.observacao_medica || payload.notes || null,
+      conduta_medica: payload.conduta_medica || null,
+      motivo: payload.motivo || 'Atendimento aprovado pelo médico no prontuário',
+      dados_clinicos: payload.dados_clinicos || {},
+    }, { headers: authHeaders() });
+
+    if (data.success === false) {
+      throw new ApiError('http', data.error || 'Falha ao aprovar atendimento.', 400);
+    }
+
+    const row = unwrapAtendimento(data);
+
+    return {
+      data: { atendimentoId, status: String(row.status || 'memed_processing') },
+      usingMockFallback: false,
+      correlationId: data.correlationId,
+      memedWarning: data.memed?.warning || null,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        data: { atendimentoId, status: 'memed_processing' },
+        usingMockFallback: true,
+        error: error.message,
+        errorCode: error.code,
+      };
+    }
+
+    return {
+      data: { atendimentoId, status: 'memed_processing' },
+      usingMockFallback: true,
+      error: 'Falha inesperada ao aprovar atendimento.',
+      errorCode: 'unknown',
+    };
+  }
+}
+
+export async function rejectClinicalDecision(
+  atendimentoId: string,
+  payload: ClinicalDecisionPayload = {},
+): Promise<ClinicalDecisionResult> {
+  try {
+    const data = await apiClient.post<ApiDecisionResponse>(`/api/atendimentos/${atendimentoId}/clinical/reject`, {
+      observacao_medica: payload.observacao_medica || payload.notes || null,
+      motivo: payload.motivo || payload.notes || 'Atendimento reprovado pelo médico no prontuário',
+      mensagem_whatsapp: payload.mensagem_whatsapp || CLINICAL_REJECT_WHATSAPP_MESSAGE,
+      dados_clinicos: payload.dados_clinicos || {},
+    }, { headers: authHeaders() });
+
+    if (data.success === false) {
+      throw new ApiError('http', data.error || 'Falha ao reprovar atendimento.', 400);
+    }
+
+    const row = unwrapAtendimento(data);
+
+    return {
+      data: { atendimentoId, status: String(row.status || 'rejected') },
+      usingMockFallback: false,
+      correlationId: data.correlationId,
+      notificationSent: data.notification?.sent === true,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      return {
+        data: { atendimentoId, status: 'rejected' },
+        usingMockFallback: true,
+        error: error.message,
+        errorCode: error.code,
+      };
+    }
+
+    return {
+      data: { atendimentoId, status: 'rejected' },
+      usingMockFallback: true,
+      error: 'Falha inesperada ao reprovar atendimento.',
+      errorCode: 'unknown',
+    };
+  }
+}

@@ -1,33 +1,51 @@
 'use client';
 
 import { create } from 'zustand';
-import { sendPrescriptionWhatsApp } from '@/services/prescriptions';
-import { getMockPatients, getPatients, updatePatientStatus } from '@/services/patients';
+import { approveClinicalDecision, rejectClinicalDecision } from '@/services/clinical-decision';
+import { sendPrescriptionDelivery } from '@/services/prescriptions';
+import type { DeliveryChannel } from '@/types/panel';
+import {
+  belongsToMedicalWaitingQueue,
+  belongsToMemedProcessingQueue,
+  belongsToReadyPrescriptionQueue,
+} from '@/lib/patient-display';
+import { getMockPatients, getPatients, getSupportPatients, updatePatientStatus } from '@/services/patients';
 import type { Patient, PanelMetric } from '@/types/panel';
 
 const initialPatients = getMockPatients();
 
 interface DashboardStore {
   patients: Patient[];
+  supportPatients: Patient[];
   metrics: PanelMetric[];
   loading: boolean;
   usingMockFallback: boolean;
+  supportUsingMockFallback: boolean;
   error: string | null;
   loadPatients: () => Promise<void>;
   startReview: (patientId: string) => void;
   approvePrescription: (patientId: string) => void;
   acceptMemedPrescription: (patientId: string) => void;
-  approveMedicalRecord: (patientId: string) => void;
-  rejectMedicalRecord: (patientId: string) => void;
-  sendWhatsApp: (patientId: string) => Promise<void>;
+  approveMedicalRecord: (
+    patientId: string,
+    payload?: { notes?: string; conduta_medica?: string; dados_clinicos?: Record<string, unknown> },
+  ) => Promise<void>;
+  rejectMedicalRecord: (
+    patientId: string,
+    payload?: {
+      notes?: string;
+      motivo?: string;
+      mensagem_whatsapp?: string;
+      dados_clinicos?: Record<string, unknown>;
+    },
+  ) => Promise<void>;
+  sendPrescription: (patientId: string, channel: DeliveryChannel) => Promise<DeliveryChannel[]>;
 }
 
 function buildMetrics(patients: Patient[]): PanelMetric[] {
-  const waiting = patients.filter((patient) => patient.status === 'waiting').length;
-  const reviewing = patients.filter(
-    (patient) => patient.status === 'under_review' || patient.status === 'memed_processing',
-  ).length;
-  const ready = patients.filter((patient) => patient.status === 'ready').length;
+  const waiting = patients.filter(belongsToMedicalWaitingQueue).length;
+  const reviewing = patients.filter(belongsToMemedProcessingQueue).length;
+  const ready = patients.filter(belongsToReadyPrescriptionQueue).length;
   const delivered = patients.filter((patient) => patient.status === 'delivered').length;
 
   return [
@@ -38,8 +56,16 @@ function buildMetrics(patients: Patient[]): PanelMetric[] {
   ];
 }
 
-function withStatus(patients: Patient[], patientId: string, status: Patient['status'], lastPrescription?: string) {
-  void updatePatientStatus(patientId, status);
+function withStatus(
+  patients: Patient[],
+  patientId: string,
+  status: Patient['status'],
+  lastPrescription?: string,
+  options?: { syncApi?: boolean },
+) {
+  if (options?.syncApi !== false) {
+    void updatePatientStatus(patientId, status);
+  }
 
   return patients.map((patient) =>
     patient.id === patientId
@@ -50,20 +76,24 @@ function withStatus(patients: Patient[], patientId: string, status: Patient['sta
 
 export const useDashboardStore = create<DashboardStore>((set) => ({
   patients: initialPatients,
+  supportPatients: [],
   metrics: buildMetrics(initialPatients),
   loading: false,
   usingMockFallback: false,
+  supportUsingMockFallback: false,
   error: null,
   loadPatients: async () => {
     set({ loading: true, error: null });
-    const result = await getPatients();
+    const [medicalResult, supportResult] = await Promise.all([getPatients(), getSupportPatients()]);
 
     set({
-      patients: result.data,
-      metrics: buildMetrics(result.data),
+      patients: medicalResult.data,
+      supportPatients: supportResult.data,
+      metrics: buildMetrics(medicalResult.data),
       loading: false,
-      usingMockFallback: result.usingMockFallback,
-      error: result.error || null,
+      usingMockFallback: medicalResult.usingMockFallback,
+      supportUsingMockFallback: supportResult.usingMockFallback,
+      error: medicalResult.error || supportResult.error || null,
     });
   },
   startReview: (patientId) =>
@@ -84,26 +114,88 @@ export const useDashboardStore = create<DashboardStore>((set) => ({
 
       return { patients, metrics: buildMetrics(patients) };
     }),
-  approveMedicalRecord: (patientId) =>
-    set((state) => {
-      const patients = withStatus(state.patients, patientId, 'memed_processing');
+  approveMedicalRecord: async (patientId, payload) => {
+    const result = await approveClinicalDecision(patientId, {
+      notes: payload?.notes,
+      observacao_medica: payload?.notes,
+      conduta_medica: payload?.conduta_medica,
+      dados_clinicos: payload?.dados_clinicos,
+    });
 
-      return { patients, metrics: buildMetrics(patients) };
-    }),
-  rejectMedicalRecord: (patientId) =>
-    set((state) => {
-      const patients = withStatus(state.patients, patientId, 'rejected');
+    if (result.usingMockFallback) {
+      throw new Error(result.error || 'Não foi possível aprovar o atendimento na API.');
+    }
 
-      return { patients, metrics: buildMetrics(patients) };
-    }),
-  sendWhatsApp: async (patientId) => {
-    await sendPrescriptionWhatsApp(patientId);
     set((state) => {
-      const patients = state.patients.map((patient) =>
-        patient.id === patientId ? { ...patient, source: 'WhatsApp' as const, status: 'delivered' as const } : patient,
-      );
+      const patients = withStatus(state.patients, patientId, 'memed_processing', undefined, { syncApi: false });
+      return {
+        patients,
+        metrics: buildMetrics(patients),
+        error: result.memedWarning ? result.memedWarning : state.error,
+      };
+    });
+  },
+  rejectMedicalRecord: async (patientId, payload) => {
+    const result = await rejectClinicalDecision(patientId, {
+      notes: payload?.notes,
+      observacao_medica: payload?.notes,
+      motivo: payload?.motivo,
+      mensagem_whatsapp: payload?.mensagem_whatsapp,
+      dados_clinicos: payload?.dados_clinicos,
+    });
+
+    if (result.usingMockFallback) {
+      throw new Error(result.error || 'Não foi possível reprovar o atendimento na API.');
+    }
+
+    set((state) => {
+      const patients = withStatus(state.patients, patientId, 'rejected', undefined, { syncApi: false });
+      return {
+        patients,
+        metrics: buildMetrics(patients),
+        error: state.error,
+      };
+    });
+  },
+  sendPrescription: async (patientId, channel) => {
+    const result = await sendPrescriptionDelivery(patientId, channel);
+
+    if (result.usingMockFallback || !result.data.sent) {
+      throw new Error(result.error || `Não foi possível enviar a receita por ${channel}.`);
+    }
+
+    let updatedChannels: DeliveryChannel[] = [];
+
+    set((state) => {
+      const patients = state.patients.map((patient) => {
+        if (patient.id !== patientId) return patient;
+
+        const sentDeliveryChannels = Array.from(new Set([...(patient.sentDeliveryChannels || []), channel]));
+        updatedChannels = sentDeliveryChannels;
+
+        const clinicalData = {
+          ...(patient.clinicalData || {}),
+          entregas_receita: [
+            {
+              channel,
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+            },
+            ...(Array.isArray(patient.clinicalData?.entregas_receita) ? patient.clinicalData.entregas_receita : []),
+          ],
+        };
+
+        return {
+          ...patient,
+          sentDeliveryChannels,
+          clinicalData,
+          status: 'delivered' as const,
+        };
+      });
 
       return { patients, metrics: buildMetrics(patients) };
     });
+
+    return updatedChannels;
   },
 }));

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE, checkEligibility } from '@/services/api';
 import { authHeaders, clearSession, getAuthUser, requireSession, type AuthUser } from '@/services/auth.service';
-import { BrandLogo } from '@/components/ui/Brand';
+import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { Button, Card, StatusPill } from '@/components/ui/DesignSystem';
 
 type AtendimentoStatus =
@@ -399,24 +399,7 @@ export default function AtendimentoPage({ params }: { params: { id: string } }) 
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#080D33]">
-      <header className="flex h-24 items-center justify-between bg-white px-8">
-        <BrandLogo compact />
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#1557FF] text-lg font-black text-white">
-              {initials(user?.name || 'Dr Max')}
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-black leading-4">{user?.name || 'Dr. Max Matos'}</p>
-              <p className="text-xs text-[#26325F]">{user?.role === 'admin' ? 'Administrador' : 'Médico Cirurgião'}</p>
-            </div>
-          </div>
-          <Button onClick={logout} tone="soft" className="h-12 rounded-[8px] px-6 text-sm font-black">↪ SAIR</Button>
-        </div>
-      </header>
-
-      <div className="h-2 bg-gradient-to-r from-[#F8D34C] via-[#F4B000] to-[#E98600]" />
+      <MedicalPanelHeader compact onLogout={logout} />
 
       <section className="px-8 py-5">
         <div className="mb-4 grid items-center gap-4 md:grid-cols-[220px_1fr_220px]">

@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-05-29T07:22:44.447Z",
+  "branch": "codex/legacy-compat-infra",
+  "local": [
+    {
+      "name": "validate_typebot",
+      "ok": true
+    },
+    {
+      "name": "test_eligibility",
+      "ok": true
+    },
+    {
+      "name": "test_normalizer",
+      "ok": true
+    },
+    {
+      "name": "embed_n8n_payload",
+      "ok": true
+    },
+    {
+      "name": "panel_lint",
+      "ok": true
+    },
+    {
+      "name": "panel_build",
+      "ok": true
+    }
+  ],
+  "remote": [
+    {
+      "url": "https://mdoctor-backend-staging-staging.up.railway.app/health",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "url": "https://painel-medico-staging-staging.up.railway.app/login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "url": "https://painel-medico-staging-staging.up.railway.app/dashboard",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "smoke": {
+    "success": true,
+    "report": [
+      {
+        "test": "backend_health",
+        "ok": true,
+        "status": 200
+      },
+      {
+        "test": "backend_eligible_paid_queue",
+        "ok": true,
+        "status": 200,
+        "atendimentoStatus": "waiting",
+        "pagamento": "CONFIRMADO"
+      },
+      {
+        "test": "backend_unpaid_rejected",
+        "ok": true,
+        "status": 200,
+        "atendimentoStatus": "rejected"
+      },
+      {
+        "test": "backend_no_photo_rejected",
+        "ok": true,
+        "atendimentoStatus": "rejected"
+      },
+      {
+        "test": "n8n_typebot_webhook_reachable",
+        "ok": true,
+        "status": 200,
+        "emptyBody": true
+      }
+    ]
+  },
+  "pending": [
+    "Publicar Typebot: definir TYPEBOT_API_TOKEN e rodar publish-typebot-staging.js",
+    "Republicar workflows n8n via API: definir N8N_API_KEY e deploy-n8n-workflow.js (3 JSONs staging)",
+    "Redeploy Railway backend/painel após push do branch codex/legacy-compat-infra (alterações locais ainda não commitadas)"
+  ],
+  "urls": {
+    "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+    "panel": "https://painel-medico-staging-staging.up.railway.app",
+    "n8n": "https://n8n-staging-staging-2dfe.up.railway.app",
+    "n8nTypebotWebhook": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook",
+    "evolution": "https://evolution-api-staging-staging-40d1.up.railway.app",
+    "typebotPublic": "https://typebot.co/doctor-prescreve-8rmljgu"
+  }
+}

@@ -8,24 +8,36 @@ const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/
 const { requireAuth } = require('../auth/auth.middleware');
 const { getWhatsAppProviderStatus, sendPrescription, isSandboxMode } = require('../delivery/delivery.service');
 const {
-  normalizeCondition,
-  parseClinicalFlags,
-  hasContinuousMedication,
-  hasPreviousPrescription,
-  extractUsageDays,
   buildClinicalNarrative,
   getRefusalMessage,
   PROTOCOL_VERSION
 } = require('../services/clinical-intelligence.service');
+const { mapTypebotPayload, INELIGIBLE_USER_MESSAGE } = require('../services/typebot-payload.mapper');
+const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
+const {
+  createWhatsAppSupportEntry,
+  closeWhatsAppSupportEntry
+} = require('../services/whatsapp-support.service');
 
 const router = express.Router();
 
-function parseCondition(text = '') {
-  return normalizeCondition(text);
-}
+function verifyN8nWebhookSecret(req, res) {
+  const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
+  const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
 
-function parseFlags(text = '') {
-  return parseClinicalFlags(text);
+  if (configuredSecret) {
+    if (!providedSecret || providedSecret !== configuredSecret) {
+      return { ok: false, status: 401, body: { success: false, error: 'Webhook não autorizado', correlationId } };
+    }
+    return { ok: true, correlationId };
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    return { ok: true, correlationId, devFallback: true };
+  }
+
+  return { ok: false, status: 401, body: { success: false, error: 'Webhook secret não configurado', correlationId } };
 }
 
 router.get('/status', (_req, res) => {
@@ -120,34 +132,87 @@ router.post('/test-send', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/webhook', async (req, res) => {
-  const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
-  const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
-  const requestId = req.requestId || 'unknown';
-  const correlationId = req.correlationId || req.get('X-Correlation-Id') || requestId;
+router.post('/support', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req, res);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  if (configuredSecret) {
-    if (!providedSecret || providedSecret !== configuredSecret) {
-      logger.warn('whatsapp_webhook_unauthorized', {
-        requestId,
-        correlationId,
-        hasSecretConfigured: true,
-        hasProvidedSecret: Boolean(providedSecret)
-      });
-      await createAuditLog({
-        entity_type: 'whatsapp_webhook',
-        action: 'webhook_unauthorized',
-        actor: 'n8n',
-        payload: {
-          requestId,
-          correlationId,
-          hasSecretConfigured: true,
-          hasProvidedSecret: Boolean(providedSecret)
-        }
-      });
-      return res.status(401).json({ success: false, error: 'Webhook não autorizado', correlationId });
-    }
-  } else if (process.env.NODE_ENV !== 'production') {
+  const requestId = req.requestId || 'unknown';
+  const correlationId = auth.correlationId;
+  const { from, phone } = req.body || {};
+  const idempotencyKey = String(req.get('Idempotency-Key') || req.body?.messageId || '').trim();
+
+  try {
+    const result = await createWhatsAppSupportEntry({
+      phone: from || phone,
+      correlationId,
+      idempotencyKey,
+      requestId
+    });
+    return res.json({
+      success: true,
+      correlationId,
+      duplicate: result.duplicate,
+      reply: result.reply,
+      atendimento: result.atendimento
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      correlationId,
+      error: error.message
+    });
+  }
+});
+
+router.post('/support/close', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req, res);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
+
+  const requestId = req.requestId || 'unknown';
+  const correlationId = auth.correlationId;
+  const { from, phone } = req.body || {};
+
+  try {
+    const result = await closeWhatsAppSupportEntry({
+      phone: from || phone,
+      correlationId,
+      requestId
+    });
+    return res.json({
+      success: true,
+      correlationId,
+      closed: result.closed,
+      reply: result.reply,
+      atendimento: result.atendimento
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      correlationId,
+      error: error.message
+    });
+  }
+});
+
+router.post('/webhook', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req, res);
+  if (!auth.ok) {
+    const requestId = req.requestId || 'unknown';
+    const correlationId = auth.body?.correlationId || req.correlationId || requestId;
+    logger.warn('whatsapp_webhook_unauthorized', { requestId, correlationId });
+    await createAuditLog({
+      entity_type: 'whatsapp_webhook',
+      action: 'webhook_unauthorized',
+      actor: 'n8n',
+      payload: { requestId, correlationId }
+    });
+    return res.status(auth.status).json(auth.body);
+  }
+
+  const requestId = req.requestId || 'unknown';
+  const correlationId = auth.correlationId;
+
+  if (auth.devFallback) {
     logger.warn('whatsapp_webhook_secret_not_configured', {
       requestId,
       correlationId,
@@ -244,40 +309,46 @@ router.post('/webhook', async (req, res) => {
     }
   }
 
-  const originalPayload = rawMessage?.original && typeof rawMessage.original === 'object' ? rawMessage.original : {};
-  const notesText = [text, originalPayload?.tempo_uso, originalPayload?.observacoes].filter(Boolean).join(' ');
-  const baseFlags = parseFlags(notesText);
-  const payloadFlags = Array.isArray(originalPayload?.flags) ? originalPayload.flags : [];
-  const mergedFlags = [...new Set([...baseFlags, ...payloadFlags].map((flag) => String(flag || '').trim()).filter(Boolean))];
-
+  const mapped = mapTypebotPayload({
+    ...(req.body || {}),
+    from,
+    text,
+    rawMessage,
+    correlationId,
+    correlation_id: correlationId
+  });
+  const originalPayload = mapped.original;
+  const normalized = mapped.normalized;
   const patientData = {
-    name: from,
-    phone: from,
-    condition: parseCondition(text || originalPayload?.doenca_cronica || ''),
-    previous_prescription: hasPreviousPrescription({
-      previous_prescription: Boolean(originalPayload?.receita_anterior || originalPayload?.previous_prescription),
-      notes: notesText,
-      text
-    }),
-    continuous_use_proof: hasContinuousMedication({
-      continuous_use_proof: Boolean(originalPayload?.uso_continuo || originalPayload?.continuous_use_proof),
-      notes: notesText,
-      text
-    }),
-    tempo_uso_dias: extractUsageDays({
-      tempo_uso_dias: originalPayload?.tempo_uso_dias,
-      tempo_uso: originalPayload?.tempo_uso,
-      notes: notesText
-    }),
-    flags: mergedFlags,
-    notes: text,
-    source: 'whatsapp',
+    ...mapped.patientData,
     rawMessage,
     idempotency_key: idempotencyKey || null,
-    protocol_version: PROTOCOL_VERSION
+    protocol_version: PROTOCOL_VERSION,
+    pagamento_status: normalized.pagamento_status,
+    payment_status: normalized.payment_status,
+    payment_confirmed: normalized.payment_confirmed,
+    queue_type: 'medical'
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
+  const paymentConfirmed = normalized.payment_confirmed === true;
+  const canEnterMedicalQueue =
+    normalized.validation?.can_enter_medical_queue === true && decision.eligible === true && paymentConfirmed;
+
+  if (!paymentConfirmed && decision.eligible) {
+    decision.eligible = false;
+    decision.reason = 'Pagamento não confirmado';
+    decision.reasonCode = 'pagamento_pendente';
+    decision.riskLevel = 'BLOQUEADO';
+    decision.renewalStatus = 'insegura';
+  }
+
+  if (normalized.eligibility_status === 'ineligible' && decision.eligible) {
+    decision.eligible = false;
+    decision.reason = normalized.ineligibility_reason || decision.reason;
+    decision.reasonCode = decision.reasonCode || 'consulta_presencial';
+    decision.riskLevel = 'BLOQUEADO';
+  }
   const clinicalNarrative = buildClinicalNarrative({
     patientName: from,
     condition: patientData.condition,
@@ -288,6 +359,12 @@ router.post('/webhook', async (req, res) => {
   const enrichedClinicalData = {
     ...patientData,
     original_payload: originalPayload,
+    normalized_payload: mapped.normalized,
+    clean_payload: patientData.typebot_variables,
+    typebot_variables: patientData.typebot_variables,
+    medications: normalized.medications || [],
+    foto_receita_url: normalized.previous_prescription_file || null,
+    queue_type: 'medical',
     protocol_version: PROTOCOL_VERSION,
     clinical_summary: clinicalNarrative.summary,
     queixa_principal: clinicalNarrative.chiefComplaint,
@@ -306,27 +383,50 @@ router.post('/webhook', async (req, res) => {
       correlationId,
       idempotencyKey: idempotencyKey || null,
       mode: 'mock',
-      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION
+      protocolVersion: decision.protocolVersion || PROTOCOL_VERSION,
+      terms_presented: normalized.terms_presented || null,
+      terms_accepted: normalized.terms_accepted || null,
+      accepted_terms_links: normalized.accepted_terms_links || [],
+      accepted_terms_at: normalized.accepted_terms_at || null,
+      typebot_public_id: normalized.typebot_public_id || null,
+      consent_source: normalized.source || 'typebot'
+    },
+    terms_acceptance: {
+      lgpd_accepted: normalized.lgpd_accepted === true,
+      privacy_policy_accepted: normalized.privacy_policy_accepted === true,
+      telemedicine_consent_accepted: normalized.telemedicine_consent_accepted === true,
+      non_urgency_notice_accepted: normalized.non_urgency_notice_accepted === true,
+      terms_of_use_accepted: normalized.terms_of_use_accepted === true,
+      accepted_terms_at: normalized.accepted_terms_at || null,
+      accepted_terms_links: normalized.accepted_terms_links || [],
+      terms_presented: normalized.terms_presented || null,
+      typebot_public_id: normalized.typebot_public_id || null
     }
   };
 
   const patient = await createPatient({
     ...patientData,
-    status: decision.eligible ? 'pending' : 'rejected'
+    status: canEnterMedicalQueue ? 'pending' : 'rejected'
   });
   const atendimento = await createAtendimento({
     ...patientData,
-    paciente_nome: from,
-    paciente_telefone: from,
-    status: decision.eligible ? STATUS.QUEUE : STATUS.REJECTED,
-    risco: decision.eligible ? 'BAIXO' : 'BLOQUEADO',
+    paciente_nome: normalized.patient_name || from,
+    paciente_telefone: normalized.whatsapp || from,
+    paciente_cpf: normalized.cpf,
+    paciente_email: normalized.email,
+    condicao: normalized.chronic_condition_label || normalized.chronic_condition,
+    pagamento_status: normalized.pagamento_status,
+    status: canEnterMedicalQueue ? STATUS.QUEUE : STATUS.REJECTED,
+    risco: canEnterMedicalQueue ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
 
-  const reply = decision.eligible
+  const reply = canEnterMedicalQueue
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
-    : `Não foi possível seguir com renovação automática: ${decision.reason}. ${getRefusalMessage(decision.reasonCode)} `;
+    : !paymentConfirmed
+      ? 'Pagamento não confirmado. Sua solicitação não entrou na fila médica.'
+      : `${INELIGIBLE_USER_MESSAGE} ${getRefusalMessage(decision.reasonCode)}`.trim();
 
   await createAuditLog({
     entity_type: 'whatsapp_webhook',
@@ -339,6 +439,9 @@ router.post('/webhook', async (req, res) => {
       from,
       idempotencyKey: idempotencyKey || null,
       eligible: decision.eligible,
+      payment_confirmed: paymentConfirmed,
+      can_enter_medical_queue: canEnterMedicalQueue,
+      panel_visible: isVisibleInMedicalPanel(atendimento),
       atendimento_id: atendimento.id,
       criteriaUsed: decision.criteriaUsed || [],
       reasonCode: decision.reasonCode || null,

@@ -1,6 +1,6 @@
-import { AtSign, CalendarDays, LocateFixed, MapPin, Phone, UserRound } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { AtSign, CalendarDays, LocateFixed, MapPin, MessageCircle, Phone, UserRound } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { formatQueuePatientId, patientInitials, whatsappContactUrl } from '@/lib/patient-display';
 import type { Patient } from '@/types/panel';
 
 interface PatientDataCardProps {
@@ -8,17 +8,14 @@ interface PatientDataCardProps {
 }
 
 export function PatientDataCard({ patient }: PatientDataCardProps) {
-  const initials = patient.name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-
+  const initials = patientInitials(patient.name);
   const birthDate = patient.birthDate || 'Não informado';
   const cpf = patient.cpf || 'Não informado';
-  const email = patient.email || `${patient.name.toLowerCase().replace(' ', '.')}@email.com`;
+  const email = patient.email || 'Não informado';
   const address = patient.address || 'Não informado';
+  const cep = String(patient.clinicalData?.cep || patient.clinicalData?.patient_cep || 'Não informado');
+  const whatsappUrl = whatsappContactUrl(patient.phone);
+  const ageLabel = patient.age > 0 ? `${patient.age} anos` : 'Não informado';
 
   return (
     <Card>
@@ -28,20 +25,26 @@ export function PatientDataCard({ patient }: PatientDataCardProps) {
       <CardContent className="space-y-5">
         <div className="flex items-start gap-3 rounded-xl border border-[#E5EAF2] bg-[#F8FAFC] p-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-lg font-bold text-[#1557FF]">
-            {initials || 'DP'}
+            {initials}
           </div>
           <div className="min-w-0">
-            <p className="truncate text-xl font-bold text-[#1E1E1E]">{patient.name}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <Badge tone="blue">{patient.age} anos</Badge>
-              <span className="text-sm font-semibold text-[#4A67A1]">Prontuário: #{patient.id.slice(0, 8)}</span>
-            </div>
-            <p className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-[#0BA84F]">
-              <Phone className="h-4 w-4" aria-hidden="true" />
-              Contato via WhatsApp
-            </p>
+            <p className="text-xl font-bold text-[#1E1E1E]">{patient.name}</p>
+            <p className="mt-1 text-sm text-[#5B6475]">{ageLabel}</p>
+            <p className="mt-1 font-mono text-sm font-semibold text-[#4A67A1]">#{formatQueuePatientId(patient.id)}</p>
           </div>
         </div>
+
+        {whatsappUrl ? (
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#25D366] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1DA851]"
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden="true" />
+            WhatsApp
+          </a>
+        ) : null}
 
         <div className="space-y-3 rounded-xl border border-[#E5EAF2] bg-white p-3 text-sm">
           <div className="flex items-center justify-between gap-2 text-[#253044]">
@@ -84,16 +87,8 @@ export function PatientDataCard({ patient }: PatientDataCardProps) {
               <LocateFixed className="h-4 w-4" />
               CEP
             </span>
-            <span className="font-semibold">01458-000</span>
+            <span className="font-semibold">{cep}</span>
           </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Badge tone={patient.paymentStatus === 'paid' ? 'green' : 'gold'}>
-            {patient.paymentStatus === 'paid' ? 'Pagamento confirmado' : 'Pagamento pendente'}
-          </Badge>
-          <Badge>{patient.source}</Badge>
-          <Badge>{patient.submittedAt}</Badge>
         </div>
       </CardContent>
     </Card>

@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { API_BASE, checkEligibility } from '@/services/api';
-import { authHeaders, clearSession, getAuthUser, requireSession, type AuthUser } from '@/services/auth.service';
-import { BrandLogo } from '@/components/ui/Brand';
+import { authHeaders, clearSession, requireSession } from '@/services/auth.service';
+import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 
 type AtendimentoStatus =
   | 'QUEUE'
@@ -156,7 +156,6 @@ export default function FilaPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [user, setUser] = useState<AuthUser | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | AtendimentoStatus>('all');
   const [riskFilter, setRiskFilter] = useState('all');
@@ -227,14 +226,8 @@ export default function FilaPage() {
   }
 
   useEffect(() => {
-    const cachedUser = getAuthUser();
-    if (cachedUser) setUser(cachedUser);
-
     requireSession()
-      .then((sessionUser) => {
-        setUser(sessionUser);
-        return fetchAtendimentos();
-      })
+      .then(() => fetchAtendimentos())
       .catch((e: any) => {
         setError(e.message || 'Sessão expirada. Faça login novamente.');
         window.location.href = '/login';
@@ -383,36 +376,14 @@ export default function FilaPage() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#080D33]">
-      <header className="flex h-24 items-center justify-between bg-white px-8">
-        <BrandLogo compact />
-
-        <div className="flex items-center gap-3">
-          <a
-            href="/atendimento/5f4cdb1e-4c47-4332-996e-9b2fd56c4951"
-            className="hidden h-12 items-center rounded-[8px] border border-[#D8DFEA] bg-white px-6 text-sm font-black shadow-[0_2px_8px_rgba(0,0,0,0.04)] md:inline-flex"
-          >
-            ▤ PRONTUÁRIO
-          </a>
-          <div className="hidden h-12 items-center gap-2 rounded-[8px] border border-[#D8DFEA] bg-white px-5 text-xs font-bold text-[#26325F] md:flex">
-            <span className="h-2.5 w-2.5 rounded-full bg-[#0BA84F]" />
-            <span>Certificado digital<br /><strong className="text-[#0BA84F]">conectado</strong> (Memed)</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#1557FF] text-lg font-black text-white">
-              DR
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-black leading-4">{user?.name || 'Dr. Max Matos'}</p>
-              <p className="text-xs text-[#26325F]">{user?.role === 'admin' ? 'Administrador' : 'Médico'}</p>
-            </div>
-          </div>
-          <button onClick={logout} className="h-12 rounded-[8px] bg-[#FADADA] px-6 text-sm font-black text-[#080D33]">
-            ↪ SAIR
-          </button>
-        </div>
-      </header>
-
-      <div className="h-2 bg-gradient-to-r from-[#F8D34C] via-[#F4B000] to-[#E98600]" />
+      <MedicalPanelHeader
+        compact
+        onLogout={logout}
+        onOpenMedicalRecord={() => {
+          const first = filteredAtendimentos[0];
+          if (first) window.location.href = `/atendimento/${first.id}`;
+        }}
+      />
 
       <section className="px-5 py-6 sm:px-8">
         <div className="mb-4 flex justify-end">

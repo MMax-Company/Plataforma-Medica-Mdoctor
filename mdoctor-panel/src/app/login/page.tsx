@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, LockKeyhole, ShieldCheck, Sparkles, Stethoscope, Zap } from 'lucide-react';
+import { CheckCircle2, LockKeyhole, ShieldCheck, Sparkles, Zap } from 'lucide-react';
+import { BrandLogo } from '@/components/ui/Brand';
 import { Button } from '@/components/ui/button';
 import { clearSession, getAuthToken, isOfflineAuthError, login, saveSession } from '@/services/auth.service';
 
@@ -88,16 +89,7 @@ export default function LoginPage() {
         <div className="absolute bottom-24 right-20 h-56 w-56 rounded-full border border-[#E5EAF2]" />
 
         <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#D9E2F0] bg-[#EEF4FF] text-[#1557FF]">
-              <Stethoscope className="h-6 w-6" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="text-4xl font-extrabold leading-none text-[#1B2352]">DOCTOR</p>
-              <p className="text-4xl font-extrabold leading-none text-[#F4B000]">PRESCREVE</p>
-              <p className="text-base font-semibold tracking-[0.14em] text-[#4D5B75]">PAINEL MÉDICO</p>
-            </div>
-          </div>
+          <BrandLogo size="lg" />
 
           <div className="mt-16 max-w-xl">
             <h1 className="text-5xl font-bold leading-tight text-[#1E1E1E]">

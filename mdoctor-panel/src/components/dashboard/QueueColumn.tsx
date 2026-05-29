@@ -1,5 +1,5 @@
 import { Clock3 } from 'lucide-react';
-import { PatientCard } from '@/components/dashboard/PatientCard';
+import { QueuePatientCard } from '@/components/dashboard/QueuePatientCard';
 import type { Patient } from '@/types/panel';
 
 interface QueueColumnProps {
@@ -17,15 +17,17 @@ export function QueueColumn({ patients, onAttend }: QueueColumnProps) {
           </div>
           <div>
             <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-[#253044]">Fila de espera</h2>
-            <p className="text-xs text-[#5B6475]">Pagos e aguardando atendimento</p>
+            <p className="text-xs text-[#5B6475]">Elegíveis, pagos e validados</p>
           </div>
         </div>
         <span className="rounded-md bg-[#F1F5F9] px-2.5 py-1 text-xs font-bold text-[#253044]">{patients.length}</span>
       </div>
       <div className="max-h-[calc(100vh-280px)] space-y-3 overflow-y-auto p-3">
-        {patients.map((patient) => (
-          <PatientCard key={patient.id} patient={patient} variant="waiting" onAttend={onAttend} />
-        ))}
+        {patients.length === 0 ? (
+          <p className="px-2 py-8 text-center text-sm text-[#5B6475]">Nenhum paciente aguardando na fila médica.</p>
+        ) : (
+          patients.map((patient) => <QueuePatientCard key={patient.id} patient={patient} onAttend={onAttend} />)
+        )}
       </div>
     </section>
   );

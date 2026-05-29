@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { BrandLogo } from '@/components/ui/Brand';
 import { Button } from '@/components/ui/button';
 
 interface MemedProcessingHeaderProps {
@@ -25,9 +26,12 @@ export function MemedProcessingHeader({ patientName, onBack }: MemedProcessingHe
           </div>
         </div>
 
-        <div className="hidden rounded-lg border border-[#E5EAF2] bg-[#F8FAFC] px-4 py-3 text-right lg:block">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8A94A6]">Paciente</p>
-          <p className="text-sm font-semibold text-[#253044]">{patientName}</p>
+        <div className="flex items-center gap-4">
+          <div className="hidden rounded-lg border border-[#E5EAF2] bg-[#F8FAFC] px-4 py-3 text-right lg:block">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8A94A6]">Paciente</p>
+            <p className="text-sm font-semibold text-[#253044]">{patientName}</p>
+          </div>
+          <BrandLogo compact showSubtitle={false} />
         </div>
       </div>
     </header>

@@ -1,3 +1,5 @@
+export type DeliveryChannel = 'whatsapp' | 'email' | 'sms';
+
 export type PatientStatus = 'waiting' | 'under_review' | 'ready' | 'rejected' | 'memed_processing' | 'delivered';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
@@ -67,6 +69,9 @@ export interface Patient {
   address?: string;
   eligibility?: PatientEligibility;
   clinicalData?: PatientClinicalData;
+  queueType?: 'medical' | 'support';
+  sentDeliveryChannels?: DeliveryChannel[];
+  prescriptionValidated?: boolean;
 }
 
 export interface PanelMetric {

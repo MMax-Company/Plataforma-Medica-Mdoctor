@@ -73,7 +73,14 @@ async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, option
     }
 
     if (!response.ok) {
-      throw new ApiError('http', `API request failed: ${response.status}`, response.status);
+      let message = `API request failed: ${response.status}`;
+      try {
+        const errorBody = (await response.json()) as { error?: string; message?: string };
+        message = errorBody.error || errorBody.message || message;
+      } catch {
+        // keep default message
+      }
+      throw new ApiError('http', message, response.status);
     }
 
     try {

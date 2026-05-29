@@ -212,3 +212,9 @@ Resultado visual geral:
 Bugs visuais pequenos:
 
 - Nao houve bug visual bloqueante novo nesta rodada.
+
+### Comando unico para revisao local com backend staging
+
+- Executar na raiz do repositorio:
+  - `npm --prefix mdoctor-panel run dev:staging`
+- Esse comando sobe o frontend local em `http://localhost:3000` forçando `NEXT_PUBLIC_API_URL=https://mdoctor-backend-staging-staging.up.railway.app`.

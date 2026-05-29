@@ -4,9 +4,11 @@ import { Card, CardContent } from '@/components/ui/card';
 interface ClinicalBlockProps {
   title: string;
   content: string;
+  editable?: boolean;
+  onContentChange?: (value: string) => void;
 }
 
-export function ClinicalBlock({ title, content }: ClinicalBlockProps) {
+export function ClinicalBlock({ title, content, editable = false, onContentChange }: ClinicalBlockProps) {
   const iconByTitle: Record<string, JSX.Element> = {
     'Queixa Principal': <AlertCircle className="h-4 w-4" />,
     'Histórico Clínico': <ClipboardList className="h-4 w-4" />,
@@ -25,7 +27,15 @@ export function ClinicalBlock({ title, content }: ClinicalBlockProps) {
           </span>
           <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#1E1E1E]">{title}</p>
         </div>
-        <p className="mt-3 text-sm leading-6 text-[#253044]">{content}</p>
+        {editable ? (
+          <textarea
+            value={content}
+            onChange={(event) => onContentChange?.(event.target.value)}
+            className="mt-3 min-h-24 w-full resize-y rounded-md border border-[#D9E2F0] bg-[#F8FAFC] p-3 text-sm leading-6 text-[#253044] outline-none focus:border-[#1557FF] focus:bg-white"
+          />
+        ) : (
+          <p className="mt-3 text-sm leading-6 text-[#253044]">{content}</p>
+        )}
       </CardContent>
     </Card>
   );

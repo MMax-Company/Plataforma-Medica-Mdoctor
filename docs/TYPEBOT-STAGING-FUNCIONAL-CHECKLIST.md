@@ -48,8 +48,17 @@ Checklist de prontidao funcional do export Typebot staging-safe antes de testes 
 - [x] Estrutura importavel (groups/blocks/edges mantidos)
 - [x] Payment block permanece presente com mesmo `credentialsId`
 
+## Elegibilidade (pedido 2/3 Typebot)
+
+- [x] Patch de fluxo: dados + medicamentos + receita/foto **antes** do pagamento
+- [x] Foto da receita obrigatoria (file input)
+- [x] Webhook com variaveis padronizadas (`patient_name`, `birth_date`, `eligibility_status`, etc.)
+- [x] n8n normaliza `birth_date` para `yyyy-mm-dd`
+- [x] Backend reforca elegibilidade (`typebot-payload.mapper` + engine)
+- [x] Script `node mdoctor-backend/scripts/test-typebot-eligibility.js`
+
 ## Pendencias para Go-Live de Teste
 
 - [ ] Preencher placeholders com URLs publicas reais do staging (preferencialmente Supabase bucket publico controlado)
 - [ ] Confirmar no Typebot runtime que a credencial de pagamento usada nao aponta para producao (ou desativar rota de pagamento em testes sem confirmacao)
-- [ ] Validar n8n normalizando `data_nascimento` para `yyyy-mm-dd` apenas quando formato `dd/mm/aaaa` for valido
+- [ ] Importar JSON patcheado no Typebot cloud e republicar workflow n8n staging

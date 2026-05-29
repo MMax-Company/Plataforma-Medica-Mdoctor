@@ -117,9 +117,14 @@ export default function MemedProcessingPage() {
 
   const acceptPrescription = async () => {
     const result = await validatePrescription(patient.id);
-    setPrescriptionFallback(result.usingMockFallback);
-    setPrescriptionWarning(result.error || null);
+    if (result.usingMockFallback) {
+      setPrescriptionWarning(result.error || 'Não foi possível validar a receita na API.');
+      return;
+    }
+    setPrescriptionFallback(false);
+    setPrescriptionWarning(null);
     acceptMemedPrescription(patient.id);
+    await loadPatients();
     router.push('/dashboard');
   };
 

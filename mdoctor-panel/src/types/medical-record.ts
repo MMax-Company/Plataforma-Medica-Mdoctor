@@ -41,4 +41,6 @@ export interface MedicalRecord {
     decisionRationale?: string;
   };
   notes: string;
+  prescriptionImageUrl?: string | null;
+  protocolKey?: string;
 }

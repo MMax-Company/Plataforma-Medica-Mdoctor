@@ -57,7 +57,9 @@ function toNumber(value) {
 }
 
 function extractUsageDays(data = {}) {
-  const direct = toNumber(data.tempo_uso_dias || data.tempoUsoDias || data.usage_days);
+  const direct = toNumber(
+    data.continuous_use_days || data.tempo_uso_dias || data.tempoUsoDias || data.usage_days
+  );
   if (direct !== null) return direct;
 
   const text = normalizeText(data.tempo_uso || data.tempoUso || data.notes || '');
@@ -66,6 +68,144 @@ function extractUsageDays(data = {}) {
   if (text.includes('1 a 6') || text.includes('1-6')) return 60;
   if (text.includes('menos de 1')) return 15;
   return null;
+}
+
+function normalizeBirthDate(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length === 8) {
+    const day = digits.slice(0, 2);
+    const month = digits.slice(2, 4);
+    const year = digits.slice(4, 8);
+    const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
+    if (!Number.isNaN(date.getTime()) && Number(day) <= 31 && Number(month) <= 12) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (slashMatch) {
+    const day = String(slashMatch[1]).padStart(2, '0');
+    const month = String(slashMatch[2]).padStart(2, '0');
+    const year = slashMatch[3];
+    const date = new Date(`${year}-${month}-${day}T12:00:00Z`);
+    if (!Number.isNaN(date.getTime())) return `${year}-${month}-${day}`;
+  }
+
+  return null;
+}
+
+const CONTROLLED_MEDICATION_TERMS = [
+  'rivotril',
+  'clonazepam',
+  'diazepam',
+  'alprazolam',
+  'lorazepam',
+  'zolpidem',
+  'tramadol',
+  'codeina',
+  'morfina',
+  'oxycodona',
+  'fentanil',
+  'ritalina',
+  'metilfenidato',
+  'lisdexanfetamina',
+  'anfetamina',
+  'pregabalina',
+  'gabapentina controlada',
+  'testosterona',
+  'anabolizante'
+];
+
+function hasControlledMedication(medications = [], primaryMedication = '') {
+  const labels = [
+    ...medications.map((item) => `${item.name || ''} ${item.dose || ''} ${item.label || ''}`),
+    primaryMedication
+  ]
+    .map((item) => normalizeText(item))
+    .filter(Boolean);
+
+  return labels.some((label) => CONTROLLED_MEDICATION_TERMS.some((term) => label.includes(normalizeText(term))));
+}
+
+function parseMedicationsFromPayload(payload = {}) {
+  if (Array.isArray(payload.medications)) {
+    return payload.medications.map((item, index) => ({
+      index: index + 1,
+      name: item.name || item.medication_name || item.nome || '',
+      dose: item.dose || item.medication_dose || '',
+      frequency: item.frequency || item.medication_frequency || '',
+      route: item.route || item.medication_route || 'oral',
+      continuous: item.continuous !== false
+    }));
+  }
+
+  const slots = [
+    {
+      name: payload.medication_1_name || payload.med1_nome,
+      dose: payload.medication_1_dose || payload.med1_dose,
+      frequency: payload.medication_1_frequency || payload.med1_frequencia,
+      route: payload.medication_1_route || payload.med1_via || 'oral',
+      label: payload.primeiro_medicamento
+    },
+    {
+      name: payload.medication_2_name || payload.med2_nome,
+      dose: payload.medication_2_dose || payload.med2_dose,
+      frequency: payload.medication_2_frequency || payload.med2_frequencia,
+      route: payload.medication_2_route || payload.med2_via || 'oral',
+      label: payload.segundo_medicamento
+    },
+    {
+      name: payload.medication_3_name || payload.med3_nome,
+      dose: payload.medication_3_dose || payload.med3_dose,
+      frequency: payload.medication_3_frequency || payload.med3_frequencia,
+      route: payload.medication_3_route || payload.med3_via || 'oral',
+      label: payload.terceiro_medicamento
+    }
+  ];
+
+  const count = Number(payload.medication_count || payload.qtd_medicamentos || 0) || slots.filter((s) => s.label || s.name).length;
+
+  return slots
+    .slice(0, count || slots.length)
+    .map((slot, index) => {
+      const label = String(slot.label || '').trim();
+      const parsedFromLabel = label.split(',').map((part) => part.trim());
+      return {
+        index: index + 1,
+        name: slot.name || parsedFromLabel[0] || label,
+        dose: slot.dose || parsedFromLabel[1] || '',
+        frequency: slot.frequency || parsedFromLabel[2] || '',
+        route: slot.route || 'oral',
+        continuous: true,
+        label
+      };
+    })
+    .filter((item) => item.name);
+}
+
+function mapTypebotWarningFlags(sinaisAlerta = '', extra = '') {
+  const normalized = normalizeText(`${sinaisAlerta || ''} ${extra || ''}`).trim();
+  const flags = [];
+  if (!normalized || normalized.includes('nenhuma') || normalized === 'nao' || normalized === 'não') return flags;
+  if (normalized.includes('dor no peito')) flags.push('sinais_urgencia');
+  if (normalized.includes('falta de ar')) flags.push('sinais_urgencia');
+  if (normalized.includes('desmaio')) flags.push('sinais_urgencia');
+  if (normalized.includes('confusao') || normalized.includes('confusão')) flags.push('sinais_urgencia');
+  if (normalized.includes('febre')) flags.push('crise_clinica');
+  if (normalized.includes('sangramento')) flags.push('sinais_urgencia');
+  if (normalized.includes('dor intensa')) flags.push('sintomas_novos');
+  if (normalized.includes('hipertens') || normalized.includes('pressao')) flags.push('crise_clinica');
+  if (normalized.includes('hipoglic') || normalized.includes('glicemia')) flags.push('crise_clinica');
+  if (normalized.includes('piora')) flags.push('sintomas_novos');
+  if (normalized.includes('gravidez')) flags.push('contraindicacao_basica');
+  if (flags.length === 0 && !['nao', 'não', 'nao.', 'n'].includes(normalized)) flags.push('sinais_urgencia');
+  return [...new Set(flags)];
 }
 
 function hasContinuousMedication(data = {}) {
@@ -80,8 +220,17 @@ function hasPreviousPrescription(data = {}) {
   if (data.previous_prescription === true) return true;
   if (data.receita_anterior === true) return true;
   if (data.last_prescription === true) return true;
+  if (data.has_previous_prescription === true) return true;
+  const normalized = normalizeText(String(data.receita_anterior || data.has_previous_prescription || ''));
+  if (normalized === 'sim') return true;
+  if (normalized === 'nao' || normalized === 'não') return false;
   const text = normalizeText(data.notes || data.text || '');
   return text.includes('receita anterior') || text.includes('ultima receita') || text.includes('última receita') || text.includes('renovar receita');
+}
+
+function hasPrescriptionPhoto(data = {}) {
+  const file = data.previous_prescription_file || data.foto_receita_url || data.prescription_photo_url;
+  return Boolean(file && String(file).trim().length > 3);
 }
 
 function parseClinicalFlags(text = '') {
@@ -180,10 +329,15 @@ module.exports = {
   FLAG_LABELS,
   REFUSAL_LIBRARY,
   normalizeCondition,
+  normalizeBirthDate,
   extractUsageDays,
   hasContinuousMedication,
   hasPreviousPrescription,
+  hasPrescriptionPhoto,
   parseClinicalFlags,
+  parseMedicationsFromPayload,
+  hasControlledMedication,
+  mapTypebotWarningFlags,
   buildCriteriaSummary,
   getRefusalMessage,
   buildClinicalNarrative
