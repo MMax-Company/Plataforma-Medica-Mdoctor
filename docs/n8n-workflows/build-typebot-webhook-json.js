@@ -40,6 +40,10 @@ const wf = {
             { name: 'Content-Type', value: 'application/json' },
             { name: 'X-Correlation-Id', value: '={{ $json.correlationId }}' },
             { name: 'Idempotency-Key', value: '={{ $json.idempotencyKey }}' },
+            {
+              name: 'X-MDoctor-Webhook-Secret',
+              value: "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
             { name: 'X-N8N-Workflow', value: 'typebot-webhook-staging' }
           ]
         },
