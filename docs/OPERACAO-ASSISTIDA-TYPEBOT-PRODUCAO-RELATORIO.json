@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-05-29T21:05:00.000Z",
+  "fase": "operacao_assistida_typebot_real",
+  "typebot": {
+    "public_id": "doctor-prescreve-8rmljgu",
+    "public_url": "https://typebot.co/doctor-prescreve-8rmljgu",
+    "typebot_id_api": "higij2z0xihxxkr378rmljgu",
+    "webhook_esperado": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
+    "export_webhook_ok": true,
+    "export_file": "docs/typebot/typebot-doctor-prescreve-production.json",
+    "api_live_verificada": false,
+    "publish_executado": false,
+    "pendencias": [
+      "Definir TYPEBOT_API_TOKEN e rodar inspect-typebot-production-webhook.js para confirmar bot publicado na typebot.io",
+      "Se API divergir do export: TYPEBOT_API_TOKEN=... node mdoctor-backend/scripts/publish-typebot-production.js",
+      "Executar passagem real em https://typebot.co/doctor-prescreve-8rmljgu com paciente teste identificável"
+    ]
+  },
+  "passagem_real_typebot": {
+    "executada": false,
+    "atendimento_id": null,
+    "n8n_response": null,
+    "instrucoes": "Após concluir o fluxo no Typebot, rodar: ATENDIMENTO_ID=<uuid> node mdoctor-backend/scripts/verificar-operacao-assistida-typebot.js"
+  },
+  "referencia_homologacao_automatizada": {
+    "nota": "Última validação técnica (payload flat simulando Typebot, não UI real)",
+    "atendimento_id": "d704bf2f-6a23-4885-9ae5-d2436561b7c2",
+    "n8n_response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "Triagem recebida com sucesso",
+        "atendimentoId": "d704bf2f-6a23-4885-9ae5-d2436561b7c2"
+      }
+    },
+    "backend": {
+      "origem": "typebot-triagem",
+      "status": "waiting",
+      "pagamento_status": "CONFIRMADO",
+      "elegibilidade_eligible": true,
+      "riskLevel": "BAIXO"
+    },
+    "fila_medica": {
+      "in_queue": true,
+      "total_visible": 36
+    },
+    "prontuario": {
+      "doenca": "hipertensão arterial",
+      "medicacao": "Losartana",
+      "conduta_preenchida": true,
+      "orientacoes_preenchidas": true,
+      "exame_fisico_preenchido": true
+    },
+    "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf"
+  },
+  "criterios_aceite_passagem_real": {
+    "origem": "typebot-triagem",
+    "status": "waiting",
+    "pagamento_status": "CONFIRMADO",
+    "elegibilidade": true,
+    "riskLevel": "BAIXO",
+    "fila_medical_scope": true,
+    "receita_obrigatoria_para_fila": "previous_prescription_file ou foto_receita_url em dados_clinicos"
+  },
+  "errors": [],
+  "ok": false
+}
