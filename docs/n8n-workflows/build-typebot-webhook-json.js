@@ -33,7 +33,7 @@ const wf = {
     {
       parameters: {
         method: 'POST',
-        url: "={{ ($env.BACKEND_BASE_URL || $env.BACKEND_URL || 'https://doctor-repositorio-central-production.up.railway.app').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
+        url: "={{ ($env.BACKEND_BASE_URL || '').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
         sendHeaders: true,
         headerParameters: {
           parameters: [

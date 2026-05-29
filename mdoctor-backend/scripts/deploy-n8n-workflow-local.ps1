@@ -6,7 +6,8 @@ param(
   [string]$WorkflowFile,
   [string]$ApiKey = $env:N8N_API_KEY,
   [switch]$SkipEnvVerify,
-  [switch]$SkipWebhookCheck
+  [switch]$SkipWebhookCheck,
+  [switch]$ForceRecreate
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,11 +33,14 @@ function Import-DockerN8nEnvFile {
     ) {
       $value = $value.Substring(1, $value.Length - 2)
     }
-    if ($name -in @('N8N_BASIC_AUTH_USER', 'N8N_BASIC_AUTH_PASSWORD', 'N8N_API_KEY', 'N8N_BASE_URL')) {
+    if ($name -in @('N8N_BASIC_AUTH_USER', 'N8N_BASIC_AUTH_PASSWORD', 'N8N_API_KEY', 'N8N_BASE_URL', 'BACKEND_BASE_URL')) {
+      $alwaysOverride = @('N8N_API_KEY', 'BACKEND_BASE_URL')
       $current = (Get-Item -Path "env:$name" -ErrorAction SilentlyContinue).Value
-      if (-not $current) {
-        Set-Item -Path "env:$name" -Value $value
-        $script:loaded += $name
+      if (-not $current -or ($alwaysOverride -contains $name)) {
+        if ($value) {
+          Set-Item -Path "env:$name" -Value $value
+          $script:loaded += $name
+        }
       }
     }
   }
@@ -74,6 +78,13 @@ if ($SkipWebhookCheck) {
   $env:N8N_SKIP_WEBHOOK_CHECK = '1'
 } else {
   Remove-Item Env:N8N_SKIP_WEBHOOK_CHECK -ErrorAction SilentlyContinue
+}
+
+if ($ForceRecreate) {
+  $env:N8N_DEPLOY_FORCE_RECREATE = '1'
+  Write-Host "[INFO] N8N_DEPLOY_FORCE_RECREATE=1 (apaga e recria se validação falhar)" -ForegroundColor DarkGray
+} else {
+  Remove-Item Env:N8N_DEPLOY_FORCE_RECREATE -ErrorAction SilentlyContinue
 }
 
 Write-Host "[INFO] Deploy: $WorkflowFile -> http://localhost:5678" -ForegroundColor DarkGray
