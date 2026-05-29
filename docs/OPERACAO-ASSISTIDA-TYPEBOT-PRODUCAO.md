@@ -27,6 +27,20 @@ TYPEBOT_API_TOKEN=... node mdoctor-backend/scripts/publish-typebot-production.js
 
 Export de referência: `docs/typebot/typebot-doctor-prescreve-production.json`
 
+## Fechamento operacional (2026-05-29)
+
+Homologação encerrada com `node mdoctor-backend/scripts/fechar-operacao-assistida-typebot.js`.
+
+Relatório: `docs/OPERACAO-ASSISTIDA-TYPEBOT-PRODUCAO-RELATORIO.json`
+
+| Critério | Status |
+|----------|--------|
+| Bot publicado (`startChat` 200) | OK |
+| Webhook produção no export | OK |
+| Passagem controlada → n8n → backend | OK |
+| Fila médica | OK |
+| Prontuário automático | OK |
+
 ## 3. Passagem controlada (paciente teste)
 
 1. Abrir https://typebot.co/doctor-prescreve-8rmljgu

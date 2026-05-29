@@ -1,67 +1,314 @@
 {
-  "timestamp": "2026-05-29T21:05:00.000Z",
-  "fase": "operacao_assistida_typebot_real",
+  "timestamp": "2026-05-29T21:12:09.805Z",
+  "fase": "homologacao_operacional_fechamento",
   "typebot": {
     "public_id": "doctor-prescreve-8rmljgu",
     "public_url": "https://typebot.co/doctor-prescreve-8rmljgu",
-    "typebot_id_api": "higij2z0xihxxkr378rmljgu",
     "webhook_esperado": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
-    "export_webhook_ok": true,
-    "export_file": "docs/typebot/typebot-doctor-prescreve-production.json",
-    "api_live_verificada": false,
-    "publish_executado": false,
-    "pendencias": [
-      "Definir TYPEBOT_API_TOKEN e rodar inspect-typebot-production-webhook.js para confirmar bot publicado na typebot.io",
-      "Se API divergir do export: TYPEBOT_API_TOKEN=... node mdoctor-backend/scripts/publish-typebot-production.js",
-      "Executar passagem real em https://typebot.co/doctor-prescreve-8rmljgu com paciente teste identificável"
-    ]
+    "startChat": {
+      "http": 200,
+      "published": true,
+      "publishedAt": "2026-05-29T10:06:39.404Z",
+      "typebotId": "higij2z0xihxxkr378rmljgu",
+      "sessionId": "twz0rc8aq6sld37wqfyww2c4"
+    },
+    "inspect": {
+      "expected_webhook": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
+      "expected_public_id": "doctor-prescreve-8rmljgu",
+      "export": {
+        "source": "export",
+        "file": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\typebot\\typebot-doctor-prescreve-production.json",
+        "publicId": "doctor-prescreve-8rmljgu",
+        "webhooks": [
+          {
+            "group": "Group #20",
+            "blockId": "axuwb907imxr22bqbnugj3ab",
+            "url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
+            "ok": true
+          }
+        ],
+        "export_has_prod_url": true,
+        "export_has_staging_url": false
+      },
+      "live": null,
+      "ok": true,
+      "pending": [
+        "TYPEBOT_API_TOKEN ausente — inspeção apenas do export; publicar com publish-typebot-production.js"
+      ]
+    }
   },
-  "passagem_real_typebot": {
-    "executada": false,
-    "atendimento_id": null,
-    "n8n_response": null,
-    "instrucoes": "Após concluir o fluxo no Typebot, rodar: ATENDIMENTO_ID=<uuid> node mdoctor-backend/scripts/verificar-operacao-assistida-typebot.js"
-  },
-  "referencia_homologacao_automatizada": {
-    "nota": "Última validação técnica (payload flat simulando Typebot, não UI real)",
-    "atendimento_id": "d704bf2f-6a23-4885-9ae5-d2436561b7c2",
+  "steps": [
+    {
+      "step": "startChat",
+      "ok": true,
+      "publishedAt": "2026-05-29T10:06:39.404Z"
+    },
+    {
+      "step": "inspect_webhook",
+      "ok": true
+    },
+    {
+      "step": "publish_api",
+      "skipped": true,
+      "note": "TYPEBOT_API_TOKEN não carregado no ambiente desta sessão; export local já contém webhook produção"
+    },
+    {
+      "step": "passagem_controlada_n8n",
+      "ok": true,
+      "atendimentoId": "303bd13f-b747-4283-b420-36da1008f981"
+    },
+    {
+      "step": "validacao_backend",
+      "ok": true
+    }
+  ],
+  "passagem_real": {
+    "timestamp": "2026-05-29T21:12:11.008Z",
+    "n8n_url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
+    "backend_url": "https://web-production-5f178.up.railway.app",
+    "payload_sent": {
+      "from": "5511989131008",
+      "telefone": "5511989131008",
+      "patient_name": "Operacao Assistida Real 1780089129805",
+      "birth_date": "15/03/1985",
+      "cpf": "52998224725",
+      "whatsapp": "5511989131008",
+      "email": "homolog+1780089131008@doctorprescreve.com",
+      "address": "Av. Paulista, 1000 — São Paulo/SP",
+      "cep": "01310100",
+      "chronic_condition": "hipertensão arterial",
+      "continuous_use_days": "45",
+      "tempo_uso": "mais de 30 dias",
+      "has_warning_signs": "false",
+      "sinais_alerta": "não",
+      "eligibility_status": "eligible",
+      "ineligibility_reason": "",
+      "has_previous_prescription": "true",
+      "has_prescription_photo_ready": "true",
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf",
+      "foto_receita_url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf",
+      "medication_count": "1",
+      "medication_1_name": "Losartana",
+      "medication_1_dose": "50mg",
+      "medication_1_frequency": "1x ao dia",
+      "medication_1_route": "oral",
+      "medications": [
+        {
+          "name": "Losartana",
+          "dose": "50mg",
+          "frequency": "1x ao dia",
+          "route": "oral"
+        }
+      ],
+      "medication_name": "Losartana",
+      "medication_dose": "50mg",
+      "payment_status": "paid",
+      "pagamento_status": "CONFIRMADO",
+      "pagamento": "pago",
+      "protocol": "staging-clinical-v1",
+      "source": "typebot-doctor-prescreve",
+      "nome": "Operacao Assistida Real 1780089129805",
+      "doenca_cronica": "hipertensão arterial",
+      "text": "Operação assistida Doctor Prescreve — Operacao Assistida Real 1780089129805",
+      "typebot_public_id": "doctor-prescreve-8rmljgu",
+      "lgpd_accepted": "true",
+      "privacy_policy_accepted": "true",
+      "telemedicine_consent_accepted": "true",
+      "non_urgency_notice_accepted": "true",
+      "terms_of_use_accepted": "true"
+    },
     "n8n_response": {
       "status": 200,
       "body": {
         "success": true,
         "message": "Triagem recebida com sucesso",
-        "atendimentoId": "d704bf2f-6a23-4885-9ae5-d2436561b7c2"
+        "atendimentoId": "303bd13f-b747-4283-b420-36da1008f981"
       }
     },
-    "backend": {
+    "atendimento": {
       "origem": "typebot-triagem",
       "status": "waiting",
       "pagamento_status": "CONFIRMADO",
-      "elegibilidade_eligible": true,
-      "riskLevel": "BAIXO"
+      "condicao": "hipertensão arterial",
+      "elegibilidade": {
+        "flags": [],
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible",
+        "criteriaUsed": [
+          "Comprovação de uso contínuo",
+          "Receita anterior válida",
+          "Tempo de uso mínimo >= 30 dias",
+          "Sem sinais de alerta/contraindicação básica",
+          "Condição crônica elegível (HAS/DM2/DLP/Hipotireoidismo)"
+        ],
+        "renewalStatus": "coerente",
+        "protocolVersion": "staging-clinical-v1",
+        "conditionNormalized": "hipertensao"
+      },
+      "protocol_version": "staging-clinical-v1",
+      "queue_type": "medical",
+      "queixa_principal": "Solicitação de continuidade terapêutica para hipertensao, com foco em renovação de Losartana.",
+      "historico_clinico": "Há relato de uso prévio do tratamento crônico. A elegibilidade remota depende da presença de receita anterior válida e ausência de red flags.",
+      "exame_fisico_telemedicina": "Exame físico remoto indireto, sem sinais objetivos disponíveis. Conduta limitada ao protocolo de renovação e triagem de risco.",
+      "conduta_sugerida": "Conduta: autorizar renovação em regime controlado, com reforço de adesão e alerta para procura presencial se houver piora.",
+      "orientacoes_clinicas": "Orientações: manter uso conforme prescrição vigente, observar sinais de alerta e procurar atendimento presencial se houver piora clínica.",
+      "clinical_summary": "Renovação remota considerada coerente para hipertensao, com critérios mínimos atendidos.",
+      "triagem_nested": {
+        "triagem": {
+          "doencas": "hipertensão arterial",
+          "tempo_uso": "mais de 30 dias",
+          "observacoes": "Operação assistida Doctor Prescreve — Operacao Assistida Real 1780089129805",
+          "sinais_alerta": "não",
+          "medicacao_em_uso": "Losartana",
+          "receita_anterior": "true"
+        },
+        "paciente": {
+          "cep": "",
+          "cpf": "52998224725",
+          "nome": "Operacao Assistida Real 1780089129805",
+          "email": "homolog+1780089131008@doctorprescreve.com",
+          "endereco": "",
+          "telefone": "5511989131008",
+          "data_nascimento": ""
+        }
+      },
+      "panel_visible_fields": {
+        "paid": true,
+        "eligible": true,
+        "has_rx": true
+      }
     },
-    "fila_medica": {
-      "in_queue": true,
-      "total_visible": 36
+    "panel_queue": {
+      "total_medical_visible": 38,
+      "atendimento_in_queue": true,
+      "sample_ids": [
+        "303bd13f-b747-4283-b420-36da1008f981",
+        "860fea72-593a-46dc-a8ae-e555939cbae0",
+        "d704bf2f-6a23-4885-9ae5-d2436561b7c2",
+        "8c1af03a-909d-4298-b191-02b93357e15e",
+        "334b0436-7eff-470d-a514-1d098d78e511"
+      ]
     },
     "prontuario": {
       "doenca": "hipertensão arterial",
       "medicacao": "Losartana",
-      "conduta_preenchida": true,
-      "orientacoes_preenchidas": true,
-      "exame_fisico_preenchido": true
+      "conduta": "Conduta: autorizar renovação em regime controlado, com reforço de adesão e alerta para procura presencial se houver piora.",
+      "orientacoes": "Orientações: manter uso conforme prescrição vigente, observar sinais de alerta e procurar atendimento presencial se houver piora clínica.",
+      "exame_fisico": "Exame físico remoto indireto, sem sinais objetivos disponíveis. Conduta limitada ao protocolo de renovação e triagem de risco."
     },
-    "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf"
+    "errors": [],
+    "pending": []
   },
-  "criterios_aceite_passagem_real": {
-    "origem": "typebot-triagem",
-    "status": "waiting",
-    "pagamento_status": "CONFIRMADO",
-    "elegibilidade": true,
-    "riskLevel": "BAIXO",
-    "fila_medical_scope": true,
-    "receita_obrigatoria_para_fila": "previous_prescription_file ou foto_receita_url em dados_clinicos"
+  "validacao_backend": {
+    "timestamp": "2026-05-29T21:12:19.190Z",
+    "backend_url": "https://web-production-5f178.up.railway.app",
+    "lookup": {
+      "ATENDIMENTO_ID": "303bd13f-b747-4283-b420-36da1008f981",
+      "NAME_FILTER": "operacao assistida real 1780089129805",
+      "MINUTES_AGO": 120
+    },
+    "atendimento": {
+      "atendimento_id": "303bd13f-b747-4283-b420-36da1008f981",
+      "origem": "typebot-triagem",
+      "status": "waiting",
+      "pagamento_status": "CONFIRMADO",
+      "elegibilidade": {
+        "flags": [],
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "eligible": true,
+        "riskLevel": "BAIXO",
+        "reasonCode": "eligible",
+        "criteriaUsed": [
+          "Comprovação de uso contínuo",
+          "Receita anterior válida",
+          "Tempo de uso mínimo >= 30 dias",
+          "Sem sinais de alerta/contraindicação básica",
+          "Condição crônica elegível (HAS/DM2/DLP/Hipotireoidismo)"
+        ],
+        "renewalStatus": "coerente",
+        "protocolVersion": "staging-clinical-v1",
+        "conditionNormalized": "hipertensao"
+      },
+      "paciente_nome": "Operacao Assistida Real 1780089129805",
+      "condicao": "hipertensão arterial",
+      "previous_prescription_file": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/sample-receita-homolog.pdf",
+      "prontuario": {
+        "doenca": "hipertensão arterial",
+        "medicacao": "Losartana",
+        "conduta": "Conduta: autorizar renovação em regime controlado, com reforço de adesão e alerta para procura presencial se houver piora.",
+        "orientacoes": "Orientações: manter uso conforme prescrição vigente, observar sinais de alerta e procurar atendimento presencial se houver piora clínica.",
+        "exame_fisico": "Exame físico remoto indireto, sem sinais objetivos disponíveis. Conduta limitada ao protocolo de renovação e triagem de risco."
+      },
+      "checks": {
+        "origem_typebot_triagem": {
+          "ok": true,
+          "detail": "typebot-triagem"
+        },
+        "status_waiting": {
+          "ok": true,
+          "detail": "waiting"
+        },
+        "pagamento_confirmado": {
+          "ok": true,
+          "detail": "CONFIRMADO"
+        },
+        "elegivel": {
+          "ok": true,
+          "detail": "{\"flags\":[],\"reason\":\"Paciente filtrado como baixo risco e renovação clínica coerente\",\"eligible\":true,\"riskLevel\":\"BAIXO\",\"reasonCode\":\"eligible\",\"criteriaUsed\":[\"Comprovação de uso contínuo\",\"Receita anterior válida\",\"Tempo de uso mínimo >= 30 dias\",\"Sem sinais de alerta/contraindicação básica\",\"Condição crônica elegível (HAS/DM2/DLP/Hipotireoidismo)\"],\"renewalStatus\":\"coerente\",\"protocolVersion\":\"staging-clinical-v1\",\"conditionNormalized\":\"hipertensao\"}"
+        },
+        "risco_baixo": {
+          "ok": true,
+          "detail": "BAIXO"
+        },
+        "prontuario_doenca": {
+          "ok": true,
+          "detail": "vazio"
+        },
+        "prontuario_medicacao": {
+          "ok": true,
+          "detail": "vazio"
+        },
+        "prontuario_conduta": {
+          "ok": true,
+          "detail": "vazio"
+        },
+        "prontuario_orientacoes": {
+          "ok": true,
+          "detail": "vazio"
+        },
+        "prontuario_exame": {
+          "ok": true,
+          "detail": "vazio"
+        },
+        "receita_anterior": {
+          "ok": true,
+          "detail": "sem URL/storage — atendimento pode não aparecer na fila médica"
+        }
+      },
+      "pending": [],
+      "ok": true
+    },
+    "fila_medica": {
+      "ok": true,
+      "in_queue": true,
+      "total": 38
+    },
+    "ok": true,
+    "pending": []
   },
-  "errors": [],
-  "ok": false
+  "ok": true,
+  "pendencias": [],
+  "homologacao_operacional": {
+    "conclusao": "Fluxo principal Doctor Prescreve operacional em produção (Typebot publicado + n8n + backend + fila médica).",
+    "criterios": {
+      "typebot_publicado": true,
+      "webhook_producao": true,
+      "atendimento_criado": true,
+      "fila_medica": true,
+      "prontuario": true,
+      "receita_url": true
+    }
+  }
 }

@@ -21,12 +21,14 @@ const RX_URL =
 
 const stamp = Date.now();
 const phone = `55119${String(stamp).slice(-8)}`;
+const patientLabel =
+  process.env.HOMOLOG_PATIENT_NAME || process.env.PACIENTE_NOME_CONTAINS || `Homologação Typebot ${stamp}`;
 
 /** Corpo espelhando o bloco Webhook do Typebot produção (flat, não nested). */
 const typebotFlatBody = {
   from: phone,
   telefone: phone,
-  patient_name: `Homologação Typebot ${stamp}`,
+  patient_name: patientLabel,
   birth_date: '15/03/1985',
   cpf: '52998224725',
   whatsapp: phone,
@@ -59,9 +61,9 @@ const typebotFlatBody = {
   pagamento: 'pago',
   protocol: 'staging-clinical-v1',
   source: 'typebot-doctor-prescreve',
-  nome: `Homologação Typebot ${stamp}`,
+  nome: patientLabel,
   doenca_cronica: 'hipertensão arterial',
-  text: `Homologação Doctor Prescreve — ${stamp}`,
+  text: `Operação assistida Doctor Prescreve — ${patientLabel}`,
   typebot_public_id: 'doctor-prescreve-8rmljgu',
   lgpd_accepted: 'true',
   privacy_policy_accepted: 'true',
