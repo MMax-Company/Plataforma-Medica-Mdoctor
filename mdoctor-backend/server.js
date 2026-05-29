@@ -93,6 +93,29 @@ app.use('/api/auth', makeRateLimit({
   name: 'auth',
   max: Number(process.env.AUTH_RATE_LIMIT_MAX || 30)
 }));
+const triagemWebhookRateLimit = makeRateLimit({
+  name: 'triagem_webhook',
+  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 120),
+  windowMs: Number(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  errorMessage: 'Webhook temporariamente limitado. Tente novamente em instantes.',
+  onLimit: async (req, meta) => {
+    await createAuditLog({
+      entity_type: 'triagem_webhook',
+      action: 'webhook_rate_limited',
+      actor: 'system',
+      payload: {
+        requestId: req.requestId || 'unknown',
+        correlationId: req.correlationId || req.get?.('X-Correlation-Id') || req.requestId || 'unknown',
+        ip: req.ip || req.headers['x-forwarded-for'] || 'unknown',
+        path: req.originalUrl || req.url,
+        max: meta.max,
+        windowMs: meta.windowMs
+      }
+    });
+  }
+});
+
+app.use('/api/webhook', triagemWebhookRateLimit);
 app.use('/api/whatsapp/webhook', makeRateLimit({
   name: 'whatsapp_webhook',
   max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 20),
@@ -131,7 +154,15 @@ app.use('/api/eligibility',require('./src/routes/eligibility.routes'));
 app.use('/api/atendimentos',require('./src/routes/atendimentos.routes'));
 app.use('/api/patients',require('./src/routes/patients.routes'));
 app.use('/api/prescriptions',require('./src/routes/prescriptions.routes'));
+app.use('/api/webhook', require('./src/routes/webhook.routes'));
 app.use('/api/whatsapp',require('./src/routes/whatsapp.routes'));
+app.use('/api/upload-receita', makeRateLimit({
+  name: 'prescription_upload',
+  max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 30),
+  windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
+}), require('./src/routes/upload-receita.routes').router);
+const { registerUploadPageRoutes } = require('./src/routes/upload-receita.routes');
+registerUploadPageRoutes(app);
 app.use('/api/memed',require('./src/routes/memed.routes'));
 app.use('/api/auth',require('./src/auth/auth.routes'));
 app.use('/api/admin',require('./src/routes/admin.routes'));

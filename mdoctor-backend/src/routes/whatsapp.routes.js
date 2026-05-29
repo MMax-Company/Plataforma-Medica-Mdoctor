@@ -1,4 +1,5 @@
 const express = require('express');
+const { randomUUID } = require('crypto');
 const eligibilityEngine = require('../eligibility/engine');
 const logger = require('../config/logger');
 const { createAuditLog } = require('../store/audit.store');
@@ -15,30 +16,71 @@ const {
 const { mapTypebotPayload, INELIGIBLE_USER_MESSAGE } = require('../services/typebot-payload.mapper');
 const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
 const {
+  createPrescriptionUploadSession,
+  isExternalUploadEnabled
+} = require('../services/prescription-upload-token.service');
+const {
   createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry
 } = require('../services/whatsapp-support.service');
+const {
+  applyPrescriptionMetadataToClinical,
+  formatIngestError,
+  ingestPreviousPrescription,
+  isAlreadyStoredInBucket,
+  isHttpUrl
+} = require('../services/previous-prescription-storage.service');
+
+const { verifyN8nWebhookSecret } = require('../middlewares/n8n-webhook-auth');
 
 const router = express.Router();
 
-function verifyN8nWebhookSecret(req, res) {
-  const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
-  const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
-  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
+router.post('/ingest-previous-prescription', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  if (configuredSecret) {
-    if (!providedSecret || providedSecret !== configuredSecret) {
-      return { ok: false, status: 401, body: { success: false, error: 'Webhook não autorizado', correlationId } };
-    }
-    return { ok: true, correlationId };
+  const correlationId = auth.correlationId;
+  const {
+    fileUrl,
+    previous_prescription_file,
+    atendimento_id,
+    patient_id,
+    previous_prescription_storage_path,
+    source = 'typebot/n8n'
+  } = req.body || {};
+
+  const resolvedUrl = String(fileUrl || previous_prescription_file || '').trim();
+  if (!resolvedUrl && !previous_prescription_storage_path) {
+    return res.status(400).json({
+      success: false,
+      error: 'Informe fileUrl ou previous_prescription_file',
+      correlationId
+    });
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    return { ok: true, correlationId, devFallback: true };
-  }
+  try {
+    const result = await ingestPreviousPrescription({
+      fileUrl: resolvedUrl,
+      storagePath: previous_prescription_storage_path || null,
+      atendimentoId: atendimento_id || randomUUID(),
+      patientId: patient_id || null,
+      correlationId,
+      source
+    });
 
-  return { ok: false, status: 401, body: { success: false, error: 'Webhook secret não configurado', correlationId } };
-}
+    return res.json({ success: true, correlationId, ...result });
+  } catch (error) {
+    const formatted = formatIngestError(error);
+    await createAuditLog({
+      entity_type: 'previous_prescription',
+      entity_id: atendimento_id || null,
+      action: 'ingest_failed',
+      actor: 'n8n',
+      payload: { correlationId, ...formatted, fileUrl: resolvedUrl ? '[redacted]' : null }
+    });
+    return res.status(422).json({ success: false, correlationId, ...formatted });
+  }
+});
 
 router.get('/status', (_req, res) => {
   res.json({
@@ -133,7 +175,7 @@ router.post('/test-send', requireAuth, async (req, res) => {
 });
 
 router.post('/support', async (req, res) => {
-  const auth = verifyN8nWebhookSecret(req, res);
+  const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   const requestId = req.requestId || 'unknown';
@@ -165,7 +207,7 @@ router.post('/support', async (req, res) => {
 });
 
 router.post('/support/close', async (req, res) => {
-  const auth = verifyN8nWebhookSecret(req, res);
+  const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
   const requestId = req.requestId || 'unknown';
@@ -195,7 +237,7 @@ router.post('/support/close', async (req, res) => {
 });
 
 router.post('/webhook', async (req, res) => {
-  const auth = verifyN8nWebhookSecret(req, res);
+  const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) {
     const requestId = req.requestId || 'unknown';
     const correlationId = auth.body?.correlationId || req.correlationId || requestId;
@@ -327,7 +369,9 @@ router.post('/webhook', async (req, res) => {
     pagamento_status: normalized.pagamento_status,
     payment_status: normalized.payment_status,
     payment_confirmed: normalized.payment_confirmed,
-    queue_type: 'medical'
+    queue_type: 'medical',
+    validation: normalized.validation,
+    prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
@@ -356,14 +400,102 @@ router.post('/webhook', async (req, res) => {
     decision
   });
 
-  const enrichedClinicalData = {
+  const plannedAtendimentoId =
+    String(originalPayload?.atendimento_id || originalPayload?.atendimentoId || '').trim() || randomUUID();
+  let prescriptionMeta = null;
+  let prescriptionIngestError = null;
+  let uploadSession = null;
+  const externalUpload = isExternalUploadEnabled();
+  const awaitingExternalUpload = normalized.validation?.awaiting_prescription_upload === true;
+  const hasPreviousRx = normalized.has_previous_prescription === true;
+
+  const incomingFile = String(
+    normalized.previous_prescription_file ||
+      originalPayload?.previous_prescription_file ||
+      originalPayload?.foto_receita_url ||
+      ''
+  ).trim();
+
+  const incomingStoragePath = originalPayload?.previous_prescription_storage_path || null;
+
+  if (incomingFile || incomingStoragePath) {
+    const alreadyStored =
+      isAlreadyStoredInBucket({ fileUrl: incomingFile, storagePath: incomingStoragePath }) &&
+      Boolean(originalPayload?.previous_prescription_url || incomingFile);
+
+    if (alreadyStored) {
+      prescriptionMeta = {
+        previous_prescription_url: originalPayload?.previous_prescription_url || incomingFile,
+        previous_prescription_storage_path: incomingStoragePath,
+        previous_prescription_mime_type: originalPayload?.previous_prescription_mime_type || null,
+        previous_prescription_size: originalPayload?.previous_prescription_size || null,
+        previous_prescription_uploaded_at: originalPayload?.previous_prescription_uploaded_at || null,
+        previous_prescription_source: originalPayload?.previous_prescription_source || 'typebot/n8n',
+        foto_receita_url: originalPayload?.previous_prescription_url || incomingFile,
+        previous_prescription_file: originalPayload?.previous_prescription_url || incomingFile
+      };
+    } else if (isHttpUrl(incomingFile)) {
+      try {
+        prescriptionMeta = await ingestPreviousPrescription({
+          fileUrl: incomingFile,
+          storagePath: incomingStoragePath,
+          atendimentoId: plannedAtendimentoId,
+          correlationId,
+          source: 'typebot/n8n'
+        });
+      } catch (error) {
+        prescriptionIngestError = formatIngestError(error);
+        if (!externalUpload || !awaitingExternalUpload) {
+          decision.eligible = false;
+          decision.reason = prescriptionIngestError.message;
+          decision.reasonCode = prescriptionIngestError.code || 'receita_anterior_invalida';
+          decision.riskLevel = 'BLOQUEADO';
+          decision.renewalStatus = 'insegura';
+          normalized.eligibility_status = 'ineligible';
+          normalized.ineligibility_reason = prescriptionIngestError.message;
+        }
+      }
+    }
+  } else if (decision.eligible && !externalUpload) {
+    prescriptionIngestError = formatIngestError({
+      code: 'PRESCRIPTION_FILE_MISSING',
+      message: 'Receita anterior ou foto ausente'
+    });
+    decision.eligible = false;
+    decision.reason = prescriptionIngestError.message;
+    decision.reasonCode = 'sem_comprovacao';
+    decision.riskLevel = 'BLOQUEADO';
+    normalized.eligibility_status = 'ineligible';
+    normalized.ineligibility_reason = prescriptionIngestError.message;
+  }
+
+  const canEnterMedicalQueueAfterIngest =
+    normalized.validation?.can_enter_medical_queue === true &&
+    decision.eligible === true &&
+    paymentConfirmed &&
+    prescriptionMeta?.previous_prescription_url &&
+    !prescriptionIngestError;
+
+  let atendimentoStatus = canEnterMedicalQueueAfterIngest ? STATUS.QUEUE : STATUS.REJECTED;
+  if (
+    decision.eligible &&
+    paymentConfirmed &&
+    normalized.eligibility_status !== 'ineligible' &&
+    awaitingExternalUpload &&
+    !prescriptionMeta?.previous_prescription_url
+  ) {
+    atendimentoStatus = STATUS.AWAITING_PRESCRIPTION_UPLOAD;
+  }
+
+  const enrichedClinicalData = applyPrescriptionMetadataToClinical(
+    {
     ...patientData,
     original_payload: originalPayload,
     normalized_payload: mapped.normalized,
     clean_payload: patientData.typebot_variables,
     typebot_variables: patientData.typebot_variables,
     medications: normalized.medications || [],
-    foto_receita_url: normalized.previous_prescription_file || null,
+    foto_receita_url: prescriptionMeta?.foto_receita_url || normalized.previous_prescription_file || null,
     queue_type: 'medical',
     protocol_version: PROTOCOL_VERSION,
     clinical_summary: clinicalNarrative.summary,
@@ -379,6 +511,7 @@ router.post('/webhook', async (req, res) => {
       renewalStatus: decision.renewalStatus || null,
       protocolVersion: decision.protocolVersion || PROTOCOL_VERSION
     },
+    idempotency_key: idempotencyKey || null,
     clinical_audit: {
       correlationId,
       idempotencyKey: idempotencyKey || null,
@@ -401,32 +534,53 @@ router.post('/webhook', async (req, res) => {
       accepted_terms_links: normalized.accepted_terms_links || [],
       terms_presented: normalized.terms_presented || null,
       typebot_public_id: normalized.typebot_public_id || null
-    }
-  };
+    },
+    prescription_ingest: prescriptionIngestError
+      ? { ok: false, ...prescriptionIngestError }
+      : prescriptionMeta
+        ? { ok: true, storage_path: prescriptionMeta.previous_prescription_storage_path }
+        : null,
+    prescription_upload_pending: atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD,
+    external_upload_mode: externalUpload
+  },
+    prescriptionMeta || {}
+  );
 
   const patient = await createPatient({
     ...patientData,
-    status: canEnterMedicalQueue ? 'pending' : 'rejected'
+    status:
+      canEnterMedicalQueueAfterIngest || atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD ? 'pending' : 'rejected'
   });
   const atendimento = await createAtendimento({
+    id: plannedAtendimentoId,
     ...patientData,
+    origem: 'whatsapp',
     paciente_nome: normalized.patient_name || from,
     paciente_telefone: normalized.whatsapp || from,
     paciente_cpf: normalized.cpf,
     paciente_email: normalized.email,
     condicao: normalized.chronic_condition_label || normalized.chronic_condition,
     pagamento_status: normalized.pagamento_status,
-    status: canEnterMedicalQueue ? STATUS.QUEUE : STATUS.REJECTED,
-    risco: canEnterMedicalQueue ? 'BAIXO' : 'BLOQUEADO',
+    status: atendimentoStatus,
+    risco: canEnterMedicalQueueAfterIngest || atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
 
-  const reply = canEnterMedicalQueue
+  if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
+    uploadSession = await createPrescriptionUploadSession({
+      atendimentoId: atendimento.id,
+      correlationId
+    });
+  }
+
+  const reply = canEnterMedicalQueueAfterIngest
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
-    : !paymentConfirmed
-      ? 'Pagamento não confirmado. Sua solicitação não entrou na fila médica.'
-      : `${INELIGIBLE_USER_MESSAGE} ${getRefusalMessage(decision.reasonCode)}`.trim();
+    : uploadSession?.uploadUrl
+      ? `Para concluir sua solicitação, envie agora a foto da sua receita anterior pelo link seguro: ${uploadSession.uploadUrl} Seu atendimento só será encaminhado para análise médica após o envio da imagem.`
+      : !paymentConfirmed
+        ? 'Pagamento não confirmado. Sua solicitação não entrou na fila médica.'
+        : `${INELIGIBLE_USER_MESSAGE} ${getRefusalMessage(decision.reasonCode)}`.trim();
 
   await createAuditLog({
     entity_type: 'whatsapp_webhook',
@@ -440,7 +594,9 @@ router.post('/webhook', async (req, res) => {
       idempotencyKey: idempotencyKey || null,
       eligible: decision.eligible,
       payment_confirmed: paymentConfirmed,
-      can_enter_medical_queue: canEnterMedicalQueue,
+      can_enter_medical_queue: canEnterMedicalQueueAfterIngest,
+      prescription_ingest_ok: Boolean(prescriptionMeta?.previous_prescription_url),
+      prescription_ingest_error: prescriptionIngestError?.message || null,
       panel_visible: isVisibleInMedicalPanel(atendimento),
       atendimento_id: atendimento.id,
       criteriaUsed: decision.criteriaUsed || [],
@@ -457,7 +613,17 @@ router.post('/webhook', async (req, res) => {
     });
   }
 
-  return res.json({ success: true, correlationId, reply, patient, atendimento, decision });
+  return res.json({
+    success: true,
+    correlationId,
+    reply,
+    patient,
+    atendimento,
+    decision,
+    upload_url: uploadSession?.uploadUrl || null,
+    upload_expires_at: uploadSession?.expiresAt || null,
+    awaiting_prescription_upload: atendimento.status === STATUS.AWAITING_PRESCRIPTION_UPLOAD
+  });
 });
 
 module.exports = router;
