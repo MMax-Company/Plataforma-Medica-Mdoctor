@@ -1,6 +1,7 @@
-const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
+import { getApiBase, STAGING_BACKEND_URL } from '@/config/api';
 
-export const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/$/, '') : '';
+export const API_BASE = STAGING_BACKEND_URL;
+export { getApiBase };
 
 type RequestBody = Record<string, unknown> | unknown[] | null;
 
@@ -25,39 +26,22 @@ export class ApiError extends Error {
 }
 
 function readToken() {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const directToken = window.localStorage.getItem('mdoctor_auth_token');
-  if (directToken) {
-    return directToken;
-  }
-
-  const session = window.localStorage.getItem('mdoctor_panel_mock_session');
-  if (!session) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(session) as { token?: string };
-    return parsed.token || null;
-  } catch {
-    return null;
-  }
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem('mdoctor_auth_token');
 }
 
 async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, options: RequestOptions = {}): Promise<T> {
-  if (!API_BASE) {
+  const apiRoot = getApiBase();
+  if (!apiRoot) {
     throw new ApiError('missing_api_url', 'NEXT_PUBLIC_API_URL is not configured');
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
   const token = readToken();
 
   try {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${apiRoot}${path}`, {
       method,
       signal: controller.signal,
       headers: {
@@ -69,7 +53,14 @@ async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, option
     });
 
     if (response.status === 401) {
-      throw new ApiError('unauthorized', 'Unauthorized API request', 401);
+      let message = 'Sessão expirada ou credenciais inválidas';
+      try {
+        const errorBody = (await response.json()) as { error?: string; message?: string };
+        message = errorBody.error || errorBody.message || message;
+      } catch {
+        // keep default message
+      }
+      throw new ApiError('unauthorized', message, 401);
     }
 
     if (!response.ok) {

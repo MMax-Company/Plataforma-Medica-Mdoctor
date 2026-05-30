@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle2, LockKeyhole, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { BrandLogo } from '@/components/ui/Brand';
 import { Button } from '@/components/ui/button';
-import { clearSession, getAuthToken, isOfflineAuthError, login, saveSession } from '@/services/auth.service';
-
-const MOCK_SESSION_KEY = 'mdoctor_panel_mock_session';
+import { clearSession, hasValidSession, login } from '@/services/auth.service';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -18,8 +16,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (getAuthToken() || window.localStorage.getItem(MOCK_SESSION_KEY)) {
-      router.replace('/dashboard');
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('mdoctor_panel_mock_session');
+      const remembered = window.localStorage.getItem('mdoctor_login_remember');
+      if (remembered) setIdentifier(remembered);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasValidSession()) {
+      router.replace('/fila');
     }
   }, [router]);
 
@@ -28,7 +34,7 @@ export default function LoginPage() {
     setError(null);
 
     if (!identifier.trim() || !password.trim()) {
-      setError('Informe e-mail ou CPF e senha para continuar.');
+      setError('Informe usuário e senha para continuar.');
       return;
     }
 
@@ -36,46 +42,19 @@ export default function LoginPage() {
 
     try {
       clearSession();
-      const session = await login(identifier.trim(), password);
-      window.localStorage.setItem(
-        MOCK_SESSION_KEY,
-        JSON.stringify({
-          identifier: identifier.trim(),
-          remember,
-          token: session.token,
-          mode: 'jwt',
-          authenticatedAt: new Date().toISOString(),
-        }),
-      );
-      router.replace('/dashboard');
-    } catch (loginError) {
-      if (!isOfflineAuthError(loginError)) {
-        setError(loginError instanceof Error ? loginError.message : 'Falha no login');
-        setLoading(false);
-        return;
+      await login(identifier.trim(), password);
+      if (remember) {
+        window.localStorage.setItem('mdoctor_login_remember', identifier.trim());
+      } else {
+        window.localStorage.removeItem('mdoctor_login_remember');
       }
-
-      const mockToken = `mock-local-${Date.now()}`;
-      saveSession({
-        token: mockToken,
-        user: {
-          id: identifier.trim(),
-          name: identifier.trim(),
-          username: identifier.trim(),
-          role: 'admin',
-        },
-      });
-      window.localStorage.setItem(
-        MOCK_SESSION_KEY,
-        JSON.stringify({
-          identifier: identifier.trim(),
-          remember,
-          token: mockToken,
-          mode: 'mock',
-          authenticatedAt: new Date().toISOString(),
-        }),
-      );
-      router.replace('/dashboard');
+      router.replace('/fila');
+    } catch (loginError) {
+      if (loginError instanceof Error) {
+        setError(loginError.message);
+      } else {
+        setError('Falha no login');
+      }
     } finally {
       setLoading(false);
     }
@@ -131,7 +110,7 @@ export default function LoginPage() {
               <LockKeyhole className="h-8 w-8" aria-hidden="true" />
             </div>
             <h2 className="text-2xl font-bold text-[#1E1E1E]">Acesso ao Painel Médico</h2>
-            <p className="mt-2 text-sm text-[#5B6475]">Informe suas credenciais para continuar</p>
+            <p className="mt-2 text-sm text-[#5B6475]">Ambiente operacional staging</p>
           </div>
 
           {error && (
@@ -142,13 +121,13 @@ export default function LoginPage() {
 
           <div className="space-y-5">
             <label className="block text-sm font-semibold text-[#253044]">
-              E-mail ou CPF
+              Usuário
               <input
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 autoComplete="username"
                 className="mt-2 h-12 w-full rounded-md border border-[#D9E2F0] bg-[#F8FAFC] px-4 text-sm text-[#253044] outline-none transition-colors placeholder:text-[#8A94A6] focus:border-[#1557FF] focus:bg-white"
-                placeholder="Digite seu e-mail ou CPF"
+                placeholder="drmax.matos"
               />
             </label>
 
@@ -172,14 +151,11 @@ export default function LoginPage() {
                   type="checkbox"
                   className="h-4 w-4 rounded border-[#D9E2F0]"
                 />
-                Lembrar meus dados
+                Lembrar usuário
               </label>
-              <button type="button" className="font-semibold text-[#1557FF] hover:text-[#0f49df]">
-                Esqueci minha senha
-              </button>
             </div>
 
-            <Button className="h-12 w-full text-sm font-bold" disabled={loading}>
+            <Button type="submit" className="h-12 w-full text-sm font-bold" disabled={loading}>
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {loading ? 'ACESSANDO...' : 'ACESSAR PAINEL'}
             </Button>
