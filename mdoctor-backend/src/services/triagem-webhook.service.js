@@ -2,8 +2,14 @@ const { randomUUID } = require('crypto');
 const eligibilityEngine = require('../eligibility/engine');
 const logger = require('../config/logger');
 const { createAuditLog } = require('../store/audit.store');
-const { createPatient } = require('../store/patients.store');
-const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
+const { findOrCreatePatient } = require('../store/patients.store');
+const {
+  STATUS,
+  createAtendimento,
+  getAtendimento,
+  linkPatientToAppointment,
+  listAtendimentos
+} = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const {
   buildClinicalNarrative,
@@ -181,7 +187,7 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     external_upload_mode: externalUpload
   };
 
-  const patient = await createPatient({
+  const patient = await findOrCreatePatient({
     ...patientData,
     status: atendimentoStatus === STATUS.REJECTED ? 'rejected' : 'pending'
   });
@@ -202,6 +208,11 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
+
+  if (patient?.id && atendimento?.id) {
+    await linkPatientToAppointment(atendimento.id, patient.id);
+    atendimento.patient_id = patient.id;
+  }
 
   try {
     await persistTriagemFlow({

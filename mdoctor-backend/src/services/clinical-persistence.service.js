@@ -212,11 +212,32 @@ async function persistTriagemFlow({
     variables: typebotContext
   });
 
+  const clinical = atendimento?.dados_clinicos || {};
+  const triagem = validation?.triagem || {};
+  const prontuario = {
+    identificacao: {
+      nome: validation?.paciente?.nome || clinical.paciente_nome,
+      telefone: validation?.paciente?.telefone,
+      cpf: validation?.paciente?.cpf,
+      email: validation?.paciente?.email
+    },
+    hda: clinical.queixa_principal || triagem.observacoes || clinical.clinical_summary,
+    medicacoes: triagem.medicacao_em_uso || clinical.medicacao_em_uso,
+    alergias: clinical.alergias || null,
+    receita_anterior: triagem.receita_anterior || clinical.previous_prescription,
+    elegibilidade: decision,
+    hipotese_diagnostica: clinical.conduta_sugerida || null,
+    conduta: clinical.conduta_sugerida,
+    orientacoes: clinical.orientacoes_clinicas,
+    exame_fisico_telemedicina: clinical.exame_fisico_telemedicina,
+    historico_clinico: clinical.historico_clinico
+  };
+
   const medicalRecord = await recordMedicalRecord({
     appointmentId,
     patientId,
-    clinicalData: atendimento?.dados_clinicos || {},
-    summary: atendimento?.dados_clinicos?.clinical_summary || ''
+    clinicalData: { ...clinical, prontuario },
+    summary: clinical.clinical_summary || prontuario.hda || ''
   });
 
   await recordIntegrationLog({
