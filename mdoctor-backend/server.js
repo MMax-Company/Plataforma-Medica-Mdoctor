@@ -18,7 +18,8 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { initSupabase } = require('./src/config/supabase');
-const { getReadinessReport } = require('./src/config/readiness');
+const { assertProductionReady, getReadinessReport, isStrictRuntime } = require('./src/config/readiness');
+const { pingSupabase } = require('./src/config/supabase');
 const logger = require('./src/config/logger');
 const requestLogger = require('./src/middlewares/request-logger');
 const { cleanupRateLimitBuckets, makeRateLimit } = require('./src/middlewares/rate-limit');
@@ -61,6 +62,14 @@ logEnvironmentBanner();
 const app = express();
 const PORT = process.env.PORT || 3004;
 initSupabase();
+try {
+  assertProductionReady();
+} catch (error) {
+  logger.error('strict_runtime_boot_failed', { error: error.message });
+  if (isStrictRuntime()) {
+    throw error;
+  }
+}
 const startupReadiness = getReadinessReport();
 if (startupReadiness.status !== 'ok') {
   logger.warn('production_readiness_incomplete', {
@@ -137,6 +146,7 @@ app.use('/api/whatsapp/webhook', makeRateLimit({
     });
   }
 }));
+app.use('/api/webhooks/stripe', require('./src/routes/stripe-webhook.routes'));
 app.use(express.json({limit:'1mb',strict:false}));
 app.use(express.urlencoded({extended:true}));
 app.use(require('./src/legacy-compat').legacyCompatRoutes);
@@ -144,8 +154,30 @@ app.use(require('./src/legacy-compat').legacyCompatRoutes);
 const healthHandler = (req,res)=>res.json({status:'OK',service:'Backend-MDoctor',port:PORT,timestamp:new Date().toISOString()});
 app.get('/health', healthHandler);
 app.get('/healthz', healthHandler);
-app.get('/readyz', (_req, res) => {
+app.get('/readyz', async (_req, res) => {
   const report = getReadinessReport();
+  const storage = await pingSupabase();
+  report.storage = storage;
+  report.supabase = {
+    configured: storage.configured,
+    connected: storage.responding,
+    mode: storage.mode
+  };
+  report.persistence_required = true;
+
+  if (isStrictRuntime() && (!storage.responding || storage.mode !== 'supabase')) {
+    report.status = 'fail';
+    report.failures = [
+      ...(report.failures || []),
+      {
+        name: 'supabase_live',
+        ok: false,
+        message: 'Supabase indisponível — runtime estrito exige banco oficial persistido',
+        severity: 'fail'
+      }
+    ];
+  }
+
   res.status(report.status === 'fail' ? 503 : 200).json(report);
 });
 
@@ -178,9 +210,15 @@ app.use((err, req, res, _next) => {
     path: req.originalUrl || req.url,
     error: err
   });
-  res.status(err.status || 500).json({
+  const persistence = err?.code === 'PERSISTENCE_REQUIRED';
+  res.status(persistence ? 503 : err.status || 500).json({
     success: false,
-    error: process.env.NODE_ENV === 'production' ? 'Erro interno do servidor' : err.message,
+    error: persistence
+      ? 'Persistência indisponível. Verifique o Supabase oficial de produção.'
+      : process.env.NODE_ENV === 'production'
+        ? 'Erro interno do servidor'
+        : err.message,
+    code: err.code || undefined,
     requestId: req.requestId
   });
 });
