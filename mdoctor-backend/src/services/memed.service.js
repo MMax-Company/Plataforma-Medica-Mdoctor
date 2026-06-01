@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { allowMemedMockFallback, isMemedRealEnabled } = require('../config/memed-runtime');
 
 const DEFAULT_MEMED_URL = 'https://integrations.api.memed.com.br/v1';
 
@@ -10,7 +11,7 @@ function getConfig() {
     env: process.env.MEMED_ENV || process.env.MEMED_ENVIRONMENT || 'development',
     timeoutMs: Number(process.env.MEMED_TIMEOUT_MS || 8000),
     retryAttempts: Math.max(1, Number(process.env.MEMED_RETRY_ATTEMPTS || 2)),
-    allowMockFallback: process.env.MEMED_ALLOW_MOCK_FALLBACK !== 'false'
+    allowMockFallback: allowMemedMockFallback()
   };
 }
 
@@ -151,6 +152,9 @@ async function createPrescription(atendimento = {}) {
 async function getPrescription(providerPrescriptionId) {
   const config = getConfig();
   if (!isMemedConfigured()) {
+    if (!config.allowMockFallback) {
+      return { success: false, source: 'memed', error: 'Memed não configurada' };
+    }
     return buildMockPrescription({ id: providerPrescriptionId });
   }
 
@@ -163,6 +167,9 @@ async function getPrescription(providerPrescriptionId) {
     return { success: true, source: 'memed', data: response.data };
   } catch (error) {
     const mapped = mapMemedError(error);
+    if (!config.allowMockFallback) {
+      return { success: false, source: 'memed', error: mapped.message, memedError: mapped };
+    }
     return {
       ...buildMockPrescription({ id: providerPrescriptionId }),
       warning: mapped.message,
@@ -189,9 +196,16 @@ async function downloadPdf(providerPrescriptionId) {
 
 function getMemedStatus() {
   const config = getConfig();
+  const configured = isMemedConfigured();
+  const realMode = isMemedRealEnabled();
+  let source = 'mock';
+  if (configured) source = 'memed';
+  if (realMode && !configured) source = 'misconfigured';
   return {
-    configured: isMemedConfigured(),
-    source: isMemedConfigured() ? 'memed' : 'mock',
+    configured,
+    source,
+    real_mode: realMode,
+    mock_fallback_allowed: config.allowMockFallback,
     env: config.env,
     apiUrl: config.apiUrl
   };

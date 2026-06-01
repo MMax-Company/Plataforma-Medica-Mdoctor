@@ -14,6 +14,8 @@ require('dotenv').config({
   path: path.join(__dirname, loadedEnvFile),
   override: shouldLoadLocalEnv
 });
+const { applyMemedEnvAliases } = require('./src/config/memed-runtime');
+applyMemedEnvAliases();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
