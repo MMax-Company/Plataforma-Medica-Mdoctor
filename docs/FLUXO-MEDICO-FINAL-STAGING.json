@@ -1,0 +1,101 @@
+{
+  "executed_at": "2026-06-01T10:43:47.277Z",
+  "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "steps": [
+    {
+      "name": "readyz_supabase",
+      "ok": true
+    },
+    {
+      "name": "triagem_http",
+      "ok": true,
+      "atendimentoId": "066d1147-7231-4736-aef4-303625a59441"
+    },
+    {
+      "name": "medico_login",
+      "ok": true
+    },
+    {
+      "name": "fila_medica",
+      "ok": true
+    },
+    {
+      "name": "decisao_aprovacao",
+      "ok": true
+    },
+    {
+      "name": "memed_receita_persist",
+      "ok": true,
+      "optional": false
+    },
+    {
+      "name": "receita_validada",
+      "ok": true,
+      "optional": false
+    },
+    {
+      "name": "entrega_whatsapp",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "name": "atendimento_final",
+      "ok": true,
+      "status": "delivered"
+    },
+    {
+      "name": "db_appointment",
+      "ok": true,
+      "table": "appointments",
+      "patient_id": null
+    },
+    {
+      "name": "db_triage_sessions",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "name": "db_medical_eligibility",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "name": "db_medical_records",
+      "ok": false,
+      "optional": true,
+      "has_prontuario": false
+    },
+    {
+      "name": "db_prescriptions",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "name": "db_prescription_delivery",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "name": "persistencia_pos_fluxo",
+      "ok": true
+    }
+  ],
+  "supabase": {
+    "appointment_table": "appointments"
+  },
+  "errors": [],
+  "warnings": [
+    "entrega_whatsapp",
+    "db_triage_sessions",
+    "db_medical_eligibility",
+    "db_medical_records",
+    "db_prescriptions",
+    "db_prescription_delivery"
+  ],
+  "success": true,
+  "summary": {
+    "steps": 16,
+    "errors": 0,
+    "warnings": 6
+  }
+}
