@@ -9,10 +9,21 @@ async function probeTable(supabase, table) {
   return !error;
 }
 
+function resetAppointmentTableResolver() {
+  appointmentTable = null;
+  resolved = false;
+}
+
 async function getAppointmentTable() {
   if (appointmentTable && resolved) return appointmentTable;
-  if (process.env.SUPABASE_APPOINTMENTS_TABLE) {
-    appointmentTable = process.env.SUPABASE_APPOINTMENTS_TABLE;
+  const forced = String(process.env.SUPABASE_APPOINTMENTS_TABLE || 'appointments').trim();
+  if (forced === T.APPOINTMENTS || forced === 'appointments') {
+    appointmentTable = T.APPOINTMENTS;
+    resolved = true;
+    return appointmentTable;
+  }
+  if (forced === 'atendimentos') {
+    appointmentTable = 'atendimentos';
     resolved = true;
     return appointmentTable;
   }
@@ -32,5 +43,6 @@ async function getAppointmentTable() {
 }
 
 module.exports = {
-  getAppointmentTable
+  getAppointmentTable,
+  resetAppointmentTableResolver
 };

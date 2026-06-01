@@ -219,6 +219,7 @@ function normalizeAtendimento(input = {}) {
 
   return {
     id: input.id || randomUUID(),
+    patient_id: input.patient_id || input.patientId || null,
     status: resolveEffectiveStatus(input.status, clinical),
     paciente_nome: name,
     paciente_telefone: phone,
@@ -271,6 +272,18 @@ function fromSupabase(row = {}) {
   });
 }
 
+async function mirrorToAppointments(rawRowOrAtendimento) {
+  const atendimento =
+    rawRowOrAtendimento?.paciente_nome != null
+      ? rawRowOrAtendimento
+      : fromSupabase(rawRowOrAtendimento || {});
+  const row = atendimentoToRow(atendimento);
+  row.updated_at = new Date().toISOString();
+  await dbQuery('espelhar appointment oficial', async (supabase) =>
+    supabase.from(T.APPOINTMENTS).upsert(row, { onConflict: 'id' })
+  );
+}
+
 function toStorageRow(atendimento, table) {
   if (table === 'atendimentos') {
     return {
@@ -314,8 +327,33 @@ async function listAtendimentos(filters = {}) {
 
 async function getAtendimento(id) {
   const table = await getAppointmentTable();
-  const data = await dbQuery('buscar appointment', async (supabase) =>
+  let data = await dbQuery('buscar appointment', async (supabase) =>
     supabase.from(table).select('*').eq('id', id).maybeSingle()
+  );
+  if (!data && table === T.APPOINTMENTS) {
+    data = await dbQuery('buscar appointment legado', async (supabase) =>
+      supabase.from('atendimentos').select('*').eq('id', id).maybeSingle()
+    );
+    if (data) {
+      try {
+        await mirrorToAppointments(data);
+      } catch {
+        /* não bloqueia leitura */
+      }
+    }
+  }
+  return data ? fromSupabase(data) : null;
+}
+
+async function linkPatientToAppointment(appointmentId, patientId) {
+  if (!appointmentId || !patientId) return null;
+  const table = await getAppointmentTable();
+  const patch =
+    table === 'atendimentos'
+      ? { patient_id: patientId }
+      : { patient_id: patientId, updated_at: new Date().toISOString() };
+  const data = await dbQuery('vincular patient appointment', async (supabase) =>
+    supabase.from(table).update(patch).eq('id', appointmentId).select('*').maybeSingle()
   );
   return data ? fromSupabase(data) : null;
 }
@@ -327,7 +365,18 @@ async function createAtendimento(input) {
   const data = await dbQuery('criar appointment', async (supabase) =>
     supabase.from(table).insert(row).select('*').single()
   );
-  return fromSupabase(data);
+  const created = fromSupabase(data);
+  if (table === 'atendimentos') {
+    try {
+      await mirrorToAppointments(created);
+    } catch {
+      /* espelhamento best-effort */
+    }
+  }
+  if (created?.id && atendimento.patient_id && !created.patient_id) {
+    return (await linkPatientToAppointment(created.id, atendimento.patient_id)) || created;
+  }
+  return created;
 }
 
 function resolveMedicoIdForDb(rawMedicoId) {
@@ -399,6 +448,13 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
     supabase.from(table).update(dbUpdates).eq('id', id).select('*').maybeSingle()
   );
   if (!data) return null;
+  if (table === 'atendimentos') {
+    try {
+      await mirrorToAppointments(data);
+    } catch {
+      /* espelhamento best-effort */
+    }
+  }
 
   try {
     await dbQuery('histórico status appointment', async (supabase) =>
@@ -578,6 +634,7 @@ module.exports = {
   listAtendimentos,
   getAtendimento,
   createAtendimento,
+  linkPatientToAppointment,
   updateAtendimentoStatus,
   createDecisaoLog,
   listDecisoesLog,
