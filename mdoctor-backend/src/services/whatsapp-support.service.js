@@ -1,5 +1,6 @@
 const { STATUS, createAtendimento, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { createAuditLog } = require('../store/audit.store');
+const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 
 function normalizePhone(value = '') {
@@ -63,6 +64,16 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
       correlationId: correlationId || null,
       idempotency_key: idempotencyKey || null,
       opened_at: new Date().toISOString()
+    }
+  });
+
+  await recordSupportTicket({
+    appointmentId: atendimento.id,
+    phone: digits,
+    subject: `Suporte WhatsApp ${suffix}`,
+    metadata: {
+      correlationId: correlationId || null,
+      idempotency_key: idempotencyKey || null
     }
   });
 

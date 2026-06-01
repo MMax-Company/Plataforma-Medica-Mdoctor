@@ -15,6 +15,7 @@ const {
   createPrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
+const { persistTriagemFlow } = require('./clinical-persistence.service');
 const {
   validateNestedTriagemPayload,
   nestedTriagemToTypebotFlatBody
@@ -25,7 +26,7 @@ const ORIGEM = 'typebot-triagem';
 async function findDuplicateAtendimento(idempotencyKey) {
   if (!idempotencyKey) return null;
 
-  const remembered = getRememberedWebhookResult(idempotencyKey);
+  const remembered = await getRememberedWebhookResult(idempotencyKey);
   if (remembered?.atendimentoId) {
     const rememberedAtendimento = await getAtendimento(remembered.atendimentoId);
     if (rememberedAtendimento?.origem === ORIGEM) {
@@ -180,13 +181,14 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     external_upload_mode: externalUpload
   };
 
-  await createPatient({
+  const patient = await createPatient({
     ...patientData,
     status: atendimentoStatus === STATUS.REJECTED ? 'rejected' : 'pending'
   });
 
   const atendimento = await createAtendimento({
     id: plannedAtendimentoId,
+    patient_id: patient?.id || null,
     ...patientData,
     origem: ORIGEM,
     paciente_nome: normalized.patient_name || validation.paciente.nome,
@@ -200,6 +202,23 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
+
+  try {
+    await persistTriagemFlow({
+      patient,
+      atendimento,
+      validation,
+      decision,
+      correlationId,
+      idempotencyKey,
+      typebotContext
+    });
+  } catch (error) {
+    logger.warn('clinical_persistence_partial', {
+      atendimentoId: atendimento.id,
+      error: error.message
+    });
+  }
 
   let uploadSession = null;
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
@@ -229,10 +248,14 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
   });
 
   if (idempotencyKey) {
-    rememberWebhookResult(idempotencyKey, {
-      atendimentoId: atendimento.id,
-      decision
-    });
+    await rememberWebhookResult(
+      idempotencyKey,
+      {
+        atendimentoId: atendimento.id,
+        decision
+      },
+      { source: ORIGEM }
+    );
   }
 
   logger.info('triagem_webhook_processed', {

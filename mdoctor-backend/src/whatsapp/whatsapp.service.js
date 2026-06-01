@@ -75,12 +75,12 @@ class WhatsAppService {
       const supabase = getSupabase();
       
       // Salvar mensagem no Supabase
-      await supabase.from('whatsapp_messages').insert([{
+      await supabase.from('whatsapp_messages').insert({
         phone: from,
-        message: text,
+        body: text,
         direction: 'inbound',
-        created_at: new Date().toISOString()
-      }]);
+        status: 'received'
+      });
 
       const controller = new AbortController();
       const timeout = setTimeout(
@@ -113,12 +113,12 @@ class WhatsAppService {
       logger.info('whatsapp_message_sent', { to });
       
       const supabase = getSupabase();
-      await supabase.from('whatsapp_messages').insert([{
+      await supabase.from('whatsapp_messages').insert({
         phone: to,
-        message: text,
+        body: text,
         direction: 'outbound',
-        created_at: new Date().toISOString()
-      }]);
+        status: 'sent'
+      });
       
       return { success: true };
     } catch (error) {
