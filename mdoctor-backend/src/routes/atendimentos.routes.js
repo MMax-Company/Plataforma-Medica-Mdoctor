@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto');
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
 const { sendPrescription, isDryRunMode } = require('../delivery/delivery.service');
@@ -496,7 +497,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
   try {
     if (isDeliveryMockEnabled() && !(channel === 'whatsapp' && isDryRunMode())) {
       delivery = {
-        id: `delivery-mock-${Date.now()}`,
+        id: randomUUID(),
         channel,
         targetMasked: maskTarget(target || 'mock-target'),
         receiptUrl,
@@ -516,7 +517,7 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     }
   } catch (error) {
     const failedDelivery = {
-      id: `delivery-failed-${Date.now()}`,
+      id: randomUUID(),
       channel,
       targetMasked: target.includes('@') ? target.replace(/^(.{2}).*(@.*)$/, '$1***$2') : target.replace(/\d(?=\d{4})/g, '*'),
       receiptUrl,

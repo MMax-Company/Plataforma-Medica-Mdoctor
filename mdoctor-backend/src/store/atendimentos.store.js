@@ -1,5 +1,12 @@
 const { randomUUID } = require('crypto');
 const T = require('../db/tables');
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function resolveDeliveryLogId(rawId) {
+  if (rawId && UUID_PATTERN.test(String(rawId))) return String(rawId);
+  return randomUUID();
+}
 const { dbQuery } = require('../db/persistence');
 const { getAppointmentTable } = require('../db/resolve-tables');
 const { rowToAtendimento, atendimentoToRow } = require('../db/appointment-mapper');
@@ -570,7 +577,7 @@ async function listRecentDecisoesLog(limit = 30) {
 
 async function createEntregaReceitaLog(input = {}) {
   const log = {
-    id: input.id,
+    id: resolveDeliveryLogId(input.id),
     atendimento_id: input.atendimento_id,
     canal: input.canal || input.channel,
     provider: input.provider || null,
@@ -587,7 +594,7 @@ async function createEntregaReceitaLog(input = {}) {
       supabase
         .from(T.PRESCRIPTION_DELIVERY)
         .insert({
-          id: log.id || randomUUID(),
+          id: log.id,
           appointment_id: log.atendimento_id,
           channel: log.canal,
           provider: log.provider,
@@ -608,7 +615,7 @@ async function createEntregaReceitaLog(input = {}) {
       supabase
         .from('entregas_receita')
         .insert({
-          id: log.id || randomUUID(),
+          id: log.id,
           atendimento_id: log.atendimento_id,
           canal: log.canal,
           provider: log.provider,

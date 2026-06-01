@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto');
 const twilio = require('twilio');
 const evolutionProvider = require('../services/providers/evolution.provider');
 
@@ -302,7 +303,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   }
 
   return {
-    id: `delivery-${Date.now()}`,
+    id: randomUUID(),
     channel,
     target,
     targetMasked: maskTarget(target),
