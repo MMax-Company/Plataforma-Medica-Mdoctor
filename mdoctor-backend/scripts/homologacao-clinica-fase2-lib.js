@@ -248,14 +248,37 @@ async function clinicalApprove(token, atendimentoId, correlationId) {
 }
 
 async function persistMemedReceipt(token, atendimentoId, correlationId, overrides = {}) {
+  const realMode = process.env.MEMED_REAL_ENABLED === 'true';
+  const realId = String(process.env.MEMED_RECEITA_ID || overrides.receitaId || '').trim();
+  const realPdf = String(
+    process.env.MEMED_PDF_URL || process.env.MEMED_RECEITA_URL || overrides.pdfUrl || ''
+  ).trim();
+
+  if (realMode && (!realId || !realPdf)) {
+    return {
+      ok: false,
+      status: 422,
+      data: {
+        success: false,
+        code: 'MEMED_REAL_REQUIRES_HUMAN_EMISSION',
+        error:
+          'MEMED_REAL_ENABLED: informe MEMED_RECEITA_ID e MEMED_PDF_URL após emissão no MdHub (/receita).'
+      }
+    };
+  }
+
   return requestJson(`${BACKEND_URL}/api/memed/receita`, {
     method: 'POST',
     headers: authHeaders(token, correlationId),
     body: JSON.stringify({
       atendimentoId,
-      receitaId: overrides.receitaId || `mock-receipt-${Date.now()}`,
-      pdfUrl: overrides.pdfUrl || `https://example.invalid/mock-receipt-${atendimentoId}.pdf`,
-      payload: { mock: true, correlationId, ...(overrides.payload || {}) }
+      receitaId: realMode ? realId : overrides.receitaId || `mock-receipt-${Date.now()}`,
+      pdfUrl: realMode
+        ? realPdf
+        : overrides.pdfUrl || `https://example.invalid/mock-receipt-${atendimentoId}.pdf`,
+      payload: realMode
+        ? { real: true, correlationId, ...(overrides.payload || {}) }
+        : { mock: true, correlationId, ...(overrides.payload || {}) }
     })
   });
 }

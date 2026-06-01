@@ -1,30 +1,12 @@
 // src/services/memed.service.ts
-import { API_BASE } from '@/config/api';
+import { getApiBase } from '@/config/api';
 import { authHeaders } from './auth.service';
-export interface Medication {
-  name: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-}
-
-export interface PrescriptionData {
-  patientId: string;
-  patientName: string;
-  patientDocument: string;
-  patientBirthDate: string;
-  patientPhone: string;
-  patientEmail: string;
-  doctorName: string;
-  doctorCrm: string;
-  doctorUf: string;
-  medications: Medication[];
-  notes?: string;
-}
-
 export interface MemedConfig {
   enabled: boolean;
   environment: string;
+  realMode?: boolean;
+  mockFallbackAllowed?: boolean;
+  emissionMode?: string;
   scriptUrl: string;
   containerId: string;
   primaryColor: string;
@@ -63,41 +45,33 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function getMemedConfig(): Promise<MemedConfig> {
-  const response = await fetch(`${API_BASE}/api/memed/config`);
+  const response = await fetch(`${getApiBase()}/api/memed/config`);
   const data = await readJson<{ success: boolean; config: MemedConfig }>(response);
   return data.config;
 }
 
 export async function getMemedToken(): Promise<MemedAuthResponse> {
-  const response = await fetch(`${API_BASE}/api/memed/token`, {
+  const response = await fetch(`${getApiBase()}/api/memed/token`, {
     headers: authHeaders()
   });
   return readJson<MemedAuthResponse>(response);
 }
 
+export async function startMemedEmission(atendimentoId: string) {
+  const response = await fetch(`${getApiBase()}/api/memed/iniciar-emissao`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ atendimentoId })
+  });
+  return readJson(response);
+}
+
+/** Persistência oficial após callback `prescricaoImpressa` no widget Memed/Sinapse. */
 export async function saveMemedReceipt(data: MemedReceiptPayload) {
-  const response = await fetch(`${API_BASE}/api/memed/receita`, {
+  const response = await fetch(`${getApiBase()}/api/memed/receita`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(data)
   });
   return readJson(response);
-}
-
-export async function issuePrescription(data: PrescriptionData) {
-  const response = await fetch(`${API_BASE}/api/prescriptions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify(data)
-  });
-  if (!response.ok) throw new Error('Erro ao emitir receita');
-  return response.json();
-}
-
-export async function downloadPrescriptionPdf(prescriptionId: string) {
-  const response = await fetch(`${API_BASE}/api/prescriptions/${prescriptionId}/pdf`, {
-    headers: authHeaders()
-  });
-  if (!response.ok) throw new Error('Erro ao baixar PDF');
-  return response.blob();
 }

@@ -55,9 +55,13 @@ function loadRailwaySecret(key) {
   }
 }
 
+const STRICT =
+  process.env.REVALIDATE_STRICT === '1' || process.env.REVALIDATE_STRICT === 'true';
+
 const report = {
   executed_at: new Date().toISOString(),
   backend: lib.BACKEND_URL,
+  revalidate_strict: STRICT,
   steps: [],
   supabase: {},
   errors: [],
@@ -65,9 +69,10 @@ const report = {
 };
 
 function step(name, ok, extra = {}) {
-  report.steps.push({ name, ok, ...extra });
-  if (!ok && !extra.optional) report.errors.push(name);
-  if (!ok && extra.optional) report.warnings.push(name);
+  const optional = STRICT ? false : Boolean(extra.optional);
+  report.steps.push({ name, ok, ...extra, optional });
+  if (!ok && !optional) report.errors.push(name);
+  if (!ok && optional) report.warnings.push(name);
 }
 
 async function verifySupabase(atendimentoId, patientId) {
@@ -123,8 +128,13 @@ async function verifySupabase(atendimentoId, patientId) {
     .select('id,pdf_url,status')
     .eq('atendimento_id', atendimentoId)
     .limit(1);
-  step('db_prescriptions', (prescription || []).length > 0 || (memedLegacy || []).length > 0, {
-    optional: !(prescription || []).length && !(memedLegacy || []).length
+  const prescriptionOk =
+    STRICT
+      ? (prescription || []).length > 0
+      : (prescription || []).length > 0 || (memedLegacy || []).length > 0;
+  step('db_prescriptions', prescriptionOk, {
+    optional: STRICT ? false : !(prescription || []).length && !(memedLegacy || []).length,
+    source: (prescription || []).length ? 'prescriptions' : (memedLegacy || []).length ? 'receitas_memed' : null
   });
 
   const { data: delivery } = await supabase
@@ -137,9 +147,39 @@ async function verifySupabase(atendimentoId, patientId) {
     .select('id,status')
     .eq('atendimento_id', atendimentoId)
     .limit(1);
-  step('db_prescription_delivery', (delivery || []).length > 0 || (deliveryLegacy || []).length > 0, {
-    optional: !(delivery || []).length && !(deliveryLegacy || []).length
+  const deliveryOk =
+    STRICT
+      ? (delivery || []).length > 0
+      : (delivery || []).length > 0 || (deliveryLegacy || []).length > 0;
+  step('db_prescription_delivery', deliveryOk, {
+    optional: STRICT ? false : !(delivery || []).length && !(deliveryLegacy || []).length,
+    source: (delivery || []).length ? 'prescription_delivery' : (deliveryLegacy || []).length ? 'entregas_receita' : null
   });
+
+  const { data: legacyRow } = await supabase
+    .from('atendimentos')
+    .select('id')
+    .eq('id', atendimentoId)
+    .maybeSingle();
+  const { data: officialRow } = await supabase
+    .from(T.APPOINTMENTS)
+    .select('id')
+    .eq('id', atendimentoId)
+    .maybeSingle();
+  step('db_appointments_primary', Boolean(officialRow?.id), {
+    optional: STRICT ? false : !officialRow?.id,
+    legacy_atendimentos_row: Boolean(legacyRow?.id)
+  });
+  if (STRICT) {
+    step('db_legacy_not_primary', Boolean(officialRow?.id) && !legacyRow?.id, {
+      appointments: Boolean(officialRow?.id),
+      atendimentos: Boolean(legacyRow?.id)
+    });
+  }
+
+  const supabaseRef = (process.env.SUPABASE_URL || '').match(/https:\/\/([^.]+)\.supabase/)?.[1] || null;
+  report.supabase.ref = supabaseRef;
+  step('supabase_official_ref', supabaseRef === 'usihurogvphtjedyhyfl', { ref: supabaseRef });
 }
 
 async function main() {
@@ -150,11 +190,14 @@ async function main() {
   const correlationId = `fluxo-medico-${Date.now()}`;
 
   const readyz = await lib.requestJson(`${lib.BACKEND_URL}/readyz`);
-  step('readyz_supabase', readyz.data?.storage?.mode === 'supabase');
+  step('readyz_supabase', readyz.data?.storage?.mode === 'supabase' || readyz.data?.supabase?.mode === 'supabase', {
+    storage_mode: readyz.data?.storage?.mode,
+    supabase_connected: readyz.data?.supabase?.connected
+  });
 
   const created = await lib.createAtendimentoViaTriagem(correlationId);
   step('triagem_http', created.ok, { atendimentoId: created.atendimentoId });
-  if (created.atendimentoId) {
+  if (created.atendimentoId && !STRICT) {
     await syncLegacyToAppointments(created.atendimentoId);
   }
   if (!created.atendimentoId) {
@@ -179,19 +222,34 @@ async function main() {
   const approve = await lib.clinicalApprove(login.token, atendimentoId, correlationId);
   step('decisao_aprovacao', approve.ok);
 
+  const memedReal = process.env.MEMED_REAL_ENABLED === 'true';
   const receipt = await lib.persistMemedReceipt(login.token, atendimentoId, correlationId);
-  step('memed_receita_persist', receipt.ok, { optional: !receipt.ok });
+  step('memed_receita_persist', receipt.ok, {
+    optional: memedReal && !receipt.ok,
+    memed_real: memedReal,
+    hint: memedReal
+      ? 'Defina MEMED_RECEITA_ID + MEMED_PDF_URL após emissão humana no /receita'
+      : null
+  });
+  if (!receipt.ok && memedReal) {
+    fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));
+    process.exit(1);
+  }
+  if (!receipt.ok && !memedReal) {
+    fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));
+    process.exit(1);
+  }
 
   const validate = await lib.clinicalValidate(login.token, atendimentoId, correlationId);
-  step('receita_validada', validate.ok, { optional: !validate.ok });
+  step('receita_validada', validate.ok);
 
   const deliver = await lib.deliverPrescription(login.token, atendimentoId, correlationId);
-  step('entrega_whatsapp', deliver.ok, { optional: !deliver.ok });
+  step('entrega_whatsapp', deliver.ok);
 
   const finalState = await lib.getAtendimento(login.token, atendimentoId, correlationId);
-  step('atendimento_final', finalState.ok, {
-    status: finalState.data?.atendimento?.status
-  });
+  const finalStatus = String(finalState.data?.atendimento?.status || '').toLowerCase();
+  step('atendimento_final', finalState.ok, { status: finalStatus });
+  step('status_final_delivered', finalStatus === 'delivered', { status: finalStatus });
 
   await verifySupabase(atendimentoId, null);
 

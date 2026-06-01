@@ -1,14 +1,19 @@
 import { ApiError, apiClient } from '@/services/api';
+import { isMemedRealEnabled, isMockFallbackEnabled } from '@/config/env';
 import { authHeaders } from '@/services/auth.service';
 import { getPatientById, mockPatients, type ServiceResult } from '@/services/patients';
 import type { DeliveryChannel } from '@/types/panel';
 import type { MockPrescription } from '@/types/memed';
 
-type BackendPrescription = Partial<MockPrescription> & {
-  receita?: Partial<MockPrescription>;
-  medicamento?: string;
-  orientacoes?: string;
-  duracao?: string;
+type AtendimentoReceita = {
+  dados_clinicos?: {
+    memed_receita?: {
+      receitaId?: string;
+      pdfUrl?: string;
+      receitaUrl?: string;
+      gerada_em?: string;
+    };
+  };
 };
 
 type DeliverApiResponse = {
@@ -33,19 +38,11 @@ export type PrescriptionDeliveryResult = ServiceResult<{
 
 function fallbackReason(error: unknown) {
   if (error instanceof ApiError) {
-    if (error.status === 502) {
-      return {
-        error: 'Memed real indisponivel. Exibindo receita simulada.',
-        errorCode: 'memed_unavailable',
-      };
-    }
-
     return {
-      error: error.message || 'API indisponivel.',
+      error: error.message || 'API indisponível.',
       errorCode: error.code,
     };
   }
-
   return { error: 'Falha inesperada na API.', errorCode: 'unknown' };
 }
 
@@ -65,67 +62,83 @@ function buildMockPrescription(patientId: string): MockPrescription {
   };
 }
 
-function normalizePrescription(patientId: string, data: BackendPrescription): MockPrescription {
-  const payload = data.receita || data;
-  const fallback = buildMockPrescription(patientId);
+function prescriptionFromAtendimento(id: string, atendimento: AtendimentoReceita): MockPrescription | null {
+  const receipt = atendimento.dados_clinicos?.memed_receita;
+  if (!receipt?.receitaId && !receipt?.pdfUrl && !receipt?.receitaUrl) {
+    return null;
+  }
 
+  const fallback = buildMockPrescription(id);
   return {
     ...fallback,
-    ...payload,
-    id: String(payload.id || fallback.id),
-    medication: String(payload.medication || data.medicamento || fallback.medication),
-    instructions: String(payload.instructions || data.orientacoes || fallback.instructions),
-    duration: String(payload.duration || data.duracao || fallback.duration),
+    id: String(receipt.receitaId || fallback.id),
+    instructions: 'Receita emitida e assinada no widget Memed/Sinapse (Bird ID).',
+    createdAt: receipt.gerada_em || fallback.createdAt,
   };
 }
 
-function unwrapPrescription(data: BackendPrescription | { data?: BackendPrescription }): BackendPrescription {
-  return 'data' in data && data.data ? data.data : (data as BackendPrescription);
-}
-
+/** Visualização pós-emissão — fonte: `dados_clinicos.memed_receita` (não emite receita). */
 export async function getPrescriptionByPatient(id: string): Promise<ServiceResult<MockPrescription>> {
   try {
-    const data = await apiClient.get<BackendPrescription | { data?: BackendPrescription }>(`/api/prescriptions/${id}`);
-    const row = unwrapPrescription(data);
+    const data = await apiClient.get<{ success: boolean; atendimento?: AtendimentoReceita }>(
+      `/api/atendimentos/${id}`,
+      { headers: authHeaders() },
+    );
+    const fromMemed = data.atendimento ? prescriptionFromAtendimento(id, data.atendimento) : null;
+    if (fromMemed) {
+      return { data: fromMemed, usingMockFallback: false };
+    }
 
-    return {
-      data: normalizePrescription(id, row),
-      usingMockFallback: false,
-    };
-  } catch (error) {
+    if (isMemedRealEnabled()) {
+      return {
+        data: null as unknown as MockPrescription,
+        usingMockFallback: false,
+        error: 'Receita ainda não vinculada — emita no widget Memed (/receita).',
+        errorCode: 'memed_receipt_missing',
+      };
+    }
+
     const patientResult = await getPatientById(id);
     const fallback = buildMockPrescription(id);
-
     return {
       data: patientResult.data
         ? { ...fallback, patient: patientResult.data, medication: patientResult.data.requestedMedication }
         : fallback,
+      usingMockFallback: true,
+      error: 'Receita ainda não vinculada — emita no widget Memed (/receita).',
+      errorCode: 'memed_receipt_missing',
+    };
+  } catch (error) {
+    if (isMemedRealEnabled() || !isMockFallbackEnabled()) {
+      return {
+        data: null as unknown as MockPrescription,
+        usingMockFallback: false,
+        ...fallbackReason(error),
+      };
+    }
+    const fallback = buildMockPrescription(id);
+    return {
+      data: fallback,
       usingMockFallback: true,
       ...fallbackReason(error),
     };
   }
 }
 
+/** Validação clínica pós-emissão Memed — não emite nem assina receita. */
 export async function validatePrescription(id: string): Promise<ServiceResult<MockPrescription>> {
   try {
     const validation = await apiClient.post<{ success: boolean; error?: string }>(
       `/api/atendimentos/${id}/clinical/validate`,
-      { motivo: 'Receita validada pelo médico na etapa Memed' },
+      { motivo: 'Receita validada pelo médico após emissão no widget Memed' },
       { headers: authHeaders() },
     );
     if (validation.success === false) {
       throw new ApiError('http', validation.error || 'Falha ao validar receita.', 400);
     }
-    const data = await apiClient.get<BackendPrescription | { data?: BackendPrescription }>(`/api/prescriptions/${id}`);
-    const row = unwrapPrescription(data);
-
-    return {
-      data: normalizePrescription(id, row),
-      usingMockFallback: false,
-    };
+    return getPrescriptionByPatient(id);
   } catch (error) {
     const fallback = await getPrescriptionByPatient(id);
-
     return {
       data: fallback.data,
       usingMockFallback: true,
