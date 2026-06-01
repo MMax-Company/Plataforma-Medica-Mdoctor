@@ -52,8 +52,8 @@ async function main() {
   const supabase = getSupabase();
 
   for (const table of REQUIRED_TABLES) {
-    const { error } = await supabase.from(table).select('id', { count: 'exact', head: true }).limit(1);
-    const entry = { table, ok: !error, error: error?.message || null };
+    const { data, error } = await supabase.from(table).select('id').limit(1);
+    const entry = { table, ok: !error, error: error?.message || null, sample_count: Array.isArray(data) ? data.length : null };
     report.tables.push(entry);
     if (error) {
       report.ok = false;

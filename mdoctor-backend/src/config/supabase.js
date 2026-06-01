@@ -104,7 +104,7 @@ async function pingSupabase() {
     };
   }
 
-  const probeTables = ['appointments', 'patients', 'atendimentos'];
+  const probeTables = ['appointments', 'patients'];
   let lastError = null;
   for (const table of probeTables) {
     const { error } = await supabase.from(table).select('id').limit(1);

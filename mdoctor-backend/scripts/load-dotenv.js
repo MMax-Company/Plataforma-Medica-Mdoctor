@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-function loadDotenv(filePath) {
+function loadDotenv(filePath, { override = false } = {}) {
   if (!fs.existsSync(filePath)) return;
   for (const line of fs.readFileSync(filePath, 'utf8').split(/\n/)) {
     const trimmed = line.trim();
@@ -13,10 +13,12 @@ function loadDotenv(filePath) {
     if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
       val = val.slice(1, -1);
     }
-    if (!process.env[key]) process.env[key] = val;
+    if (val === '') continue;
+    if (override || !process.env[key]) process.env[key] = val;
   }
 }
 
-loadDotenv(path.join(__dirname, '../.env'));
-loadDotenv(path.join(__dirname, '../.env.local'));
+// Arquivos locais prevalecem sobre variáveis herdadas do shell (evita ref Supabase legado).
+loadDotenv(path.join(__dirname, '../.env'), { override: true });
+loadDotenv(path.join(__dirname, '../.env.local'), { override: true });
 module.exports = { loadDotenv };
