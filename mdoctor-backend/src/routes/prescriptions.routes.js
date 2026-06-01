@@ -2,11 +2,28 @@ const express = require('express');
 const memed = require('../services/memed.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
-const { getAtendimento, updateAtendimentoStatus, STATUS } = require('../store/atendimentos.store');
-const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
-const { PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
+const { getPrescriptionByAtendimento } = require('../store/prescriptions.store');
 
 const router = express.Router();
+
+/** Fluxo oficial de emissão: widget Memed/Sinapse → prescricaoImpressa → POST /api/memed/receita */
+const OFFICIAL_MEMED_FLOW = {
+  success: false,
+  code: 'PRESCRIPTION_REST_DEPRECATED',
+  error:
+    'Emissão via REST /api/prescriptions não é fluxo oficial. Use widget Memed/Sinapse no painel e POST /api/memed/receita após confirmação do médico.',
+  officialFlow: [
+    'POST /api/memed/iniciar-emissao',
+    'widget Sinapse (painel /receita)',
+    'POST /api/memed/receita'
+  ]
+};
+
+function rejectDeprecatedEmission(res) {
+  res.setHeader('X-Deprecated-Endpoint', 'true');
+  res.setHeader('X-Official-Flow', 'memed-widget-sinapse');
+  return res.status(410).json(OFFICIAL_MEMED_FLOW);
+}
 
 function buildMockPrescription(id, payload = {}) {
   const now = new Date().toISOString();
@@ -67,140 +84,14 @@ function mockPdfBuffer(id) {
   );
 }
 
-router.post('/', requireAuth, async (req, res) => {
-  try {
-    const result = await memed.createPrescription(req.body || {});
-    if (result.source === 'memed') {
-      const saved = await savePrescription({
-        atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
-        patient_id: req.body?.patient_id || req.body?.patientId || null,
-        status: 'ready',
-        provider: 'memed',
-        provider_prescription_id: result.prescriptionId,
-        pdf_url: result.pdfUrl,
-        medications: req.body?.medications || [],
-        payload: result.data || result
-      });
-      return res.status(201).json({ ...result, data: saved });
-    }
+router.post('/', requireAuth, (req, res) => rejectDeprecatedEmission(res));
 
-    const prescriptionId = `mock-${Date.now()}`;
-    const saved = await savePrescription({
-      id: prescriptionId,
-      atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
-      patient_id: req.body?.patient_id || req.body?.patientId || null,
-      status: 'mock',
-      provider: 'mock',
-      pdf_url: `/api/prescriptions/${prescriptionId}/pdf`,
-      medications: req.body?.medications || [],
-      payload: mockPrescriptionResponse(prescriptionId, result.error, req.body || {}).data
-    });
-    return res.status(201).json({
-      ...mockPrescriptionResponse(prescriptionId, result.error, req.body || {}),
-      data: { ...mockPrescriptionResponse(prescriptionId, result.error, req.body || {}).data, stored: saved },
-      prescriptionId,
-      pdfUrl: `/api/prescriptions/${prescriptionId}/pdf`
-    });
-  } catch (error) {
-    const prescriptionId = `mock-${Date.now()}`;
-    const saved = await savePrescription({
-      id: prescriptionId,
-      atendimento_id: req.body?.atendimento_id || req.body?.atendimentoId || null,
-      patient_id: req.body?.patient_id || req.body?.patientId || null,
-      status: 'mock',
-      provider: 'mock',
-      pdf_url: `/api/prescriptions/${prescriptionId}/pdf`,
-      payload: mockPrescriptionResponse(prescriptionId, error.message, req.body || {}).data
-    });
-    return res.status(201).json({
-      ...mockPrescriptionResponse(prescriptionId, error.message, req.body || {}),
-      data: { ...mockPrescriptionResponse(prescriptionId, error.message, req.body || {}).data, stored: saved },
-      prescriptionId,
-      pdfUrl: `/api/prescriptions/${prescriptionId}/pdf`
-    });
-  }
-});
+router.post('/:id/generate', requireAuth, (req, res) => rejectDeprecatedEmission(res));
 
-router.post('/:id/generate', requireAuth, async (req, res) => {
-  const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
-  try {
-    const atendimento = await getAtendimento(req.params.id);
-    if (!atendimento) {
-      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', code: 'ATENDIMENTO_NOT_FOUND', correlationId });
-    }
-
-    const result = await memed.createPrescription({ ...atendimento, ...(req.body || {}) });
-    const saved = await savePrescription({
-      atendimento_id: atendimento.id,
-      patient_id: atendimento.patient_id || null,
-      status: result.source === 'memed' ? 'ready' : 'mock',
-      provider: result.source,
-      provider_prescription_id: result.prescriptionId,
-      pdf_url: result.pdfUrl,
-      medications: [atendimento.medicacao_em_uso || atendimento.dados_clinicos?.medicacao_em_uso || 'Medicamento conforme avaliação médica'],
-      payload: result.data || result
-    });
-
-    const updated = await updateAtendimentoStatus(atendimento.id, STATUS.MEMED_PROCESSING, {
-      motivo: result.source === 'memed' ? 'Receita gerada na Memed — em processamento' : 'Receita mock gerada para staging',
-      medicoId: req.user?.sub || null,
-      dados_clinicos: {
-        ...(atendimento.dados_clinicos || {}),
-        correlation_id: correlationId,
-        protocol_version: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
-        clinical_audit: {
-          ...(atendimento?.dados_clinicos?.clinical_audit || {}),
-          approvedBy: req.user?.sub || null,
-          approvedAt: new Date().toISOString(),
-          criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
-          protocolVersion: atendimento?.elegibilidade?.protocolVersion || PROTOCOL_VERSION,
-          mode: result.source || 'mock',
-          correlationId
-        },
-        memed_receita: {
-          receitaId: saved.id,
-          providerPrescriptionId: saved.provider_prescription_id,
-          source: result.source,
-          pdfUrl: saved.pdf_url
-        }
-      }
-    });
-
-    await createAuditLog({
-      entity_type: 'prescription',
-      entity_id: saved.id,
-      action: 'prescription_generate',
-      actor: req.user?.sub || 'backend',
-      payload: {
-        correlationId,
-        atendimento_id: atendimento.id,
-        source: result.source,
-        warning: result.warning || null,
-        criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
-        protocolVersion: atendimento?.elegibilidade?.protocolVersion || PROTOCOL_VERSION,
-        mode: result.source || 'mock'
-      }
-    });
-
-    return res.status(201).json({
-      success: true,
-      correlationId,
-      source: result.source,
-      warning: result.warning || null,
-      prescription: saved,
-      atendimento: updated,
-      data: toResponseFromStored(saved).data
-    });
-  } catch (error) {
-    return res.status(200).json({
-      ...mockPrescriptionResponse(req.params.id, error.message),
-      correlationId,
-      code: 'PRESCRIPTION_GENERATE_FALLBACK'
-    });
-  }
-});
-
+/** Leitura legada — preferir GET /api/atendimentos/:id (campo dados_clinicos.memed_receita). */
 router.get('/:id', requireAuth, async (req, res) => {
+  res.setHeader('X-Deprecated-Endpoint', 'true');
+  res.setHeader('X-Official-Flow', 'memed-widget-sinapse');
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   try {
     const stored = await getPrescriptionByAtendimento(req.params.id);

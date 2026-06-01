@@ -2,6 +2,7 @@ const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
 const { sendPrescription, isDryRunMode } = require('../delivery/delivery.service');
 const { requireAuth } = require('../auth/auth.middleware');
+const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const { createAuditLog } = require('../store/audit.store');
 const {
   VALID_STATUS,
@@ -17,9 +18,11 @@ const {
 } = require('../store/atendimentos.store');
 const { buildClinicalNarrative, PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
 const { approveAtendimento, rejectAtendimento } = require('../services/clinical-decision.service');
+const { listRejectReasons } = require('../constants/clinical-reject-reasons');
 const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue');
-const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
+const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.service');
+const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
 
 const router = express.Router();
 
@@ -53,7 +56,7 @@ function hasSuccessfulDelivery(deliveries = [], channel = '') {
 
 function assertCanDeliverPrescription(atendimento = {}) {
   const status = String(atendimento.status || '').toLowerCase();
-  const readyStatuses = new Set(['ready', 'validated', 'receita_emitida', 'aprovado']);
+  const readyStatuses = new Set(['ready', 'validated', 'aprovado']);
 
   if (!readyStatuses.has(status)) {
     return {
@@ -92,7 +95,7 @@ function buildHistoricoReceita(receipt = {}, doctorId = null, delivery = null) {
   };
 }
 
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   const atendimentos = await listAtendimentos({ status: req.query.status });
   const scope = String(req.query.scope || 'medical').toLowerCase();
   const filtered =
@@ -109,13 +112,15 @@ router.get('/support-queue', requireAuth, async (_req, res) => {
   res.json({ success: true, atendimentos, total: atendimentos.length });
 });
 
-router.get('/queue', async (_req, res) => {
+router.get('/queue', requireAuth, async (_req, res) => {
   const atendimentos = await listAtendimentos({
     status: [
       STATUS.FILA,
       STATUS.QUEUE,
       STATUS.EM_ATENDIMENTO,
       STATUS.UNDER_REVIEW,
+      STATUS.APPROVED,
+      STATUS.RECEITA_EM_EDICAO,
       STATUS.MEMED_PROCESSING,
       STATUS.AWAITING_VALIDATION,
       STATUS.PRONTO_PARA_DECISAO,
@@ -130,7 +135,7 @@ router.get('/queue', async (_req, res) => {
   });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireIngressOrAuth, async (req, res) => {
   const clinicalData = req.body?.dados_clinicos || req.body || {};
   const decision = eligibilityEngine.evaluate(clinicalData);
   const clinicalNarrative = buildClinicalNarrative({
@@ -192,13 +197,62 @@ router.post('/', async (req, res) => {
   res.status(201).json({ success: true, atendimento });
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
+  return res.json({ success: true, reasons: listRejectReasons() });
+});
+
+router.get('/:id', requireAuth, async (req, res) => {
   const atendimento = await getAtendimento(req.params.id);
   if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
   return res.json({ success: true, atendimento });
 });
 
-router.get('/:id/decisoes', async (req, res) => {
+router.get('/:id/previous-prescription/view-url', requireAuth, async (req, res) => {
+  const atendimento = await getAtendimento(req.params.id);
+  if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+
+  const clinical = atendimento.dados_clinicos || {};
+  if (!hasStoredPreviousPrescription(clinical)) {
+    return res.status(404).json({ success: false, error: 'Nenhuma receita anterior anexada neste atendimento' });
+  }
+
+  const storagePath = clinical.previous_prescription_storage_path;
+  if (storagePath) {
+    try {
+      const viewUrl = await createViewSignedUrl(storagePath);
+      return res.json({
+        success: true,
+        viewUrl,
+        mimeType: clinical.previous_prescription_mime_type || null,
+        uploadedAt: clinical.previous_prescription_uploaded_at || null
+      });
+    } catch (error) {
+      return res.status(502).json({
+        success: false,
+        error: error.message || 'Falha ao gerar link de visualização'
+      });
+    }
+  }
+
+  const fallbackUrl =
+    clinical.previous_prescription_url ||
+    clinical.foto_receita_url ||
+    clinical.previous_prescription_file ||
+    null;
+
+  if (!fallbackUrl) {
+    return res.status(404).json({ success: false, error: 'URL da receita anterior indisponível' });
+  }
+
+  return res.json({
+    success: true,
+    viewUrl: fallbackUrl,
+    mimeType: clinical.previous_prescription_mime_type || null,
+    uploadedAt: clinical.previous_prescription_uploaded_at || null
+  });
+});
+
+router.get('/:id/decisoes', requireAuth, async (req, res) => {
   const decisoes = await listDecisoesLog(req.params.id);
   return res.json({ success: true, decisoes });
 });
@@ -291,7 +345,9 @@ router.post('/:id/clinical/reject', requireAuth, async (req, res) => {
     correlationId,
     atendimento: result.atendimento,
     decisao: result.decisao,
-    notification: result.notification
+    notification: result.notification,
+    reason_code: result.reason_code,
+    reason_label: result.reason_label
   });
 });
 
@@ -310,6 +366,29 @@ router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
   }
 
   const receipt = previous.dados_clinicos?.memed_receita || {};
+  if (!receipt.receitaId && !receipt.memed_id && !receipt.pdfUrl && !receipt.receitaUrl) {
+    return res.status(422).json({
+      success: false,
+      error: 'Nenhuma receita Memed vinculada para validar.',
+      correlationId
+    });
+  }
+
+  const validatableStatuses = new Set([
+    STATUS.RECEITA_EMITIDA,
+    STATUS.MEMED_PROCESSING,
+    STATUS.AWAITING_VALIDATION,
+    'receita_emitida',
+    'memed_processing'
+  ]);
+  if (!validatableStatuses.has(status)) {
+    return res.status(409).json({
+      success: false,
+      error: 'Validação só após emissão da receita via Memed (status receita_emitida).',
+      correlationId
+    });
+  }
+
   const validatedAt = new Date().toISOString();
   const enrichedReceipt = {
     ...receipt,
@@ -504,18 +583,19 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
     finalizado_em: new Date().toISOString()
   };
 
-  const atendimento = await updateAtendimentoStatus(req.params.id, STATUS.DELIVERED, {
-    motivo: `Receita enviada por ${channel}`,
-    medicoId: authenticatedDoctorId,
-    dados_clinicos: {
-      ...previousClinical,
-      correlation_id: correlationId,
-      memed_receita: receipt,
-      historico_receita: historicoReceita,
-      entrega_receita: delivery,
-      entregas_receita: allDeliveries
-    }
-  });
+  const atendimento =
+    (await updateAtendimentoStatus(req.params.id, STATUS.DELIVERED, {
+      motivo: `Receita enviada por ${channel}`,
+      medicoId: authenticatedDoctorId,
+      dados_clinicos: {
+        ...previousClinical,
+        correlation_id: correlationId,
+        memed_receita: receipt,
+        historico_receita: historicoReceita,
+        entrega_receita: delivery,
+        entregas_receita: allDeliveries
+      }
+    })) || (await getAtendimento(req.params.id));
 
   const decisao = await createDecisaoLog({
     atendimento_id: req.params.id,
