@@ -1,10 +1,16 @@
-const memed = require('./memed.service');
 const { PROTOCOL_VERSION } = require('./clinical-intelligence.service');
 const { isVisibleInMedicalPanel } = require('./clinical-payload-normalizer.service');
 const { DEFAULT_REJECT_MESSAGE, notifyClinicalRejection } = require('./n8n-clinical-notify.service');
+const { buildRejectMotivoText, validateRejectPayload } = require('../constants/clinical-reject-reasons');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
-const { savePrescription } = require('../store/prescriptions.store');
+
+function resolveDecisionRationale(rationale, notes) {
+  if (rationale && typeof rationale === 'object') {
+    return rationale.text || rationale.reasonLabel || notes || null;
+  }
+  return rationale || notes || null;
+}
 
 function buildClinicalAudit(previous, { doctorId, correlationId, decision, rationale, notes }) {
   const timestamp = new Date().toISOString();
@@ -16,16 +22,22 @@ function buildClinicalAudit(previous, { doctorId, correlationId, decision, ratio
       previous?.elegibilidade?.protocolVersion || previous?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
     mode: previous?.dados_clinicos?.clinical_audit?.mode || 'panel',
     correlationId,
-    decisionRationale: rationale || notes || null,
+    decisionRationale: resolveDecisionRationale(rationale, notes),
     observacao_medica: notes || previous?.dados_clinicos?.observacao_medica || null,
     medico_responsavel: doctorId || previous?.dados_clinicos?.clinical_audit?.medico_responsavel || null
   };
 
   if (decision === 'rejected') {
+    const reasonCode =
+      (typeof rationale === 'object' && rationale.reasonCode) || base.rejectReasonCode || null;
+    const reasonLabel =
+      (typeof rationale === 'object' && rationale.reasonLabel) || base.rejectReasonLabel || null;
     return {
       ...base,
       rejectedBy: doctorId,
-      rejectedAt: timestamp
+      rejectedAt: timestamp,
+      rejectReasonCode: reasonCode,
+      rejectReasonLabel: reasonLabel
     };
   }
 
@@ -62,6 +74,40 @@ function assertCanApprove(atendimento) {
 
   if (atendimento.dados_clinicos?.memed_bloqueado === true) {
     return { ok: false, statusCode: 409, error: 'Memed bloqueada para este atendimento reprovado' };
+  }
+
+  const alreadyApprovedStatuses = new Set([
+    STATUS.APPROVED,
+    STATUS.RECEITA_EM_EDICAO,
+    STATUS.RECEITA_EMITIDA,
+    STATUS.MEMED_PROCESSING,
+    STATUS.AWAITING_VALIDATION,
+    STATUS.READY,
+    STATUS.VALIDATED,
+    STATUS.APROVADO,
+    STATUS.DELIVERED,
+    STATUS.FINISHED,
+    'approved',
+    'receita_em_edicao',
+    'receita_emitida',
+    'memed_processing'
+  ]);
+  if (alreadyApprovedStatuses.has(status)) {
+    return {
+      ok: false,
+      statusCode: 409,
+      error: 'Atendimento já aprovado ou em processamento de receita. Aprovação duplicada não permitida.',
+      code: 'CLINICAL_ALREADY_APPROVED'
+    };
+  }
+
+  if (atendimento.dados_clinicos?.memed_receita?.receitaId || atendimento.dados_clinicos?.memed_receita?.providerPrescriptionId) {
+    return {
+      ok: false,
+      statusCode: 409,
+      error: 'Receita Memed já vinculada a este atendimento.',
+      code: 'MEMED_PRESCRIPTION_ALREADY_EXISTS'
+    };
   }
 
   if (!isVisibleInMedicalPanel(atendimento)) {
@@ -138,27 +184,6 @@ async function persistClinicalDecision({
   return { atendimento, decisao };
 }
 
-async function triggerMemedForAtendimento(atendimento, { doctorId, correlationId }) {
-  const result = await memed.createPrescription(atendimento);
-  const saved = await savePrescription({
-    atendimento_id: atendimento.id,
-    patient_id: atendimento.patient_id || null,
-    status: result.source === 'memed' ? 'processing' : 'mock',
-    provider: result.source,
-    provider_prescription_id: result.prescriptionId,
-    pdf_url: result.pdfUrl,
-    medications: [
-      atendimento.medicacao_em_uso ||
-        atendimento.dados_clinicos?.medicacao_em_uso ||
-        atendimento.dados_clinicos?.medicamento ||
-        'Medicamento conforme avaliação médica'
-    ],
-    payload: result.data || result
-  });
-
-  return { result, saved };
-}
-
 async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
   const doctorId = meta.doctorId || null;
   const correlationId = meta.correlationId || `approve-${Date.now()}`;
@@ -185,6 +210,7 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     null;
 
   const mergedClinical = mergeClinicalPayload(previous, body);
+  const approvedAt = new Date().toISOString();
   const clinicalAudit = buildClinicalAudit(previous, {
     doctorId,
     correlationId,
@@ -196,45 +222,39 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
   mergedClinical.clinical_audit = clinicalAudit;
   mergedClinical.conduta_medica = conduta;
   mergedClinical.correlation_id = correlationId;
-
-  let memedOutcome = null;
-  let memedError = null;
-
-  try {
-    memedOutcome = await triggerMemedForAtendimento(previous, { doctorId, correlationId });
-    mergedClinical.memed_receita = {
-      receitaId: memedOutcome.saved.id,
-      providerPrescriptionId: memedOutcome.saved.provider_prescription_id,
-      source: memedOutcome.result.source,
-      pdfUrl: memedOutcome.saved.pdf_url,
-      warning: memedOutcome.result.warning || null,
-      memedError: memedOutcome.result.memedError || null,
-      gerada_em: new Date().toISOString()
-    };
-    if (memedOutcome.result.memedError) {
-      memedError = memedOutcome.result.memedError;
-      mergedClinical.memed_erro = memedOutcome.result.memedError;
-    }
-  } catch (error) {
-    memedError = { code: 'MEMED_TRIGGER_FAILED', message: error.message };
-    mergedClinical.memed_erro = memedError;
-  }
+  mergedClinical.memed_context = {
+    fluxo: 'sinapse_widget',
+    pendente_emissao: true,
+    emissao_automatica: false,
+    approved_at: approvedAt,
+    approved_by: doctorId
+  };
 
   const { atendimento, decisao } = await persistClinicalDecision({
     atendimentoId,
     previous,
-    status: STATUS.MEMED_PROCESSING,
-    motivo: body.motivo || 'Atendimento aprovado — prescrição em processamento na Memed',
+    status: STATUS.APPROVED,
+    motivo: body.motivo || 'Atendimento aprovado — aguardando emissão explícita via Memed Sinapse',
     doctorId,
     correlationId,
     dados_clinicos: mergedClinical,
     snapshotExtra: {
       decision: 'approved',
       conduta_medica: conduta,
-      memedSource: memedOutcome?.result?.source || null,
-      memedError
+      memedEmission: 'manual_sinapse_required'
     }
   });
+
+  if (!atendimento) {
+    return {
+      ok: false,
+      statusCode: 502,
+      error: 'Falha ao persistir status approved do atendimento',
+      code: 'CLINICAL_APPROVE_PERSIST_FAILED',
+      correlationId,
+      decisao
+    };
+  }
 
   await createAuditLog({
     entity_type: 'atendimento',
@@ -243,8 +263,7 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     actor: doctorId || 'backend',
     payload: {
       correlationId,
-      memedSource: memedOutcome?.result?.source || null,
-      memedError,
+      memedEmission: 'manual_sinapse_required',
       protocolVersion: PROTOCOL_VERSION
     }
   });
@@ -253,14 +272,10 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     ok: true,
     atendimento,
     decisao,
-    memed: memedOutcome
-      ? {
-          source: memedOutcome.result.source,
-          prescription: memedOutcome.saved,
-          warning: memedOutcome.result.warning || null,
-          error: memedError
-        }
-      : { error: memedError },
+    memed: {
+      emission: 'manual_sinapse_required',
+      nextStep: 'POST /api/memed/iniciar-emissao then widget Sinapse + POST /api/memed/receita'
+    },
     correlationId
   };
 }
@@ -273,21 +288,40 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     return { ok: false, statusCode: 404, error: 'Atendimento não encontrado' };
   }
 
-  const notes = body.observacao_medica || body.notes || null;
+  const validation = validateRejectPayload(body);
+  if (!validation.ok) {
+    return validation;
+  }
+
+  const { reasonCode, detail, meta: reasonMeta } = validation;
+  const notes = body.observacao_medica || body.notes || detail || null;
+  const motivo = buildRejectMotivoText({ reasonCode, detail: detail || notes });
+
   const mergedClinical = mergeClinicalPayload(previous, body);
   mergedClinical.memed_bloqueado = true;
+  mergedClinical.motivo_rejeicao = {
+    code: reasonCode,
+    label: reasonMeta.label,
+    detail: detail || notes || null,
+    rejected_at: new Date().toISOString(),
+    rejected_by: doctorId
+  };
+
   const clinicalAudit = buildClinicalAudit(previous, {
     doctorId,
     correlationId,
     decision: 'rejected',
-    rationale: body.motivo || notes || 'Atendimento reprovado pelo médico',
+    rationale: {
+      reasonCode,
+      reasonLabel: reasonMeta.label,
+      text: motivo
+    },
     notes
   });
 
   mergedClinical.clinical_audit = clinicalAudit;
   mergedClinical.correlation_id = correlationId;
 
-  const motivo = body.motivo || notes || 'Atendimento reprovado pelo médico';
   const { atendimento, decisao } = await persistClinicalDecision({
     atendimentoId,
     previous,
@@ -296,7 +330,12 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     doctorId,
     correlationId,
     dados_clinicos: mergedClinical,
-    snapshotExtra: { decision: 'rejected', observacao_medica: notes }
+    snapshotExtra: {
+      decision: 'rejected',
+      observacao_medica: notes,
+      reason_code: reasonCode,
+      reason_label: reasonMeta.label
+    }
   });
 
   const message = body.mensagem_whatsapp || DEFAULT_REJECT_MESSAGE;
@@ -331,6 +370,9 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     actor: doctorId || 'backend',
     payload: {
       correlationId,
+      reason_code: reasonCode,
+      reason_label: reasonMeta.label,
+      motivo_resumido: motivo,
       whatsappSent: notification.sent,
       whatsappSkipped: notification.skipped || false,
       whatsappError: notification.error || null,
@@ -343,12 +385,15 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     atendimento,
     decisao,
     notification,
-    correlationId
+    correlationId,
+    reason_code: reasonCode,
+    reason_label: reasonMeta.label
   };
 }
 
 module.exports = {
   approveAtendimento,
   rejectAtendimento,
-  assertCanApprove
+  assertCanApprove,
+  validateRejectPayload
 };

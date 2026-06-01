@@ -82,6 +82,25 @@ async function getPatient(id) {
   return data ? rowToPatient(data) : null;
 }
 
+async function findPatientByPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const data = await dbQuery('buscar paciente por telefone', async (supabase) =>
+    supabase.from(T.PATIENTS).select('*').ilike('phone', `%${digits.slice(-8)}%`).limit(5)
+  );
+  const match = (data || []).find(
+    (row) => String(row.phone || '').replace(/\D/g, '') === digits
+  );
+  return match ? rowToPatient(match) : null;
+}
+
+async function findOrCreatePatient(input) {
+  const phone = input.phone || input.telefone || input.from || input.patientPhone;
+  const existing = await findPatientByPhone(phone);
+  if (existing) return existing;
+  return createPatient(input);
+}
+
 async function createPatient(input) {
   try {
     const data = await insertPatientRow(officialPatientRow(input));
@@ -115,6 +134,8 @@ async function updatePatientStatus(id, status, meta = {}) {
 module.exports = {
   listPatients,
   getPatient,
+  findPatientByPhone,
+  findOrCreatePatient,
   createPatient,
   updatePatientStatus
 };

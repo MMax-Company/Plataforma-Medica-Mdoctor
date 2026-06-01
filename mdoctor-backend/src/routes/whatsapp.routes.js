@@ -270,7 +270,7 @@ router.post('/webhook', async (req, res) => {
   if (!from) return res.status(400).json({ success: false, error: 'from obrigatório', correlationId });
 
   if (idempotencyKey) {
-    const remembered = getRememberedWebhookResult(idempotencyKey);
+    const remembered = await getRememberedWebhookResult(idempotencyKey);
     if (remembered?.atendimentoId) {
       const rememberedAtendimento = await getAtendimento(remembered.atendimentoId);
       if (rememberedAtendimento?.origem === 'whatsapp') {
@@ -332,11 +332,15 @@ router.post('/webhook', async (req, res) => {
         }
       });
 
-      rememberWebhookResult(idempotencyKey, {
-        atendimentoId: duplicated.id,
-        decision: duplicated.elegibilidade || null,
-        reply
-      });
+      await rememberWebhookResult(
+        idempotencyKey,
+        {
+          atendimentoId: duplicated.id,
+          decision: duplicated.elegibilidade || null,
+          reply
+        },
+        { source: 'whatsapp' }
+      );
 
       return res.json({
         success: true,
@@ -606,11 +610,15 @@ router.post('/webhook', async (req, res) => {
   });
 
   if (idempotencyKey) {
-    rememberWebhookResult(idempotencyKey, {
-      atendimentoId: atendimento.id,
-      decision,
-      reply
-    });
+    await rememberWebhookResult(
+      idempotencyKey,
+      {
+        atendimentoId: atendimento.id,
+        decision,
+        reply
+      },
+      { source: 'whatsapp' }
+    );
   }
 
   return res.json({

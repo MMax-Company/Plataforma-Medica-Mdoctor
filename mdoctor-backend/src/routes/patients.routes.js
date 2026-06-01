@@ -1,5 +1,6 @@
 const express = require('express');
 const { requireAuth } = require('../auth/auth.middleware');
+const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const {
   listPatients,
   getPatient,
@@ -15,7 +16,7 @@ router.get('/', requireAuth, async (_req, res) => {
   res.json({ success: true, patients });
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireIngressOrAuth, async (req, res) => {
   const patient = await createPatient(req.body || {});
   res.status(201).json({ success: true, patient });
 });
