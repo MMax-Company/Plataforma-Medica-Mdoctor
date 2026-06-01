@@ -107,7 +107,7 @@ async function pingSupabase() {
   const probeTables = ['appointments', 'patients', 'atendimentos'];
   let lastError = null;
   for (const table of probeTables) {
-    const { error } = await supabase.from(table).select('id', { count: 'exact', head: true }).limit(1);
+    const { error } = await supabase.from(table).select('id').limit(1);
     if (!error) {
       lastError = null;
       break;

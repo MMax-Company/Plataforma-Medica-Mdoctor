@@ -1,6 +1,6 @@
 const { randomUUID } = require('crypto');
 const T = require('../db/tables');
-const { dbQuery, throwOnDbError } = require('../db/persistence');
+const { dbQuery, PersistenceError, requireSupabaseClient } = require('../db/persistence');
 
 function rowToPatient(row = {}) {
   const name = row.full_name || row.nome || row.name || '';
@@ -23,7 +23,7 @@ function rowToPatient(row = {}) {
   };
 }
 
-function patientToRow(patient = {}) {
+function officialPatientRow(patient = {}) {
   const name = patient.name || patient.nome || patient.patientName || 'Paciente sem nome';
   const phone = patient.phone || patient.telefone || patient.from || patient.patientPhone || '';
   return {
@@ -43,6 +43,31 @@ function patientToRow(patient = {}) {
   };
 }
 
+function legacyPatientRow(patient = {}) {
+  const name = patient.name || patient.nome || patient.patientName || 'Paciente sem nome';
+  const phone = patient.phone || patient.telefone || patient.from || patient.patientPhone || '';
+  return {
+    id: patient.id || randomUUID(),
+    nome: name,
+    telefone: phone,
+    cpf: patient.cpf || patient.patientDocument || '',
+    email: patient.email || patient.patientEmail || '',
+    data_nascimento: patient.birth_date || patient.data_nascimento || ''
+  };
+}
+
+function isSchemaColumnError(error) {
+  const message = String(error?.message || error || '');
+  return /Could not find|schema cache|column/i.test(message);
+}
+
+async function insertPatientRow(row) {
+  const supabase = requireSupabaseClient('criar paciente');
+  const { data, error } = await supabase.from(T.PATIENTS).insert(row).select('*').single();
+  if (error) throw new PersistenceError(error.message, { context: 'criar paciente' }, error);
+  return data;
+}
+
 async function listPatients() {
   const data = await dbQuery('listar pacientes', async (supabase) =>
     supabase.from(T.PATIENTS).select('*').order('created_at', { ascending: false })
@@ -58,11 +83,14 @@ async function getPatient(id) {
 }
 
 async function createPatient(input) {
-  const row = patientToRow(input);
-  const data = await dbQuery('criar paciente', async (supabase) =>
-    supabase.from(T.PATIENTS).insert(row).select('*').single()
-  );
-  return rowToPatient(data);
+  try {
+    const data = await insertPatientRow(officialPatientRow(input));
+    return rowToPatient(data);
+  } catch (error) {
+    if (!isSchemaColumnError(error.cause || error)) throw error;
+    const data = await insertPatientRow(legacyPatientRow(input));
+    return rowToPatient(data);
+  }
 }
 
 async function updatePatientStatus(id, status, meta = {}) {
@@ -73,10 +101,15 @@ async function updatePatientStatus(id, status, meta = {}) {
       notes: meta.notes || ''
     }
   };
-  const data = await dbQuery('atualizar paciente', async (supabase) =>
-    supabase.from(T.PATIENTS).update(updates).eq('id', id).select('*').single()
-  );
-  return data ? rowToPatient(data) : null;
+  try {
+    const data = await dbQuery('atualizar paciente', async (supabase) =>
+      supabase.from(T.PATIENTS).update(updates).eq('id', id).select('*').single()
+    );
+    return data ? rowToPatient(data) : null;
+  } catch (error) {
+    if (!isSchemaColumnError(error.cause || error)) throw error;
+    return getPatient(id);
+  }
 }
 
 module.exports = {

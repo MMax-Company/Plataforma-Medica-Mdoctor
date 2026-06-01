@@ -1,130 +1,147 @@
 # Supabase produção oficial — Doctor Prescreve
 
-Banco definitivo do sistema. **Sem fallback in-memory.** Se o Supabase falhar, a API retorna erro `503` (`PERSISTENCE_REQUIRED`).
+Banco definitivo. **Sem fallback in-memory.** Falha de banco → HTTP `503` (`PERSISTENCE_REQUIRED`).
 
-## 1. Novo projeto Supabase
+## Checklist de fechamento (itens 1–6)
 
-1. Criar projeto em [supabase.com](https://supabase.com) (região `sa-east-1` recomendada para BR).
-2. Anotar:
-   - `Project URL` → `SUPABASE_URL`
-   - `service_role` (secret) → `SUPABASE_SERVICE_ROLE_KEY`
-   - `anon` → apenas no frontend, se necessário
-3. Aplicar migrations em ordem:
+### 1. Projeto Supabase oficial (manual no dashboard)
 
-```bash
-# Via SQL Editor ou CLI
-mdoctor-backend/supabase/migrations/20260527_backend_mvp_storage.sql
-mdoctor-backend/supabase/migrations/20260528_receitas_anteriores_bucket.sql
-mdoctor-backend/supabase/migrations/20260529_clinical_receipt_status_flow.sql
-mdoctor-backend/supabase/migrations/20260530_webhook_events_idempotency.sql
-mdoctor-backend/supabase/migrations/20260601_doctor_prescreve_production_official.sql
-```
+| Passo | Ação |
+|-------|------|
+| Criar projeto | [supabase.com](https://supabase.com) → região `sa-east-1` |
+| Copiar keys | Settings → API: `URL`, `anon`, `service_role` |
+| Connection string | Settings → Database → URI → `SUPABASE_DB_URL` |
+| Pooling | Usar connection pooling (porta 6543) no Railway se disponível |
 
-4. Validar com:
+### 2. Aplicar migrations (ordem obrigatória)
 
 ```bash
-node mdoctor-backend/scripts/supabase-production-persistence-test.js
+cd mdoctor-backend
+npm install
+# Definir SUPABASE_DB_URL no .env ou LOAD_RAILWAY_VARS=1
+npm run supabase:migrate
 ```
 
-## 2. Variáveis de ambiente (Railway / produção)
+Arquivos:
 
-| Variável | Obrigatória | Descrição |
-|----------|-------------|-----------|
-| `SUPABASE_URL` | Sim | URL do projeto **novo** |
-| `SUPABASE_SERVICE_ROLE_KEY` | Sim | Chave service role (backend only) |
-| `SUPABASE_REQUIRED` | Sim (`true`) | Bloqueia boot sem banco |
-| `DISABLE_LOCAL_DB_FALLBACK` | Sim (`true`) | Legado; mantido para readiness |
-| `ENVIRONMENT_NAME` | `staging` / `production` | Runtime estrito |
+1. `20260527_backend_mvp_storage.sql`
+2. `20260528_receitas_anteriores_bucket.sql`
+3. `20260529_clinical_receipt_status_flow.sql`
+4. `20260530_webhook_events_idempotency.sql`
+5. `20260601_doctor_prescreve_production_official.sql`
+6. `20260602_fechamento_stripe_payments_idempotency.sql`
 
-**Remover** URLs e keys de projetos Supabase antigos em Railway, n8n e `.env` locais.
+### 3. Validar infraestrutura
 
-Modo local **somente** para smoke sem banco: `SUPABASE_PERSISTENCE_OPTIONAL=true` (não usar em staging/prod).
-
-## 3. Arquitetura de persistência
-
-```
-API Express → stores → Supabase (service_role)
-                ↓
-         appointments (fila/prontuário/receita)
-         patients, triage_sessions, medical_eligibility
-         prescriptions, prescription_delivery
-         support_tickets, audit_logs, n8n_events
-         whatsapp_messages, payments, ...
+```bash
+# .env com SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY
+npm run supabase:validate
 ```
 
-Rotas HTTP mantêm paths atuais (`/api/atendimentos`, etc.). Internamente, `atendimentos.store` persiste em **`appointments`**.
+Confirma tabelas: `appointments`, `patients`, `triage_sessions`, `payments`, `payment_events`, `n8n_events`, etc. e buckets oficiais.
 
-## 4. Tabelas oficiais (35+)
+### 4. Railway — variáveis definitivas
 
-| Domínio | Tabelas |
-|---------|---------|
-| Paciente | `patients`, `patient_addresses`, `patient_documents` |
-| Triagem | `triage_sessions`, `triage_answers`, `medical_protocols`, `medical_eligibility` |
-| Atendimento | `appointments`, `appointment_status_history` |
-| Suporte | `support_tickets`, `support_messages` |
-| Pagamento | `payments`, `payment_events` |
-| Receita | `prescriptions`, `prescription_items`, `prescription_delivery` |
-| Prontuário | `medical_records`, `medical_record_versions`, `medical_decisions`, `medical_logs` |
-| Auditoria | `audit_logs`, `integration_logs`, `error_logs`, `system_events` |
-| Integrações | `whatsapp_sessions`, `whatsapp_messages`, `n8n_events`, `typebot_sessions` |
-| Upload | `uploaded_files`, `uploaded_prescriptions` |
-| Médicos | `doctor_profiles`, `doctor_sessions`, `doctor_permissions` |
-| Sistema | `system_settings` |
+**Remover** (projeto Supabase antigo):
 
-Migração copia dados de `atendimentos` → `appointments` quando a tabela legada existir.
+- `SUPABASE_URL` antiga
+- `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SERVICE_KEY` antigas
+- `SUPABASE_ANON_KEY` antiga (se apontar projeto velho)
 
-## 5. Storage buckets
+**Adicionar / manter:**
 
-| Bucket | Uso |
-|--------|-----|
-| `receitas` | PDFs emitidos (Memed) |
-| `uploads` | Upload externo Typebot |
-| `prontuarios` | Documentos de prontuário |
-| `anexos` | Anexos gerais |
-| `receitas-antigas` | Foto receita anterior |
-| `documentos-clinicos` | Consentimentos / documentos |
+| Variável | Valor |
+|----------|--------|
+| `SUPABASE_URL` | URL do projeto **novo** |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role do projeto **novo** |
+| `SUPABASE_REQUIRED` | `true` |
+| `DISABLE_LOCAL_DB_FALLBACK` | `true` |
+| `ENVIRONMENT_NAME` | `staging` ou `production` |
+| `N8N_WEBHOOK_SECRET` | secret ingress (n8n + rotas abertas) |
+| `STRIPE_SECRET_KEY` | Stripe live/test conforme ambiente |
+| `STRIPE_WEBHOOK_SECRET` | signing secret do endpoint `/api/webhooks/stripe` |
 
-## 6. RLS
+Opcional painel: `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` (somente se painel chamar Supabase direto).
 
-Todas as tabelas com RLS habilitado. Política padrão: **`service_role` full access** (backend). Acesso `anon`/`authenticated` bloqueado até políticas por perfil médico (fase Auth Supabase).
+```bash
+# Carregar vars do Railway staging backend e aplicar SQL
+LOAD_RAILWAY_VARS=1 npm run supabase:migrate
+```
 
-## 7. Fluxos persistidos
+### 5. Testes de fechamento
 
-| Fluxo | Tabela principal |
-|-------|------------------|
-| Paciente Typebot | `patients` + `triage_sessions` |
-| Elegibilidade | `medical_eligibility` + `appointments.eligibility` |
-| Fila médica | `appointments` |
-| Prontuário | `medical_records` |
-| Decisão médica | `medical_decisions` + `audit_logs` |
-| Memed | `prescriptions` |
-| Entrega WhatsApp | `prescription_delivery` + `whatsapp_messages` |
-| Suporte | `support_tickets` |
-| Webhook n8n | `n8n_events` (idempotência) |
-| Stripe | `payments` + `payment_events` |
+```bash
+npm run supabase:fechamento      # testes 1–7 integrados
+npm run supabase:test            # testes persistência 1–10
+```
 
-## 8. Testes obrigatórios
+Após deploy Railway: `GET /readyz` deve retornar `storage.mode: "supabase"`.
 
-Script único: `scripts/supabase-production-persistence-test.js` (testes 1–10).
+### 6. Stripe + idempotência
 
-Teste de carga: executar múltiplas vezes com `ts` diferente; confirmar ausência de duplicidade via `n8n_events.idempotency_key` nos webhooks.
+- Endpoint: `POST /api/webhooks/stripe` (body raw, assinatura `stripe-signature`)
+- Metadata obrigatória no Checkout: `atendimento_id` (UUID do `appointments`)
+- Idempotência: `payment_events.provider_event_id` = Stripe `event.id` (unique index)
+- Webhook triagem/WhatsApp: `n8n_events.idempotency_key`
 
-## 9. Limpeza pós-validação
+## Arquitetura de persistência
 
-Após validar dados migrados, descomentar no final da migration `20260601`:
+```
+Typebot/n8n → /api/webhook/triagem | /api/whatsapp/webhook
+       ↓
+clinical-persistence.service
+  → patients, triage_sessions, medical_eligibility, typebot_sessions, medical_records
+  → appointments (fila)
+       ↓
+Stripe → /api/webhooks/stripe → payments + payment_events → appointments.payment_status
+```
+
+Rotas HTTP **inalteradas** (`/api/atendimentos`, etc.). Persistência interna em tabelas oficiais.
+
+## Tabelas críticas validadas
+
+`appointments`, `patients`, `triage_sessions`, `triage_answers`, `medical_records`, `medical_decisions`, `payments`, `payment_events`, `prescriptions`, `prescription_delivery`, `support_tickets`, `whatsapp_messages`, `whatsapp_sessions`, `n8n_events`, `typebot_sessions`, `audit_logs`, `integration_logs`, `error_logs`
+
+## Storage buckets
+
+`receitas`, `uploads`, `prontuarios`, `anexos`, `receitas-antigas`, `documentos-clinicos`
+
+Upload de teste (service role):
+
+```javascript
+// via backend /api/upload-receita ou script dedicado
+```
+
+## n8n / Typebot
+
+- Webhook backend: `{BACKEND}/api/webhook/triagem` e `{BACKEND}/api/whatsapp/webhook`
+- Header: `X-MDoctor-Webhook-Secret: $N8N_WEBHOOK_SECRET`
+- Idempotency-Key recomendado em cada POST
+- n8n deve usar **nova** `SUPABASE_URL` apenas se nó Supabase direto; fluxo canônico persiste via backend
+
+## Limpeza pós-validação
+
+Descomentar no final de `20260601_doctor_prescreve_production_official.sql`:
 
 ```sql
 drop table if exists public.atendimentos cascade;
-drop table if exists public.decisoes_log cascade;
-drop table if exists public.entregas_receita cascade;
 drop table if exists public.webhook_events cascade;
 ```
 
-## 10. Commits sugeridos
+## Commits desta fase (sugeridos)
 
-1. `feat: estrutura oficial supabase produção`
-2. `feat: persistência clínica definitiva`
-3. `feat: integração backend supabase oficial`
-4. `feat: storage e auditoria clínica`
-5. `fix: remoção fallback in-memory`
-6. `fix: estabilização persistência produção`
+1. `feat: supabase oficial definitivo` — migrations + scripts migrate/validate
+2. `feat: persistência clínica definitiva` — clinical-persistence.service
+3. `feat: integração n8n typebot supabase` — triagem + suporte
+4. `feat: stripe webhook idempotency` — payments.store + migration 20260602
+5. `fix: remoção completa fallback memória` — (já aplicado nos stores)
+6. `fix: estabilização persistência produção` — fechamento scripts + docs
+
+## Resultado esperado
+
+- Migrations aplicadas no projeto novo
+- Railway com envs novas
+- `/readyz` OK
+- `npm run supabase:fechamento` verde
+- Reinício do serviço **não** apaga dados
+- Duplicata de webhook Stripe/n8n **não** duplica pagamento/atendimento

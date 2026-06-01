@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const T = require('../db/tables');
 const { dbQuery } = require('../db/persistence');
+const { getAppointmentTable } = require('../db/resolve-tables');
 const { rowToAtendimento, atendimentoToRow } = require('../db/appointment-mapper');
 const { createAuditLog } = require('./audit.store');
 
@@ -256,6 +257,13 @@ function normalizeAtendimento(input = {}) {
 }
 
 function fromSupabase(row = {}) {
+  if (row.paciente_nome || row.dados_clinicos) {
+    return normalizeAtendimento({
+      ...row,
+      dados_clinicos: row.dados_clinicos || row.clinical_data || {},
+      status: resolveEffectiveStatus(row.status, row.dados_clinicos || row.clinical_data)
+    });
+  }
   const mapped = rowToAtendimento(row);
   return normalizeAtendimento({
     ...mapped,
@@ -263,12 +271,40 @@ function fromSupabase(row = {}) {
   });
 }
 
+function toStorageRow(atendimento, table) {
+  if (table === 'atendimentos') {
+    return {
+      id: atendimento.id,
+      patient_id: atendimento.patient_id || null,
+      status: toPersistedStatus(atendimento.status),
+      paciente_nome: atendimento.paciente_nome,
+      paciente_telefone: atendimento.paciente_telefone,
+      paciente_cpf: atendimento.paciente_cpf,
+      paciente_email: atendimento.paciente_email,
+      condicao: atendimento.condicao,
+      medicacao_em_uso: atendimento.medicacao_em_uso,
+      origem: atendimento.origem,
+      pagamento_status: atendimento.pagamento_status,
+      risco: atendimento.risco,
+      elegibilidade: atendimento.elegibilidade,
+      dados_clinicos: atendimento.dados_clinicos,
+      motivo_decisao: atendimento.motivo_decisao,
+      medico_id: atendimento.medico_id,
+      criado_em: atendimento.criado_em,
+      atualizado_em: atendimento.atualizado_em
+    };
+  }
+  return {
+    ...atendimentoToRow(atendimento),
+    status: toPersistedStatus(atendimento.status)
+  };
+}
+
 async function listAtendimentos(filters = {}) {
+  const table = await getAppointmentTable();
+  const orderCol = table === 'atendimentos' ? 'criado_em' : 'created_at';
   const data = await dbQuery('listar appointments', async (supabase) =>
-    supabase
-      .from(T.APPOINTMENTS)
-      .select('*')
-      .order('created_at', { ascending: false })
+    supabase.from(table).select('*').order(orderCol, { ascending: false })
   );
   const selected = filters.status
     ? new Set(String(filters.status).split(',').map((status) => normalizeStatus(status.trim())))
@@ -277,20 +313,19 @@ async function listAtendimentos(filters = {}) {
 }
 
 async function getAtendimento(id) {
+  const table = await getAppointmentTable();
   const data = await dbQuery('buscar appointment', async (supabase) =>
-    supabase.from(T.APPOINTMENTS).select('*').eq('id', id).maybeSingle()
+    supabase.from(table).select('*').eq('id', id).maybeSingle()
   );
   return data ? fromSupabase(data) : null;
 }
 
 async function createAtendimento(input) {
   const atendimento = normalizeAtendimento(input);
-  const row = {
-    ...atendimentoToRow(atendimento),
-    status: toPersistedStatus(atendimento.status)
-  };
+  const table = await getAppointmentTable();
+  const row = toStorageRow(atendimento, table);
   const data = await dbQuery('criar appointment', async (supabase) =>
-    supabase.from(T.APPOINTMENTS).insert(row).select('*').single()
+    supabase.from(table).insert(row).select('*').single()
   );
   return fromSupabase(data);
 }
@@ -324,38 +359,61 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
   if (meta.elegibilidade) updates.elegibilidade = meta.elegibilidade;
   if (meta.risco) updates.risco = meta.risco;
 
-  const dbUpdates = {
-    status: persistedStatus,
-    decision_reason: updates.motivo_decisao,
-    doctor_id: updates.medico_id ? String(updates.medico_id) : null,
-    updated_at: updates.atualizado_em
-  };
-  if (updates.paciente_nome !== undefined) dbUpdates.patient_name = updates.paciente_nome;
-  if (updates.paciente_telefone !== undefined) dbUpdates.patient_phone = updates.paciente_telefone;
-  if (updates.paciente_cpf !== undefined) dbUpdates.patient_cpf = updates.paciente_cpf;
-  if (updates.paciente_email !== undefined) dbUpdates.patient_email = updates.paciente_email;
-  if (updates.condicao !== undefined) dbUpdates.condition = updates.condicao;
-  if (updates.medicacao_em_uso !== undefined) dbUpdates.medication_in_use = updates.medicacao_em_uso;
-  if (updates.pagamento_status !== undefined) dbUpdates.payment_status = updates.pagamento_status;
-  if (updates.dados_clinicos) dbUpdates.clinical_data = updates.dados_clinicos;
-  if (updates.elegibilidade) dbUpdates.eligibility = updates.elegibilidade;
-  if (updates.risco) dbUpdates.risk_level = updates.risco;
+  const table = await getAppointmentTable();
+  const dbUpdates =
+    table === 'atendimentos'
+      ? {
+          status: persistedStatus,
+          motivo_decisao: updates.motivo_decisao,
+          medico_id: updates.medico_id,
+          atualizado_em: updates.atualizado_em,
+          ...(updates.paciente_nome !== undefined ? { paciente_nome: updates.paciente_nome } : {}),
+          ...(updates.paciente_telefone !== undefined ? { paciente_telefone: updates.paciente_telefone } : {}),
+          ...(updates.paciente_cpf !== undefined ? { paciente_cpf: updates.paciente_cpf } : {}),
+          ...(updates.paciente_email !== undefined ? { paciente_email: updates.paciente_email } : {}),
+          ...(updates.condicao !== undefined ? { condicao: updates.condicao } : {}),
+          ...(updates.medicacao_em_uso !== undefined ? { medicacao_em_uso: updates.medicacao_em_uso } : {}),
+          ...(updates.pagamento_status !== undefined ? { pagamento_status: updates.pagamento_status } : {}),
+          ...(updates.dados_clinicos ? { dados_clinicos: updates.dados_clinicos } : {}),
+          ...(updates.elegibilidade ? { elegibilidade: updates.elegibilidade } : {}),
+          ...(updates.risco ? { risco: updates.risco } : {})
+        }
+      : {
+          status: persistedStatus,
+          decision_reason: updates.motivo_decisao,
+          doctor_id: updates.medico_id ? String(updates.medico_id) : null,
+          updated_at: updates.atualizado_em,
+          ...(updates.paciente_nome !== undefined ? { patient_name: updates.paciente_nome } : {}),
+          ...(updates.paciente_telefone !== undefined ? { patient_phone: updates.paciente_telefone } : {}),
+          ...(updates.paciente_cpf !== undefined ? { patient_cpf: updates.paciente_cpf } : {}),
+          ...(updates.paciente_email !== undefined ? { patient_email: updates.paciente_email } : {}),
+          ...(updates.condicao !== undefined ? { condition: updates.condicao } : {}),
+          ...(updates.medicacao_em_uso !== undefined ? { medication_in_use: updates.medicacao_em_uso } : {}),
+          ...(updates.pagamento_status !== undefined ? { payment_status: updates.pagamento_status } : {}),
+          ...(updates.dados_clinicos ? { clinical_data: updates.dados_clinicos } : {}),
+          ...(updates.elegibilidade ? { eligibility: updates.elegibilidade } : {}),
+          ...(updates.risco ? { risk_level: updates.risco } : {})
+        };
 
   const data = await dbQuery('atualizar appointment', async (supabase) =>
-    supabase.from(T.APPOINTMENTS).update(dbUpdates).eq('id', id).select('*').maybeSingle()
+    supabase.from(table).update(dbUpdates).eq('id', id).select('*').maybeSingle()
   );
   if (!data) return null;
 
-  await dbQuery('histórico status appointment', async (supabase) =>
-    supabase.from(T.APPOINTMENT_STATUS_HISTORY).insert({
+  try {
+    await dbQuery('histórico status appointment', async (supabase) =>
+      supabase.from(T.APPOINTMENT_STATUS_HISTORY).insert({
       appointment_id: id,
       previous_status: meta.status_anterior || null,
       new_status: normalizedStatus,
       reason: dbUpdates.decision_reason,
       doctor_id: dbUpdates.doctor_id,
       snapshot: meta.snapshot || {}
-    })
-  );
+      })
+    );
+  } catch {
+    // histórico opcional até migration 20260601 completa
+  }
 
   return fromSupabase(data);
 }
@@ -468,25 +526,47 @@ async function createEntregaReceitaLog(input = {}) {
     criado_em: input.criado_em || input.sent_at || input.attempted_at || new Date().toISOString()
   };
 
-  const data = await dbQuery('registrar entrega', async (supabase) =>
-    supabase
-      .from(T.PRESCRIPTION_DELIVERY)
-      .insert({
-        id: log.id || randomUUID(),
-        appointment_id: log.atendimento_id,
-        channel: log.canal,
-        provider: log.provider,
-        provider_message_id: log.provider_message_id,
-        status: log.status,
-        target_masked: log.target_masked,
-        error_message: log.erro,
-        snapshot: log.snapshot,
-        delivered_at: log.status === 'sent' ? log.criado_em : null
-      })
-      .select('*')
-      .single()
-  );
-  return data;
+  try {
+    const data = await dbQuery('registrar entrega', async (supabase) =>
+      supabase
+        .from(T.PRESCRIPTION_DELIVERY)
+        .insert({
+          id: log.id || randomUUID(),
+          appointment_id: log.atendimento_id,
+          channel: log.canal,
+          provider: log.provider,
+          provider_message_id: log.provider_message_id,
+          status: log.status,
+          target_masked: log.target_masked,
+          error_message: log.erro,
+          snapshot: log.snapshot,
+          delivered_at: log.status === 'sent' ? log.criado_em : null
+        })
+        .select('*')
+        .single()
+    );
+    return data;
+  } catch (error) {
+    if (!/Could not find the table|schema cache/i.test(error.message || '')) throw error;
+    return dbQuery('registrar entrega legado', async (supabase) =>
+      supabase
+        .from('entregas_receita')
+        .insert({
+          id: log.id || randomUUID(),
+          atendimento_id: log.atendimento_id,
+          canal: log.canal,
+          provider: log.provider,
+          provider_message_id: log.provider_message_id,
+          status: log.status,
+          target_masked: log.target_masked,
+          erro: log.erro,
+          snapshot: log.snapshot,
+          criado_em: log.criado_em
+        })
+        .select('*')
+        .single()
+    );
+  }
 }
 
 module.exports = {
