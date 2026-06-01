@@ -68,19 +68,30 @@ LOAD_RAILWAY_VARS=0 npm run staging:e2e:fluxo-medico
 
 Relatório JSON: [FLUXO-MEDICO-FINAL-STAGING.json](./FLUXO-MEDICO-FINAL-STAGING.json)
 
-Última execução (resumo) — `2026-06-01T13:41:02Z`:
+Última execução (resumo) — revalidado `2026-06-01`:
 
 - **success:** `true` (19 passos, 0 erros)
-- **Deploy Railway:** `52ff0649` (`ALLOW_PRODUCTION_DELIVERY_MOCK=true`)
+- **Service:** `mdoctor-backend-staging` — ver [STAGING-FECHAMENTO-POS-E2E.md](./STAGING-FECHAMENTO-POS-E2E.md)
 - **HTTP:** triagem, login, fila, approve, Memed mock, validate, deliver, status `delivered`
 - **Supabase:** `appointments`, `triage_sessions`, `medical_eligibility`, `medical_records`, `prescriptions`, `prescription_delivery`; ref `usihurogvphtjedyhyfl`
-- **Pendente:** Stripe webhook (chaves vazias no `.env.local` local)
 
 ## Stripe staging
 
 - Rota: `POST /api/webhooks/stripe` (raw body + assinatura).
-- Sincronizar chaves: `LOAD_RAILWAY_VARS=0 npm run railway:sync-stripe-staging` (requer `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` no `.env.local`).
+- Railway staging: `STRIPE_ENABLED=true`, `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` sincronizados via `npm run railway:sync-stripe-staging` (chaves em `mdoctor-backend/.env`, não commitar).
+- `/readyz`: check `stripe_webhook_secret` **ok** após redeploy.
+- **Pendente:** cadastrar endpoint no Stripe Dashboard (URL staging) + evento de teste.
 - Tabelas: `payments`, `payment_events`, `webhook_events` (migration `20260602_fechamento_stripe_payments_idempotency.sql`).
+
+## Deploy / CI
+
+- **Staging:** deploy manual (`railway up`); GitHub **não** conectado ao service `mdoctor-backend-staging` (`source.repo: null`).
+- **Production `web`:** Git deploy ativo — **não** usar para homologação clínica staging.
+- Conectar repo ao service staging: passo manual documentado em [STAGING-FECHAMENTO-POS-E2E.md](./STAGING-FECHAMENTO-POS-E2E.md).
+
+## Supabase local (migrations)
+
+- `SUPABASE_DB_URL` no `.env` local: pooler **`aws-1-us-west-2`**, usuário `postgres.usihurogvphtjedyhyfl` (ver `.env.example`).
 
 ## Operação assistida
 
@@ -103,7 +114,9 @@ Relatório JSON: [FLUXO-MEDICO-FINAL-STAGING.json](./FLUXO-MEDICO-FINAL-STAGING.
 | `triage_sessions` no Supabase | OK |
 | `audit_logs` (`origin`, `ip_address`) | OK (migration `20260603`) |
 | `prescriptions` / `prescription_delivery` | OK (tabelas oficiais) |
-| Stripe webhook configurado | Pendente chaves Railway |
+| Stripe vars Railway staging | OK (`STRIPE_ENABLED=true`) |
+| Stripe Dashboard webhook URL | Pendente cadastro manual |
+| Deploy auto staging (GitHub) | Pendente conectar repo ao service |
 | Boot strict delivery mock | OK (`ALLOW_PRODUCTION_DELIVERY_MOCK=true`) |
 
 ## Commits sugeridos (ordem)
