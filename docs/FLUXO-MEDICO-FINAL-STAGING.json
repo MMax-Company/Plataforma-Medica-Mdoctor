@@ -1,27 +1,35 @@
 {
-  "executed_at": "2026-06-01T10:43:47.277Z",
+  "executed_at": "2026-06-01T13:41:02.081Z",
   "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "revalidate_strict": false,
   "steps": [
     {
       "name": "readyz_supabase",
-      "ok": true
+      "ok": true,
+      "storage_mode": "supabase",
+      "supabase_connected": true,
+      "optional": false
     },
     {
       "name": "triagem_http",
       "ok": true,
-      "atendimentoId": "066d1147-7231-4736-aef4-303625a59441"
+      "atendimentoId": "0b5c39a2-be05-4061-b626-96efe94b372a",
+      "optional": false
     },
     {
       "name": "medico_login",
-      "ok": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "fila_medica",
-      "ok": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "decisao_aprovacao",
-      "ok": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "memed_receita_persist",
@@ -35,67 +43,84 @@
     },
     {
       "name": "entrega_whatsapp",
-      "ok": false,
-      "optional": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "atendimento_final",
       "ok": true,
-      "status": "delivered"
+      "status": "delivered",
+      "optional": false
+    },
+    {
+      "name": "status_final_delivered",
+      "ok": true,
+      "status": "delivered",
+      "optional": false
     },
     {
       "name": "db_appointment",
       "ok": true,
       "table": "appointments",
-      "patient_id": null
+      "patient_id": "d9e6dd06-8c5c-487a-b0f6-e9cb11d100f7",
+      "optional": false
     },
     {
       "name": "db_triage_sessions",
-      "ok": false,
-      "optional": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "db_medical_eligibility",
-      "ok": false,
-      "optional": true
+      "ok": true,
+      "optional": false
     },
     {
       "name": "db_medical_records",
-      "ok": false,
-      "optional": true,
-      "has_prontuario": false
+      "ok": true,
+      "optional": false,
+      "has_prontuario": true
     },
     {
       "name": "db_prescriptions",
-      "ok": false,
-      "optional": true
+      "ok": true,
+      "optional": false,
+      "source": "prescriptions"
     },
     {
       "name": "db_prescription_delivery",
-      "ok": false,
-      "optional": true
+      "ok": true,
+      "optional": false,
+      "source": "prescription_delivery"
+    },
+    {
+      "name": "db_appointments_primary",
+      "ok": true,
+      "optional": false,
+      "legacy_atendimentos_row": false
+    },
+    {
+      "name": "supabase_official_ref",
+      "ok": true,
+      "ref": "usihurogvphtjedyhyfl",
+      "optional": false
     },
     {
       "name": "persistencia_pos_fluxo",
-      "ok": true
+      "ok": true,
+      "optional": false
     }
   ],
   "supabase": {
-    "appointment_table": "appointments"
+    "appointment_table": "appointments",
+    "ref": "usihurogvphtjedyhyfl"
   },
   "errors": [],
-  "warnings": [
-    "entrega_whatsapp",
-    "db_triage_sessions",
-    "db_medical_eligibility",
-    "db_medical_records",
-    "db_prescriptions",
-    "db_prescription_delivery"
-  ],
+  "warnings": [],
   "success": true,
   "summary": {
-    "steps": 16,
+    "steps": 19,
     "errors": 0,
-    "warnings": 6
+    "warnings": 0
   }
 }

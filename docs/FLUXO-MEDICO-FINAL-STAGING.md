@@ -41,7 +41,13 @@ Documento de fechamento do ciclo clínico **Doctor Prescreve** em staging (Supab
 
 - `persistTriagemFlow()` grava `triage_sessions`, `triage_answers`, `medical_eligibility`, `medical_records`, `typebot_sessions`.
 - `findOrCreatePatient()` evita duplicidade e garante FK.
-- **Pendente no deploy Railway:** instância em produção ainda pode não executar o serviço novo; após `railway up` na service `53960eb4-…`, triagem passa a popular as tabelas oficiais sem script auxiliar.
+- Deploy `mdoctor-backend-staging` (`52ff0649`+) com `clinical-persistence` ativo; triagem popula `triage_sessions`, `medical_eligibility`, `medical_records` no Supabase oficial.
+
+### 2.1 Audit logs (schema)
+
+- Migration `20260603_audit_logs_staging_align.sql`: colunas `origin`, `ip_address` (text), `updated_at` em `public.audit_logs` (MVP legado não tinha `origin`/`ip_address` — triagem falhava com erro de schema cache).
+- Aplicar: `LOAD_RAILWAY_VARS=0 node mdoctor-backend/scripts/apply-audit-logs-migration.js` (pooler `us-west-2`).
+- `correlation_id`, `request_id`, `user_agent`, etc. permanecem apenas em `payload` jsonb (`audit.store.js`).
 
 ### 3. Memed e receita
 
@@ -62,11 +68,13 @@ LOAD_RAILWAY_VARS=0 npm run staging:e2e:fluxo-medico
 
 Relatório JSON: [FLUXO-MEDICO-FINAL-STAGING.json](./FLUXO-MEDICO-FINAL-STAGING.json)
 
-Última execução (resumo):
+Última execução (resumo) — `2026-06-01T13:41:02Z`:
 
-- **success:** `true`
-- **HTTP:** triagem, login, fila, approve, Memed mock, validate, atendimento final `delivered`
-- **Avisos:** `triage_sessions` / `medical_eligibility` / `medical_records` até deploy do backend com `clinical-persistence`; `patient_id` quando paciente legado não vinculado; Stripe sem chaves no `.env.local`
+- **success:** `true` (19 passos, 0 erros)
+- **Deploy Railway:** `52ff0649` (`ALLOW_PRODUCTION_DELIVERY_MOCK=true`)
+- **HTTP:** triagem, login, fila, approve, Memed mock, validate, deliver, status `delivered`
+- **Supabase:** `appointments`, `triage_sessions`, `medical_eligibility`, `medical_records`, `prescriptions`, `prescription_delivery`; ref `usihurogvphtjedyhyfl`
+- **Pendente:** Stripe webhook (chaves vazias no `.env.local` local)
 
 ## Stripe staging
 
@@ -92,10 +100,11 @@ Relatório JSON: [FLUXO-MEDICO-FINAL-STAGING.json](./FLUXO-MEDICO-FINAL-STAGING.
 | Memed mock persist | OK |
 | Validação + entrega HTTP | OK |
 | `appointments` com registro | OK (espelho + migrate) |
-| `triage_sessions` no Supabase | Pendente deploy |
-| `prescriptions` ou `receitas_memed` | OK (`receitas_memed` em staging legado) |
+| `triage_sessions` no Supabase | OK |
+| `audit_logs` (`origin`, `ip_address`) | OK (migration `20260603`) |
+| `prescriptions` / `prescription_delivery` | OK (tabelas oficiais) |
 | Stripe webhook configurado | Pendente chaves Railway |
-| Restart Railway sem perda | Validar após deploy |
+| Boot strict delivery mock | OK (`ALLOW_PRODUCTION_DELIVERY_MOCK=true`) |
 
 ## Commits sugeridos (ordem)
 
