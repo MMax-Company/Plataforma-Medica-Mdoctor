@@ -8,8 +8,29 @@ function getConfig() {
     apiKey: process.env.MEMED_API_KEY || '',
     secretKey: process.env.MEMED_SECRET_KEY || '',
     env: process.env.MEMED_ENV || process.env.MEMED_ENVIRONMENT || 'development',
-    timeoutMs: Number(process.env.MEMED_TIMEOUT_MS || 8000)
+    timeoutMs: Number(process.env.MEMED_TIMEOUT_MS || 8000),
+    retryAttempts: Math.max(1, Number(process.env.MEMED_RETRY_ATTEMPTS || 2)),
+    allowMockFallback: process.env.MEMED_ALLOW_MOCK_FALLBACK !== 'false'
   };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRetry(task, { attempts, label }) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await task(attempt);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        await sleep(Math.min(500 * attempt, 2000));
+      }
+    }
+  }
+  throw lastError || new Error(`Falha após ${attempts} tentativas em ${label}`);
 }
 
 function isMemedConfigured() {
@@ -54,7 +75,35 @@ function buildMockPrescription(atendimento = {}) {
   };
 }
 
+function applyMemedFailure(atendimento, mapped) {
+  const config = getConfig();
+  if (!config.allowMockFallback) {
+    return {
+      success: false,
+      source: 'memed',
+      prescriptionId: null,
+      pdfUrl: null,
+      memedError: mapped,
+      error: mapped.message
+    };
+  }
+  return {
+    ...buildMockPrescription(atendimento),
+    warning: mapped.message,
+    memedError: mapped
+  };
+}
+
+/** @deprecated Fluxo oficial: widget Sinapse + POST /api/memed/receita */
 async function createPrescription(atendimento = {}) {
+  if (process.env.MEMED_ALLOW_LEGACY_REST !== 'true') {
+    return {
+      source: 'deprecated',
+      error:
+        'Emissão REST descontinuada. Use widget Memed/Sinapse e POST /api/memed/receita.',
+      warning: 'MEMED_ALLOW_LEGACY_REST not enabled'
+    };
+  }
   const config = getConfig();
   if (!isMemedConfigured()) return buildMockPrescription(atendimento);
 
@@ -68,34 +117,34 @@ async function createPrescription(atendimento = {}) {
       },
       prescription: {
         medications: [atendimento.medicacao_em_uso || atendimento.dados_clinicos?.medicacao_em_uso || 'Medicamento não informado'],
-        notes: atendimento.dados_clinicos?.conduta || ''
+        notes: atendimento.dados_clinicos?.conduta_medica || atendimento.dados_clinicos?.conduta || ''
       },
       environment: config.env
     };
 
-    const response = await axios.post(`${config.apiUrl}/prescriptions`, payload, {
-      timeout: config.timeoutMs,
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      params: { 'api-key': config.apiKey, 'secret-key': config.secretKey }
-    });
+    const response = await withRetry(
+      () =>
+        axios.post(`${config.apiUrl}/prescriptions`, payload, {
+          timeout: config.timeoutMs,
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          params: { 'api-key': config.apiKey, 'secret-key': config.secretKey }
+        }),
+      { attempts: config.retryAttempts, label: 'memed_create_prescription' }
+    );
 
     return {
       success: true,
       source: 'memed',
       prescriptionId: response.data?.id,
-      pdfUrl: response.data?.pdf_url,
+      pdfUrl: response.data?.pdf_url || response.data?.pdfUrl,
       data: response.data
     };
   } catch (error) {
     const mapped = mapMemedError(error);
-    return {
-      ...buildMockPrescription(atendimento),
-      warning: mapped.message,
-      memedError: mapped
-    };
+    return applyMemedFailure(atendimento, mapped);
   }
 }
 

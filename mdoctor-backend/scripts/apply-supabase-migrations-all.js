@@ -14,6 +14,7 @@ const MIGRATIONS = [
   '20260529_clinical_receipt_status_flow.sql',
   '20260530_webhook_events_idempotency.sql',
   '20260601_doctor_prescreve_production_official.sql',
+  '20260601_receitas_memed_compat.sql',
   '20260602_fechamento_stripe_payments_idempotency.sql'
 ];
 
