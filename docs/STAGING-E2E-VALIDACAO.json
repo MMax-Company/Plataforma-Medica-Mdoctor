@@ -1,0 +1,435 @@
+{
+  "executed_at": "2026-06-01T10:23:26.947Z",
+  "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "supabase_ref": "usihurogvphtjedyhyfl",
+  "sections": {
+    "readyz": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "storage_mode_supabase",
+          "ok": true,
+          "mode": "supabase"
+        },
+        {
+          "name": "fallback_local_false",
+          "ok": true
+        },
+        {
+          "name": "supabase_connected",
+          "ok": true
+        }
+      ]
+    },
+    "triagem": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "http_200",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "appointment_persisted",
+          "ok": true,
+          "id": "0764713f-e7ba-45cd-9d50-00b0292690ab",
+          "table": "atendimentos"
+        },
+        {
+          "name": "patient_persisted",
+          "ok": false,
+          "optional": true,
+          "note": "patient_id null no atendimento — buscar por telefone"
+        },
+        {
+          "name": "triage_session_persisted",
+          "ok": false,
+          "optional": true,
+          "note": "verificar deploy com clinical-persistence"
+        },
+        {
+          "name": "audit_logs_created",
+          "ok": true,
+          "count": 1
+        },
+        {
+          "name": "integration_logs_accessible",
+          "ok": true
+        }
+      ]
+    },
+    "fila": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "panel_login",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "api_atendimentos_queue",
+          "ok": true,
+          "status": 200,
+          "inQueue": false
+        },
+        {
+          "name": "api_fila_legacy",
+          "ok": true,
+          "status": 200,
+          "note": "LEGACY_COMPAT_PANEL"
+        }
+      ]
+    },
+    "dashboard": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "atendimentos_medical_scope",
+          "ok": true,
+          "total": 3
+        },
+        {
+          "name": "panel_http",
+          "ok": true,
+          "status": 200,
+          "url": "https://painel-medico-staging-staging.up.railway.app"
+        }
+      ]
+    },
+    "suporte": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "post_whatsapp_support",
+          "ok": true,
+          "status": 200,
+          "canonical": "/api/whatsapp/support",
+          "note": "POST /api/suporte não existe — rota canônica acima"
+        },
+        {
+          "name": "get_support_queue",
+          "ok": true,
+          "status": 200,
+          "total": 9,
+          "canonical": "/api/atendimentos/support-queue",
+          "note": "GET /api/suporte/pendentes não existe — rota canônica acima"
+        },
+        {
+          "name": "support_tickets_table",
+          "ok": true,
+          "count": 1
+        }
+      ]
+    },
+    "whatsapp": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "webhook_http",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "messages_persisted",
+          "ok": false,
+          "count": 0,
+          "optional": true,
+          "note": "deploy pode não persistir whatsapp_messages ainda"
+        },
+        {
+          "name": "idempotency",
+          "ok": true,
+          "status": 200
+        }
+      ]
+    },
+    "stripe": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "webhook_http",
+          "ok": false,
+          "status": 404,
+          "body": {
+            "success": false,
+            "error": "Rota nao encontrada"
+          },
+          "optional": true
+        },
+        {
+          "name": "payment_events_persisted",
+          "ok": false,
+          "optional": true
+        },
+        {
+          "name": "idempotency_duplicate",
+          "ok": false,
+          "status": 404,
+          "optional": true
+        }
+      ]
+    },
+    "logs": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "table_audit_logs",
+          "ok": true,
+          "count": 56
+        },
+        {
+          "name": "table_integration_logs",
+          "ok": true,
+          "count": 1
+        },
+        {
+          "name": "table_error_logs",
+          "ok": true,
+          "count": 0
+        },
+        {
+          "name": "table_n8n_events",
+          "ok": true,
+          "count": 0
+        }
+      ]
+    },
+    "performance": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "triagem_burst_3",
+          "ok": true,
+          "statuses": [
+            200,
+            200,
+            200
+          ]
+        }
+      ]
+    },
+    "restart": {
+      "ok": true,
+      "steps": [
+        {
+          "name": "data_survives_read",
+          "ok": true,
+          "status": "rejected"
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "section": "readyz",
+      "name": "storage_mode_supabase",
+      "ok": true,
+      "mode": "supabase"
+    },
+    {
+      "section": "readyz",
+      "name": "fallback_local_false",
+      "ok": true
+    },
+    {
+      "section": "readyz",
+      "name": "supabase_connected",
+      "ok": true
+    },
+    {
+      "section": "triagem",
+      "name": "http_200",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "section": "triagem",
+      "name": "appointment_persisted",
+      "ok": true,
+      "id": "0764713f-e7ba-45cd-9d50-00b0292690ab",
+      "table": "atendimentos"
+    },
+    {
+      "section": "triagem",
+      "name": "patient_persisted",
+      "ok": false,
+      "optional": true,
+      "note": "patient_id null no atendimento — buscar por telefone"
+    },
+    {
+      "section": "triagem",
+      "name": "triage_session_persisted",
+      "ok": false,
+      "optional": true,
+      "note": "verificar deploy com clinical-persistence"
+    },
+    {
+      "section": "triagem",
+      "name": "audit_logs_created",
+      "ok": true,
+      "count": 1
+    },
+    {
+      "section": "triagem",
+      "name": "integration_logs_accessible",
+      "ok": true
+    },
+    {
+      "section": "fila",
+      "name": "panel_login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "section": "fila",
+      "name": "api_atendimentos_queue",
+      "ok": true,
+      "status": 200,
+      "inQueue": false
+    },
+    {
+      "section": "fila",
+      "name": "api_fila_legacy",
+      "ok": true,
+      "status": 200,
+      "note": "LEGACY_COMPAT_PANEL"
+    },
+    {
+      "section": "dashboard",
+      "name": "atendimentos_medical_scope",
+      "ok": true,
+      "total": 3
+    },
+    {
+      "section": "suporte",
+      "name": "post_whatsapp_support",
+      "ok": true,
+      "status": 200,
+      "canonical": "/api/whatsapp/support",
+      "note": "POST /api/suporte não existe — rota canônica acima"
+    },
+    {
+      "section": "suporte",
+      "name": "get_support_queue",
+      "ok": true,
+      "status": 200,
+      "total": 9,
+      "canonical": "/api/atendimentos/support-queue",
+      "note": "GET /api/suporte/pendentes não existe — rota canônica acima"
+    },
+    {
+      "section": "suporte",
+      "name": "support_tickets_table",
+      "ok": true,
+      "count": 1
+    },
+    {
+      "section": "whatsapp",
+      "name": "webhook_http",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "section": "whatsapp",
+      "name": "messages_persisted",
+      "ok": false,
+      "count": 0,
+      "optional": true,
+      "note": "deploy pode não persistir whatsapp_messages ainda"
+    },
+    {
+      "section": "whatsapp",
+      "name": "idempotency",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "section": "stripe",
+      "name": "webhook_http",
+      "ok": false,
+      "status": 404,
+      "body": {
+        "success": false,
+        "error": "Rota nao encontrada"
+      },
+      "optional": true
+    },
+    {
+      "section": "stripe",
+      "name": "payment_events_persisted",
+      "ok": false,
+      "optional": true
+    },
+    {
+      "section": "stripe",
+      "name": "idempotency_duplicate",
+      "ok": false,
+      "status": 404,
+      "optional": true
+    },
+    {
+      "section": "logs",
+      "name": "table_audit_logs",
+      "ok": true,
+      "count": 56
+    },
+    {
+      "section": "logs",
+      "name": "table_integration_logs",
+      "ok": true,
+      "count": 1
+    },
+    {
+      "section": "logs",
+      "name": "table_error_logs",
+      "ok": true,
+      "count": 0
+    },
+    {
+      "section": "logs",
+      "name": "table_n8n_events",
+      "ok": true,
+      "count": 0
+    },
+    {
+      "section": "performance",
+      "name": "triagem_burst_3",
+      "ok": true,
+      "statuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "section": "restart",
+      "name": "data_survives_read",
+      "ok": true,
+      "status": "rejected"
+    },
+    {
+      "section": "dashboard",
+      "name": "panel_http",
+      "ok": true,
+      "status": 200,
+      "url": "https://painel-medico-staging-staging.up.railway.app"
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    "triagem:patient_persisted (opcional)",
+    "triagem:triage_session_persisted (opcional)",
+    "triage_sessions: não encontrada — verificar deploy backend com clinical-persistence",
+    "whatsapp:messages_persisted (opcional)",
+    "stripe:webhook_http (opcional)",
+    "stripe webhook HTTP 404 — sincronizar keys no Railway",
+    "stripe:payment_events_persisted (opcional)",
+    "stripe:idempotency_duplicate (opcional)"
+  ],
+  "success": true,
+  "summary": {
+    "steps_total": 29,
+    "steps_failed": 0,
+    "warnings": 8
+  }
+}
