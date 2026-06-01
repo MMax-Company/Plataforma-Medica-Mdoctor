@@ -14,11 +14,12 @@ function loadDotenv(filePath, { override = false } = {}) {
       val = val.slice(1, -1);
     }
     if (val === '') continue;
+    // Não sobrescrever variáveis já definidas no shell (ex.: credenciais staging E2E).
+    if (process.env[key] !== undefined) continue;
     if (override || !process.env[key]) process.env[key] = val;
   }
 }
 
-// Arquivos locais prevalecem sobre variáveis herdadas do shell (evita ref Supabase legado).
 loadDotenv(path.join(__dirname, '../.env'), { override: true });
 loadDotenv(path.join(__dirname, '../.env.local'), { override: true });
 module.exports = { loadDotenv };
