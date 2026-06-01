@@ -24,6 +24,7 @@ const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue'
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.service');
 const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
+const { isDeliveryMockEnabled } = require('../config/memed-runtime');
 
 const router = express.Router();
 
@@ -33,10 +34,6 @@ function isPaid(atendimento = {}) {
 
 function isClinicallyEligible(atendimento = {}) {
   return atendimento.elegibilidade?.eligible === true || atendimento.risco === 'BAIXO';
-}
-
-function isDeliveryMockEnabled() {
-  return process.env.DELIVERY_MOCK_ENABLED === 'true' || process.env.NODE_ENV !== 'production';
 }
 
 function maskTarget(target = '') {
@@ -467,7 +464,10 @@ router.post('/:id/deliver', requireAuth, async (req, res) => {
   }
 
   const receipt = previous.dados_clinicos?.memed_receita || {};
-  const receiptUrl = receipt.pdfUrl || receipt.receitaUrl || (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
+  const receiptUrl =
+    receipt.pdfUrl ||
+    receipt.receitaUrl ||
+    (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
   if (!receiptUrl) {
     return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega', correlationId });
   }
