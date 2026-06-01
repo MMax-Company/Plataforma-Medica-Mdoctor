@@ -1,11 +1,16 @@
 const { randomUUID } = require('crypto');
-const { assertCanFallback, getSupabase, reportSupabaseError } = require('../config/supabase');
+const T = require('../db/tables');
+const { dbQuery } = require('../db/persistence');
+const { rowToAtendimento, atendimentoToRow } = require('../db/appointment-mapper');
 const { createAuditLog } = require('./audit.store');
 
 const STATUS = {
   WAITING: 'waiting',
   AWAITING_PRESCRIPTION_UPLOAD: 'awaiting_prescription_upload',
   EM_ATENDIMENTO: 'em_atendimento',
+  APPROVED: 'approved',
+  RECEITA_EM_EDICAO: 'receita_em_edicao',
+  RECEITA_EMITIDA: 'receita_emitida',
   MEMED_PROCESSING: 'memed_processing',
   READY: 'ready',
   DELIVERED: 'delivered',
@@ -15,7 +20,7 @@ const STATUS = {
   TRIAGED: 'waiting',
   QUEUE: 'waiting',
   UNDER_REVIEW: 'em_atendimento',
-  AWAITING_VALIDATION: 'memed_processing',
+  AWAITING_VALIDATION: 'receita_emitida',
   VALIDATED: 'ready',
   FINISHED: 'delivered',
   TRIAGEM: 'waiting',
@@ -24,7 +29,6 @@ const STATUS = {
   PRONTO_PARA_DECISAO: 'em_atendimento',
   APROVADO: 'ready',
   RECUSADO: 'rejected',
-  RECEITA_EMITIDA: 'ready',
   CANCELADO: 'rejected'
 };
 
@@ -32,6 +36,9 @@ const CANONICAL_STATUS = new Set([
   STATUS.WAITING,
   STATUS.AWAITING_PRESCRIPTION_UPLOAD,
   STATUS.EM_ATENDIMENTO,
+  STATUS.APPROVED,
+  STATUS.RECEITA_EM_EDICAO,
+  STATUS.RECEITA_EMITIDA,
   STATUS.MEMED_PROCESSING,
   STATUS.READY,
   STATUS.DELIVERED,
@@ -49,12 +56,14 @@ const STATUS_ALIASES = {
   UNDER_REVIEW: STATUS.EM_ATENDIMENTO,
   EM_ATENDIMENTO: STATUS.EM_ATENDIMENTO,
   PRONTO_PARA_DECISAO: STATUS.EM_ATENDIMENTO,
-  MEMED_PROCESSING: STATUS.MEMED_PROCESSING,
-  AWAITING_VALIDATION: STATUS.MEMED_PROCESSING,
+  APPROVED: STATUS.APPROVED,
+  RECEITA_EM_EDICAO: STATUS.RECEITA_EM_EDICAO,
+  RECEITA_EMITIDA: STATUS.RECEITA_EMITIDA,
+  MEMED_PROCESSING: STATUS.RECEITA_EMITIDA,
+  AWAITING_VALIDATION: STATUS.RECEITA_EMITIDA,
   VALIDATED: STATUS.READY,
   READY: STATUS.READY,
   APROVADO: STATUS.READY,
-  RECEITA_EMITIDA: STATUS.READY,
   FINISHED: STATUS.DELIVERED,
   DELIVERED: STATUS.DELIVERED,
   RECUSADO: STATUS.REJECTED,
@@ -66,7 +75,13 @@ const VALID_STATUS = new Set([...CANONICAL_STATUS, ...Object.keys(STATUS_ALIASES
 
 const STATUS_GROUPS = {
   queue: [STATUS.WAITING],
-  inMedicalFlow: [STATUS.EM_ATENDIMENTO, STATUS.MEMED_PROCESSING],
+  inMedicalFlow: [
+    STATUS.EM_ATENDIMENTO,
+    STATUS.APPROVED,
+    STATUS.RECEITA_EM_EDICAO,
+    STATUS.RECEITA_EMITIDA,
+    STATUS.MEMED_PROCESSING
+  ],
   readyToDeliver: [STATUS.READY],
   delivered: [STATUS.DELIVERED],
   rejected: [STATUS.REJECTED],
@@ -82,63 +97,69 @@ function normalizeStatus(status) {
   return STATUS_ALIASES[value] || value;
 }
 
+/** Mapeia status canônico → valor persistido no Supabase (check constraint legado). */
+function toPersistedStatus(canonicalStatus) {
+  const canonical = normalizeStatus(canonicalStatus);
+  if (canonical === STATUS.APPROVED) return 'em_atendimento';
+  if (canonical === STATUS.RECEITA_EM_EDICAO) return 'memed_processing';
+  if (canonical === STATUS.RECEITA_EMITIDA) return 'RECEITA_EMITIDA';
+  if (canonical === STATUS.READY) return 'APROVADO';
+  if (canonical === STATUS.DELIVERED) return 'DELIVERED';
+  return canonical;
+}
+
+/** Deriva status canônico lógico a partir do row persistido + dados_clinicos. */
+function resolveEffectiveStatus(storedStatus, dados_clinicos = {}) {
+  const clinical = dados_clinicos || {};
+  const ctx = clinical.memed_context || {};
+  const stored = String(storedStatus || '').trim();
+  const normalizedStored = normalizeStatus(stored);
+
+  if (
+    normalizedStored === STATUS.DELIVERED ||
+    stored === 'DELIVERED' ||
+    stored === 'FINISHED' ||
+    clinical.entrega_receita?.status === 'sent' ||
+    (Array.isArray(clinical.entregas_receita) &&
+      clinical.entregas_receita.some((item) => item?.status === 'sent'))
+  ) {
+    return STATUS.DELIVERED;
+  }
+
+  if (
+    normalizedStored === STATUS.READY ||
+    stored === 'APROVADO' ||
+    stored === 'VALIDATED' ||
+    clinical.memed_receita?.validated_at
+  ) {
+    return STATUS.READY;
+  }
+
+  if (stored === 'RECEITA_EMITIDA' || normalizedStored === STATUS.RECEITA_EMITIDA) {
+    return STATUS.RECEITA_EMITIDA;
+  }
+
+  if (
+    ctx.fluxo === 'sinapse_widget' ||
+    ctx.pendente_emissao === true ||
+    clinical.clinical_audit?.decision === 'approved'
+  ) {
+    if (clinical.memed_receita?.receitaId || clinical.memed_receita?.memed_id) {
+      return STATUS.RECEITA_EMITIDA;
+    }
+    if (ctx.emissao_iniciada_em || normalizedStored === STATUS.MEMED_PROCESSING || stored === 'memed_processing') {
+      return STATUS.RECEITA_EM_EDICAO;
+    }
+    return STATUS.APPROVED;
+  }
+
+  return normalizedStored;
+}
+
 function statusInGroup(status, groupName) {
   return (STATUS_GROUPS[groupName] || []).includes(normalizeStatus(status));
 }
 
-const seedAtendimentos = [
-  {
-    id: randomUUID(),
-    status: STATUS.QUEUE,
-    paciente_nome: 'Paciente Demo',
-    paciente_telefone: '+5511999999999',
-    paciente_cpf: '',
-    paciente_email: '',
-    condicao: 'hipertensao',
-    origem: 'demo',
-    pagamento_status: 'CONFIRMADO',
-    risco: 'BAIXO',
-    elegibilidade: {
-      eligible: true,
-      reason: 'Paciente filtrado como baixo risco (Estável)'
-    },
-    dados_clinicos: {
-      condition: 'hipertensao',
-      previous_prescription: true,
-      flags: []
-    },
-    motivo_decisao: null,
-    medico_id: null,
-    criado_em: new Date().toISOString(),
-    atualizado_em: new Date().toISOString()
-  }
-];
-
-let atendimentos = [...seedAtendimentos];
-let decisoesLog = [];
-
-function hasSupabase() {
-  try {
-    getSupabase();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function recordSupabaseFallback(context, error, payload = {}) {
-  reportSupabaseError(error);
-  await createAuditLog({
-    entity_type: payload.entity_type || 'atendimento',
-    entity_id: payload.entity_id || null,
-    action: 'supabase_fallback_local',
-    payload: {
-      context,
-      error: error?.message || String(error || 'Erro Supabase'),
-      ...payload
-    }
-  });
-}
 
 function normalizeAtendimento(input = {}) {
   const now = new Date().toISOString();
@@ -197,7 +218,7 @@ function normalizeAtendimento(input = {}) {
 
   return {
     id: input.id || randomUUID(),
-    status: normalizeStatus(input.status || STATUS.TRIAGED),
+    status: resolveEffectiveStatus(input.status, clinical),
     paciente_nome: name,
     paciente_telefone: phone,
     paciente_cpf: input.paciente_cpf || input.cpf || input.patientDocument || '',
@@ -235,134 +256,61 @@ function normalizeAtendimento(input = {}) {
 }
 
 function fromSupabase(row = {}) {
+  const mapped = rowToAtendimento(row);
   return normalizeAtendimento({
-    ...row,
-    dados_clinicos: row.dados_clinicos || {},
-    elegibilidade: row.elegibilidade || null
+    ...mapped,
+    status: resolveEffectiveStatus(mapped.status, mapped.dados_clinicos)
   });
 }
 
-function toSupabase(row) {
-  return {
-    id: row.id,
-    status: row.status,
-    paciente_nome: row.paciente_nome,
-    paciente_telefone: row.paciente_telefone,
-    paciente_cpf: row.paciente_cpf,
-    paciente_email: row.paciente_email,
-    condicao: row.condicao,
-    medicacao_em_uso: row.medicacao_em_uso,
-    origem: row.origem,
-    pagamento_status: row.pagamento_status,
-    risco: row.risco,
-    elegibilidade: row.elegibilidade,
-    dados_clinicos: row.dados_clinicos,
-    motivo_decisao: row.motivo_decisao,
-    medico_id: row.medico_id,
-    criado_em: row.criado_em,
-    atualizado_em: row.atualizado_em
-  };
-}
-
-function toLegacySupabaseUpdate(updates) {
-  const clinical = updates.dados_clinicos || {};
-  const legacy = {
-    status: updates.status,
-    updated_at: updates.atualizado_em,
-    motivo: updates.motivo_decisao,
-    risco: updates.risco,
-    dados_clinicos: updates.dados_clinicos
-  };
-
-  if (updates.paciente_nome !== undefined) legacy.paciente_nome = updates.paciente_nome;
-  if (updates.paciente_telefone !== undefined) legacy.paciente_telefone = updates.paciente_telefone;
-  if (updates.paciente_cpf !== undefined) legacy.paciente_cpf = updates.paciente_cpf;
-  if (updates.paciente_email !== undefined) legacy.paciente_email = updates.paciente_email;
-  if (updates.condicao !== undefined) legacy.doenca_cronica = updates.condicao;
-  if (updates.medicacao_em_uso !== undefined) legacy.medicacao_em_uso = updates.medicacao_em_uso;
-  if (updates.pagamento_status !== undefined) legacy.pagamento = updates.pagamento_status === 'CONFIRMADO';
-  if (clinical.data_nascimento !== undefined) legacy.paciente_data_nascimento = clinical.data_nascimento;
-  if (clinical.endereco !== undefined) legacy.paciente_endereco = clinical.endereco;
-  if (clinical.queixa_principal !== undefined) legacy.queixa_principal = clinical.queixa_principal;
-  if (clinical.historico_clinico !== undefined) legacy.historia_clinica = clinical.historico_clinico;
-  if (clinical.medicacao_em_uso !== undefined) legacy.medicacao_em_uso = clinical.medicacao_em_uso;
-  if (clinical.conduta !== undefined) legacy.conduta_prescricao = clinical.conduta;
-  if (clinical.foto_receita_url !== undefined) legacy.foto_receita_url = clinical.foto_receita_url;
-
-  return Object.fromEntries(Object.entries(legacy).filter(([, value]) => value !== undefined));
-}
-
 async function listAtendimentos(filters = {}) {
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    let query = supabase
-      .from('atendimentos')
+  const data = await dbQuery('listar appointments', async (supabase) =>
+    supabase
+      .from(T.APPOINTMENTS)
       .select('*')
-      .order('criado_em', { ascending: false });
-
-    const { data, error } = await query;
-    if (!error && data) {
-      const selected = filters.status
-        ? new Set(String(filters.status).split(',').map((status) => normalizeStatus(status.trim())))
-        : null;
-      return data.map(fromSupabase).filter((item) => !selected || selected.has(item.status));
-    }
-    await recordSupabaseFallback('listar atendimentos', error, { entity_type: 'atendimento_list' });
-    assertCanFallback('listar atendimentos', error);
-    console.warn('Supabase atendimentos fallback:', error?.message);
-  }
-
+      .order('created_at', { ascending: false })
+  );
   const selected = filters.status
     ? new Set(String(filters.status).split(',').map((status) => normalizeStatus(status.trim())))
     : null;
-
-  return atendimentos
-    .filter((item) => !selected || selected.has(normalizeStatus(item.status)))
-    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+  return (data || []).map(fromSupabase).filter((item) => !selected || selected.has(item.status));
 }
 
 async function getAtendimento(id) {
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.from('atendimentos').select('*').eq('id', id).single();
-    if (!error && data) return fromSupabase(data);
-    await recordSupabaseFallback('buscar atendimento', error, { entity_id: id });
-    assertCanFallback('buscar atendimento', error);
-    console.warn('Supabase atendimento detail fallback:', error?.message);
-  }
-
-  return atendimentos.find((item) => item.id === id) || null;
+  const data = await dbQuery('buscar appointment', async (supabase) =>
+    supabase.from(T.APPOINTMENTS).select('*').eq('id', id).maybeSingle()
+  );
+  return data ? fromSupabase(data) : null;
 }
 
 async function createAtendimento(input) {
   const atendimento = normalizeAtendimento(input);
+  const row = {
+    ...atendimentoToRow(atendimento),
+    status: toPersistedStatus(atendimento.status)
+  };
+  const data = await dbQuery('criar appointment', async (supabase) =>
+    supabase.from(T.APPOINTMENTS).insert(row).select('*').single()
+  );
+  return fromSupabase(data);
+}
 
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('atendimentos')
-      .insert(toSupabase(atendimento))
-      .select('*')
-      .single();
-
-    if (!error && data) return fromSupabase(data);
-    await recordSupabaseFallback('criar atendimento', error, { entity_id: atendimento.id });
-    assertCanFallback('criar atendimento', error);
-    console.warn('Supabase atendimento insert fallback:', error?.message);
-  }
-
-  atendimentos.unshift(atendimento);
-  return atendimento;
+function resolveMedicoIdForDb(rawMedicoId) {
+  if (rawMedicoId === null || rawMedicoId === undefined || rawMedicoId === '') return null;
+  return /^\d+$/.test(String(rawMedicoId)) ? Number(rawMedicoId) : null;
 }
 
 async function updateAtendimentoStatus(id, status, meta = {}) {
   const normalizedStatus = normalizeStatus(status);
   if (!VALID_STATUS.has(status) && !VALID_STATUS.has(normalizedStatus)) return null;
 
+  const medicoId = resolveMedicoIdForDb(meta.medicoId || meta.doctorId || null);
+  const persistedStatus = toPersistedStatus(normalizedStatus);
+
   const updates = {
-    status: normalizedStatus,
+    status: persistedStatus,
     motivo_decisao: meta.motivo || meta.notes || meta.reason || null,
-    medico_id: meta.medicoId || meta.doctorId || null,
+    medico_id: medicoId,
     atualizado_em: new Date().toISOString()
   };
   if (meta.paciente_nome !== undefined) updates.paciente_nome = meta.paciente_nome;
@@ -376,55 +324,40 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
   if (meta.elegibilidade) updates.elegibilidade = meta.elegibilidade;
   if (meta.risco) updates.risco = meta.risco;
 
-  const localUpdates = {
-    status: normalizedStatus,
-    motivo_decisao: updates.motivo_decisao,
-    medico_id: updates.medico_id,
-    atualizado_em: updates.atualizado_em
+  const dbUpdates = {
+    status: persistedStatus,
+    decision_reason: updates.motivo_decisao,
+    doctor_id: updates.medico_id ? String(updates.medico_id) : null,
+    updated_at: updates.atualizado_em
   };
-  if (updates.paciente_nome !== undefined) localUpdates.paciente_nome = updates.paciente_nome;
-  if (updates.paciente_telefone !== undefined) localUpdates.paciente_telefone = updates.paciente_telefone;
-  if (updates.paciente_cpf !== undefined) localUpdates.paciente_cpf = updates.paciente_cpf;
-  if (updates.paciente_email !== undefined) localUpdates.paciente_email = updates.paciente_email;
-  if (updates.condicao !== undefined) localUpdates.condicao = updates.condicao;
-  if (updates.medicacao_em_uso !== undefined) localUpdates.medicacao_em_uso = updates.medicacao_em_uso;
-  if (updates.pagamento_status !== undefined) localUpdates.pagamento_status = updates.pagamento_status;
-  if (updates.dados_clinicos) localUpdates.dados_clinicos = updates.dados_clinicos;
-  if (updates.elegibilidade) localUpdates.elegibilidade = updates.elegibilidade;
-  if (updates.risco) localUpdates.risco = updates.risco;
+  if (updates.paciente_nome !== undefined) dbUpdates.patient_name = updates.paciente_nome;
+  if (updates.paciente_telefone !== undefined) dbUpdates.patient_phone = updates.paciente_telefone;
+  if (updates.paciente_cpf !== undefined) dbUpdates.patient_cpf = updates.paciente_cpf;
+  if (updates.paciente_email !== undefined) dbUpdates.patient_email = updates.paciente_email;
+  if (updates.condicao !== undefined) dbUpdates.condition = updates.condicao;
+  if (updates.medicacao_em_uso !== undefined) dbUpdates.medication_in_use = updates.medicacao_em_uso;
+  if (updates.pagamento_status !== undefined) dbUpdates.payment_status = updates.pagamento_status;
+  if (updates.dados_clinicos) dbUpdates.clinical_data = updates.dados_clinicos;
+  if (updates.elegibilidade) dbUpdates.eligibility = updates.elegibilidade;
+  if (updates.risco) dbUpdates.risk_level = updates.risco;
 
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    let { data, error } = await supabase
-      .from('atendimentos')
-      .update(updates)
-      .eq('id', id)
-      .select('*')
-      .single();
+  const data = await dbQuery('atualizar appointment', async (supabase) =>
+    supabase.from(T.APPOINTMENTS).update(dbUpdates).eq('id', id).select('*').maybeSingle()
+  );
+  if (!data) return null;
 
-    if (error && /Could not find|schema cache|column/i.test(error.message || '')) {
-      const legacyUpdates = toLegacySupabaseUpdate(updates);
-      const retry = await supabase
-        .from('atendimentos')
-        .update(legacyUpdates)
-        .eq('id', id)
-        .select('*')
-        .single();
-      data = retry.data;
-      error = retry.error;
-    }
+  await dbQuery('histórico status appointment', async (supabase) =>
+    supabase.from(T.APPOINTMENT_STATUS_HISTORY).insert({
+      appointment_id: id,
+      previous_status: meta.status_anterior || null,
+      new_status: normalizedStatus,
+      reason: dbUpdates.decision_reason,
+      doctor_id: dbUpdates.doctor_id,
+      snapshot: meta.snapshot || {}
+    })
+  );
 
-    if (!error && data) return fromSupabase(data);
-    await recordSupabaseFallback('atualizar atendimento', error, { entity_id: id, status: normalizedStatus });
-    assertCanFallback('atualizar atendimento', error);
-    console.warn('Supabase atendimento update fallback:', error?.message);
-  }
-
-  const index = atendimentos.findIndex((item) => item.id === id);
-  if (index === -1) return null;
-
-  atendimentos[index] = { ...atendimentos[index], ...localUpdates };
-  return atendimentos[index];
+  return fromSupabase(data);
 }
 
 async function createDecisaoLog(input = {}) {
@@ -448,98 +381,77 @@ async function createDecisaoLog(input = {}) {
     criado_em: input.criado_em || new Date().toISOString()
   };
 
-  if (hasSupabase()) {
-    try {
-      const data = await createAuditLog({
+  const data = await dbQuery('registrar decisão médica', async (supabase) =>
+    supabase
+      .from(T.MEDICAL_DECISIONS)
+      .insert({
         id: log.id,
-        entity_type: 'atendimento',
-        entity_id: log.atendimento_id,
-        action: 'status_change',
-        actor: rawMedicoId || 'backend',
-        payload: log,
-        created_at: log.criado_em
-      });
-      return {
-        id: data.id,
-        atendimento_id: log.atendimento_id,
-        status_anterior: log.status_anterior,
-        status_novo: log.status_novo,
-        motivo: log.motivo,
-        medico_id: log.medico_id,
-        snapshot: log.snapshot,
-        criado_em: data.created_at || log.criado_em
-      };
-    } catch (error) {
-      await recordSupabaseFallback('registrar decisao', error, { entity_id: log.atendimento_id, status: log.status_novo });
-      assertCanFallback('registrar decisao', error);
-    }
-  }
+        appointment_id: log.atendimento_id,
+        previous_status: log.status_anterior,
+        new_status: log.status_novo,
+        decision_type: 'status_change',
+        reason: log.motivo,
+        doctor_id: rawMedicoId ? String(rawMedicoId) : null,
+        snapshot: log.snapshot
+      })
+      .select('*')
+      .single()
+  );
 
-  decisoesLog.unshift(log);
-  return log;
+  await createAuditLog({
+    entity_type: 'appointment',
+    entity_id: log.atendimento_id,
+    action: 'medical_decision',
+    actor: rawMedicoId || 'backend',
+    payload: log
+  });
+
+  return {
+    id: data.id,
+    atendimento_id: data.appointment_id,
+    status_anterior: data.previous_status,
+    status_novo: data.new_status,
+    motivo: data.reason,
+    medico_id: data.doctor_id,
+    snapshot: data.snapshot,
+    criado_em: data.created_at
+  };
 }
 
 async function listDecisoesLog(atendimentoId) {
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('decisoes_log')
+  const data = await dbQuery('listar decisões', async (supabase) =>
+    supabase
+      .from(T.MEDICAL_DECISIONS)
       .select('*')
-      .eq('atendimento_id', atendimentoId)
-      .order('criado_em', { ascending: false });
-
-    if (!error && data) {
-      return data.map((row) => ({
-        id: row.id,
-        atendimento_id: row.atendimento_id,
-        status_anterior: row.status_anterior || null,
-        status_novo: row.status_novo || 'DECISAO',
-        motivo: row.motivo || null,
-        medico_id: row.medico_id || null,
-        snapshot: row.snapshot || {},
-        criado_em: row.criado_em
-      }));
-    }
-    await recordSupabaseFallback('listar decisoes', error, { entity_id: atendimentoId });
-    assertCanFallback('listar decisoes', error);
-    console.warn('Supabase decisoes_log list fallback:', error?.message);
-  }
-
-  return decisoesLog
-    .filter((log) => log.atendimento_id === atendimentoId)
-    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+      .eq('appointment_id', atendimentoId)
+      .order('created_at', { ascending: false })
+  );
+  return (data || []).map((row) => ({
+    id: row.id,
+    atendimento_id: row.appointment_id,
+    status_anterior: row.previous_status || null,
+    status_novo: row.new_status || 'DECISAO',
+    motivo: row.reason || null,
+    medico_id: row.doctor_id || null,
+    snapshot: row.snapshot || {},
+    criado_em: row.created_at
+  }));
 }
 
 async function listRecentDecisoesLog(limit = 30) {
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('decisoes_log')
-      .select('*')
-      .order('criado_em', { ascending: false })
-      .limit(limit);
-
-    if (!error && data) {
-      return data.map((row) => ({
-        id: row.id,
-        atendimento_id: row.atendimento_id,
-        status_anterior: row.status_anterior || null,
-        status_novo: row.status_novo || 'DECISAO',
-        motivo: row.motivo || null,
-        medico_id: row.medico_id || null,
-        snapshot: row.snapshot || {},
-        criado_em: row.criado_em
-      }));
-    }
-    await recordSupabaseFallback('listar decisoes recentes', error, { entity_type: 'decisoes_log' });
-    assertCanFallback('listar decisoes recentes', error);
-    console.warn('Supabase decisoes_log recent fallback:', error?.message);
-  }
-
-  return decisoesLog
-    .slice()
-    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
-    .slice(0, limit);
+  const data = await dbQuery('listar decisões recentes', async (supabase) =>
+    supabase.from(T.MEDICAL_DECISIONS).select('*').order('created_at', { ascending: false }).limit(limit)
+  );
+  return (data || []).map((row) => ({
+    id: row.id,
+    atendimento_id: row.appointment_id,
+    status_anterior: row.previous_status || null,
+    status_novo: row.new_status || 'DECISAO',
+    motivo: row.reason || null,
+    medico_id: row.doctor_id || null,
+    snapshot: row.snapshot || {},
+    criado_em: row.created_at
+  }));
 }
 
 async function createEntregaReceitaLog(input = {}) {
@@ -556,16 +468,25 @@ async function createEntregaReceitaLog(input = {}) {
     criado_em: input.criado_em || input.sent_at || input.attempted_at || new Date().toISOString()
   };
 
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.from('entregas_receita').insert(log).select('*').single();
-    if (!error && data) return data;
-    await recordSupabaseFallback('registrar entrega de receita', error, { entity_id: log.atendimento_id, entity_type: 'entrega_receita' });
-    assertCanFallback('registrar entrega de receita', error);
-    console.warn('Supabase entregas_receita fallback:', error?.message);
-  }
-
-  return log;
+  const data = await dbQuery('registrar entrega', async (supabase) =>
+    supabase
+      .from(T.PRESCRIPTION_DELIVERY)
+      .insert({
+        id: log.id || randomUUID(),
+        appointment_id: log.atendimento_id,
+        channel: log.canal,
+        provider: log.provider,
+        provider_message_id: log.provider_message_id,
+        status: log.status,
+        target_masked: log.target_masked,
+        error_message: log.erro,
+        snapshot: log.snapshot,
+        delivered_at: log.status === 'sent' ? log.criado_em : null
+      })
+      .select('*')
+      .single()
+  );
+  return data;
 }
 
 module.exports = {

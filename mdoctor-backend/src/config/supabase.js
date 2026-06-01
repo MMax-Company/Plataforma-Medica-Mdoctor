@@ -1,4 +1,4 @@
-// src/config/supabase.js
+// src/config/supabase.js — persistência obrigatória (sem fallback in-memory)
 const { createClient } = require('@supabase/supabase-js');
 const WebSocket = require('ws');
 
@@ -14,58 +14,79 @@ function getServiceKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
 }
 
-function getAnonKey() {
-  return process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || '';
-}
-
 function isPlaceholder(value) {
   return !hasValue(value) || String(value).includes('SEU_PROJETO') || String(value).includes('...');
 }
 
 function getSupabaseBuckets() {
   return {
-    documents: process.env.SUPABASE_BUCKET_DOCUMENTS || 'documents',
-    prescriptions: process.env.SUPABASE_BUCKET_PRESCRIPTIONS || 'prescriptions',
-    medicalRecords: process.env.SUPABASE_BUCKET_MEDICAL_RECORDS || 'medical-records',
-    consents: process.env.SUPABASE_BUCKET_CONSENTS || 'consents',
-    logs: process.env.SUPABASE_BUCKET_LOGS || 'logs'
+    receitas: process.env.SUPABASE_BUCKET_RECEITAS || 'receitas',
+    uploads: process.env.SUPABASE_BUCKET_UPLOADS || 'uploads',
+    prontuarios: process.env.SUPABASE_BUCKET_PRONTUARIOS || 'prontuarios',
+    anexos: process.env.SUPABASE_BUCKET_ANEXOS || 'anexos',
+    receitasAntigas:
+      process.env.SUPABASE_BUCKET_RECEITAS_ANTERIORES ||
+      process.env.SUPABASE_RECEITAS_ANTERIORES_BUCKET ||
+      'receitas-antigas',
+    documentosClinicos: process.env.SUPABASE_BUCKET_DOCUMENTOS_CLINICOS || 'documentos-clinicos',
+    documents: process.env.SUPABASE_BUCKET_DOCUMENTS || 'documentos-clinicos',
+    prescriptions: process.env.SUPABASE_BUCKET_PRESCRIPTIONS || 'receitas',
+    previousPrescriptions:
+      process.env.SUPABASE_BUCKET_RECEITAS_ANTERIORES || 'receitas-antigas',
+    medicalRecords: process.env.SUPABASE_BUCKET_MEDICAL_RECORDS || 'prontuarios',
+    consents: process.env.SUPABASE_BUCKET_CONSENTS || 'documentos-clinicos',
+    logs: process.env.SUPABASE_BUCKET_LOGS || 'anexos'
   };
 }
 
 function isSupabaseConfigured() {
   const url = process.env.SUPABASE_URL;
-  const key = getServiceKey() || (process.env.NODE_ENV === 'production' ? '' : getAnonKey());
+  const key = getServiceKey();
   return !isPlaceholder(url) && !isPlaceholder(key) && String(url).startsWith('https://');
 }
 
 function initSupabase() {
   const url = process.env.SUPABASE_URL;
   const serviceKey = getServiceKey();
-  const key = serviceKey || (process.env.NODE_ENV === 'production' ? '' : getAnonKey());
 
-  if (process.env.NODE_ENV === 'production' && !serviceKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SERVICE_KEY obrigatório no backend em produção');
+  if (!serviceKey) {
+    const strict =
+      process.env.NODE_ENV === 'production' ||
+      process.env.ENVIRONMENT_NAME === 'staging' ||
+      process.env.SUPABASE_REQUIRED === 'true';
+    if (strict) {
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY obrigatória — persistência in-memory desativada');
+    }
   }
 
   if (isSupabaseConfigured()) {
-    supabase = createClient(url, key, {
+    supabase = createClient(url, serviceKey, {
       auth: { persistSession: false },
       realtime: { transport: WebSocket }
     });
     initialized = true;
     lastConnectionError = null;
-    console.log('✅ Supabase conectado (PostgreSQL + Storage + Auth)');
+    console.log('✅ Supabase conectado (persistência oficial)');
     return true;
-  } else {
-    supabase = null;
-    initialized = true;
-    console.log('⚠️ Supabase não configurado. Backend em modo desenvolvimento.');
-    return false;
   }
+
+  supabase = null;
+  initialized = true;
+  const optional = process.env.SUPABASE_PERSISTENCE_OPTIONAL === 'true';
+  if (!optional) {
+    console.error('❌ Supabase não configurado — backend exige banco (SUPABASE_PERSISTENCE_OPTIONAL=true só para testes locais)');
+  } else {
+    console.warn('⚠️ Supabase não configurado (modo opcional explícito)');
+  }
+  return false;
 }
 
 function getSupabase() {
-  if (!supabase) throw new Error('Supabase não inicializado. Configure SUPABASE_URL e SUPABASE_KEY.');
+  if (!supabase) {
+    throw new Error(
+      'Supabase não disponível. Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY do projeto oficial de produção.'
+    );
+  }
   return supabase;
 }
 
@@ -75,17 +96,41 @@ function reportSupabaseError(error) {
 
 async function pingSupabase() {
   if (!supabase) {
-    return { configured: isSupabaseConfigured(), responding: false, mode: 'fallback_local', error: lastConnectionError };
+    return {
+      configured: isSupabaseConfigured(),
+      responding: false,
+      mode: 'unavailable',
+      error: lastConnectionError || 'Cliente Supabase não inicializado'
+    };
   }
 
-  const { error } = await supabase.from('atendimentos').select('id', { count: 'exact', head: true }).limit(1);
-  if (error) {
-    reportSupabaseError(error);
-    return { configured: true, responding: false, mode: canUseLocalFallback() ? 'fallback_local' : 'supabase', error: error.message };
+  const probeTables = ['appointments', 'patients', 'atendimentos'];
+  let lastError = null;
+  for (const table of probeTables) {
+    const { error } = await supabase.from(table).select('id', { count: 'exact', head: true }).limit(1);
+    if (!error) {
+      lastError = null;
+      break;
+    }
+    lastError = error;
+  }
+  if (lastError) {
+    reportSupabaseError(lastError);
+    return {
+      configured: true,
+      responding: false,
+      mode: 'error',
+      error: lastError.message
+    };
   }
 
   lastConnectionError = null;
-  return { configured: true, responding: true, mode: 'supabase', error: null };
+  return {
+    configured: true,
+    responding: true,
+    mode: 'supabase',
+    error: null
+  };
 }
 
 function getSupabaseStatus() {
@@ -93,25 +138,14 @@ function getSupabaseStatus() {
     configured: isSupabaseConfigured(),
     initialized,
     responding: Boolean(supabase && !lastConnectionError),
-    mode: supabase && !lastConnectionError ? 'supabase' : 'fallback_local',
+    mode: supabase && !lastConnectionError ? 'supabase' : 'unavailable',
     buckets: getSupabaseBuckets(),
-    error: lastConnectionError
+    error: lastConnectionError,
+    fallback_disabled: true
   };
 }
 
-function canUseLocalFallback() {
-  return process.env.NODE_ENV !== 'production' && process.env.DISABLE_LOCAL_DB_FALLBACK !== 'true';
-}
-
-function assertCanFallback(context, error) {
-  if (canUseLocalFallback()) return;
-  const details = error?.message ? `: ${error.message}` : '';
-  throw new Error(`Persistencia Supabase obrigatoria falhou em ${context}${details}`);
-}
-
 module.exports = {
-  assertCanFallback,
-  canUseLocalFallback,
   getSupabaseBuckets,
   getSupabaseStatus,
   getSupabase,

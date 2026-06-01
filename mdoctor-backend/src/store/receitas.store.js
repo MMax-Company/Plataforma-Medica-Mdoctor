@@ -1,73 +1,58 @@
-const { randomUUID } = require('crypto');
-const { assertCanFallback, getSupabase } = require('../config/supabase');
-
-const receitasLocal = [];
-
-function hasSupabase() {
-  try {
-    getSupabase();
-    return true;
-  } catch {
-    return false;
-  }
-}
+const T = require('../db/tables');
+const { dbQuery } = require('../db/persistence');
+const { normalizePrescription, savePrescription } = require('./prescriptions.store');
 
 function normalizeReceita(input = {}) {
-  const now = new Date().toISOString();
+  const p = normalizePrescription({
+    ...input,
+    provider: input.provider || 'memed',
+    status: input.status || 'issued',
+    provider_prescription_id: input.receita_id || input.receitaId,
+    pdf_url: input.pdf_url || input.receita_url,
+    payload: {
+      ...(input.payload || {}),
+      protocolo: input.protocolo || input.protocol || null,
+      storage_path: input.storage_path || input.storagePath || null
+    },
+    issued_by_doctor_id: input.medico_id || input.medicoId,
+    issued_at: input.criado_em || input.gerada_em
+  });
   return {
-    id: input.id || randomUUID(),
-    atendimento_id: input.atendimento_id || input.atendimentoId,
-    receita_id: input.receita_id || input.receitaId || null,
-    protocolo: input.protocolo || input.protocol || null,
-    receita_url: input.receita_url || input.receitaUrl || null,
-    pdf_url: input.pdf_url || input.pdfUrl || null,
-    storage_path: input.storage_path || input.storagePath || null,
-    status: input.status || 'AWAITING_VALIDATION',
-    provider: input.provider || 'Memed',
-    payload: input.payload || {},
-    medico_id: input.medico_id || input.medicoId || null,
-    criado_em: input.criado_em || input.gerada_em || now,
-    atualizado_em: input.atualizado_em || now
+    id: p.id,
+    atendimento_id: p.appointment_id,
+    receita_id: p.provider_prescription_id,
+    protocolo: input.protocolo || null,
+    receita_url: p.pdf_url,
+    pdf_url: p.pdf_url,
+    storage_path: input.storage_path || null,
+    status: p.status,
+    provider: p.provider,
+    payload: p.payload,
+    medico_id: p.issued_by_doctor_id,
+    criado_em: p.created_at,
+    atualizado_em: p.updated_at
   };
 }
 
 async function createReceitaLog(input = {}) {
-  const receita = normalizeReceita(input);
-
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('receitas_memed')
-      .insert(receita)
-      .select('*')
-      .single();
-
-    if (!error && data) return normalizeReceita(data);
-    assertCanFallback('registrar receita Memed', error);
-    console.warn('Supabase receitas_memed fallback:', error?.message);
-  }
-
-  receitasLocal.unshift(receita);
-  return receita;
+  const saved = await savePrescription({
+    ...input,
+    atendimento_id: input.atendimento_id || input.atendimentoId,
+    provider: 'memed'
+  });
+  return normalizeReceita(saved);
 }
 
 async function listReceitasByAtendimento(atendimentoId) {
-  if (hasSupabase()) {
-    const supabase = getSupabase();
-    const { data, error } = await supabase
-      .from('receitas_memed')
+  const data = await dbQuery('listar receitas', async (supabase) =>
+    supabase
+      .from(T.PRESCRIPTIONS)
       .select('*')
-      .eq('atendimento_id', atendimentoId)
-      .order('criado_em', { ascending: false });
-
-    if (!error && data) return data.map(normalizeReceita);
-    assertCanFallback('listar receitas Memed', error);
-    console.warn('Supabase receitas_memed list fallback:', error?.message);
-  }
-
-  return receitasLocal
-    .filter((receita) => receita.atendimento_id === atendimentoId)
-    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)));
+      .or(`appointment_id.eq.${atendimentoId},atendimento_id.eq.${atendimentoId}`)
+      .eq('provider', 'memed')
+      .order('created_at', { ascending: false })
+  );
+  return (data || []).map(normalizeReceita);
 }
 
 module.exports = {
