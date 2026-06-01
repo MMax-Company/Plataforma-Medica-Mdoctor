@@ -145,3 +145,112 @@ drop table if exists public.webhook_events cascade;
 - `npm run supabase:fechamento` verde
 - Reinício do serviço **não** apaga dados
 - Duplicata de webhook Stripe/n8n **não** duplica pagamento/atendimento
+
+---
+
+## Relatório operacional — virada staging (2026-06-01)
+
+### 1. Git
+
+| Item | Status |
+|------|--------|
+| Branch | `codex/legacy-compat-infra` |
+| Commits exigidos | `a28386a`, `1f73303`, `ba2fb66` presentes no histórico |
+
+### 2. Projeto Supabase oficial novo
+
+| Credencial | Status |
+|------------|--------|
+| Projeto novo no dashboard | **Não configurado** no repositório nem no Railway staging |
+| `SUPABASE_URL` novo | **Pendente** — staging ainda aponta para `thbwoogytwcidxrrboym` |
+| `SUPABASE_SERVICE_ROLE_KEY` novo | **Pendente** |
+| `SUPABASE_DB_URL` | **Ausente** local e Railway (bloqueia `npm run supabase:migrate`) |
+
+**Ação manual:** criar projeto em `sa-east-1`, copiar URL + service_role + connection string (pooler 6543) e colar em `mdoctor-backend/.env` + Railway serviço `mdoctor-backend-staging` (`53960eb4-a1be-4d7c-b665-462049e52085`).
+
+### 3. `.env` local
+
+| Variável | Status |
+|----------|--------|
+| `SUPABASE_REQUIRED=true` | Configurado |
+| `DISABLE_LOCAL_DB_FALLBACK=true` | Configurado |
+| `ENVIRONMENT_NAME=staging` | Configurado |
+| `SUPABASE_SERVICE_ROLE_KEY` | Alias do service key (até troca do projeto) |
+| `SUPABASE_DB_URL` | Comentado — preencher com projeto **novo** |
+
+### 4–6. Migrations / validate / fechamento
+
+| Comando | Resultado |
+|---------|-----------|
+| `npm run supabase:migrate` | **Não executado** — falta `SUPABASE_DB_URL` |
+| `npm run supabase:validate` | **Não executado** no projeto novo |
+| `npm run supabase:fechamento` | **Não executado** no projeto novo (`migration_pending: false` exige schema completo) |
+
+Migrations no repositório (ordem): `20260527` → `20260528` → `20260529` → `20260530` → `20260601` → `20260602`.
+
+**Após credenciais novas:**
+
+```bash
+cd mdoctor-backend
+npm run supabase:migrate
+npm run supabase:validate    # esperado: ok: true
+npm run supabase:fechamento  # esperado: success: true, migration_pending: false
+```
+
+### 7. Persistência obrigatória (testes 1–10)
+
+**Pendente** até projeto novo + migrations.
+
+### 8–9. Railway staging
+
+| Variável | Status atual (2026-06-01) |
+|----------|---------------------------|
+| `SUPABASE_URL` | Legado `thbwoogytwcidxrrboym` — **trocar** |
+| `SUPABASE_SERVICE_ROLE_KEY` | Legado — **trocar** |
+| `SUPABASE_REQUIRED` | **Pendente** definir `true` no cutover |
+| `DISABLE_LOCAL_DB_FALLBACK` | Era `false` — alinhar para `true` no cutover |
+| `ENVIRONMENT_NAME` | `staging` |
+| `N8N_WEBHOOK_SECRET` | Presente |
+| Redeploy pós-cutover | **Pendente** |
+
+**Backend staging:** `https://mdoctor-backend-staging-staging.up.railway.app`
+
+### 10. `/readyz` (staging atual — banco legado)
+
+```json
+{
+  "status": "warning",
+  "environment": "staging",
+  "storage": { "mode": "supabase", "initialized": true },
+  "supabase": { "mode": "supabase", "connected": true },
+  "fallback_local": false
+}
+```
+
+Após cutover para projeto novo, repetir `GET /readyz` e confirmar `storage.mode: "supabase"` com ref do projeto novo.
+
+### 11. Rotas staging
+
+**Pendente** smoke completo após migrations no banco novo:
+
+- `POST /api/webhook/triagem` (header `X-MDoctor-Webhook-Secret`)
+- `GET /api/atendimentos`, `GET /api/fila`
+- `POST /api/suporte`, `GET /api/suporte/pendentes`
+- `POST /api/webhooks/stripe`
+- `POST /api/whatsapp/webhook`
+
+Script existente: `node scripts/staging-e2e-operacional.js` (com `N8N_WEBHOOK_SECRET`).
+
+### 12. n8n / Typebot
+
+Fluxo canônico: **backend** (`/api/webhook/triagem`, `/api/whatsapp/webhook`), header `X-MDoctor-Webhook-Secret`.
+
+Alguns exports Typebot/n8n ainda referenciam storage público do projeto legado (`thbwoogytwcidxrrboym`) para PDFs LGPD — não é persistência clínica; revisar após cutover se URLs públicas mudarem.
+
+### 13. Pendências para fechar a virada
+
+1. Criar projeto Supabase oficial novo e fornecer `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (canal seguro).
+2. Rodar migrate → validate → fechamento no projeto novo.
+3. Atualizar Railway staging com as três credenciais + `SUPABASE_REQUIRED=true` + `DISABLE_LOCAL_DB_FALLBACK=true`; redeploy.
+4. Smoke rotas + confirmar linhas nas tabelas oficiais e buckets (`receitas`, `uploads`, `prontuarios`, `anexos`, `receitas-antigas`, `documentos-clinicos`).
+5. Commit `chore: ativar supabase oficial em staging` somente após itens 1–4 verdes.
