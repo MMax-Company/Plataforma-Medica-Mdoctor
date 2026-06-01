@@ -3,6 +3,7 @@ const memed = require('../services/memed.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { getPrescriptionByAtendimento } = require('../store/prescriptions.store');
+const { allowMemedMockFallback, isMemedRealEnabled } = require('../config/memed-runtime');
 
 const router = express.Router();
 
@@ -106,7 +107,10 @@ router.get('/:id', requireAuth, async (req, res) => {
       return res.json({ ...toResponseFromStored(stored), correlationId });
     }
 
-    if (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-')) {
+    if (
+      !isMemedRealEnabled() &&
+      (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-'))
+    ) {
       await createAuditLog({
         entity_type: 'prescription',
         entity_id: req.params.id,
@@ -119,6 +123,14 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     const result = await memed.getPrescription(req.params.id);
     if (result.source === 'memed') return res.json(result);
+    if (isMemedRealEnabled() || !allowMemedMockFallback()) {
+      return res.status(503).json({
+        success: false,
+        code: 'MEMED_REAL_MODE_NO_MOCK',
+        error: result.error || result.warning || 'Receita indisponível — emita no widget Memed (/receita).',
+        correlationId
+      });
+    }
     await createAuditLog({
       entity_type: 'prescription',
       entity_id: req.params.id,
@@ -128,6 +140,14 @@ router.get('/:id', requireAuth, async (req, res) => {
     });
     return res.json({ ...mockPrescriptionResponse(req.params.id, result.error), correlationId });
   } catch (error) {
+    if (isMemedRealEnabled() || !allowMemedMockFallback()) {
+      return res.status(503).json({
+        success: false,
+        code: 'MEMED_REAL_MODE_NO_MOCK',
+        error: error.message,
+        correlationId
+      });
+    }
     await createAuditLog({
       entity_type: 'prescription',
       entity_id: req.params.id,
@@ -140,7 +160,10 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 router.get('/:id/pdf', requireAuth, async (req, res) => {
-  if (String(req.params.id).startsWith('dev-') || process.env.NODE_ENV !== 'production') {
+  const allowDevPdf =
+    !isMemedRealEnabled() &&
+    (String(req.params.id).startsWith('dev-') || String(req.params.id).startsWith('mock-') || process.env.NODE_ENV !== 'production');
+  if (allowDevPdf) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="receita_${req.params.id}.pdf"`);
     return res.send(mockPdfBuffer(req.params.id));
@@ -154,6 +177,14 @@ router.get('/:id/pdf', requireAuth, async (req, res) => {
     }
   } catch {
     // Keep the MVP stable when Memed is unavailable.
+  }
+
+  if (isMemedRealEnabled() || !allowMemedMockFallback()) {
+    return res.status(404).json({
+      success: false,
+      code: 'MEMED_PDF_NOT_AVAILABLE',
+      error: 'PDF simulado indisponível em modo Memed real. Use o link HTTPS da receita emitida.'
+    });
   }
 
   res.setHeader('Content-Type', 'application/pdf');

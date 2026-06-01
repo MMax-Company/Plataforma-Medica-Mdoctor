@@ -1,5 +1,7 @@
 const express = require('express');
 const memed = require('../integrations/memed.service');
+const { assertRealMemedReceipt, getMemedRuntimeStatus } = require('../config/memed-runtime');
+const { mirrorMemedPdfToStorage } = require('../services/memed-receipt-mirror.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
@@ -48,11 +50,14 @@ function buildPrescriberSnapshot() {
 }
 
 router.get('/config', (_req, res) => {
+  const runtime = getMemedRuntimeStatus();
   res.json({
     success: true,
     config: {
       enabled: process.env.MEMED_ENABLED === 'true' || memed.hasCredentials() || memed.hasStaticToken(),
-      environment: process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || 'development',
+      environment: runtime.environment,
+      realMode: runtime.real_enabled,
+      mockFallbackAllowed: runtime.mock_fallback_allowed,
       scriptUrl: defaultScriptUrl(),
       containerId: 'prescricao-memed',
       primaryColor: '#1557FF',
@@ -60,8 +65,10 @@ router.get('/config', (_req, res) => {
         minWidth: 820,
         minHeight: 700
       },
-      emissionMode: 'sinapse_widget_manual'
-    }
+      emissionMode: runtime.emission_mode,
+      callbackUrl: runtime.callback_url
+    },
+    runtime
   });
 });
 
@@ -194,6 +201,20 @@ router.post('/receita', requireAuth, async (req, res) => {
     });
   }
 
+  const realCheck = assertRealMemedReceipt({
+    receitaId: memedId,
+    pdfUrl: resolvedPdf,
+    receitaUrl
+  });
+  if (!realCheck.ok) {
+    return res.status(422).json({
+      success: false,
+      error: realCheck.message,
+      code: realCheck.code,
+      correlationId
+    });
+  }
+
   const previous = await getAtendimento(atendimentoId);
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
 
@@ -245,14 +266,30 @@ router.post('/receita', requireAuth, async (req, res) => {
   const prescriber = buildPrescriberSnapshot();
   const medicoId = resolveDoctorId(req);
 
+  let mirrorResult = null;
+  try {
+    mirrorResult = await mirrorMemedPdfToStorage({
+      atendimentoId,
+      memedId,
+      sourceUrl: resolvedPdf
+    });
+  } catch (mirrorError) {
+    return res.status(502).json({
+      success: false,
+      error: 'Falha ao espelhar PDF Memed no storage',
+      details: process.env.NODE_ENV === 'development' ? mirrorError.message : undefined,
+      correlationId
+    });
+  }
+
   const receita = {
     atendimentoId,
     memed_id: memedId,
-    receitaUrl: receitaUrl || resolvedPdf || null,
-    pdfUrl: resolvedPdf,
+    receitaUrl: receitaUrl || mirrorResult?.signedUrl || resolvedPdf || null,
+    pdfUrl: mirrorResult?.signedUrl || resolvedPdf,
+    storagePath: mirrorResult?.storagePath || storagePath || null,
     receitaId: memedId,
     protocolo: protocolo || protocol || null,
-    storagePath: storagePath || null,
     payload_summary: {
       has_widget_payload: Boolean(payload),
       medication_hint:
