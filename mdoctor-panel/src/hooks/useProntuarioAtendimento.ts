@@ -161,13 +161,15 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
   }, [atendimento]);
 
   const eligibilityMessage = useMemo(() => {
+    const preferredOk = 'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.';
     if (atendimento?.elegibilidade?.eligible === false) {
       return atendimento.elegibilidade.reason || 'Critérios de elegibilidade não atendidos.';
     }
-    return (
-      atendimento?.elegibilidade?.reason ||
-      'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.'
-    );
+    const reason = (atendimento?.elegibilidade?.reason || '').trim();
+    if (!reason || /baixo risco|filtrado como|renovação clínica coerente/i.test(reason)) {
+      return preferredOk;
+    }
+    return reason;
   }, [atendimento]);
 
   const hasAttachedPrescription = Boolean(
