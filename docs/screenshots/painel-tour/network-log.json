@@ -1,0 +1,22 @@
+[
+  {
+    "phase": "login",
+    "url": "https://painel-medico-staging-staging.up.railway.app/api/auth/login",
+    "method": "POST",
+    "status": 200,
+    "requestBody": {
+      "user": "drmax.matos",
+      "password": "***"
+    },
+    "responseBody": {
+      "success": true,
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJkcl9tYXhfdmluaWNpdXNfMDAxIiwidXNlcm5hbWUiOiJkcm1heC5tYXRvcyIsInJvbGUiOiJhZG1pbiIsIm5hbWUiOiJEciBNYXggTWF0b3MiLCJpYXQiOjE3ODAzNjgzNDYsImV4cCI6MTc4MDM5NzE0Nn0.drYG8oc8ig53Sp2x4duAXEoxmFeU0cnSydeQ_h3FKwA",
+      "user": {
+        "id": "dr_max_vinicius_001",
+        "name": "Dr Max Matos",
+        "username": "drmax.matos",
+        "role": "admin"
+      }
+    }
+  }
+]

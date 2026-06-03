@@ -1,0 +1,42 @@
+{
+  "audited_at": "2026-06-02T00:24:00.000Z",
+  "verdict": "STAGING_SERVE_NEXTJS_BUT_OLD_BUILD_NOT_CURRENT_HEAD",
+  "repo": {
+    "remote": "https://github.com/MMax-Company/Plataforma-Medica-Mdoctor.git",
+    "branch": "codex/legacy-compat-infra",
+    "commit": "3fbf42b0334533fbe251793601c7625ca19516da",
+    "commit_short": "3fbf42b",
+    "frontend_path": "mdoctor-panel"
+  },
+  "railway": {
+    "panel_staging_service": "painel-medico-staging",
+    "panel_staging_service_id": "626fc9d2-3f6a-417c-b3a7-e3e21846edb8",
+    "panel_staging_project_id": "3bec26a7-422e-40ae-8763-2a4c5158fef4",
+    "panel_staging_url": "https://painel-medico-staging-staging.up.railway.app",
+    "backend_staging_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+    "web_production_url": "https://web-production-5f178.up.railway.app",
+    "web_production_note": "backend only — /login 404",
+    "cli_deploy": "blocked_unauthorized_run_railway_login"
+  },
+  "live_staging_evidence": {
+    "title": "Doctor Prescreve",
+    "framework": "Next.js",
+    "login_chunk": "app/login/page-ff914915395c2013.js",
+    "logo_in_deployed_login": "logotipo-mdoctor",
+    "logo_in_local_login": "doctor-prescreve-logo-transparent.png",
+    "memed_ux_new_code_on_air": false,
+    "audit_banner_on_air": false
+  },
+  "marker_deploy": {
+    "banner": "PAINEL NOVO V2",
+    "footer_fields": ["NEXT_PUBLIC_BUILD_COMMIT", "NEXT_PUBLIC_BUILD_TIME"],
+    "files": [
+      "mdoctor-panel/src/components/staging/StagingBuildMarker.tsx",
+      "mdoctor-panel/scripts/write-build-env.js",
+      "mdoctor-panel/src/app/layout.tsx"
+    ],
+    "local_build_ok": true
+  },
+  "block_memed_until": "banner_visible_on_staging_login",
+  "no_touch": ["web", "production", "Mdoctor-Prescreve deploy to staging"]
+}

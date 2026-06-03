@@ -24,9 +24,9 @@ async function loginWithOrigin() {
       Origin: PANEL,
     },
     body: JSON.stringify({
-      user: 'drmax.matos',
-      username: 'drmax.matos',
-      password: 'Gr@tid@0',
+      user: process.env.MEDICO_USER || 'drmax.matos',
+      username: process.env.MEDICO_USER || 'drmax.matos',
+      password: process.env.MEDICO_PASS || '',
     }),
   });
   console.log('\nPOST status:', res.status);

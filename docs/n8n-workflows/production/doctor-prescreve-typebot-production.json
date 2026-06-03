@@ -1,0 +1,763 @@
+{
+  "updatedAt": "2026-05-29T08:44:23.015Z",
+  "createdAt": "2026-05-16T17:58:17.185Z",
+  "id": "P7qhHC4iNgW8sxDJ",
+  "name": "Doctor Prescreve — Typebot Produção",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zapi-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "70d14514-2cfc-45f7-be6b-5764358104f4",
+      "name": "Webhook Z-API",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -672,
+        224
+      ],
+      "webhookId": "zapi-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "typebot-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "58eee6b2-65be-4bca-b8bd-05cbf4854fbc",
+      "name": "Webhook Typebot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -656,
+        576
+      ],
+      "webhookId": "typebot-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nlet telefone = input.phone || input.from || \"\";\ntelefone = String(telefone).replace(/[^0-9]/g, \"\");\nif (telefone.startsWith(\"55\") && telefone.length > 10) {\n  telefone = telefone.substring(2);\n}\n\nconst nome = input.name || input.pushname || \"Paciente\";\nconst mensagem = (input.text || input.body || input.mensagem || \"\").toLowerCase().trim();\n\nreturn [{\n  json: {\n    telefone: telefone,\n    nome: nome,\n    mensagem: mensagem\n  }\n}];"
+      },
+      "id": "efc968bb-36dd-4b06-b48f-9843005590bf",
+      "name": "Extrair Z-API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.mensagem }}",
+              "rightValue": "oi",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1fa0de0-a06b-46e8-88e1-dffe5d55eebf",
+      "name": "Verificar Início",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -272,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    telefone: $json.telefone,\n    resposta: `👨‍⚕️ *DOCTOR PRESCREVE* 🏥\\n\\nOlá *${$json.nome}*!\\n\\nClique para iniciar sua consulta:\\n\\n🔗 https://typebot.co/doctor-prescreve-8rmljgu`\n  }\n}];"
+      },
+      "id": "2f5b90c4-964b-41d6-80a6-398ceaea40dd",
+      "name": "Resposta Início",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $json.mensagem;\nlet resposta = \"\";\nif (msg === \"1\" || msg === \"sim\") {\n  resposta = `✅ *Inicie sua consulta*\\n🔗 https://typebot.co/doctor-prescreve-8rmljgu`;\n} else if (msg === \"2\" || msg === \"ajuda\") {\n  resposta = `📞 *Suporte*\\nResponderemos em até 2h`;\n} else {\n  resposta = `❓ Digite:\\n1 - Iniciar\\n2 - Suporte`;\n}\nreturn [{ json: { telefone: $json.telefone, resposta } }];"
+      },
+      "id": "d3acf427-0ac1-4c84-a716-3feb323e2f97",
+      "name": "Resposta Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.z-api.io/instances/3F336CC669AC3295D03A9EB43ACFB5D4/token/CFABB7DFB9CAB3702FC26369/send-text",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"phone\": \"55{{ $json.telefone }}\",\n  \"message\": \"{{ $json.resposta }}\"\n}",
+        "options": {}
+      },
+      "id": "bc3d2bce-d629-45fc-8f23-7284c719c605",
+      "name": "Enviar Z-API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        160,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst dados = raw.body || raw.data || raw;\n\nlet telefone = String(dados.whatsapp || dados.telefone || \"\").replace(/[^0-9]/g, \"\");\nif (!telefone.startsWith(\"55\")) telefone = \"55\" + telefone;\n\nlet dataNascimento = dados.data_nascimento || \"\";\nif (dataNascimento && dataNascimento.includes(\"/\")) {\n  const p = dataNascimento.split(\"/\");\n  dataNascimento = `${p[2]}-${p[1]}-${p[0]}`;\n}\n\nconst doencas = dados.doenca_cronica ? [dados.doenca_cronica] : [];\nconst isElegivel = (dados.sinais_alerta || \"NAO\") === \"NAO\" && doencas.length > 0;\n\nreturn [{\n  json: {\n    elegivel: isElegivel,\n    nome: dados.Nome_Completo || \"\",\n    cpf: dados.cpf_paciente || \"\",\n    telefone: telefone,\n    email: dados.Email || \"\",\n    data_nascimento: dataNascimento,\n    medicamento: dados.primeiro_medicamento || \"\",\n    doenca: dados.doenca_cronica || \"\"\n  }\n}];"
+      },
+      "id": "d07b1398-e6be-4251-8ba5-88cf1e9a7645",
+      "name": "Normalizar Typebot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://thbwoogytwcidxrrboym.supabase.co/rest/v1/triagens",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYndvb2d5dHdjaWR4cnJib3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODYyNjAsImV4cCI6MjA5MzU2MjI2MH0.7ZcKY5S3z-pqEEjOqWrMY1-88YYqkVPepK9bwgFnN8c"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer sb_publishable_LpOCQCHwl-9luNHuec9UkA_05XgynvK"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"nome\": \"{{ $json.nome }}\",\n  \"cpf\": \"{{ $json.cpf }}\",\n  \"telefone\": \"{{ $json.telefone }}\",\n  \"email\": \"{{ $json.email }}\",\n  \"data_nascimento\": \"{{ $json.data_nascimento }}\",\n  \"medicamento\": \"{{ $json.medicamento }}\",\n  \"doenca\": \"{{ $json.doenca }}\",\n  \"elegivel\": {{ $json.elegivel }},\n  \"status\": \"pendente\",\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+        "options": {}
+      },
+      "id": "37695cc8-3489-4fbf-95ed-74a416d6a237",
+      "name": "Salvar Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -256,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.elegivel }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ab23f213-3897-4ad1-8c80-35f33ec534bf",
+      "name": "Verificar Elegível",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -48,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": true,\n  \"message\": \"Triagem recebida com sucesso!\"\n}",
+        "options": {}
+      },
+      "id": "407e8516-e4ca-441e-b247-f090d70974a7",
+      "name": "Resposta Sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        176,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\n  \"success\": false,\n  \"message\": \"Paciente não elegível para renovação online.\"\n}",
+        "options": {}
+      },
+      "id": "a3fba9bb-5069-419d-bedc-28e47eec07b2",
+      "name": "Resposta Negada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        160,
+        688
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Z-API": {
+      "main": [
+        [
+          {
+            "node": "Extrair Z-API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Z-API": {
+      "main": [
+        [
+          {
+            "node": "Verificar Início",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Início": {
+      "main": [
+        [
+          {
+            "node": "Resposta Início",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Menu",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta Início": {
+      "main": [
+        [
+          {
+            "node": "Enviar Z-API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta Menu": {
+      "main": [
+        [
+          {
+            "node": "Enviar Z-API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Typebot": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Typebot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Typebot": {
+      "main": [
+        [
+          {
+            "node": "Salvar Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Supabase": {
+      "main": [
+        [
+          {
+            "node": "Verificar Elegível",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Elegível": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Negada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "7d0b8832-b29d-4122-bf07-e67c295bc6d2",
+  "activeVersionId": "7d0b8832-b29d-4122-bf07-e67c295bc6d2",
+  "versionCounter": 24,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-05-16T17:58:17.185Z",
+      "createdAt": "2026-05-16T17:58:17.185Z",
+      "role": "workflow:owner",
+      "workflowId": "P7qhHC4iNgW8sxDJ",
+      "projectId": "PrjZhDzaTrxS3VBq",
+      "project": {
+        "updatedAt": "2026-04-24T15:12:32.860Z",
+        "createdAt": "2026-04-24T15:11:07.770Z",
+        "id": "PrjZhDzaTrxS3VBq",
+        "name": "Max Matos <maxvini.ferr@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-05-16T18:27:32.973Z",
+    "createdAt": "2026-05-16T18:27:31.564Z",
+    "versionId": "7d0b8832-b29d-4122-bf07-e67c295bc6d2",
+    "workflowId": "P7qhHC4iNgW8sxDJ",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "zapi-webhook",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "70d14514-2cfc-45f7-be6b-5764358104f4",
+        "name": "Webhook Z-API",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [
+          -672,
+          224
+        ],
+        "webhookId": "zapi-webhook"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "typebot-webhook",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "58eee6b2-65be-4bca-b8bd-05cbf4854fbc",
+        "name": "Webhook Typebot",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [
+          -656,
+          576
+        ],
+        "webhookId": "typebot-webhook"
+      },
+      {
+        "parameters": {
+          "jsCode": "const input = $input.first().json;\n\nlet telefone = input.phone || input.from || \"\";\ntelefone = String(telefone).replace(/[^0-9]/g, \"\");\nif (telefone.startsWith(\"55\") && telefone.length > 10) {\n  telefone = telefone.substring(2);\n}\n\nconst nome = input.name || input.pushname || \"Paciente\";\nconst mensagem = (input.text || input.body || input.mensagem || \"\").toLowerCase().trim();\n\nreturn [{\n  json: {\n    telefone: telefone,\n    nome: nome,\n    mensagem: mensagem\n  }\n}];"
+        },
+        "id": "efc968bb-36dd-4b06-b48f-9843005590bf",
+        "name": "Extrair Z-API",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -464,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.mensagem }}",
+                "rightValue": "oi",
+                "operator": {
+                  "type": "string",
+                  "operation": "contains"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "c1fa0de0-a06b-46e8-88e1-dffe5d55eebf",
+        "name": "Verificar Início",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -272,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "return [{\n  json: {\n    telefone: $json.telefone,\n    resposta: `👨‍⚕️ *DOCTOR PRESCREVE* 🏥\\n\\nOlá *${$json.nome}*!\\n\\nClique para iniciar sua consulta:\\n\\n🔗 https://typebot.co/doctor-prescreve-8rmljgu`\n  }\n}];"
+        },
+        "id": "2f5b90c4-964b-41d6-80a6-398ceaea40dd",
+        "name": "Resposta Início",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -64,
+          16
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const msg = $json.mensagem;\nlet resposta = \"\";\nif (msg === \"1\" || msg === \"sim\") {\n  resposta = `✅ *Inicie sua consulta*\\n🔗 https://typebot.co/doctor-prescreve-8rmljgu`;\n} else if (msg === \"2\" || msg === \"ajuda\") {\n  resposta = `📞 *Suporte*\\nResponderemos em até 2h`;\n} else {\n  resposta = `❓ Digite:\\n1 - Iniciar\\n2 - Suporte`;\n}\nreturn [{ json: { telefone: $json.telefone, resposta } }];"
+        },
+        "id": "d3acf427-0ac1-4c84-a716-3feb323e2f97",
+        "name": "Resposta Menu",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -80,
+          368
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.z-api.io/instances/3F336CC669AC3295D03A9EB43ACFB5D4/token/CFABB7DFB9CAB3702FC26369/send-text",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"phone\": \"55{{ $json.telefone }}\",\n  \"message\": \"{{ $json.resposta }}\"\n}",
+          "options": {}
+        },
+        "id": "bc3d2bce-d629-45fc-8f23-7284c719c605",
+        "name": "Enviar Z-API",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          160,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const raw = $input.first().json;\nconst dados = raw.body || raw.data || raw;\n\nlet telefone = String(dados.whatsapp || dados.telefone || \"\").replace(/[^0-9]/g, \"\");\nif (!telefone.startsWith(\"55\")) telefone = \"55\" + telefone;\n\nlet dataNascimento = dados.data_nascimento || \"\";\nif (dataNascimento && dataNascimento.includes(\"/\")) {\n  const p = dataNascimento.split(\"/\");\n  dataNascimento = `${p[2]}-${p[1]}-${p[0]}`;\n}\n\nconst doencas = dados.doenca_cronica ? [dados.doenca_cronica] : [];\nconst isElegivel = (dados.sinais_alerta || \"NAO\") === \"NAO\" && doencas.length > 0;\n\nreturn [{\n  json: {\n    elegivel: isElegivel,\n    nome: dados.Nome_Completo || \"\",\n    cpf: dados.cpf_paciente || \"\",\n    telefone: telefone,\n    email: dados.Email || \"\",\n    data_nascimento: dataNascimento,\n    medicamento: dados.primeiro_medicamento || \"\",\n    doenca: dados.doenca_cronica || \"\"\n  }\n}];"
+        },
+        "id": "d07b1398-e6be-4251-8ba5-88cf1e9a7645",
+        "name": "Normalizar Typebot",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -448,
+          576
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://thbwoogytwcidxrrboym.supabase.co/rest/v1/triagens",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRoYndvb2d5dHdjaWR4cnJib3ltIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5ODYyNjAsImV4cCI6MjA5MzU2MjI2MH0.7ZcKY5S3z-pqEEjOqWrMY1-88YYqkVPepK9bwgFnN8c"
+              },
+              {
+                "name": "Authorization",
+                "value": "Bearer sb_publishable_LpOCQCHwl-9luNHuec9UkA_05XgynvK"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"nome\": \"{{ $json.nome }}\",\n  \"cpf\": \"{{ $json.cpf }}\",\n  \"telefone\": \"{{ $json.telefone }}\",\n  \"email\": \"{{ $json.email }}\",\n  \"data_nascimento\": \"{{ $json.data_nascimento }}\",\n  \"medicamento\": \"{{ $json.medicamento }}\",\n  \"doenca\": \"{{ $json.doenca }}\",\n  \"elegivel\": {{ $json.elegivel }},\n  \"status\": \"pendente\",\n  \"created_at\": \"{{ new Date().toISOString() }}\"\n}",
+          "options": {}
+        },
+        "id": "37695cc8-3489-4fbf-95ed-74a416d6a237",
+        "name": "Salvar Supabase",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          -256,
+          576
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": false,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 1
+            },
+            "conditions": [
+              {
+                "leftValue": "={{ $json.elegivel }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "ab23f213-3897-4ad1-8c80-35f33ec534bf",
+        "name": "Verificar Elegível",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -48,
+          576
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "{\n  \"success\": true,\n  \"message\": \"Triagem recebida com sucesso!\"\n}",
+          "options": {}
+        },
+        "id": "407e8516-e4ca-441e-b247-f090d70974a7",
+        "name": "Resposta Sucesso",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          176,
+          448
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "{\n  \"success\": false,\n  \"message\": \"Paciente não elegível para renovação online.\"\n}",
+          "options": {}
+        },
+        "id": "a3fba9bb-5069-419d-bedc-28e47eec07b2",
+        "name": "Resposta Negada",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          160,
+          688
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Z-API": {
+        "main": [
+          [
+            {
+              "node": "Extrair Z-API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extrair Z-API": {
+        "main": [
+          [
+            {
+              "node": "Verificar Início",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verificar Início": {
+        "main": [
+          [
+            {
+              "node": "Resposta Início",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Resposta Menu",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resposta Início": {
+        "main": [
+          [
+            {
+              "node": "Enviar Z-API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Resposta Menu": {
+        "main": [
+          [
+            {
+              "node": "Enviar Z-API",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Typebot": {
+        "main": [
+          [
+            {
+              "node": "Normalizar Typebot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalizar Typebot": {
+        "main": [
+          [
+            {
+              "node": "Salvar Supabase",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Salvar Supabase": {
+        "main": [
+          [
+            {
+              "node": "Verificar Elegível",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Verificar Elegível": {
+        "main": [
+          [
+            {
+              "node": "Resposta Sucesso",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Resposta Negada",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Max Matos",
+    "name": "Version 7d0b8832",
+    "description": "",
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-05-16T18:27:32.966Z",
+        "id": 601,
+        "workflowId": "P7qhHC4iNgW8sxDJ",
+        "versionId": "7d0b8832-b29d-4122-bf07-e67c295bc6d2",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      }
+    ]
+  }
+}

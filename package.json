@@ -4,11 +4,20 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/dev-all.js",
-    "dev:all": "node scripts/dev-all.js",
-    "dev:backend": "npm --prefix mdoctor-backend run dev",
-    "dev:panel": "npm --prefix mdoctor-panel run dev",
-    "dev:automation": "npm --prefix mdoctor-automation run dev",
+    "dev-all": "node scripts/dev-all.js",
+    "dev-backend": "npm --prefix mdoctor-backend run dev",
+    "dev-panel": "npm --prefix mdoctor-panel run dev",
+    "dev-automation": "npm --prefix mdoctor-automation run dev",
     "pre-github-check": "node scripts/pre-github-check.js",
-    "check:repository": "node scripts/check-repository-identity.js"
+    "check-repository": "node scripts/check-repository-identity.js",
+    "tour-visual": "playwright test e2e/painel-tour.spec.ts",
+    "hardening-memed": "playwright test e2e/memed-human-hardening.spec.ts",
+    "painel-funcional": "playwright test e2e/painel-funcional.spec.ts",
+    "tour-visual-ci": "node scripts/tour-visual-ci.js",
+    "tour-trace": "playwright show-trace",
+    "tour-report": "playwright show-report docs/playwright-artifacts/html-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   }
 }

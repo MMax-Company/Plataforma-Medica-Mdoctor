@@ -1,0 +1,410 @@
+{
+  "generated_at": "2026-05-30T11:56:40.100Z",
+  "backend_url": "http://localhost:3014",
+  "correlationId": "sim-eleg-5-1780142200099",
+  "tabela": [
+    {
+      "num": 1,
+      "cenario": "Hipertensão arterial (HAS) | venc 30d | pago",
+      "cenario_resumo": "P1: 1 med, 30d venc, pago",
+      "esperado_elegivel": true,
+      "obtido_elegivel": true,
+      "status": "waiting",
+      "fila_medica": true,
+      "fluxo_completo": true,
+      "bloqueio": null,
+      "ok": true
+    },
+    {
+      "num": 2,
+      "cenario": "Hipertensão arterial (HAS) | venc 45d | pago",
+      "cenario_resumo": "P2: 2 med, 45d venc, pago",
+      "esperado_elegivel": true,
+      "obtido_elegivel": true,
+      "status": "waiting",
+      "fila_medica": true,
+      "fluxo_completo": true,
+      "bloqueio": null,
+      "ok": true
+    },
+    {
+      "num": 3,
+      "cenario": "Hipertensão arterial + Diabetes mellitus tipo 2 | venc 60d | pago",
+      "cenario_resumo": "P3: 3 med, 60d venc, pago",
+      "esperado_elegivel": true,
+      "obtido_elegivel": true,
+      "status": "waiting",
+      "fila_medica": true,
+      "fluxo_completo": true,
+      "bloqueio": null,
+      "ok": true
+    },
+    {
+      "num": 4,
+      "cenario": "Hipertensão arterial (HAS) | venc 220d | pago",
+      "cenario_resumo": "P4: 1 med, 220d venc, pago",
+      "esperado_elegivel": false,
+      "obtido_elegivel": false,
+      "status": "rejected",
+      "fila_medica": false,
+      "fluxo_completo": null,
+      "bloqueio": "receita_vencida_acima_180",
+      "ok": true
+    },
+    {
+      "num": 5,
+      "cenario": "Hipertensão arterial (HAS) | venc 40d | não pago",
+      "cenario_resumo": "P5: 1 med, 40d venc, sem pagamento",
+      "esperado_elegivel": true,
+      "obtido_elegivel": true,
+      "status": "waiting",
+      "fila_medica": false,
+      "fluxo_completo": null,
+      "bloqueio": "pagamento_pendente",
+      "ok": true
+    }
+  ],
+  "patients": [
+    {
+      "num": 1,
+      "key": "p1_has_30d",
+      "label": "Hipertensão arterial (HAS)",
+      "atendimentoId": "27799187-718a-4e48-a850-c40091076ced",
+      "expected": {
+        "elegivel": true,
+        "fluxo_medico": true,
+        "status_inicial": "waiting",
+        "bloqueio_motivo": null,
+        "qtd_medicamentos": 1
+      },
+      "obtained": {
+        "elegivel": true,
+        "status": "waiting",
+        "pagamento": "pago",
+        "inMedicalQueue": true,
+        "inMedicalPanel": true,
+        "bloqueio_motivo": null,
+        "reasonCode": "eligible",
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "medCount": 1,
+        "fluxoCompleto": true
+      },
+      "checks": {
+        "criado": "27799187-718a-4e48-a850-c40091076ced",
+        "elegivel_ok": true,
+        "status_ok": true,
+        "fila_medica_ok": true,
+        "painel_medico_ok": true,
+        "medicamentos_ok": true,
+        "fluxo_ok": true,
+        "bloqueio_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_carregado",
+            "ok": true,
+            "medCount": 1,
+            "expected": 1
+          },
+          {
+            "name": "prontuario_salvo",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "aprovacao",
+            "ok": true,
+            "statusNovo": "approved"
+          },
+          {
+            "name": "receita_mock",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validacao_receita",
+            "ok": true,
+            "statusNovo": "ready"
+          },
+          {
+            "name": "whatsapp_simulado",
+            "ok": true,
+            "provider": "mock",
+            "nota": "dry-run/mock — sem envio real"
+          },
+          {
+            "name": "persistencia",
+            "ok": true,
+            "statusFinal": "delivered",
+            "temReceita": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 2,
+      "key": "p2_has_45d_2med",
+      "label": "Hipertensão arterial (HAS)",
+      "atendimentoId": "3259f5f3-cb62-41e1-83ae-e45524b23055",
+      "expected": {
+        "elegivel": true,
+        "fluxo_medico": true,
+        "status_inicial": "waiting",
+        "bloqueio_motivo": null,
+        "qtd_medicamentos": 2
+      },
+      "obtained": {
+        "elegivel": true,
+        "status": "waiting",
+        "pagamento": "pago",
+        "inMedicalQueue": true,
+        "inMedicalPanel": true,
+        "bloqueio_motivo": null,
+        "reasonCode": "eligible",
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "medCount": 2,
+        "fluxoCompleto": true
+      },
+      "checks": {
+        "criado": "3259f5f3-cb62-41e1-83ae-e45524b23055",
+        "elegivel_ok": true,
+        "status_ok": true,
+        "fila_medica_ok": true,
+        "painel_medico_ok": true,
+        "medicamentos_ok": true,
+        "fluxo_ok": true,
+        "bloqueio_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_carregado",
+            "ok": true,
+            "medCount": 2,
+            "expected": 2
+          },
+          {
+            "name": "prontuario_salvo",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "aprovacao",
+            "ok": true,
+            "statusNovo": "approved"
+          },
+          {
+            "name": "receita_mock",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validacao_receita",
+            "ok": true,
+            "statusNovo": "ready"
+          },
+          {
+            "name": "whatsapp_simulado",
+            "ok": true,
+            "provider": "mock",
+            "nota": "dry-run/mock — sem envio real"
+          },
+          {
+            "name": "persistencia",
+            "ok": true,
+            "statusFinal": "delivered",
+            "temReceita": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 3,
+      "key": "p3_has_dm_60d_3med",
+      "label": "Hipertensão arterial + Diabetes mellitus tipo 2",
+      "atendimentoId": "4370082c-6b75-4362-92ad-d2f0a3caa3a1",
+      "expected": {
+        "elegivel": true,
+        "fluxo_medico": true,
+        "status_inicial": "waiting",
+        "bloqueio_motivo": null,
+        "qtd_medicamentos": 3
+      },
+      "obtained": {
+        "elegivel": true,
+        "status": "waiting",
+        "pagamento": "pago",
+        "inMedicalQueue": true,
+        "inMedicalPanel": true,
+        "bloqueio_motivo": null,
+        "reasonCode": "eligible",
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "medCount": 3,
+        "fluxoCompleto": true
+      },
+      "checks": {
+        "criado": "4370082c-6b75-4362-92ad-d2f0a3caa3a1",
+        "elegivel_ok": true,
+        "status_ok": true,
+        "fila_medica_ok": true,
+        "painel_medico_ok": true,
+        "medicamentos_ok": true,
+        "fluxo_ok": true,
+        "bloqueio_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_carregado",
+            "ok": true,
+            "medCount": 3,
+            "expected": 3
+          },
+          {
+            "name": "prontuario_salvo",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "aprovacao",
+            "ok": true,
+            "statusNovo": "approved"
+          },
+          {
+            "name": "receita_mock",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validacao_receita",
+            "ok": true,
+            "statusNovo": "ready"
+          },
+          {
+            "name": "whatsapp_simulado",
+            "ok": true,
+            "provider": "mock",
+            "nota": "dry-run/mock — sem envio real"
+          },
+          {
+            "name": "persistencia",
+            "ok": true,
+            "statusFinal": "delivered",
+            "temReceita": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 4,
+      "key": "p4_has_220d_bloqueio",
+      "label": "Hipertensão arterial (HAS)",
+      "atendimentoId": "6d7aa4f7-a150-407f-8162-68e90fc1f8e8",
+      "expected": {
+        "elegivel": false,
+        "fluxo_medico": false,
+        "status_inicial": "rejected",
+        "bloqueio_motivo": "receita_vencida_acima_180",
+        "qtd_medicamentos": 1
+      },
+      "obtained": {
+        "elegivel": false,
+        "status": "rejected",
+        "pagamento": "pago",
+        "inMedicalQueue": false,
+        "inMedicalPanel": false,
+        "bloqueio_motivo": "receita_vencida_acima_180",
+        "reasonCode": "renovacao_insegura",
+        "reason": "Receita anterior fora da janela segura (vencida há mais de 180 dias)",
+        "medCount": 1,
+        "fluxoCompleto": null
+      },
+      "checks": {
+        "criado": "6d7aa4f7-a150-407f-8162-68e90fc1f8e8",
+        "elegivel_ok": true,
+        "status_ok": true,
+        "fila_medica_ok": true,
+        "painel_medico_ok": true,
+        "medicamentos_ok": true,
+        "fluxo_ok": true,
+        "bloqueio_ok": true
+      },
+      "flow": null,
+      "ok": true
+    },
+    {
+      "num": 5,
+      "key": "p5_has_40d_sem_pag",
+      "label": "Hipertensão arterial (HAS)",
+      "atendimentoId": "701d8cc9-86cc-4712-899b-891d66c31e60",
+      "expected": {
+        "elegivel": true,
+        "fluxo_medico": false,
+        "status_inicial": "waiting",
+        "bloqueio_motivo": "pagamento_pendente",
+        "qtd_medicamentos": 1
+      },
+      "obtained": {
+        "elegivel": true,
+        "status": "waiting",
+        "pagamento": "nao_pago",
+        "inMedicalQueue": false,
+        "inMedicalPanel": false,
+        "bloqueio_motivo": "pagamento_pendente",
+        "reasonCode": "eligible",
+        "reason": "Paciente filtrado como baixo risco e renovação clínica coerente",
+        "medCount": 1,
+        "fluxoCompleto": null
+      },
+      "checks": {
+        "criado": "701d8cc9-86cc-4712-899b-891d66c31e60",
+        "elegivel_ok": true,
+        "status_ok": true,
+        "fila_medica_ok": true,
+        "painel_medico_ok": true,
+        "medicamentos_ok": true,
+        "fluxo_ok": true,
+        "bloqueio_ok": true
+      },
+      "flow": null,
+      "ok": true
+    }
+  ],
+  "funcionou": [
+    "Login médico",
+    "P1: criado (27799187-718a-4e48-a850-c40091076ced)",
+    "P1: fluxo médico completo (approve + receita mock + dry-run)",
+    "P1: elegibilidade conforme esperado",
+    "P1: presença/ausência na fila médica OK",
+    "P2: criado (3259f5f3-cb62-41e1-83ae-e45524b23055)",
+    "P2: fluxo médico completo (approve + receita mock + dry-run)",
+    "P2: elegibilidade conforme esperado",
+    "P2: presença/ausência na fila médica OK",
+    "P3: criado (4370082c-6b75-4362-92ad-d2f0a3caa3a1)",
+    "P3: fluxo médico completo (approve + receita mock + dry-run)",
+    "P3: elegibilidade conforme esperado",
+    "P3: presença/ausência na fila médica OK",
+    "P4: criado (6d7aa4f7-a150-407f-8162-68e90fc1f8e8)",
+    "P4: approve bloqueado corretamente (409)",
+    "P4: elegibilidade conforme esperado",
+    "P4: presença/ausência na fila médica OK",
+    "P5: criado (701d8cc9-86cc-4712-899b-891d66c31e60)",
+    "P5: approve bloqueado corretamente (422)",
+    "P5: elegibilidade conforme esperado",
+    "P5: presença/ausência na fila médica OK"
+  ],
+  "falhou": [],
+  "observacoes": [
+    "Simulação sem flag `receita_muito_antiga` — bloqueio P4 depende só de `receita_vencida_dias` no backend.",
+    "WhatsApp: apenas dry-run/mock; Memed: receita mock via API.",
+    "Sem deploy e sem tour visual Playwright."
+  ],
+  "piloto_fechado_ok": true
+}

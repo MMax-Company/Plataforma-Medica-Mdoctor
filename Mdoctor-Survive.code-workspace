@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "Mdoctor-Survive",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "npm.autoDetect": "off",
+    "files.encoding": "utf8",
+    "files.autoGuessEncoding": false
+  }
+}

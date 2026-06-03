@@ -2,6 +2,7 @@ const express = require('express');
 const memed = require('../integrations/memed.service');
 const { assertRealMemedReceipt, getMemedRuntimeStatus } = require('../config/memed-runtime');
 const { mirrorMemedPdfToStorage } = require('../services/memed-receipt-mirror.service');
+const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
@@ -17,12 +18,16 @@ const RECEITA_FLOW_STATUSES = new Set([
   'receita_em_edicao'
 ]);
 
+const SINAPSE_SCRIPT_URL =
+  'https://integrations.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js';
+const PARTNERS_SCRIPT_URL = 'https://partners.memed.com.br/integration.js';
+
 function defaultScriptUrl() {
   if (process.env.MEMED_SCRIPT_URL) return process.env.MEMED_SCRIPT_URL;
-  if (process.env.MEMED_ENVIRONMENT === 'production' || process.env.MEMED_ENV === 'production') {
-    return 'https://partners.memed.com.br/integration.js';
-  }
-  return 'https://integrations.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js';
+  if (process.env.MEMED_WIDGET_SCRIPT === 'partners') return PARTNERS_SCRIPT_URL;
+  if (process.env.MEMED_WIDGET_SCRIPT === 'sinapse') return SINAPSE_SCRIPT_URL;
+  // Padrão clínico embedded: Sinapse (homologação/staging). API Memed pode ser production separadamente.
+  return SINAPSE_SCRIPT_URL;
 }
 
 function resolveDoctorId(req) {
@@ -83,7 +88,10 @@ router.post('/auth', requireAuth, async (req, res) => {
       telefone: req.body?.telefone || process.env.MEDICO_TELEFONE || process.env.MEMED_PRESCRITOR_TELEFONE,
       sexo: req.body?.sexo || process.env.MEDICO_SEXO || process.env.MEMED_PRESCRITOR_SEXO,
       data_nascimento: req.body?.data_nascimento || process.env.MEDICO_DATA_NASC || process.env.MEMED_PRESCRITOR_DATA_NASC,
-      external_id: req.body?.external_id || process.env.MEDICO_EXTERNAL_ID || process.env.MEMED_PRESCRITOR_EXTERNAL_ID
+      external_id:
+        req.body?.external_id ||
+        process.env.MEMED_PRESCRITOR_EXTERNAL_ID ||
+        process.env.MEDICO_EXTERNAL_ID
     };
 
     const result = await memed.authenticatePrescriber(doctor);
@@ -97,22 +105,19 @@ router.post('/auth', requireAuth, async (req, res) => {
   }
 });
 
-router.get('/token', requireAuth, async (_req, res) => {
+router.get('/token', requireAuth, async (req, res) => {
   try {
-    const result = await memed.authenticatePrescriber({
-      crm: process.env.MEDICO_CRM || process.env.MEMED_PRESCRITOR_BOARD_NUMBER,
-      uf: process.env.MEDICO_CRM_UF || process.env.MEMED_PRESCRITOR_BOARD_STATE,
-      nome:
-        `${process.env.MEMED_PRESCRITOR_NOME || process.env.MEDICO_NOME || ''} ${
-          process.env.MEMED_PRESCRITOR_SOBRENOME || process.env.MEDICO_SOBRENOME || ''
-        }`.trim(),
-      cpf: process.env.MEDICO_CPF || process.env.MEMED_PRESCRITOR_CPF,
-      email: process.env.MEDICO_EMAIL || process.env.MEMED_PRESCRITOR_EMAIL,
-      telefone: process.env.MEDICO_TELEFONE || process.env.MEMED_PRESCRITOR_TELEFONE,
-      sexo: process.env.MEDICO_SEXO || process.env.MEMED_PRESCRITOR_SEXO,
-      data_nascimento: process.env.MEDICO_DATA_NASC || process.env.MEMED_PRESCRITOR_DATA_NASC,
-      external_id: process.env.MEDICO_EXTERNAL_ID || process.env.MEMED_PRESCRITOR_EXTERNAL_ID
-    });
+    const forceRefresh = req.query.refresh === '1' || req.query.refresh === 'true';
+    if (forceRefresh) memed.invalidateTokenCache();
+
+    const result = await memed.authenticatePrescriber(memed.buildDoctorFromEnv(), { forceRefresh });
+    if (!result.token) {
+      return res.status(502).json({
+        success: false,
+        error: 'Token Memed vazio após autenticação do prescritor',
+        code: 'MEMED_TOKEN_EMPTY'
+      });
+    }
     res.json({ success: true, token: result.token, prescriber: result.prescriber });
   } catch (error) {
     res.status(502).json({
@@ -186,25 +191,51 @@ router.post('/iniciar-emissao', requireAuth, async (req, res) => {
 
 router.post('/receita', requireAuth, async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || `memed-receipt-${Date.now()}`;
-  const { atendimentoId, receitaUrl, receitaId, pdfUrl, protocolo, protocol, storagePath, payload } = req.body || {};
+  const {
+    atendimentoId,
+    receitaUrl,
+    receitaId,
+    pdfUrl,
+    digitalLink,
+    digital_link,
+    unlockCode,
+    unlock_code,
+    protocolo,
+    protocol,
+    storagePath,
+    payload
+  } = req.body || {};
   if (!atendimentoId) {
     return res.status(400).json({ success: false, error: 'atendimentoId obrigatório', correlationId });
   }
 
   const memedId = receitaId || payload?.id || payload?.prescription?.id || null;
-  const resolvedPdf = pdfUrl || receitaUrl || payload?.pdf || payload?.pdf_url || null;
-  if (!memedId && !resolvedPdf) {
+  let resolvedPdf = pdfUrl || receitaUrl || payload?.pdf || payload?.pdf_url || null;
+  let resolvedDigital = digitalLink || digital_link || payload?.digital_link || payload?.link || null;
+  let resolvedUnlock = unlockCode || unlock_code || payload?.unlock_code || payload?.codigo_desbloqueio || null;
+
+  if (memedId && (!resolvedPdf || !resolvedDigital || !resolvedUnlock)) {
+    try {
+      const artifacts = await fetchPrescriptionArtifacts(memedId);
+      if (!resolvedPdf && artifacts.pdfUrl) resolvedPdf = artifacts.pdfUrl;
+      if (!resolvedDigital && artifacts.digitalLink) resolvedDigital = artifacts.digitalLink;
+      if (!resolvedUnlock && artifacts.unlockCode) resolvedUnlock = artifacts.unlockCode;
+    } catch (enrichError) {
+      console.warn('[memed] enrich prescription artifacts:', enrichError.message);
+    }
+  }
+  if (!memedId && !resolvedPdf && !resolvedDigital) {
     return res.status(422).json({
       success: false,
-      error: 'Informe receitaId (memed_id) ou pdfUrl/receitaUrl da receita emitida.',
+      error: 'Informe receitaId (memed_id) ou pdfUrl/link digital da receita emitida.',
       correlationId
     });
   }
 
   const realCheck = assertRealMemedReceipt({
     receitaId: memedId,
-    pdfUrl: resolvedPdf,
-    receitaUrl
+    pdfUrl: resolvedPdf || resolvedDigital,
+    receitaUrl: receitaUrl || resolvedDigital
   });
   if (!realCheck.ok) {
     return res.status(422).json({
@@ -271,7 +302,7 @@ router.post('/receita', requireAuth, async (req, res) => {
     mirrorResult = await mirrorMemedPdfToStorage({
       atendimentoId,
       memedId,
-      sourceUrl: resolvedPdf
+      sourceUrl: resolvedPdf || resolvedDigital
     });
   } catch (mirrorError) {
     return res.status(502).json({
@@ -285,8 +316,10 @@ router.post('/receita', requireAuth, async (req, res) => {
   const receita = {
     atendimentoId,
     memed_id: memedId,
-    receitaUrl: receitaUrl || mirrorResult?.signedUrl || resolvedPdf || null,
-    pdfUrl: mirrorResult?.signedUrl || resolvedPdf,
+    receitaUrl: receitaUrl || resolvedDigital || mirrorResult?.signedUrl || resolvedPdf || null,
+    pdfUrl: mirrorResult?.signedUrl || resolvedPdf || null,
+    digital_link: resolvedDigital || null,
+    unlock_code: resolvedUnlock || null,
     storagePath: mirrorResult?.storagePath || storagePath || null,
     receitaId: memedId,
     protocolo: protocolo || protocol || null,
@@ -337,6 +370,8 @@ router.post('/receita', requireAuth, async (req, res) => {
       payload: {
         ...receita.payload_summary,
         memed_id: memedId,
+        digital_link: resolvedDigital,
+        unlock_code: resolvedUnlock,
         issued_at: issuedAt,
         prescriber,
         correlationId
@@ -400,6 +435,45 @@ router.post('/receita', requireAuth, async (req, res) => {
     receitaLog,
     prescription: prescriptionRow
   });
+});
+
+router.post('/receita/cancelada', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || `memed-cancel-${Date.now()}`;
+  const { atendimentoId, payload } = req.body || {};
+  if (!atendimentoId) {
+    return res.status(400).json({ success: false, error: 'atendimentoId obrigatório', correlationId });
+  }
+
+  const previous = await getAtendimento(atendimentoId);
+  if (!previous) {
+    return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+  }
+
+  const medicoId = resolveDoctorId(req);
+  const atendimento = await updateAtendimentoStatus(atendimentoId, STATUS.RECEITA_EM_EDICAO, {
+    motivo: 'Prescrição excluída no widget Memed — aguardando nova emissão',
+    medicoId,
+    dados_clinicos: {
+      ...(previous.dados_clinicos || {}),
+      memed_receita: null,
+      memed_context: {
+        ...(previous.dados_clinicos?.memed_context || {}),
+        ultima_exclusao_em: new Date().toISOString(),
+        ultima_exclusao_por: medicoId,
+        pendente_emissao: true
+      }
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: atendimentoId,
+    action: 'memed_prescription_deleted',
+    actor: medicoId || 'backend',
+    payload: { correlationId, widget_payload: Boolean(payload) }
+  });
+
+  return res.json({ success: true, correlationId, atendimento });
 });
 
 router.post('/verify', requireAuth, (req, res) => {

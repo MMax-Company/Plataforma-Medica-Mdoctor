@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-05-29T21:56:43.079Z",
+  "environment": "staging",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "automated": {
+    "sections": {
+      "reject_dropdown_api": {
+        "ok": true,
+        "count": 8
+      },
+      "fila": {
+        "ok": true,
+        "status": "waiting",
+        "pagamento_confirmado": true,
+        "elegivel": true,
+        "risco": "BAIXO",
+        "receita_anterior": true
+      },
+      "atendimento": {
+        "ok": true,
+        "prontuario": {
+          "fields": {
+            "queixa_principal": true,
+            "historico_clinico": true,
+            "exame_fisico_telemedicina": true,
+            "conduta_sugerida": true,
+            "orientacoes_clinicas": true
+          },
+          "missing": [],
+          "medicacao": true,
+          "receita": true,
+          "complete": true
+        },
+        "has_historico_endpoint": true
+      },
+      "fila_lista": {
+        "ok": true,
+        "total_medical": 40
+      },
+      "approve": {
+        "ok": true,
+        "status": "memed_processing",
+        "memedSource": "mock"
+      },
+      "duplicate_approve_block": {
+        "ok": true,
+        "status": 409,
+        "error": "Atendimento já aprovado ou em processamento de receita. Aprovação duplicada não permitida."
+      },
+      "ready": {
+        "ok": true,
+        "status": "ready"
+      },
+      "deliver_mock": {
+        "ok": true,
+        "status": "delivered",
+        "provider": "dry-run"
+      },
+      "reject": {
+        "ok": true,
+        "reason_code": "FORA_DO_PROTOCOLO",
+        "motivo_rejeicao": {
+          "code": "FORA_DO_PROTOCOLO",
+          "label": "Fora do protocolo",
+          "detail": "Sign-off Fase 3 — reprovação teste",
+          "rejected_at": "2026-05-29T21:56:59.083Z",
+          "rejected_by": "staging-doctor"
+        },
+        "audit_code": "FORA_DO_PROTOCOLO"
+      },
+      "panel": {
+        "login_page_ok": true,
+        "url": "https://painel-medico-staging-staging.up.railway.app"
+      }
+    },
+    "steps": [
+      {
+        "name": "login",
+        "ok": true,
+        "status": 200
+      },
+      {
+        "name": "create_atendimento",
+        "ok": true,
+        "id": "2a198ff8-382b-45e2-ac94-eb829ba32d25"
+      }
+    ],
+    "success": true
+  },
+  "manual_ui": {
+    "status": "PENDENTE_OPERADOR",
+    "checklist_ref": "docs/RUNBOOK-SIGN-OFF-FASE3.md"
+  },
+  "gate": {
+    "fase3_api": true,
+    "fase3_manual": false,
+    "memed_producao_liberado": false
+  },
+  "atendimento_ids": {
+    "primary": "2a198ff8-382b-45e2-ac94-eb829ba32d25",
+    "reject": "9b9812b1-234d-4b16-975d-acf635fed71f"
+  }
+}

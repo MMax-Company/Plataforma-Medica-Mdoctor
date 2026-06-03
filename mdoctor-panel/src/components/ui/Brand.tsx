@@ -1,14 +1,15 @@
 import Image from 'next/image';
 import type { ReactNode } from 'react';
 
-const LOGO_SRC = '/logotipo-mdoctor.png';
-const LOGO_WIDTH = 1708;
-const LOGO_HEIGHT = 920;
+const LOGO_SRC = '/doctor-prescreve-logo-transparent.png';
+const LOGO_FALLBACK = '/doctor-prescreve-logo.png';
+const LOGO_WIDTH = 512;
+const LOGO_HEIGHT = 128;
 
 const logoHeights = {
-  sm: 'h-10',
-  md: 'h-12',
-  lg: 'h-16',
+  sm: 'h-8',
+  md: 'h-9',
+  lg: 'h-11',
 } as const;
 
 export function BrandLogo({
@@ -23,14 +24,23 @@ export function BrandLogo({
   const resolvedSize = size ?? (compact ? 'sm' : 'md');
 
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 items-center gap-2">
       <Image
         src={LOGO_SRC}
         alt="Doctor Prescreve"
         width={LOGO_WIDTH}
         height={LOGO_HEIGHT}
-        className={`w-auto max-w-[min(280px,42vw)] shrink-0 object-contain object-left ${logoHeights[resolvedSize]}`}
+        unoptimized
+        className={`w-auto shrink-0 bg-transparent object-contain object-left ${logoHeights[resolvedSize]} ${
+          compact ? 'max-w-[132px]' : 'max-w-[180px]'
+        }`}
         priority
+        onError={(e) => {
+          const img = e.currentTarget;
+          if (!img.src.includes('doctor-prescreve-logo.png')) {
+            img.src = LOGO_FALLBACK;
+          }
+        }}
       />
       {showSubtitle && (
         <p

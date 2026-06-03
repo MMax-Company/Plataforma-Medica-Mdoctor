@@ -1,0 +1,14 @@
+{
+  "npm.autoDetect": "off",
+  "npm.packageManager": "npm",
+  "npm.scriptRunner": "npm",
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "[json]": {
+    "files.encoding": "utf8"
+  },
+  "npm.exclude": [
+    "**/node_modules/**",
+    "**/.next/**"
+  ]
+}

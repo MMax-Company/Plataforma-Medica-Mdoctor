@@ -42,8 +42,9 @@ const requiredVars = [
   'med2_nome',
   'med3_nome',
   'medication_count',
-  'previous_prescription_file',
+  'upload_url',
   'has_prescription_photo_ready',
+  'has_previous_prescription',
   'eligibility_status',
   'payment_status'
 ];
@@ -52,7 +53,8 @@ const missingVars = requiredVars.filter((n) => !bot.variables?.some((v) => v.nam
 const payloadFields = [
   'patient_name',
   'medication_2_name',
-  'previous_prescription_file',
+  'has_previous_prescription',
+  'has_prescription_photo_ready',
   'payment_status',
   'protocol',
   'source'
@@ -87,6 +89,15 @@ if (fotoBeforePayment) errors.push('foto upload must not follow Dados Pessoais d
 if (!paymentToMedCount) errors.push('payment must route to medication count group');
 if (missingConsentFields.length) errors.push(`webhook missing consent fields: ${missingConsentFields.join(', ')}`);
 if (bareSupabaseUrls.length) errors.push(`bare supabase URLs in patient text: ${bareSupabaseUrls.join('; ')}`);
+if (serialized.includes('file input')) errors.push('file input block must not exist (Typebot free plan)');
+const webhookBlock = webhookBlocks[0];
+if (!webhookBlock?.options?.responseVariableMapping?.some((m) => m.bodyPath === 'upload_url')) {
+  errors.push('webhook must map response upload_url to variable');
+}
+const webhookBeforeFoto = (bot.edges || []).some(
+  (e) => e.id === 'vgmrhkywl7kagoaeaq2ybdmg' && e.to?.groupId === fotoGroup?.id
+);
+if (!webhookBeforeFoto) errors.push('webhook must route to ENVIO DA RECEITA ANTERIOR before end');
 
 const termsEdge = (bot.edges || []).find((e) => e.id === 'edge_terms_accept_to_payment');
 const gateToTerms = (bot.edges || []).find((e) => e.id === 'edge_gate_to_terms');

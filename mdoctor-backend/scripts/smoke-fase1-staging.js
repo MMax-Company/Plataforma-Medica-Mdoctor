@@ -23,7 +23,6 @@ function buildPayload(overrides = {}) {
     chronic_condition: 'has',
     tempo_uso: 'Mais de 6 meses',
     has_previous_prescription: 'sim',
-    previous_prescription_file: 'https://example.com/receita-smoke.jpg',
     sinais_alerta: 'NAO',
     eligibility_status: 'eligible',
     pagamento_status: 'paid',
@@ -93,8 +92,12 @@ async function main() {
   const paid = await postBackendWebhook(buildPayload());
   const paidAtendimento = paid.data?.atendimento;
   report.push({
-    test: 'backend_eligible_paid_queue',
-    ok: paid.status < 400 && paidAtendimento?.status === 'waiting' && paid.data?.decision?.eligible === true,
+    test: 'backend_eligible_paid_awaiting_upload',
+    ok:
+      paid.status < 400 &&
+      paidAtendimento?.status === 'awaiting_prescription_upload' &&
+      paid.data?.decision?.eligible === true &&
+      Boolean(paid.data?.upload_url),
     status: paid.status,
     atendimentoStatus: paidAtendimento?.status,
     pagamento: paidAtendimento?.pagamento_status
@@ -109,10 +112,10 @@ async function main() {
     atendimentoStatus: unpaidAt?.status
   });
 
-  const noPhoto = await postBackendWebhook(buildPayload({ previous_prescription_file: '', foto_receita_url: '' }));
+  const noPhoto = await postBackendWebhook(buildPayload({ has_previous_prescription: false, receita_anterior: false }));
   const noPhotoAt = noPhoto.data?.atendimento;
   report.push({
-    test: 'backend_no_photo_rejected',
+    test: 'backend_no_rx_proof_rejected',
     ok: noPhoto.status < 400 && noPhotoAt?.status === 'rejected',
     atendimentoStatus: noPhotoAt?.status
   });

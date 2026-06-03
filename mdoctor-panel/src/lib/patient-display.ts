@@ -1,11 +1,26 @@
 import type { DeliveryChannel, Patient } from '@/types/panel';
 
-/** Iniciais: primeiro nome + último sobrenome (ex.: Max Matos → MM, Pedro Henrique → PH). */
+const NAME_CONNECTORS = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
+
+/** Iniciais institucionais: letra de cada nome real, separadas por ponto (ex.: Jose Maria da Silva → J.M.S). */
 export function patientInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const parts = name
+    .trim()
+    .split(/\s+/)
+    .map((part) => part.replace(/\./g, '').trim())
+    .filter(Boolean)
+    .filter((part) => !NAME_CONNECTORS.has(part.toLowerCase()));
+
   if (parts.length === 0) return '—';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+
+  const letters = parts
+    .map((part) => {
+      const first = [...part][0];
+      return first ? first.toUpperCase() : '';
+    })
+    .filter(Boolean);
+
+  return letters.join('.');
 }
 
 export function formatQueuePatientId(id: string): string {
@@ -57,10 +72,16 @@ export function belongsToMedicalWaitingQueue(patient: Patient): boolean {
   return hasPreviousPrescription(patient) && hasPrescriptionPhoto(patient);
 }
 
-/** Coluna Em atendimento: processamento/validação Memed (não suporte humano). */
+/** Coluna Em atendimento / fluxo Memed (não suporte humano). */
 export function belongsToMemedProcessingQueue(patient: Patient): boolean {
   if (patient.queueType === 'support') return false;
-  return patient.status === 'under_review' || patient.status === 'memed_processing';
+  return (
+    patient.status === 'under_review' ||
+    patient.status === 'approved' ||
+    patient.status === 'receita_em_edicao' ||
+    patient.status === 'memed_processing' ||
+    patient.status === 'receita_emitida'
+  );
 }
 
 export function extractSentDeliveryChannels(patient: Patient): DeliveryChannel[] {

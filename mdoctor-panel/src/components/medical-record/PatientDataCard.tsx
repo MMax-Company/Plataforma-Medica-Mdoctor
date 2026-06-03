@@ -1,5 +1,12 @@
-import { AtSign, CalendarDays, LocateFixed, MapPin, MessageCircle, Phone, UserRound } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import {
+  AtSign,
+  CalendarDays,
+  LocateFixed,
+  MapPin,
+  MessageCircle,
+  Phone,
+  UserRound,
+} from 'lucide-react';
 import { formatQueuePatientId, patientInitials, whatsappContactUrl } from '@/lib/patient-display';
 import type { Patient } from '@/types/panel';
 
@@ -7,90 +14,88 @@ interface PatientDataCardProps {
   patient: Patient;
 }
 
+function isEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 export function PatientDataCard({ patient }: PatientDataCardProps) {
   const initials = patientInitials(patient.name);
-  const birthDate = patient.birthDate || 'Não informado';
+  const birthDateRaw = patient.birthDate || '';
+  const birthDate = /^\d{4}-\d{2}-\d{2}$/.test(birthDateRaw)
+    ? (() => {
+        const [y, m, d] = birthDateRaw.split('-');
+        return `${d}/${m}/${y}`;
+      })()
+    : birthDateRaw || 'Não informado';
+  const prontuarioNum = String(patient.clinicalData?.prontuario_display || formatQueuePatientId(patient.id));
   const cpf = patient.cpf || 'Não informado';
   const email = patient.email || 'Não informado';
   const address = patient.address || 'Não informado';
   const cep = String(patient.clinicalData?.cep || patient.clinicalData?.patient_cep || 'Não informado');
   const whatsappUrl = whatsappContactUrl(patient.phone);
-  const ageLabel = patient.age > 0 ? `${patient.age} anos` : 'Não informado';
+  const ageLabel = patient.age > 0 ? `${patient.age} anos` : '—';
+
+  const rows = [
+    { icon: CalendarDays, label: 'Data de nascimento', value: birthDate },
+    { icon: UserRound, label: 'CPF', value: cpf },
+    { icon: AtSign, label: 'E-mail', value: email, isMail: isEmail(email) },
+    { icon: Phone, label: 'WhatsApp', value: patient.phone || 'Não informado' },
+    { icon: MapPin, label: 'Endereço', value: address },
+    { icon: LocateFixed, label: 'CEP', value: cep },
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="text-base font-bold text-[#1E1E1E]">DADOS DO PACIENTE</h2>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <div className="flex items-start gap-3 rounded-xl border border-[#E5EAF2] bg-[#F8FAFC] p-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-lg font-bold text-[#1557FF]">
-            {initials}
-          </div>
-          <div className="min-w-0">
-            <p className="text-xl font-bold text-[#1E1E1E]">{patient.name}</p>
-            <p className="mt-1 text-sm text-[#5B6475]">{ageLabel}</p>
-            <p className="mt-1 font-mono text-sm font-semibold text-[#4A67A1]">#{formatQueuePatientId(patient.id)}</p>
+    <section className="prontuario-patient-card">
+      <div className="prontuario-patient-card__head">
+        <h2 className="prontuario-patient-card__title">DADOS DO PACIENTE</h2>
+      </div>
+
+      <div className="prontuario-patient-card__body">
+        <div className="flex items-start gap-3">
+          <div className="prontuario-patient-card__avatar">{initials}</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="prontuario-patient-card__name">{patient.name}</p>
+              <span className="prontuario-patient-card__age">{ageLabel}</span>
+            </div>
+            <p className="prontuario-patient-card__record">Prontuário: #{prontuarioNum}</p>
+            {whatsappUrl ? (
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="prontuario-patient-card__whatsapp"
+              >
+                <MessageCircle className="h-4 w-4 text-[#25D366]" aria-hidden="true" />
+                Contato via WhatsApp
+              </a>
+            ) : (
+              <p className="prontuario-patient-card__whatsapp">
+                <MessageCircle className="h-4 w-4 text-[#25D366]" aria-hidden="true" />
+                Contato via WhatsApp
+              </p>
+            )}
           </div>
         </div>
 
-        {whatsappUrl ? (
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#25D366] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1DA851]"
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden="true" />
-            WhatsApp
-          </a>
-        ) : null}
-
-        <div className="space-y-3 rounded-xl border border-[#E5EAF2] bg-white p-3 text-sm">
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <CalendarDays className="h-4 w-4" />
-              Data de nascimento
-            </span>
-            <span className="font-semibold">{birthDate}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <UserRound className="h-4 w-4" />
-              CPF
-            </span>
-            <span className="font-semibold">{cpf}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <AtSign className="h-4 w-4" />
-              E-mail
-            </span>
-            <span className="truncate text-right font-semibold">{email}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <Phone className="h-4 w-4" />
-              WhatsApp
-            </span>
-            <span className="font-semibold">{patient.phone}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <MapPin className="h-4 w-4" />
-              Endereço
-            </span>
-            <span className="text-right font-semibold">{address}</span>
-          </div>
-          <div className="flex items-center justify-between gap-2 text-[#253044]">
-            <span className="inline-flex items-center gap-2 text-[#5B6475]">
-              <LocateFixed className="h-4 w-4" />
-              CEP
-            </span>
-            <span className="font-semibold">{cep}</span>
-          </div>
+        <div className="prontuario-patient-card__rows">
+          {rows.map(({ icon: Icon, label, value, isMail }) => (
+            <div key={label} className="prontuario-patient-card__row">
+              <span className="prontuario-patient-card__label">
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {label}
+              </span>
+              {isMail ? (
+                <a href={`mailto:${value}`} className="prontuario-patient-card__value prontuario-patient-card__value--link">
+                  {value}
+                </a>
+              ) : (
+                <span className="prontuario-patient-card__value">{value}</span>
+              )}
+            </div>
+          ))}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </section>
   );
 }

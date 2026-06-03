@@ -1,11 +1,11 @@
 'use client';
 
-import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
+import { ProntuarioMedicalHeader } from '@/components/medical-record/ProntuarioMedicalHeader';
 
 interface MedicalRecordHeaderProps {
   onLogout: () => void;
 }
 
 export function MedicalRecordHeader({ onLogout }: MedicalRecordHeaderProps) {
-  return <MedicalPanelHeader onLogout={onLogout} compact />;
+  return <ProntuarioMedicalHeader onLogout={onLogout} />;
 }

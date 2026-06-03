@@ -1,0 +1,212 @@
+{
+  "generated_at": "2026-05-30T11:29:27.607Z",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel_url": "http://localhost:3001",
+  "correlationId": "sim-clinica-1780140567606",
+  "patients": [
+    {
+      "label": "Hipertensão arterial (HAS)",
+      "key": "has",
+      "atendimentoId": "82d31e92-13e8-4d23-8c4a-1981f5cb6b9e",
+      "ok": true,
+      "steps": [
+        {
+          "name": "fila_lista_paciente",
+          "ok": true,
+          "status": 200,
+          "inQueue": true,
+          "listed": true
+        },
+        {
+          "name": "prontuario_dados_carregados",
+          "ok": true,
+          "status": 200,
+          "queixa": "Paciente solicita renovação de Losartana"
+        },
+        {
+          "name": "prontuario_salvo",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "aprovar_atendimento",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "approved"
+        },
+        {
+          "name": "receita_mock_persistida",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "validar_receita_ready",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "ready"
+        },
+        {
+          "name": "whatsapp_simulado_sem_envio_real",
+          "ok": true,
+          "status": 200,
+          "provider": "dry-run",
+          "deliveryStatus": "sent",
+          "nota": "Mock/dry-run — nenhum WhatsApp real"
+        },
+        {
+          "name": "persistencia_final",
+          "ok": true,
+          "statusFinal": "delivered",
+          "temReceita": true
+        }
+      ]
+    },
+    {
+      "label": "Diabetes mellitus tipo 2",
+      "key": "diabetes",
+      "atendimentoId": "ad30e6fd-2139-4d96-8757-3c078e5e5bf1",
+      "ok": true,
+      "steps": [
+        {
+          "name": "fila_lista_paciente",
+          "ok": true,
+          "status": 200,
+          "inQueue": true,
+          "listed": true
+        },
+        {
+          "name": "prontuario_dados_carregados",
+          "ok": true,
+          "status": 200,
+          "queixa": "Paciente solicita renovação de Metformin"
+        },
+        {
+          "name": "prontuario_salvo",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "aprovar_atendimento",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "approved"
+        },
+        {
+          "name": "receita_mock_persistida",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "validar_receita_ready",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "ready"
+        },
+        {
+          "name": "whatsapp_simulado_sem_envio_real",
+          "ok": true,
+          "status": 200,
+          "provider": "dry-run",
+          "deliveryStatus": "sent",
+          "nota": "Mock/dry-run — nenhum WhatsApp real"
+        },
+        {
+          "name": "persistencia_final",
+          "ok": true,
+          "statusFinal": "delivered",
+          "temReceita": true
+        }
+      ]
+    },
+    {
+      "label": "Hipotireoidismo",
+      "key": "hipotireoidismo",
+      "atendimentoId": "32109048-780b-422a-969a-c75d4a4b3a69",
+      "ok": true,
+      "steps": [
+        {
+          "name": "fila_lista_paciente",
+          "ok": true,
+          "status": 200,
+          "inQueue": true,
+          "listed": true
+        },
+        {
+          "name": "prontuario_dados_carregados",
+          "ok": true,
+          "status": 200,
+          "queixa": "Solicitação de continuidade terapêutica "
+        },
+        {
+          "name": "prontuario_salvo",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "aprovar_atendimento",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "approved"
+        },
+        {
+          "name": "receita_mock_persistida",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "validar_receita_ready",
+          "ok": true,
+          "status": 200,
+          "statusNovo": "ready"
+        },
+        {
+          "name": "whatsapp_simulado_sem_envio_real",
+          "ok": true,
+          "status": 200,
+          "provider": "dry-run",
+          "deliveryStatus": "sent",
+          "nota": "Mock/dry-run — nenhum WhatsApp real"
+        },
+        {
+          "name": "persistencia_final",
+          "ok": true,
+          "statusFinal": "delivered",
+          "temReceita": true
+        }
+      ]
+    }
+  ],
+  "funcionou": [
+    "Login médico (drmax.matos)",
+    "/api/auth/me",
+    "Fluxo completo API: has",
+    "Fluxo completo API: diabetes",
+    "Fluxo completo API: hipotireoidismo",
+    "UI: tela_login_abre",
+    "UI: fila_1366_sem_overflow",
+    "UI: fila_3_colunas",
+    "UI: atendimento_nome_visivel",
+    "UI: botao_reprovar_visivel",
+    "UI: botao_aprovar_visivel",
+    "UI: dados_clinicos_ui",
+    "UI: sem_erro_critico_frontend"
+  ],
+  "falhou": [],
+  "telas_problema": [],
+  "botoes_sem_resposta": [],
+  "campos_nao_carregados": [],
+  "piloto_fechado_ok": true,
+  "ui": {
+    "ok": [
+      "tela_login_abre",
+      "fila_1366_sem_overflow",
+      "fila_3_colunas",
+      "atendimento_nome_visivel",
+      "botao_reprovar_visivel",
+      "botao_aprovar_visivel",
+      "dados_clinicos_ui",
+      "sem_erro_critico_frontend"
+    ],
+    "issues": []
+  }
+}

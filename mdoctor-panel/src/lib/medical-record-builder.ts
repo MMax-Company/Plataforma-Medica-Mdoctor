@@ -11,7 +11,35 @@ const CONDITION_ALIASES: Array<{ value: ChronicCondition; terms: string[] }> = [
 ];
 
 const ELIGIBILITY_MESSAGE =
-  'Paciente triado com sucesso pelo chatbot. Todos os critérios de elegibilidade foram atendidos.';
+  'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.';
+
+/** Narrativa clínica oficial (mockup) — textos literais para atendimentos elegíveis. */
+export const OFFICIAL_ELIGIBLE_CHIEF_COMPLAINT =
+  'Paciente se refere que a sua receita está fora do prazo de validade, vem para a consulta teleconsulta assíncrona para renovação de sua receita de uso contínuo. Sem queixas.';
+
+export const OFFICIAL_ELIGIBLE_CLINICAL_HISTORY = `Paciente faz uso de medicação para doença crônica de forma contínua, não evidenciando sinais em teleconsulta assíncrona que impeça de realizar a renovação de sua receita.
+
+Paciente nega qualquer alteração física ou sinais e sintomas ou internação prévia.`;
+
+export const OFFICIAL_ELIGIBLE_PHYSICAL_EXAM = `Paciente nega qualquer alteração física ou clínica.
+
+Não apresenta sinais de alerta, nem critérios que o impeça de renovar a receita.
+
+Estável clinicamente.`;
+
+export const OFFICIAL_ELIGIBLE_ALLERGIES = 'Nega alergias medicamentosas ou alimentares.';
+
+export const OFFICIAL_ELIGIBLE_CURRENT_MEDICATIONS = `Já declarado na teletriagem.
+
+Não há contraindicações identificadas.`;
+
+export const OFFICIAL_ELIGIBLE_MEDICAL_CONDUCT = `Realizado renovação da receita de uso contínuo, emitida via certificado digital, dentro dos critérios permitidos, nada contraindica a emissão. Paciente estável clinicamente, encaminha a receita digital via WhatsApp ou e-mail designado ao paciente.
+
+Paciente orientado a procurar atendimento presencial, se necessário.
+
+Em caso de sinais de alerta, o paciente deverá procurar pronto atendimento.
+
+Paciente assinou os termos de eletividade e declara que é responsável pela veracidade dos dados informados.`;
 
 function normalizeText(value = '') {
   return String(value || '')
@@ -186,6 +214,20 @@ function buildProtocolNarrative(patient: Patient, clinical: Record<string, unkno
 
   const pack = byProtocol[protocol];
   const flaggedSignals = Array.isArray(clinical.flags) ? clinical.flags.map((flag) => String(flag)) : [];
+
+  if (eligible) {
+    return {
+      chiefComplaint: OFFICIAL_ELIGIBLE_CHIEF_COMPLAINT,
+      clinicalHistory: OFFICIAL_ELIGIBLE_CLINICAL_HISTORY,
+      physicalExam: OFFICIAL_ELIGIBLE_PHYSICAL_EXAM,
+      allergies: flaggedSignals.length
+        ? `Sinais de atenção na triagem: ${flaggedSignals.join(', ')}. Revisar contraindicações antes da decisão.`
+        : OFFICIAL_ELIGIBLE_ALLERGIES,
+      currentMedications: OFFICIAL_ELIGIBLE_CURRENT_MEDICATIONS,
+      medicalConduct: OFFICIAL_ELIGIBLE_MEDICAL_CONDUCT,
+      protocol,
+    };
+  }
 
   return {
     chiefComplaint: String(clinical.queixa_principal || pickVariant(seed, pack.complaint)),

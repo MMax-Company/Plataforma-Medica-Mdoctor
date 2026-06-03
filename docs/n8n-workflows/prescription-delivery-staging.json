@@ -1,0 +1,76 @@
+{
+  "name": "prescription-delivery-staging",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "prescription-delivery-staging",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-delivery",
+      "name": "Webhook Prescription Delivery",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "prescription-delivery-staging"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-mdoctor-webhook-secret'] || headers['X-MDoctor-Webhook-Secret'] || body.webhook_secret || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst backendUrl = String($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(/\\/$/, '');\nif (backendUrl.includes('web-production')) throw new Error('Backend staging must not be production web');\n\nconst atendimentoId = String(body.atendimento_id || body.atendimentoId || '').trim();\nif (!atendimentoId) throw new Error('atendimento_id required');\n\nconst channel = String(body.channel || 'whatsapp').trim().toLowerCase();\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || body.correlation_id || `delivery-${Date.now()}`;\n\nreturn [{\n  json: {\n    backendUrl,\n    atendimentoId,\n    channel,\n    correlationId,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-MDoctor-Webhook-Secret': secret,\n      'X-Correlation-Id': correlationId,\n      'X-N8N-Workflow': 'prescription-delivery-staging'\n    },\n    body: { channel }\n  }\n}];"
+      },
+      "id": "validate-delivery",
+      "name": "Validate Delivery",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.backendUrl + '/api/atendimentos/' + $json.atendimentoId + '/deliver' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-MDoctor-Webhook-Secret", "value": "={{ $json.headers['X-MDoctor-Webhook-Secret'] }}" },
+            { "name": "X-Correlation-Id", "value": "={{ $json.correlationId }}" },
+            { "name": "X-N8N-Workflow", "value": "prescription-delivery-staging" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}"
+      },
+      "id": "post-backend-deliver",
+      "name": "POST Backend Deliver",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, workflow: 'prescription-delivery-staging', correlationId: $('Validate Delivery').first().json.correlationId, atendimentoId: $('Validate Delivery').first().json.atendimentoId, result: $json }) }}"
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [780, 0]
+    }
+  ],
+  "connections": {
+    "Webhook Prescription Delivery": {
+      "main": [[{ "node": "Validate Delivery", "type": "main", "index": 0 }]]
+    },
+    "Validate Delivery": {
+      "main": [[{ "node": "POST Backend Deliver", "type": "main", "index": 0 }]]
+    },
+    "POST Backend Deliver": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": { "template": "prescription-delivery-staging", "active": true }
+}

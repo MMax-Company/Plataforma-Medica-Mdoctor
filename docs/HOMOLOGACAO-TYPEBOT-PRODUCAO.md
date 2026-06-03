@@ -97,7 +97,20 @@ Memed, Stripe (cobrança real), WhatsApp produção, automações extras, audito
 
 ## 7. Relatório
 
-Preencher após cada rodada em `docs/HOMOLOGACAO-TYPEBOT-PRODUCAO-RELATORIO.json` (gerado pelo script) ou copiar saída do terminal.
+Última rodada automatizada: **2026-05-29** — ver `docs/HOMOLOGACAO-TYPEBOT-PRODUCAO-RELATORIO.json`.
+
+| Item | Resultado |
+|------|-----------|
+| n8n `POST /webhook/typebot-webhook` | 200, `success: true` |
+| `createAtendimento` | `d704bf2f-6a23-4885-9ae5-d2436561b7c2` |
+| `origem` | `typebot-triagem` |
+| `status` | `waiting` |
+| `pagamento_status` | `CONFIRMADO` |
+| `elegibilidade.eligible` | `true` |
+| Fila médica (`scope=medical`) | atendimento presente |
+| Prontuário automático | queixa, conduta, orientações, exame preenchidos |
+
+Preencher nova rodada após teste manual no Typebot real (builder typebot.io).
 
 Campos do relatório:
 

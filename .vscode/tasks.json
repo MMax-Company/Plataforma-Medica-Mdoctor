@@ -1,0 +1,62 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: todos os serviços",
+      "type": "shell",
+      "command": "npm run dev-all",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": false }
+    },
+    {
+      "label": "dev: backend",
+      "type": "shell",
+      "command": "npm run dev-backend",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: panel",
+      "type": "shell",
+      "command": "npm run dev-panel",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: automation",
+      "type": "shell",
+      "command": "npm run dev-automation",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "tour visual (Playwright)",
+      "type": "shell",
+      "command": "npm run tour-visual",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "tour visual CI",
+      "type": "shell",
+      "command": "npm run tour-visual-ci",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "tour trace viewer",
+      "type": "shell",
+      "command": "npm run tour-trace",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "tour HTML report",
+      "type": "shell",
+      "command": "npm run tour-report",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

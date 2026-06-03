@@ -1,0 +1,574 @@
+{
+  "generated_at": "2026-06-02T04:08:42.212Z",
+  "run_id": "mass-1780373322211",
+  "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "n8n": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook",
+  "patients": [
+    {
+      "num": 1,
+      "group": "elegivel",
+      "nome": "Mass E1 HAS 30d mass-1780373322211",
+      "atendimentoId": "4ec9770b-3d23-4fce-8c73-65f903f038ab",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 2,
+      "group": "elegivel",
+      "nome": "Mass E2 DM2 45d mass-1780373322211",
+      "atendimentoId": "fcdacc4a-f27a-4f62-8731-33eb31fa36f4",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 3,
+      "group": "elegivel",
+      "nome": "Mass E3 HAS+DM 60d mass-1780373322211",
+      "atendimentoId": "3e3e119e-f8fa-45fe-8946-8910cf0f044f",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 4,
+      "group": "elegivel",
+      "nome": "Mass E4 Hipotireoidismo mass-1780373322211",
+      "atendimentoId": "d0b9912f-0a20-4d4f-b741-efa3895a0d18",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 5,
+      "group": "elegivel",
+      "nome": "Mass E5 DLP 90d mass-1780373322211",
+      "atendimentoId": "b0338c60-df3d-4647-ab04-36459f52a576",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 6,
+      "group": "elegivel",
+      "nome": "Mass E6 HAS 120d mass-1780373322211",
+      "atendimentoId": "bb1765fc-a17e-40e7-8947-486152605afc",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": true,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "prontuario_salvar",
+            "ok": true
+          },
+          {
+            "name": "approve",
+            "ok": true,
+            "status": "approved"
+          },
+          {
+            "name": "memed_persist",
+            "ok": true,
+            "status": 200
+          },
+          {
+            "name": "validate",
+            "ok": true
+          },
+          {
+            "name": "whatsapp_entrega",
+            "ok": true,
+            "provider": "dry-run"
+          },
+          {
+            "name": "status_final",
+            "ok": true,
+            "status": "delivered",
+            "hasPdf": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": true
+    },
+    {
+      "num": 7,
+      "group": "inelegivel",
+      "nome": "Mass I7 Sinais alerta mass-1780373322211",
+      "atendimentoId": "38b01cad-848d-4184-a2da-5849db003d5a",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": false,
+        "status": "rejected",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": false,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": false,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "approve_bloqueado",
+            "ok": true
+          },
+          {
+            "name": "reject",
+            "ok": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": false
+    },
+    {
+      "num": 8,
+      "group": "inelegivel",
+      "nome": "Mass I8 Controlado mass-1780373322211",
+      "atendimentoId": "300a1d8c-6592-4c64-98bd-252b4f6a95e1",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": false,
+        "status": "rejected",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": false,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": false,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "approve_bloqueado",
+            "ok": true
+          },
+          {
+            "name": "reject",
+            "ok": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": false
+    },
+    {
+      "num": 9,
+      "group": "inelegivel",
+      "nome": "Mass I9 Receita 220d mass-1780373322211",
+      "atendimentoId": "231276c8-5418-467f-8f6c-cd19e015d389",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": false,
+        "status": "rejected",
+        "paid": true,
+        "inQueue": true,
+        "inPanel": false,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": false,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": {
+        "steps": [
+          {
+            "name": "approve_bloqueado",
+            "ok": true
+          },
+          {
+            "name": "reject",
+            "ok": true
+          }
+        ],
+        "ok": true
+      },
+      "ok": false
+    },
+    {
+      "num": 10,
+      "group": "nao_pago",
+      "nome": "Mass P10 Sem pagamento mass-1780373322211",
+      "atendimentoId": "71a843de-9c72-4527-b5f8-58ba88e58c3f",
+      "via": "ingress_fallback",
+      "obtained": {
+        "elig": true,
+        "status": "waiting",
+        "paid": false,
+        "inQueue": false,
+        "inPanel": false,
+        "inAll": true
+      },
+      "checks": {
+        "criado": true,
+        "elegivel": true,
+        "fila": true,
+        "painel": true,
+        "fluxo": true,
+        "nao_pago_fora_fila": true,
+        "approve_bloqueado": true,
+        "status_ok": true
+      },
+      "flow": null,
+      "ok": true
+    }
+  ],
+  "sections": {
+    "n8n": {
+      "section": "n8n",
+      "ok": true
+    },
+    "supabase": {
+      "section": "supabase",
+      "ok": true
+    },
+    "login": {
+      "section": "login",
+      "ok": true
+    },
+    "elegiveis": {
+      "section": "elegiveis",
+      "ok": true
+    },
+    "inelegiveis": {
+      "section": "inelegiveis",
+      "ok": false
+    },
+    "nao_pago": {
+      "section": "nao_pago",
+      "ok": true
+    },
+    "fila": {
+      "section": "fila",
+      "ok": false
+    },
+    "prontuario": {
+      "section": "prontuario",
+      "ok": true
+    },
+    "memed": {
+      "section": "memed",
+      "ok": true
+    },
+    "whatsapp": {
+      "section": "whatsapp",
+      "ok": true
+    },
+    "dashboard": {
+      "section": "dashboard",
+      "ok": true
+    },
+    "supabase_rows": {
+      "section": "supabase_rows",
+      "ok": true
+    },
+    "e2e": {
+      "section": "e2e",
+      "ok": false
+    }
+  },
+  "errors": [],
+  "stress_ready": false,
+  "memed_real_mode": true,
+  "persistence_check": {
+    "ok": true,
+    "found": 10,
+    "ids": 10
+  }
+}

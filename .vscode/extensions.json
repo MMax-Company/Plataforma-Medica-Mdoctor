@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    "ms-playwright.playwright",
+    "rangav.vscode-thunder-client",
+    "usernamehw.errorlens",
+    "eamodio.gitlens",
+    "donjayamanne.githistory",
+    "ms-azuretools.vscode-docker",
+    "anysphere.remote-containers",
+    "sonarsource.sonarlint-vscode",
+    "ms-vscode.powershell",
+    "christian-kohler.npm-intellisense",
+    "davidanson.vscode-markdownlint",
+    "dbaeumer.vscode-eslint"
+  ]
+}

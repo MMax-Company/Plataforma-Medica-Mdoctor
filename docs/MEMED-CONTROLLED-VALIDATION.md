@@ -70,7 +70,7 @@ Resultado dos testes:
   - `supabase.connected=true`
   - `memed.source=mock`
   - `memed.env=mock`
-- `POST /api/prescriptions/:id/generate` (atendimento ficticio) -> `201`
+- `POST /api/prescriptions/:id/generate` → **410** (descontinuado; usar fluxo widget + `/api/memed/receita`)
   - `success=true`
   - `source=mock`
   - `provider=mock`

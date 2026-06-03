@@ -28,7 +28,7 @@ Confirmar em https://typebot.co/doctor-prescreve-8rmljgu
 export N8N_API_KEY="***"
 export N8N_BASE_URL="https://n8n-staging-staging-2dfe.up.railway.app"
 
-for f in typebot-webhook-staging clinical-rejection-notify-staging evolution-webhook-staging; do
+for f in typebot-webhook-staging clinical-rejection-notify-staging evolution-webhook-staging stripe-payment-staging prescription-delivery-staging; do
   export N8N_WORKFLOW_FILE="docs/n8n-workflows/${f}.json"
   node mdoctor-backend/scripts/deploy-n8n-workflow.js
 done

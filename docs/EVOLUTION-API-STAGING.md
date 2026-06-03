@@ -726,3 +726,31 @@ Data/hora: 2026-05-28 23:15 -03:00
 Ver `docs/E2E-TYPEBOT-N8N-EVOLUTION-STAGING.md` e `docs/RAILWAY-STAGING-RESULTADO.md` (secao Integracao Evolution + n8n + Typebot).
 
 Mensagem real enviada nesta rodada: **nao** (`WHATSAPP_DRY_RUN` preservado).
+
+## Webhook staging — revisao 2026-06-02
+
+### Causa raiz (instancia “sumiu” / webhook 404)
+
+| Problema | Causa | Correcao |
+| --- | --- | --- |
+| `fetchInstances` vazio | `DATABASE_CONNECTION_CLIENT_NAME` alterado para `mdoctor_prescreve_staging` enquanto instancias antigas usavam outro `clientName` | Manter `evolution_exchange` no Railway; alinhar `clientName` no Postgres se necessario |
+| `DoctorTeste` / UUID `745841c2-…` ausente | Instancias orfas removidas + recreate com nome oficial | Usar **`mdoctor-staging`** (`aa0ac829-44ab-44ed-bbb5-e3bd840e7381`) |
+| Webhook n8n `404` | Workflows n8n staging **nao ativos** (nao e falha da Evolution) | Reativar workflows no n8n ou `n8n-deploy-staging-cookie.js` |
+
+### Estado atual (Evolution API)
+
+| Item | Valor |
+| --- | --- |
+| Instancia | `mdoctor-staging` |
+| Webhook instancia | `https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook` |
+| Eventos | `CONNECTION_UPDATE`, `QRCODE_UPDATED`, `MESSAGES_UPSERT`, `SEND_MESSAGE` |
+| Global | `WEBHOOK_GLOBAL_ENABLED=true`, `WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true` |
+| Privacidade DB | mensagens/contatos/chats/historico **desligados** |
+| Manager n8n/Typebot nativo | **desligado** (`N8N_ENABLED=false`, `TYPEBOT_ENABLED=false`) — ponte via n8n externo |
+| Env local | `mdoctor-backend/.env.evolution-staging` (gitignored) |
+
+### Acao manual obrigatoria
+
+1. **QR / sessao:** abrir `https://evolution-api-staging-staging-40d1.up.railway.app/manager` → instancia `mdoctor-staging` → escanear QR (estado `connecting` apos recreate).
+2. **n8n:** publicar/ativar `docs/n8n-workflows/evolution-webhook-staging.json` (webhooks retornam `404` enquanto inativo).
+3. **Typebot:** continua via `typebot-webhook` no n8n (nao habilitar modulo Typebot dentro da Evolution).

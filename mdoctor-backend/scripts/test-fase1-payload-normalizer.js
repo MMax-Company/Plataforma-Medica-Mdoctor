@@ -49,13 +49,18 @@ const unpaid = normalizeTypebotPayload({ ...base, pagamento_status: 'pending' })
 assert('unpaid blocked', unpaid.normalized.validation.can_enter_medical_queue === false);
 
 const noPhoto = normalizeTypebotPayload({ ...base, previous_prescription_file: '' });
-assert('no photo blocked', noPhoto.normalized.eligibility_status === 'ineligible');
+assert('no photo awaits external upload', noPhoto.normalized.validation.awaiting_prescription_upload === true);
+assert('no photo not in medical queue yet', noPhoto.normalized.validation.can_enter_medical_queue === false);
 
 const panelOk = isVisibleInMedicalPanel({
   pagamento_status: 'CONFIRMADO',
   elegibilidade: { eligible: true },
   status: 'waiting',
-  dados_clinicos: { queue_type: 'medical' }
+  dados_clinicos: {
+    queue_type: 'medical',
+    foto_receita_url: 'https://example.com/receita.jpg',
+    previous_prescription_storage_path: 'atendimentos/demo/receita-anterior-1.jpg'
+  }
 });
 const panelBad = isVisibleInMedicalPanel({
   pagamento_status: 'PENDENTE',

@@ -32,11 +32,11 @@ function main() {
   }
 
   run(
-    `railway variable set "MEDICO_USER=drmax.matos" "MEDICO_PASS=${MEDICO_PASS}" "MEDICO_NOME=Dr Max Matos" "MEDICO_ROLE=admin" "CORS_ORIGIN=${PANEL_URL}" -p ${BACKEND_PROJECT} -e ${BACKEND_ENV} -s ${BACKEND_SERVICE}`
+    `railway variable set "MEDICO_USER=drmax.matos" "MEDICO_PASS=${MEDICO_PASS}" "MEDICO_EXTERNAL_ID=dr_max_vinicius_001" "MEDICO_NOME=Dr Max Matos" "MEDICO_ROLE=admin" "CORS_ORIGIN=${PANEL_URL}" -p ${BACKEND_PROJECT} -e ${BACKEND_ENV} -s ${BACKEND_SERVICE}`
   );
 
   run(
-    `railway variable set "NEXT_PUBLIC_API_URL=${BACKEND_URL}" "API_PROXY_TARGET=${BACKEND_URL}" "NEXT_PUBLIC_APP_ENV=staging" "NEXT_PUBLIC_ENABLE_MOCK_FALLBACK=false" -p ${PANEL_PROJECT} -e ${PANEL_ENV} -s ${PANEL_SERVICE}`
+    `railway variable set "NEXT_PUBLIC_API_URL=${BACKEND_URL}" "API_PROXY_TARGET=${BACKEND_URL}" "NEXT_PUBLIC_APP_ENV=staging" "NEXT_PUBLIC_MEMED_REAL_ENABLED=true" "NEXT_PUBLIC_ENABLE_MOCK_FALLBACK=false" -p ${PANEL_PROJECT} -e ${PANEL_ENV} -s ${PANEL_SERVICE}`
   );
 
   run(`railway up --detach -p ${BACKEND_PROJECT} -e ${BACKEND_ENV} -s ${BACKEND_SERVICE}`);

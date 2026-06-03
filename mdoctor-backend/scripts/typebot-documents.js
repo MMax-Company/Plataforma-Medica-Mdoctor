@@ -10,56 +10,56 @@ const DOCUMENTS = {
     id: 'lgpd',
     label: 'Consentimento LGPD',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf',
     audience: 'patient'
   },
   privacy: {
     id: 'privacy',
     label: 'Política de Privacidade',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf',
     audience: 'patient'
   },
   telemedicine: {
     id: 'telemedicine',
     label: 'Consentimento Telemedicina Assíncrona',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf',
     audience: 'patient'
   },
   nonUrgency: {
     id: 'non_urgency',
     label: 'Aviso Importante — Não Urgência/Emergência',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf',
     audience: 'patient'
   },
   termsOfUse: {
     id: 'terms_of_use',
     label: 'Política e Termos de Uso',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf',
     audience: 'patient'
   },
   manual: {
     id: 'manual',
     label: 'Manual Operacional',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Manual_Operacional_Doctor_Prescreve.pdf.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Manual_Operacional_Doctor_Prescreve.pdf.pdf',
     audience: 'backoffice'
   },
   securityPolicy: {
     id: 'security_policy',
     label: 'Política de Segurança da Informação',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Seguranca_da_Informacao_Doctor_Prescreve%20(2).pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Seguranca_da_Informacao_Doctor_Prescreve%20(2).pdf',
     audience: 'backoffice'
   },
   physicianResponsibility: {
     id: 'physician_responsibility',
     label: 'Termo de responsabilidade médico',
     emoji: '📄',
-    url: 'https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/termo_de_responsabilidade_medico_doctor_prescreve.pdf',
+    url: 'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/termo_de_responsabilidade_medico_doctor_prescreve.pdf',
     audience: 'backoffice'
   }
 };

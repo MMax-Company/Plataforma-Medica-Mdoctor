@@ -1,0 +1,282 @@
+[
+  {
+    "type": "warning",
+    "text": "O serviço de métricas foi inciado no módulo de sinapse.prescricao"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  plataforma.sdk  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/observability?_=1780368367131' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "log",
+    "text": "error {}"
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "debug",
+    "text": "Error"
+  },
+  {
+    "type": "warning",
+    "text": "No available adapters."
+  },
+  {
+    "type": "warning",
+    "text": "[.WebGL-0x5f1c01e87c00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+  },
+  {
+    "type": "log",
+    "text": "Error"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368369506' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  plataforma.usuario  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: the server responded with a status of 422 ()"
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.patient-management  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368372459' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "{message: exceção [mdhub][plataforma.usuario](getUsuario), fields: Object}"
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: the server responded with a status of 401 ()"
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  plataforma.prescricao  está em execução."
+  },
+  {
+    "type": "startGroup",
+    "text": "sendTrack Partner Feature Toggle"
+  },
+  {
+    "type": "log",
+    "text": "properties {ip: 189.39.0.40, user_type: anonymous, event_type: toggle, screen: home_prescription, delete_patient: false}"
+  },
+  {
+    "type": "log",
+    "text": "options {context: Object}"
+  },
+  {
+    "type": "endGroup",
+    "text": "console.groupEnd"
+  },
+  {
+    "type": "startGroup",
+    "text": "CleverTap Partner Feature Toggle"
+  },
+  {
+    "type": "log",
+    "text": "Is allowed ?  false"
+  },
+  {
+    "type": "endGroup",
+    "text": "console.groupEnd"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/protocolos?_=1780368374293' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368374295' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/medicos-configuracoes/list_of_prescription_item_with_continuous_use?_=1780368375297' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368375301' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368376429' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.digital-signature  está em execução."
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368378216' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  synapse.alert  está em execução."
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  plataforma.medicamento  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368379589' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.notification  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368380952' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  plataforma.preview  está em execução."
+  },
+  {
+    "type": "info",
+    "text": "ENVIRONMENT integrations"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.sms-modal  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368382913' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "info",
+    "text": "[Mdhub] Carregando..."
+  },
+  {
+    "type": "info",
+    "text": "[Mdhub] Script carregado com sucesso."
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.voice-prescription  está em execução."
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368383934' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368384518' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "warning",
+    "text": "O módulo  platform.onboarding-modal  está em execução."
+  },
+  {
+    "type": "warning",
+    "text": "Todos os módulos da plataforma foram carregados com sucesso!"
+  },
+  {
+    "type": "error",
+    "text": "Access to XMLHttpRequest at 'https://integrations.api.memed.com.br/v1/usuarios?_=1780368385021' from origin 'https://integrations.memed.com.br' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: It does not have HTTP ok status."
+  },
+  {
+    "type": "error",
+    "text": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "type": "error",
+    "text": "Memetrics não pode ser inicializado devido erro ao recuperar o token."
+  }
+]

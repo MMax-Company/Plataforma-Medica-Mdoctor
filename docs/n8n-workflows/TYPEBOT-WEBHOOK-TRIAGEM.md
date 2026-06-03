@@ -20,19 +20,29 @@ Typebot (POST)
 
 ## Backend
 
-URL padrão (Railway produção legado):
-
-`https://doctor-repositorio-central-production.up.railway.app/api/webhook/triagem`
-
-Override no Docker local (`docker/n8n/.env`):
+**Staging (validado):**
 
 ```env
-BACKEND_BASE_URL=https://doctor-repositorio-central-production.up.railway.app
+BACKEND_BASE_URL=https://mdoctor-backend-staging-staging.up.railway.app
 ```
 
-Staging Mdoctor (`mdoctor-backend-staging`) usa contrato diferente: `/api/whatsapp/webhook` — ver `N8N-WHATSAPP-STAGING-CONTRACT.md`.
+Rota: `POST /api/webhook/triagem` — implementada em `mdoctor-backend` (`src/routes/webhook.routes.js`).
 
-**Atenção:** confirme que `BACKEND_BASE_URL` aponta para um serviço Railway **ativo**. A URL legada `doctor-repositorio-central-production` pode retornar `404 Application not found` se o app estiver desligado.
+**Produção (após deploy do mesmo código no serviço `web`):**
+
+```env
+BACKEND_BASE_URL=https://web-production-5f178.up.railway.app
+```
+
+Probe staging:
+
+```bash
+N8N_WEBHOOK_SECRET=... node mdoctor-backend/scripts/probe-triagem-webhook-staging.js
+```
+
+**Não usar** (apps Railway inexistentes): `doctor-repositorio-central-production`, `medico-prescreve-backend-production`.
+
+O fluxo WhatsApp completo continua em `/api/whatsapp/webhook` — ver `N8N-WHATSAPP-STAGING-CONTRACT.md`.
 
 ## Deploy local
 

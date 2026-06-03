@@ -30,9 +30,16 @@ GitHub:
 Railway:
 
 - `Backend-Mdoctor / web`
-  - status: `SUCCESS`
-  - source repo atual: `MMax-Company/Mdoctor-Prescreve`
-  - start command atual: `node src/server.js`
+  - status: `SUCCESS` (deploy Git validado em 2026-05-29)
+  - source repo atual: `MMax-Company/Plataforma-Medica-Mdoctor`
+  - branch: `codex/legacy-compat-infra`
+  - root directory: `mdoctor-backend`
+  - build: `Dockerfile` (builder `DOCKERFILE`)
+  - start command: `npm start`
+  - healthcheck: `/health`
+  - dominio: `https://web-production-5f178.up.railway.app`
+  - rotas validadas: `GET /health` 200, `POST /api/webhook/triagem` 200 (header `X-MDoctor-Webhook-Secret`)
+  - deployment Git de referencia: `845dfc2e-58d3-404d-8fa8-4bf522b3864f`
 - `Painel-MDoctor / Painel Medico`
   - status: `SUCCESS`
   - source repo atual: `MMax-Company/Mdoctor-Prescreve`
@@ -94,7 +101,7 @@ Esses itens nao devem ser copiados cegamente. A regra e comparar funcao por func
 
 ## Itens que bloqueiam a troca definitiva
 
-- Railway ainda apontando para `Mdoctor-Prescreve`.
+- ~~Railway `web` ainda apontando para `Mdoctor-Prescreve`~~ (migrado em 2026-05-29; pendente apenas `Painel Medico` e demais servicos).
 - Backend oficial sem paridade de rotas criticas usadas pelo fluxo real.
 - Painel oficial sem login, fila, atendimento e receita funcionando.
 - Memed nao validada no ambiente oficial.

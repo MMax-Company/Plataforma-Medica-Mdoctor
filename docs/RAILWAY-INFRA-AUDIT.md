@@ -79,7 +79,7 @@ Observação: URLs com sufixo duplo `-staging-staging` vêm do nome do serviço 
 
 | Serviço | Repo atual (confirmado em docs/CLI) | Repo alvo | Root directory alvo |
 | --- | --- | --- | --- |
-| `web` | `MMax-Company/Mdoctor-Prescreve` | `Plataforma-Medica-Mdoctor` | `mdoctor-backend` |
+| `web` | `Plataforma-Medica-Mdoctor` (branch `codex/legacy-compat-infra`, migrado 2026-05-29) | — | `mdoctor-backend` |
 | `Painel Medico` | `MMax-Company/Mdoctor-Prescreve` | `Plataforma-Medica-Mdoctor` | `mdoctor-panel` |
 | `mdoctor-backend-staging` | `Plataforma-Medica-Mdoctor` (branch `codex/legacy-compat-infra`) | — | `mdoctor-backend` |
 | `painel-medico-staging` | `Plataforma-Medica-Mdoctor` | — | `mdoctor-panel` |

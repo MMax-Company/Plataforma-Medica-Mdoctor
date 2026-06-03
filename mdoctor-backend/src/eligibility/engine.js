@@ -126,6 +126,20 @@ class EligibilityEngine {
     }
     criteriaUsed.push('Tempo de uso mínimo >= 30 dias');
 
+    const receitaVencidaDias = this._extractReceitaVencidaDias(patientData);
+    if (receitaVencidaDias !== null && receitaVencidaDias > 180) {
+      const blockFlags = [...new Set([...flags, 'receita_muito_antiga'])];
+      return this._rejectedDecision({
+        reason: 'Receita anterior fora da janela segura (vencida há mais de 180 dias)',
+        reasonCode: 'renovacao_insegura',
+        condition,
+        flags: blockFlags,
+        criteriaUsed: buildCriteriaSummary(criteriaUsed, blockFlags),
+        renewalStatus: 'insegura'
+      });
+    }
+    if (receitaVencidaDias !== null) criteriaUsed.push('Receita anterior dentro da janela <= 180 dias');
+
     // 2. Check for Block Criteria (§5)
     if (this._hasBlockCriteria(flags)) {
       return this._rejectedDecision({
@@ -166,6 +180,14 @@ class EligibilityEngine {
     };
   }
 
+  _extractReceitaVencidaDias(patientData = {}) {
+    const raw =
+      patientData.receita_vencida_dias ?? patientData.receitaVencidaDias ?? patientData.dias_receita_vencida;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const converted = Number(raw);
+    return Number.isFinite(converted) ? converted : null;
+  }
+
   _normalizeFlags(flags = []) {
     if (!Array.isArray(flags)) return [];
     return [...new Set(flags.map((flag) => String(flag || '').trim().toLowerCase()).filter(Boolean))];
@@ -182,6 +204,7 @@ class EligibilityEngine {
     if (flags.includes('diagnostico_recente')) return 'Diagnóstico muito recente';
     if (flags.includes('contraindicacao_basica')) return 'Contraindicação básica detectada para renovação remota';
     if (flags.includes('sinais_urgencia')) return 'Sinais de urgência detectados';
+    if (flags.includes('receita_muito_antiga')) return 'Receita anterior fora da janela segura';
     return 'Critério de bloqueio clínico detectado';
   }
 

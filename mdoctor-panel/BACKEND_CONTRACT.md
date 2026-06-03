@@ -49,23 +49,27 @@ Observacao: substitui temporariamente o endpoint planejado `POST /api/decisao/:i
 
 Observacao local: endpoint protegido por autenticacao. Sem token local, retorna `401`; o painel preserva fallback/atualizacao visual otimista.
 
-### /api/prescriptions
-
-Objetivo: endpoints atuais relacionados a receitas/prescricoes.
-
-Endpoints atuais observados:
+### Fluxo oficial Memed (receita)
 
 ```text
-POST /api/prescriptions
-GET /api/prescriptions/:id
-GET /api/prescriptions/:id/pdf
+POST /api/memed/iniciar-emissao
+→ painel /receita (widget Sinapse)
+→ POST /api/memed/receita
+→ POST /api/atendimentos/:id/clinical/validate
 ```
 
-Observacao: alguns endpoints exigem autenticacao JWT. O painel ainda nao integra Memed real e mantem preview/fallback mockado.
+Doctor Prescreve **nao** emite, **nao** assina e **nao** manipula certificado digital. Emissao e assinatura (Bird ID) sao exclusivas do widget Memed.
 
-Observacao local: `GET /api/prescriptions/:id` retornou `401` sem token local; o painel manteve receita mockada.
+### /api/prescriptions (legado — nao oficial)
 
-Observacao local autenticada: `GET /api/prescriptions/:id` pode retornar `502 Bad Gateway` quando a integracao Memed/backend estiver indisponivel ou incompleta. Nesse caso, o painel exibe aviso discreto e mantem receita simulada ate a integracao Memed real ser concluida.
+```text
+POST /api/prescriptions              → 410 (descontinuado)
+POST /api/prescriptions/:id/generate → 410 (descontinuado)
+GET  /api/prescriptions/:id            → legado (preferir GET /api/atendimentos/:id)
+GET  /api/prescriptions/:id/pdf      → legado
+```
+
+O painel le receita via `GET /api/atendimentos/:id` (`dados_clinicos.memed_receita`).
 
 ### POST /api/atendimentos/:id/deliver
 
@@ -107,7 +111,7 @@ Status: planejado/futuro.
 
 Objetivo: buscar receita associada ao paciente/atendimento.
 
-Equivalente atual relacionado: `GET /api/prescriptions/:id`.
+Equivalente atual: `GET /api/atendimentos/:id` + `dados_clinicos.memed_receita`.
 
 ### POST /api/receita/:id/validar
 
@@ -115,7 +119,7 @@ Status: planejado/futuro.
 
 Objetivo: validar receita antes de marcar como pronta.
 
-Equivalente atual relacionado: `/api/prescriptions`.
+Equivalente atual: `POST /api/atendimentos/:id/clinical/validate`.
 
 ### POST /api/receita/:id/enviar-whatsapp
 

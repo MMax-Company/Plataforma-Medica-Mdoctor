@@ -1,3 +1,27 @@
-import type{Metadata}from"next";import"./globals.css";
-export const metadata:Metadata={title:"Doctor Prescreve",description:"Painel Médico"};
-export default function RootLayout({children}:{children:React.ReactNode}){return(<html lang="pt-BR"><body>{children}</body></html>);}
+import type { Metadata, Viewport } from 'next';
+import { AuthSessionBootstrap } from '@/components/auth/AuthSessionBootstrap';
+import { StagingBuildMarker } from '@/components/staging/StagingBuildMarker';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Doctor Prescreve',
+  description: 'Painel Médico',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="pt-BR">
+      <body className="staging-audit-body min-h-screen">
+        <AuthSessionBootstrap />
+        <StagingBuildMarker />
+        {children}
+      </body>
+    </html>
+  );
+}

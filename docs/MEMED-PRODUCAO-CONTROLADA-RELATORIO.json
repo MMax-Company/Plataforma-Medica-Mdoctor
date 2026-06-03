@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-05-29T22:37:14.328Z",
+  "script": "validar-memed-producao-controlada.js",
+  "purpose": "Validação isolada Memed produção — sem approve clínico, WhatsApp ou deliver",
+  "environment_used": "production",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "success": true,
+  "gates": {
+    "ok": true,
+    "errors": [],
+    "values": {
+      "MEMED_ENABLED": "true",
+      "MEMED_ALLOW_MOCK_FALLBACK": "false",
+      "MEMED_ENV": "production",
+      "MEMED_ENVIRONMENT": "production"
+    }
+  },
+  "env_validation": {
+    "ok": true,
+    "missing": [],
+    "api_url": "https://api.memed.com.br/v1",
+    "api_key": {
+      "present": true,
+      "length": 64
+    },
+    "secret_key": {
+      "present": true,
+      "length": 64
+    },
+    "timeout_ms": "8000",
+    "retry_attempts": "2"
+  },
+  "medico_identificado": {
+    "external_id": "dr_max_vinicius_001",
+    "nome": "Max",
+    "sobrenome": "Vinicius Ferreira Matos",
+    "cpf_configured": true,
+    "crm": "163032",
+    "crm_uf": "SP",
+    "medico_user": "staging-doctor",
+    "medico_nome": "Medico Staging"
+  },
+  "payload_validado": {
+    "ok": true,
+    "patient_name": "Paciente Validação Memed Ficticio",
+    "medication": "losartana 50mg",
+    "posology": "1 comprimido via oral 1x ao dia",
+    "environment": "production",
+    "notes": "Validação controlada Memed produção — sem entrega ao paciente."
+  },
+  "api_call": {
+    "executed": true,
+    "confirmed_by_env": true
+  },
+  "memed_result": {
+    "success": true,
+    "source": "memed",
+    "prescriptionId": null,
+    "pdfUrl": null,
+    "warning": "Em produção Memed a emissão costuma ocorrer via widget Sinapse; REST /prescriptions pode estar bloqueado."
+  },
+  "memed_error": null,
+  "has_pdf_or_link": false,
+  "pdf_url": null,
+  "prescription_id": null,
+  "persistence": {
+    "attempted": false,
+    "persisted": false,
+    "reason": "MEMED_VALIDATION_PERSIST not set"
+  },
+  "safety": {
+    "whatsapp_triggered": false,
+    "deliver_triggered": false,
+    "clinical_approve_triggered": false,
+    "patient_is_synthetic": true,
+    "atendimento_status_changed": false
+  },
+  "errors": [],
+  "api_url_note": "Credenciais de produção Memed usam https://api.memed.com.br/v1. integrations.api.memed.com.br retorna 401 com as mesmas chaves.",
+  "staging_endpoint_probe": {
+    "GET /api/memed/token": {
+      "http_status": 200,
+      "success": true,
+      "has_token": true
+    }
+  },
+  "conclusion": "Memed produção isolada: gates OK, prescritor autenticado (JWT). REST /prescriptions retorna 403 — approve clínico deve usar widget Sinapse + POST /api/memed/receita.",
+  "prescriber_auth": {
+    "ok": true,
+    "has_token": true,
+    "prescriber_id": "dr_max_vinicius_001",
+    "mode": "sinapse",
+    "token_valid_jwt": true
+  },
+  "prescription_api_probe": {
+    "attempted": true,
+    "success": false,
+    "prescriptionId": null,
+    "pdfUrl": null,
+    "error": "Ocorreu um erro inesperado, por favor contate o nosso suporte.",
+    "http_status": 403,
+    "note": "Em produção Memed a emissão costuma ocorrer via widget Sinapse; REST /prescriptions pode estar bloqueado."
+  }
+}

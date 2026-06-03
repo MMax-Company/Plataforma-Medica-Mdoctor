@@ -1,0 +1,297 @@
+{
+  "generated_at": "2026-06-03T09:27:42.275Z",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "user": "drmax.matos",
+  "steps": [
+    {
+      "id": "1_login_page",
+      "label": "Tela /login acessível",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "2_senha_errada",
+      "label": "Senha errada bloqueada",
+      "ok": true,
+      "status": 401,
+      "error": "Credenciais inválidas"
+    },
+    {
+      "id": "3_admin_legacy",
+      "label": "admin/admin123 bloqueado",
+      "ok": true,
+      "status": 401,
+      "error": "Credenciais inválidas"
+    },
+    {
+      "id": "4_login_correto_backend",
+      "label": "Login drmax.matos backend",
+      "ok": true,
+      "status": 200,
+      "username": "drmax.matos",
+      "role": "admin"
+    },
+    {
+      "id": "4b_login_proxy",
+      "label": "Login via proxy painel /api/auth/login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "5_jwt_valido",
+      "label": "JWT estrutura válida (username, exp, role)",
+      "ok": true,
+      "username": "drmax.matos",
+      "role": "admin",
+      "expHours": 8
+    },
+    {
+      "id": "6_me_backend",
+      "label": "GET /api/auth/me backend",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "6b_me_proxy",
+      "label": "GET /api/auth/me via proxy painel",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "5b_refresh",
+      "label": "POST /api/auth/refresh renova JWT",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "5c_me_after_refresh",
+      "label": "GET /api/auth/me após refresh",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "7_fila_api",
+      "label": "Fila médica API com token",
+      "ok": true,
+      "status": 200,
+      "count": 70
+    },
+    {
+      "id": "7b_fila_page",
+      "label": "Página /fila carrega (guard client-side)",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "id": "8_atendimento_protegido",
+      "label": "Atendimento GET com token",
+      "ok": true,
+      "status": 200,
+      "atendimentoId": "9fd72ad2-740a-4c00-8d0b-11261788c5e9"
+    },
+    {
+      "id": "9_prontuario_page",
+      "label": "Página /prontuario/[id] carrega",
+      "ok": true,
+      "status": 200,
+      "atendimentoId": "9fd72ad2-740a-4c00-8d0b-11261788c5e9"
+    },
+    {
+      "id": "10_approve_sem_token",
+      "label": "Approve sem token → 401",
+      "ok": true,
+      "status": 401,
+      "code": "AUTH_TOKEN_MISSING"
+    },
+    {
+      "id": "11_approve_com_token",
+      "label": "Approve com token autentica (não 401)",
+      "ok": true,
+      "status": 409,
+      "note": "auth OK — status clínico pode impedir approve"
+    },
+    {
+      "id": "13_api_sem_token",
+      "label": "API fila sem token → 401",
+      "ok": true,
+      "status": 401,
+      "code": "AUTH_TOKEN_MISSING"
+    },
+    {
+      "id": "13b_me_sem_token",
+      "label": "/api/auth/me sem token → 401",
+      "ok": true,
+      "status": 401
+    },
+    {
+      "id": "13c_token_invalido",
+      "label": "Token inválido → 401",
+      "ok": true,
+      "status": 401,
+      "code": "AUTH_TOKEN_INVALID"
+    },
+    {
+      "id": "role_admin",
+      "label": "Role admin acessa /api/admin/status",
+      "ok": true,
+      "status": 200,
+      "role": "admin"
+    },
+    {
+      "id": "14_sem_mock_auth",
+      "label": "Sem bypass auth por mock session no backend",
+      "ok": true,
+      "note": "Login só via MEDICO_USER/MEDICO_PASS"
+    },
+    {
+      "id": "12_logout",
+      "label": "Logout limpa localStorage e bloqueia API",
+      "ok": true,
+      "hadToken": true,
+      "afterClear": {
+        "token": null,
+        "mock": null
+      }
+    }
+  ],
+  "codeFindings": [
+    {
+      "ok": true,
+      "note": ".env.example painel: mock fallback false por padrão"
+    },
+    {
+      "ok": true,
+      "note": "auth.routes.js sem fallback admin/admin123"
+    },
+    {
+      "ok": true,
+      "note": "middleware JWT exige Bearer e retorna códigos AUTH_*"
+    },
+    {
+      "ok": true,
+      "note": "proxy /api/* configurado em next.config.mjs"
+    },
+    {
+      "ok": true,
+      "note": "sem middleware.ts Next — rotas UI protegidas no client (useRequireAuth/requireSession)",
+      "risk": "HTML de /fila e /atendimento retorna 200; bloqueio é client-side + API 401"
+    },
+    {
+      "ok": true,
+      "note": "auth.service limpa mdoctor_panel_mock_session no login/save/clear"
+    },
+    {
+      "ok": true,
+      "note": "isMockFallbackEnabled só true se env explícita"
+    }
+  ],
+  "envFindings": [
+    {
+      "file": "mdoctor-panel/.env.local",
+      "exists": true,
+      "keys": [
+        "API_PROXY_TARGET",
+        "NEXT_PUBLIC_API_BASE_URL",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_APP_ENV",
+        "NEXT_PUBLIC_MEMED_REAL_ENABLED",
+        "NEXT_PUBLIC_STAGING_BUILD_MARKER",
+        "NEXT_PUBLIC_ENABLE_MOCK_FALLBACK"
+      ],
+      "expected": [
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_ENABLE_MOCK_FALLBACK"
+      ]
+    },
+    {
+      "file": "mdoctor-backend/.env.local",
+      "exists": true,
+      "keys": [
+        "NODE_ENV",
+        "ENVIRONMENT_NAME",
+        "DATA_ENV",
+        "PORT",
+        "BASE_URL",
+        "NEXT_PUBLIC_API_URL",
+        "CORS_ORIGIN",
+        "LOG_LEVEL",
+        "DISABLE_LOCAL_DB_FALLBACK",
+        "LEGACY_COMPAT_ENABLED",
+        "LEGACY_COMPAT_WHATSAPP",
+        "LEGACY_COMPAT_PANEL",
+        "LEGACY_COMPAT_MEMED",
+        "LEGACY_COMPAT_STRIPE",
+        "LEGACY_COMPAT_TYPEBOT",
+        "JWT_SECRET",
+        "MEDICO_USER",
+        "MEDICO_PASS",
+        "MEDICO_ROLE",
+        "MEDICO_NOME",
+        "SUPABASE_URL",
+        "SUPABASE_SERVICE_KEY",
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "MEMED_ENABLED",
+        "MEMED_ENVIRONMENT",
+        "MEMED_ENV",
+        "MEMED_API_KEY",
+        "MEMED_SECRET_KEY",
+        "MEMED_API_URL",
+        "STRIPE_SECRET_KEY",
+        "STRIPE_WEBHOOK_SECRET",
+        "STRIPE_ENABLED",
+        "TYPEBOT_WEBHOOK_SECRET",
+        "TYPEBOT_ENABLED",
+        "WHATSAPP_ENABLED",
+        "DELIVERY_MOCK_ENABLED",
+        "ALLOW_PRODUCTION_DELIVERY_MOCK"
+      ],
+      "expected": [
+        "JWT_SECRET",
+        "MEDICO_USER",
+        "MEDICO_PASS",
+        "MEDICO_ROLE",
+        "CORS_ORIGIN"
+      ]
+    },
+    {
+      "file": "Railway painel (script apply-painel-definitivo)",
+      "expected": [
+        "NEXT_PUBLIC_API_URL",
+        "API_PROXY_TARGET",
+        "NEXT_PUBLIC_ENABLE_MOCK_FALLBACK=false",
+        "NEXT_PUBLIC_APP_ENV=staging"
+      ]
+    },
+    {
+      "file": "Railway backend (script apply-painel-definitivo)",
+      "expected": [
+        "MEDICO_USER=drmax.matos",
+        "MEDICO_PASS",
+        "MEDICO_ROLE=admin",
+        "MEDICO_EXTERNAL_ID",
+        "JWT_SECRET",
+        "CORS_ORIGIN=painel URL"
+      ]
+    }
+  ],
+  "riscos": [
+    "ui_shallow — HTML de /fila e /atendimento retorna 200; bloqueio é client-side + API 401"
+  ],
+  "piloto_ok": true,
+  "respostas": {
+    "Login correto funciona": "sim",
+    "Senhas inválidas bloqueiam": "sim",
+    "admin/admin123 bloqueado": "sim",
+    "JWT válido": "sim",
+    "/api/auth/me funciona": "sim",
+    "Rotas API bloqueiam sem token": "sim",
+    "Rotas API liberam com token": "sim",
+    "Approve sem token bloqueado": "sim",
+    "Approve com token autentica": "sim",
+    "Sessão persiste (localStorage)": "sim",
+    "Logout limpa sessão": "sim",
+    "Risco bloqueio indevido médico": "baixo",
+    "Risco acesso indevido mock/fallback": "baixo"
+  }
+}

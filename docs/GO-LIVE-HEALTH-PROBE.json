@@ -1,0 +1,197 @@
+{
+  "generated_at": "2026-05-29T21:46:39.476Z",
+  "targets": {
+    "BACKEND": "https://mdoctor-backend-staging-staging.up.railway.app",
+    "PANEL": "https://painel-medico-staging-staging.up.railway.app",
+    "N8N": "https://n8n-staging-staging-2dfe.up.railway.app",
+    "TYPEBOT": "https://typebot.co/doctor-prescreve-8rmljgu"
+  },
+  "probes": [
+    {
+      "name": "backend_health",
+      "url": "https://mdoctor-backend-staging-staging.up.railway.app/health",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 998,
+      "snippet": {
+        "status": "OK",
+        "service": "Backend-MDoctor",
+        "port": "3004",
+        "timestamp": "2026-05-29T21:46:40.431Z"
+      }
+    },
+    {
+      "name": "backend_readyz",
+      "url": "https://mdoctor-backend-staging-staging.up.railway.app/readyz",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 585,
+      "snippet": {
+        "status": "warning",
+        "production": false,
+        "environment": "staging",
+        "auth": {
+          "configured": true,
+          "jwt": true
+        },
+        "storage": {
+          "configured": true,
+          "initialized": true,
+          "responding": true,
+          "mode": "supabase",
+          "buckets": {
+            "documents": "documents",
+            "prescriptions": "receitas",
+            "previousPrescriptions": "receitas-anteriores",
+            "medicalRecords": "medical-records",
+            "consents": "consents",
+            "logs": "logs"
+          },
+          "error": null
+        },
+        "supabase": {
+          "configured": true,
+          "connected": true,
+          "mode": "supabase"
+        },
+        "memed": {
+          "configured": false,
+          "source": "mock",
+          "env": "mock",
+          "apiUrl": "https://integrations.api.memed.com.br/v1"
+        },
+        "fallback_local": false,
+        "checkedAt": "2026-05-29T21:46:41.039Z",
+        "checks": [
+          {
+            "name": "node_env",
+            "ok": false,
+            "message": "NODE_ENV deve ser production no ambiente final",
+            "severity": "warning"
+          },
+          {
+            "name": "jwt_secret",
+            "ok": true,
+            "message": "JWT_SECRET obrigatório e com pelo menos 32 caracteres",
+            "severity": "warning"
+          },
+          {
+            "name": "medico_user",
+            "ok": true,
+            "message": "MEDICO_USER obrigatório",
+            "severity": "warning"
+          },
+          {
+            "name": "medico_pass",
+            "ok": true,
+            "message": "MEDICO_PASS não pode usar senha padrão sem ALLOW_DEFAULT_MEDICO_PASS=true",
+            "severity": "warning"
+          },
+          {
+            "name": "cors_origin",
+            "ok": false,
+            "message": "CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard",
+            "severity": "warning"
+          },
+          {
+            "name": "supabase_url",
+            "ok": true,
+            "message": "SUPABASE_URL obrigatório",
+            "severity": "warning"
+          },
+          {
+            "name": "supabase_service_key",
+            "ok": true,
+            "message": "Service key do Supabase obrigatória",
+            "severity": "warning"
+          },
+          {
+            "name": "local_db_fallback_disabled",
+            "ok": true,
+            "message": "DISABLE_LOCAL_DB_FALLBACK=true obrigatório em produção para impedir fallback local",
+            "severity": "fail"
+          },
+          {
+            "name": "memed_credentials",
+            "ok": false,
+            "message": "Credenciais Memed obrigatórias para prescrição em produção",
+            "severity": "warning"
+          },
+          {
+            "name": "memed_environment",
+            "ok": false,
+            "message": "MEMED_ENVIRONMENT deve ser production no ambiente final",
+            "severity": "warning"
+          },
+          {
+            "name": "delivery_provider",
+            "ok": false,
+            "message": "Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true",
+            "severity": "warning"
+          }
+        ],
+        "failures": [],
+        "warnings": [
+          {
+            "name": "node_env",
+            "ok": false,
+            "message": "NODE_ENV deve ser production no ambiente final",
+            "severity": "warning"
+          },
+          {
+            "name": "cors_origin",
+            "ok": false,
+            "message": "CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard",
+            "severity": "warning"
+          },
+          {
+            "name": "memed_credentials",
+            "ok": false,
+            "message": "Credenciais Memed obrigatórias para prescrição em produção",
+            "severity": "warning"
+          },
+          {
+            "name": "memed_environment",
+            "ok": false,
+            "message": "MEMED_ENVIRONMENT deve ser production no ambiente final",
+            "severity": "warning"
+          },
+          {
+            "name": "delivery_provider",
+            "ok": false,
+            "message": "Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    {
+      "name": "panel_login",
+      "url": "https://painel-medico-staging-staging.up.railway.app/login",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 851,
+      "snippet": "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"image\" imageSrcSet=\"/_next/image?url=%2Flogo"
+    },
+    {
+      "name": "n8n_health",
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/healthz",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 681,
+      "snippet": {
+        "status": "ok"
+      }
+    },
+    {
+      "name": "typebot_public",
+      "url": "https://typebot.co/doctor-prescreve-8rmljgu",
+      "ok": true,
+      "status": 200,
+      "latency_ms": 320,
+      "snippet": null
+    }
+  ],
+  "success": true,
+  "failures": []
+}

@@ -1,4 +1,5 @@
 import { ApiError, apiClient } from '@/services/api';
+import { isMockFallbackEnabled } from '@/config/env';
 import type { DeliveryChannel, Patient, PatientStatus, RiskLevel } from '@/types/panel';
 
 export interface ServiceResult<T> {
@@ -176,7 +177,16 @@ function fallbackReason(error: unknown) {
 function normalizeStatus(status?: string): PatientStatus {
   const normalized = String(status || '').toLowerCase();
 
-  if (normalized === 'under_review' || normalized === 'ready' || normalized === 'rejected' || normalized === 'memed_processing') {
+  if (
+    normalized === 'under_review' ||
+    normalized === 'ready' ||
+    normalized === 'rejected' ||
+    normalized === 'memed_processing' ||
+    normalized === 'approved' ||
+    normalized === 'receita_em_edicao' ||
+    normalized === 'receita_emitida' ||
+    normalized === 'delivered'
+  ) {
     return normalized;
   }
 
@@ -184,19 +194,23 @@ function normalizeStatus(status?: string): PatientStatus {
     return 'waiting';
   }
 
-  if (normalized === 'delivered' || normalized === 'entregue') {
+  if (normalized === 'entregue') {
     return 'delivered';
   }
 
-  if (normalized === 'aprovado' || normalized === 'validated' || normalized === 'receita_emitida' || normalized === 'receita_pronta') {
+  if (normalized === 'aprovado' || normalized === 'validated' || normalized === 'receita_pronta') {
     return 'ready';
   }
 
-  if (normalized === 'em_atendimento' || normalized === 'em_analise' || normalized === 'awaiting_validation') {
+  if (normalized === 'em_atendimento' || normalized === 'em_analise') {
     return 'under_review';
   }
 
-  if (normalized === 'rejected' || normalized === 'recusado') {
+  if (normalized === 'awaiting_validation') {
+    return 'receita_emitida';
+  }
+
+  if (normalized === 'recusado') {
     return 'rejected';
   }
 
@@ -342,12 +356,15 @@ export async function getPatients(): Promise<ServiceResult<Patient[]>> {
     const rows = Array.isArray(data) ? data : data.data || data.atendimentos || [];
 
     if (rows.length === 0) {
-      return {
-        data: getMockPatients(),
-        usingMockFallback: true,
-        error: 'API retornou lista vazia. Usando dados mockados.',
-        errorCode: 'empty',
-      };
+      if (isMockFallbackEnabled()) {
+        return {
+          data: getMockPatients(),
+          usingMockFallback: true,
+          error: 'API retornou lista vazia. Usando dados mockados.',
+          errorCode: 'empty',
+        };
+      }
+      return { data: [], usingMockFallback: false };
     }
 
     return {
@@ -355,15 +372,53 @@ export async function getPatients(): Promise<ServiceResult<Patient[]>> {
       usingMockFallback: false,
     };
   } catch (error) {
+    if (isMockFallbackEnabled()) {
+      return {
+        data: getMockPatients().filter((patient) => patient.queueType !== 'support'),
+        usingMockFallback: true,
+        ...fallbackReason(error),
+      };
+    }
     return {
-      data: getMockPatients().filter((patient) => patient.queueType !== 'support'),
-      usingMockFallback: true,
+      data: [],
+      usingMockFallback: false,
       ...fallbackReason(error),
     };
   }
 }
 
 export async function getPatientById(id: string): Promise<ServiceResult<Patient | null>> {
+  const {
+    buildEligibilityPayload,
+    getVisualSimulationPatientById,
+    isVisualSimulationPatient,
+    getVisualSimulationAtendimentos,
+  } = await import('@/lib/visual-simulation-fila');
+  if (isVisualSimulationPatient(id)) {
+    const row = getVisualSimulationAtendimentos().find((item) => item.id === id);
+    const sim = getVisualSimulationPatientById(id);
+    if (sim && row) {
+      try {
+        const { checkEligibility } = await import('@/services/api');
+        const decision = await checkEligibility(
+          buildEligibilityPayload(row.dados_clinicos, row.condicao) as import('@/services/api').EligibilityRequest,
+        );
+        return {
+          data: {
+            ...sim,
+            eligibility: {
+              eligible: decision.eligible,
+              reason: decision.reason,
+            },
+          },
+          usingMockFallback: false,
+        };
+      } catch {
+        return { data: sim, usingMockFallback: false };
+      }
+    }
+  }
+
   try {
     const data = await apiClient.get<BackendPatient | { atendimento?: BackendPatient; data?: BackendPatient }>(`/api/atendimentos/${id}`);
     const row = unwrapAtendimento(data);
@@ -373,9 +428,16 @@ export async function getPatientById(id: string): Promise<ServiceResult<Patient 
       usingMockFallback: false,
     };
   } catch (error) {
+    if (isMockFallbackEnabled()) {
+      return {
+        data: getMockPatients().find((patient) => patient.id === id) || null,
+        usingMockFallback: true,
+        ...fallbackReason(error),
+      };
+    }
     return {
-      data: getMockPatients().find((patient) => patient.id === id) || null,
-      usingMockFallback: true,
+      data: null,
+      usingMockFallback: false,
       ...fallbackReason(error),
     };
   }
@@ -395,11 +457,17 @@ export async function updatePatientStatus(id: string, status: PatientStatus): Pr
       usingMockFallback: false,
     };
   } catch (error) {
-    const patient = getMockPatients().find((item) => item.id === id);
-
+    if (isMockFallbackEnabled()) {
+      const patient = getMockPatients().find((item) => item.id === id);
+      return {
+        data: patient ? { ...patient, status } : null,
+        usingMockFallback: true,
+        ...fallbackReason(error),
+      };
+    }
     return {
-      data: patient ? { ...patient, status } : null,
-      usingMockFallback: true,
+      data: null,
+      usingMockFallback: false,
       ...fallbackReason(error),
     };
   }

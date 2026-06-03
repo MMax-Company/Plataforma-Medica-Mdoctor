@@ -2,6 +2,14 @@ function isProduction() {
   return process.env.NODE_ENV === 'production';
 }
 
+function isStaging() {
+  return process.env.ENVIRONMENT_NAME === 'staging';
+}
+
+function isStrictRuntime() {
+  return isProduction() || isStaging();
+}
+
 function hasValue(name) {
   return Boolean(String(process.env[name] || '').trim());
 }
@@ -39,6 +47,7 @@ function allowsProductionDeliveryMock() {
 
 function getReadinessReport() {
   const production = isProduction();
+  const strict = isStrictRuntime();
   const { getSupabaseStatus } = require('./supabase');
   const { getMemedStatus } = require('../services/memed.service');
   const corsOrigins = String(process.env.CORS_ORIGIN || '')
@@ -46,7 +55,7 @@ function getReadinessReport() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  const required = production ? 'fail' : 'warning';
+  const required = strict ? 'fail' : 'warning';
   const storage = getSupabaseStatus();
   const memed = getMemedStatus();
   const checks = [
@@ -69,8 +78,20 @@ function getReadinessReport() {
     ),
     check(
       'local_db_fallback_disabled',
-      !production || process.env.DISABLE_LOCAL_DB_FALLBACK === 'true',
-      'DISABLE_LOCAL_DB_FALLBACK=true obrigatório em produção para impedir fallback local'
+      !strict || process.env.DISABLE_LOCAL_DB_FALLBACK === 'true',
+      'DISABLE_LOCAL_DB_FALLBACK=true obrigatório em staging/produção para impedir fallback local'
+    ),
+    check(
+      'ingress_service_secret',
+      hasValue('INGRESS_SERVICE_SECRET') || hasValue('N8N_WEBHOOK_SECRET'),
+      'INGRESS_SERVICE_SECRET ou N8N_WEBHOOK_SECRET obrigatório para rotas de ingress em staging/produção',
+      strict ? 'fail' : 'warning'
+    ),
+    check(
+      'stripe_webhook_secret',
+      !strict || hasValue('STRIPE_WEBHOOK_SECRET'),
+      'STRIPE_WEBHOOK_SECRET recomendado quando pagamentos Stripe estiverem ativos',
+      'warning'
     ),
     check(
       'memed_credentials',
@@ -111,7 +132,7 @@ function getReadinessReport() {
       mode: storage.mode
     },
     memed,
-    fallback_local: storage.mode === 'fallback_local',
+    persistence_mode: storage.mode,
     checkedAt: new Date().toISOString(),
     checks,
     failures,
@@ -120,16 +141,18 @@ function getReadinessReport() {
 }
 
 function assertProductionReady() {
-  if (!isProduction()) return getReadinessReport();
+  if (!isStrictRuntime()) return getReadinessReport();
   const report = getReadinessReport();
   if (report.failures.length) {
     const details = report.failures.map((item) => item.message).join('; ');
-    throw new Error(`Configuração de produção incompleta: ${details}`);
+    throw new Error(`Configuração de runtime estrito incompleta: ${details}`);
   }
   return report;
 }
 
 module.exports = {
   assertProductionReady,
-  getReadinessReport
+  getReadinessReport,
+  isStaging,
+  isStrictRuntime
 };

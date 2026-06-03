@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_BASE } from '@/services/api';
-import { authHeaders, clearSession, requireSession } from '@/services/auth.service';
+import { getApiBase } from '@/services/api';
+import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { Button, Card, MetricCard, StatusPill } from '@/components/ui/DesignSystem';
 
 type Check = {
@@ -75,7 +75,7 @@ export default function AdminPage() {
     setError(null);
     try {
       await requireSession();
-      const response = await fetch(`${API_BASE}/api/admin/status`, {
+      const response = await fetch(`${getApiBase()}/api/admin/status`, {
         headers: authHeaders()
       });
       const payload = await response.json();
@@ -90,8 +90,8 @@ export default function AdminPage() {
     }
   }
 
-  function logout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     window.location.href = '/login';
   }
 
@@ -123,7 +123,7 @@ export default function AdminPage() {
             Fila
           </a>
           <Button onClick={fetchStatus} className="h-10 text-xs">Atualizar</Button>
-          <Button onClick={logout} tone="soft" className="h-10 text-xs">Sair</Button>
+          <Button onClick={handleLogout} tone="soft" className="h-10 text-xs">Sair</Button>
         </div>
       </header>
       <div className="h-1 bg-[#F4B000]" />
@@ -147,7 +147,7 @@ export default function AdminPage() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <a href={`${API_BASE}/readyz`} target="_blank" className="inline-flex h-10 items-center rounded-[14px] border border-[#1E1E1E] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
+                  <a href={`${getApiBase()}/readyz`} target="_blank" className="inline-flex h-10 items-center rounded-[14px] border border-[#1E1E1E] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">
                     Abrir readiness
                   </a>
                   <a href="/receita" className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]">

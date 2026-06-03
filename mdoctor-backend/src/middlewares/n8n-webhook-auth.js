@@ -1,3 +1,7 @@
+function isStrictWebhookEnv() {
+  return process.env.NODE_ENV === 'production' || process.env.ENVIRONMENT_NAME === 'staging';
+}
+
 function verifyN8nWebhookSecret(req) {
   const configuredSecret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
   const providedSecret = String(req.get('X-MDoctor-Webhook-Secret') || '').trim();
@@ -10,7 +14,7 @@ function verifyN8nWebhookSecret(req) {
     return { ok: true, correlationId };
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isStrictWebhookEnv()) {
     return { ok: true, correlationId, devFallback: true };
   }
 

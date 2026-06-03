@@ -33,6 +33,10 @@ export interface MemedReceiptPayload {
   receitaUrl?: string;
   receitaId?: string;
   pdfUrl?: string;
+  digitalLink?: string;
+  digital_link?: string;
+  unlockCode?: string;
+  unlock_code?: string;
   payload?: unknown;
 }
 
@@ -50,11 +54,22 @@ export async function getMemedConfig(): Promise<MemedConfig> {
   return data.config;
 }
 
-export async function getMemedToken(): Promise<MemedAuthResponse> {
-  const response = await fetch(`${getApiBase()}/api/memed/token`, {
-    headers: authHeaders()
+export async function getMemedToken(options?: { refresh?: boolean }): Promise<MemedAuthResponse> {
+  const query = options?.refresh ? '?refresh=1' : '';
+  const response = await fetch(`${getApiBase()}/api/memed/token${query}`, {
+    headers: authHeaders(),
+    cache: 'no-store',
   });
   return readJson<MemedAuthResponse>(response);
+}
+
+export async function notifyMemedPrescriptionCancelled(atendimentoId: string, payload?: unknown) {
+  const response = await fetch(`${getApiBase()}/api/memed/receita/cancelada`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ atendimentoId, payload }),
+  });
+  return readJson(response);
 }
 
 export async function startMemedEmission(atendimentoId: string) {

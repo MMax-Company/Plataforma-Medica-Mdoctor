@@ -2,7 +2,7 @@
 
 **Data:** 2026-05-28  
 **Branch de trabalho:** `codex/legacy-compat-infra`  
-**Último commit remoto referência:** `ef8a469` — *feat: finalize evolution n8n typebot staging integration*
+**Último commit staging:** `6751d4a` — *feat(staging): fechar Fases 1-3 — Typebot, painel, prontuário e deploy runbooks* (push em `codex/legacy-compat-infra`)
 
 Este documento consolida o fechamento do ciclo staging após Fases 1–3. **Produção não foi alterada.**
 
@@ -18,7 +18,7 @@ Este documento consolida o fechamento do ciclo staging após Fases 1–3. **Prod
 | Republicação n8n (API) | ⏳ Pendente | `N8N_API_KEY` ausente nesta sessão |
 | Backend staging | ✅ Online | `/health` 200; smokes API OK |
 | Painel staging | ✅ Online | `/login` e `/dashboard` 200; build local OK |
-| Código no Railway | ⚠️ Desatualizado | Muitas alterações locais **não commitadas** — redeploy necessário após push |
+| Código no Railway | ✅ Backend implantado | `railway up` 2026-05-29 — `terms_acceptance` confirmado; painel deploy disparado |
 | Fluxo E2E WhatsApp real | ⏳ Manual | Requer teste humano no número Evolution staging |
 
 ---
@@ -233,10 +233,10 @@ Referência: `mdoctor-backend/.env.example`, `mdoctor-backend/.env.staging.examp
 
 ## 11. Pendências reais
 
-1. **Commit + push** do branch `codex/legacy-compat-infra` (grande volume de alterações locais não publicadas).
-2. **Publicar Typebot** com `publish-typebot-staging.js` + token.
+1. ~~**Commit + push**~~ ✅ `6751d4a` em `codex/legacy-compat-infra` — confirmar deploy Railway backend + painel.
+2. **Publicar Typebot** com `publish-typebot-staging.js` + token (**passo 2/5**).
 3. **Republicar 3 workflows n8n** com `deploy-n8n-workflow.js` (ou UI n8n) após embed do payload.
-4. **Redeploy** backend e painel no Railway com código atualizado.
+4. **Confirmar redeploy** Railway backend + painel após push `6751d4a` (**passo 4/5**).
 5. **Teste manual WhatsApp** ponta a ponta: menu → Typebot → pagamento → upload → painel → Memed → entrega.
 6. Confirmar **Stripe staging** no bloco de pagamento Typebot após publicação.
 
@@ -244,7 +244,7 @@ Referência: `mdoctor-backend/.env.example`, `mdoctor-backend/.env.staging.examp
 
 ## 12. Riscos restantes
 
-- **Drift código/deploy:** staging online pode rodar commit antigo (`ef8a469`) enquanto o repo local tem Fases 2–3 não publicadas.
+- **Drift código/deploy:** até o Railway concluir deploy de `6751d4a`, staging pode ainda servir build anterior.
 - **Typebot cloud desatualizado** até rodar publish com token.
 - **n8n** pode estar com workflow antigo se não republicar após mudanças no normalizador.
 - **E2E WhatsApp** não automatizado nesta sessão (depende Evolution + número real).

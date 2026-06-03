@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { CheckCircle2, Clock3, MessageCircle, User, UserRound } from 'lucide-react';
-import { getApiBase, checkEligibility } from '@/services/api';
+import { getApiBase } from '@/services/api';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
 import { formatQueuePatientId, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
-import { buildEligibilityPayload, type SimClinical } from '@/lib/visual-simulation-fila';
 import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
 
 type AtendimentoStatus = PanelAtendimentoStatus;
@@ -161,6 +161,7 @@ const columnIcons: Record<'queue' | 'review' | 'ready', typeof Clock3> = {
 };
 
 export default function FilaPage() {
+  const router = useRouter();
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -307,23 +308,26 @@ export default function FilaPage() {
     }
   }
 
-  async function autoEvaluate(item: Atendimento) {
+  async function openAtendimento(item: Atendimento) {
+    const id = String(item.id || '').trim();
+    if (!id) {
+      setError('Atendimento sem identificador válido.');
+      return;
+    }
+
     setActionLoading(item.id);
     setError(null);
     try {
-      const clinical = item.dados_clinicos || {};
-      const payload = buildEligibilityPayload(
-        clinical as SimClinical,
-        item.condicao,
-      );
-      const decision = await checkEligibility(payload as import('@/services/api').EligibilityRequest);
-
-      await updateStatus(item.id, decision.eligible ? 'UNDER_REVIEW' : 'REJECTED', 'Triagem automatica pelo painel medico');
-    } catch (e: any) {
-      setError(e.message || 'Erro ao avaliar elegibilidade');
+      if (['QUEUE', 'FILA', 'TRIAGED'].includes(item.status)) {
+        await updateStatus(id, 'EM_ATENDIMENTO', 'Atendimento iniciado pelo painel medico');
+      }
+    } catch {
+      // Abre o prontuário mesmo se a transição de status falhar (ex.: rede).
     } finally {
       setActionLoading(null);
     }
+
+    router.push(`/atendimento/${id}`);
   }
 
   async function deliverPrescription(item: Atendimento, channel: DeliveryChannel) {
@@ -380,7 +384,7 @@ export default function FilaPage() {
             <button
               type="button"
               onClick={() => {
-                void autoEvaluate(item);
+                void openAtendimento(item);
               }}
               disabled={actionLoading === item.id}
               className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5"

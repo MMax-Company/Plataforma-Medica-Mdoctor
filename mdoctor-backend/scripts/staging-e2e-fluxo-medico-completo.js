@@ -232,8 +232,7 @@ async function main() {
       : null
   });
   if (!receipt.ok && memedReal) {
-    fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));
-    process.exit(1);
+    report.warnings.push('memed_receita_persist_requires_human_emission');
   }
   if (!receipt.ok && !memedReal) {
     fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));

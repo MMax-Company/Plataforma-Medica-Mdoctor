@@ -111,25 +111,25 @@ router.get('/support-queue', requireAuth, async (_req, res) => {
 });
 
 router.get('/queue', requireAuth, async (_req, res) => {
-  const atendimentos = await listAtendimentos({
-    status: [
-      STATUS.FILA,
-      STATUS.QUEUE,
-      STATUS.EM_ATENDIMENTO,
-      STATUS.UNDER_REVIEW,
-      STATUS.APPROVED,
-      STATUS.RECEITA_EM_EDICAO,
-      STATUS.MEMED_PROCESSING,
-      STATUS.AWAITING_VALIDATION,
-      STATUS.PRONTO_PARA_DECISAO,
-      STATUS.APROVADO,
-      STATUS.VALIDATED,
-      STATUS.RECEITA_EMITIDA
-    ].join(',')
+  const atendimentos = await listAtendimentos();
+  const terminal = new Set([STATUS.DELIVERED, STATUS.REJECTED, 'cancelado']);
+  const paid = atendimentos.filter((item) => isPaid(item));
+  const activeEligible = paid.filter((item) => {
+    const st = String(item.status || '').toLowerCase();
+    if (terminal.has(st)) return false;
+    return isClinicallyEligible(item) && isVisibleInMedicalPanel(item);
   });
+  const rejectedPaid = paid.filter((item) => {
+    const st = String(item.status || '').toLowerCase();
+    return st === 'rejected' || st === 'recusado' || item.elegibilidade?.eligible === false;
+  });
+  const merged = [...activeEligible];
+  for (const row of rejectedPaid) {
+    if (!merged.some((item) => item.id === row.id)) merged.push(row);
+  }
   res.json({
     success: true,
-    atendimentos: atendimentos.filter((item) => isPaid(item) && isClinicallyEligible(item))
+    atendimentos: merged
   });
 });
 
@@ -441,7 +441,7 @@ router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
   return res.json({ success: true, correlationId, atendimento, decisao });
 });
 
-router.post('/:id/deliver', requireAuth, async (req, res) => {
+router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   const { channel = 'whatsapp', doctorId, medicoId } = req.body || {};
   const authenticatedDoctorId = req.user?.sub || medicoId || doctorId || null;

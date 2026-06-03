@@ -1,5 +1,7 @@
 import { getApiBase, STAGING_BACKEND_URL } from '@/config/api';
 
+const AUTH_UNAUTHORIZED_EVENT = 'mdoctor:auth:unauthorized';
+
 export const API_BASE = STAGING_BACKEND_URL;
 export { getApiBase };
 
@@ -28,6 +30,17 @@ export class ApiError extends Error {
 function readToken() {
   if (typeof window === 'undefined') return null;
   return window.localStorage.getItem('mdoctor_auth_token');
+}
+
+let unauthorizedSignalSent = false;
+
+function signalUnauthorizedOnce() {
+  if (typeof window === 'undefined' || unauthorizedSignalSent) return;
+  unauthorizedSignalSent = true;
+  window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+  window.setTimeout(() => {
+    unauthorizedSignalSent = false;
+  }, 1500);
 }
 
 async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, options: RequestOptions = {}): Promise<T> {
@@ -59,6 +72,9 @@ async function request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, option
         message = errorBody.error || errorBody.message || message;
       } catch {
         // keep default message
+      }
+      if (!path.includes('/api/auth/login')) {
+        signalUnauthorizedOnce();
       }
       throw new ApiError('unauthorized', message, 401);
     }

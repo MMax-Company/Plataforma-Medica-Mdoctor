@@ -1,6 +1,10 @@
+import { CLINICAL_REJECT_REASONS, type ClinicalRejectReasonCode } from '@/constants/clinical-reject-reasons';
+import { isMockFallbackEnabled } from '@/config/env';
 import { ApiError, apiClient } from '@/services/api';
 import { authHeaders } from '@/services/auth.service';
 import type { ServiceResult } from '@/services/patients';
+
+export { CLINICAL_REJECT_REASONS, type ClinicalRejectReasonCode };
 
 type BackendAtendimento = {
   id?: string;
@@ -23,6 +27,7 @@ export type ClinicalDecisionPayload = {
   observacao_medica?: string;
   conduta_medica?: string;
   motivo?: string;
+  reason_code?: ClinicalRejectReasonCode;
   mensagem_whatsapp?: string;
   dados_clinicos?: Record<string, unknown>;
 };
@@ -61,15 +66,19 @@ export async function approveClinicalDecision(
     const row = unwrapAtendimento(data);
 
     return {
-      data: { atendimentoId, status: String(row.status || 'memed_processing') },
+      data: { atendimentoId, status: String(row.status || 'approved') },
       usingMockFallback: false,
       correlationId: data.correlationId,
       memedWarning: data.memed?.warning || null,
     };
   } catch (error) {
+    if (!isMockFallbackEnabled()) {
+      if (error instanceof ApiError) throw error;
+      throw new Error('Falha inesperada ao aprovar atendimento.');
+    }
     if (error instanceof ApiError) {
       return {
-        data: { atendimentoId, status: 'memed_processing' },
+        data: { atendimentoId, status: 'approved' },
         usingMockFallback: true,
         error: error.message,
         errorCode: error.code,
@@ -77,7 +86,7 @@ export async function approveClinicalDecision(
     }
 
     return {
-      data: { atendimentoId, status: 'memed_processing' },
+      data: { atendimentoId, status: 'approved' },
       usingMockFallback: true,
       error: 'Falha inesperada ao aprovar atendimento.',
       errorCode: 'unknown',
@@ -91,8 +100,9 @@ export async function rejectClinicalDecision(
 ): Promise<ClinicalDecisionResult> {
   try {
     const data = await apiClient.post<ApiDecisionResponse>(`/api/atendimentos/${atendimentoId}/clinical/reject`, {
+      reason_code: payload.reason_code || 'OUTROS',
       observacao_medica: payload.observacao_medica || payload.notes || null,
-      motivo: payload.motivo || payload.notes || 'Atendimento reprovado pelo médico no prontuário',
+      motivo: payload.motivo || payload.notes || undefined,
       mensagem_whatsapp: payload.mensagem_whatsapp || CLINICAL_REJECT_WHATSAPP_MESSAGE,
       dados_clinicos: payload.dados_clinicos || {},
     }, { headers: authHeaders() });
@@ -110,6 +120,10 @@ export async function rejectClinicalDecision(
       notificationSent: data.notification?.sent === true,
     };
   } catch (error) {
+    if (!isMockFallbackEnabled()) {
+      if (error instanceof ApiError) throw error;
+      throw new Error('Falha inesperada ao reprovar atendimento.');
+    }
     if (error instanceof ApiError) {
       return {
         data: { atendimentoId, status: 'rejected' },

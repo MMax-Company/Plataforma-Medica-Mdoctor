@@ -1,0 +1,94 @@
+{
+  "url": "http://127.0.0.1:3002/fila?visualSim=1",
+  "visualSimParam": "1",
+  "dataVisualSim": "1",
+  "mainHeight": 720,
+  "primaryBtnBottoms": {
+    "FILA DE ESPERA": 428,
+    "EM ATENDIMENTO": 428,
+    "RECEITAS PRONTAS": 428
+  },
+  "filaVisible": true,
+  "headerHeight": 120,
+  "footerVisible": true,
+  "footerInFlow": true,
+  "mainOverflowX": false,
+  "scrollH": 720,
+  "clientH": 720,
+  "cardCount": 10,
+  "cardHeights": [
+    168,
+    168,
+    168,
+    168,
+    168,
+    168,
+    168,
+    168,
+    168,
+    168
+  ],
+  "cardHeightDelta": 0,
+  "cardStylesSample": [
+    {
+      "height": "168px",
+      "minHeight": "168px",
+      "maxHeight": "168px",
+      "classes": "dp-patient-card dp-patient-card--queue"
+    },
+    {
+      "height": "168px",
+      "minHeight": "168px",
+      "maxHeight": "168px",
+      "classes": "dp-patient-card dp-patient-card--queue"
+    },
+    {
+      "height": "168px",
+      "minHeight": "168px",
+      "maxHeight": "168px",
+      "classes": "dp-patient-card dp-patient-card--queue"
+    }
+  ],
+  "legacyPatientClasses": [
+    "dp-patient-initials flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F1FF] text-[#1A3F8F] ",
+    "dp-patient-id",
+    "dp-patient-initials flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F1FF] text-[#1A3F8F] ",
+    "dp-patient-id",
+    "dp-patient-initials flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F1FF] text-[#1A3F8F] ",
+    "dp-patient-id",
+    "dp-patient-initials flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E8F1FF] text-[#1A3F8F] ",
+    "dp-patient-id"
+  ],
+  "dupHeaders": 1,
+  "dupFooters": 1,
+  "patientIdTotal": 10,
+  "simPatientIds": 0,
+  "realLikePatientIds": 10,
+  "sampleIds": [
+    "#ATD-01",
+    "#ATD-02",
+    "#ATD-03",
+    "#ATD-05",
+    "#ATD-06"
+  ],
+  "columns": [
+    {
+      "title": "FILA DE ESPERA",
+      "visible": true,
+      "count": 6
+    },
+    {
+      "title": "EM ATENDIMENTO",
+      "visible": true,
+      "count": 3
+    },
+    {
+      "title": "RECEITAS PRONTAS",
+      "visible": true,
+      "count": 1
+    }
+  ],
+  "supportBand": true,
+  "errorBanner": false,
+  "apiCallsDuringLoad": []
+}

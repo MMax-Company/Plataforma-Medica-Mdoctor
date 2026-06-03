@@ -1,6 +1,15 @@
 export type DeliveryChannel = 'whatsapp' | 'email' | 'sms';
 
-export type PatientStatus = 'waiting' | 'under_review' | 'ready' | 'rejected' | 'memed_processing' | 'delivered';
+export type PatientStatus =
+  | 'waiting'
+  | 'under_review'
+  | 'approved'
+  | 'receita_em_edicao'
+  | 'memed_processing'
+  | 'receita_emitida'
+  | 'ready'
+  | 'rejected'
+  | 'delivered';
 
 export type RiskLevel = 'low' | 'medium' | 'high';
 

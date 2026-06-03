@@ -1,5 +1,5 @@
 {
-  "executed_at": "2026-06-01T13:41:02.081Z",
+  "executed_at": "2026-06-02T02:53:16.748Z",
   "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
   "revalidate_strict": false,
   "steps": [
@@ -13,7 +13,7 @@
     {
       "name": "triagem_http",
       "ok": true,
-      "atendimentoId": "0b5c39a2-be05-4061-b626-96efe94b372a",
+      "atendimentoId": "27666837-74c2-4aec-a1c2-f60bfe82a2f8",
       "optional": false
     },
     {
@@ -33,36 +33,38 @@
     },
     {
       "name": "memed_receita_persist",
-      "ok": true,
-      "optional": false
+      "ok": false,
+      "optional": true,
+      "memed_real": true,
+      "hint": "Defina MEMED_RECEITA_ID + MEMED_PDF_URL após emissão humana no /receita"
     },
     {
       "name": "receita_validada",
-      "ok": true,
+      "ok": false,
       "optional": false
     },
     {
       "name": "entrega_whatsapp",
-      "ok": true,
+      "ok": false,
       "optional": false
     },
     {
       "name": "atendimento_final",
       "ok": true,
-      "status": "delivered",
+      "status": "approved",
       "optional": false
     },
     {
       "name": "status_final_delivered",
-      "ok": true,
-      "status": "delivered",
+      "ok": false,
+      "status": "approved",
       "optional": false
     },
     {
       "name": "db_appointment",
       "ok": true,
       "table": "appointments",
-      "patient_id": "d9e6dd06-8c5c-487a-b0f6-e9cb11d100f7",
+      "patient_id": "90d44d5e-10cd-4bff-b9ea-f2895978a753",
       "optional": false
     },
     {
@@ -83,15 +85,15 @@
     },
     {
       "name": "db_prescriptions",
-      "ok": true,
-      "optional": false,
-      "source": "prescriptions"
+      "ok": false,
+      "optional": true,
+      "source": null
     },
     {
       "name": "db_prescription_delivery",
-      "ok": true,
-      "optional": false,
-      "source": "prescription_delivery"
+      "ok": false,
+      "optional": true,
+      "source": null
     },
     {
       "name": "db_appointments_primary",
@@ -115,12 +117,21 @@
     "appointment_table": "appointments",
     "ref": "usihurogvphtjedyhyfl"
   },
-  "errors": [],
-  "warnings": [],
-  "success": true,
+  "errors": [
+    "receita_validada",
+    "entrega_whatsapp",
+    "status_final_delivered"
+  ],
+  "warnings": [
+    "memed_receita_persist",
+    "memed_receita_persist_requires_human_emission",
+    "db_prescriptions",
+    "db_prescription_delivery"
+  ],
+  "success": false,
   "summary": {
     "steps": 19,
-    "errors": 0,
-    "warnings": 0
+    "errors": 3,
+    "warnings": 4
   }
 }

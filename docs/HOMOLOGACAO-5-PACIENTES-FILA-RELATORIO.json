@@ -1,0 +1,124 @@
+{
+  "generated_at": "2026-06-03T09:41:42.177Z",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel_url": "http://localhost:3000",
+  "run_tag": "homolog-1780479702176",
+  "patients": [
+    {
+      "num": 1,
+      "nome": "PACIENTE TESTE 01 - DOR ABDOMINAL",
+      "cpf": "93642479859",
+      "telefone": "+5511988700001",
+      "sexo": "F",
+      "idade": 42,
+      "queixa": "Desconforto abdominal leve em paciente com HAS em uso contínuo — homologação painel.",
+      "atendimentoId": "5f70487a-4a90-48c7-be8c-2e55af5d40ff",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true,
+        "approve_disponivel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 2,
+      "nome": "PACIENTE TESTE 02 - HIPERTENSÃO",
+      "cpf": "74816998030",
+      "telefone": "+5511988700002",
+      "sexo": "M",
+      "idade": 55,
+      "queixa": "Renovação de anti-hipertensivo — homologação painel.",
+      "atendimentoId": "bed9c74d-bedc-4e55-b03a-67d757568f82",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true,
+        "approve_disponivel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 3,
+      "nome": "PACIENTE TESTE 03 - DIABETES",
+      "cpf": "60783309080",
+      "telefone": "+5511988700003",
+      "sexo": "F",
+      "idade": 48,
+      "queixa": "Renovação de hipoglicemiante oral — homologação painel.",
+      "atendimentoId": "44426863-7053-4643-b860-bf7f9c5efc61",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true,
+        "approve_disponivel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 4,
+      "nome": "PACIENTE TESTE 04 - ANSIEDADE",
+      "cpf": "45317828791",
+      "telefone": "+5511988700004",
+      "sexo": "M",
+      "idade": 36,
+      "queixa": "Paciente com hipotireoidismo em uso contínuo; relata ansiedade leve associada — cenário de homologação (rótulo ANSIEDADE).",
+      "atendimentoId": "d1ffb83f-ea6d-4c35-832e-cb0afa0f70ec",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true,
+        "approve_disponivel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 5,
+      "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+      "cpf": "23100299900",
+      "telefone": "+5511988700005",
+      "sexo": "F",
+      "idade": 62,
+      "queixa": "Renovação de receita crônica — homologação fluxo receita/Memed.",
+      "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true,
+        "approve_disponivel": true
+      },
+      "ok": true
+    }
+  ],
+  "ready_for_human": true
+}

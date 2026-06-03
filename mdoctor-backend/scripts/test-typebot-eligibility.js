@@ -47,4 +47,20 @@ assert('alert signs blocked', alert.eligibility_status === 'ineligible');
 const controlled = mapTypebotPayload({ ...eligiblePayload, primeiro_medicamento: 'clonazepam 2mg' }).normalized;
 assert('controlled med blocked', controlled.eligibility_status === 'ineligible');
 
+const rxBase = {
+  condition: 'hipertensao',
+  previous_prescription: true,
+  continuous_use_proof: true,
+  tempo_uso: 'Mais de 6 meses',
+  continuous_use_days: 365,
+  foto_receita_url: 'https://cdn.example.com/receita.jpg',
+  previous_prescription_file: 'https://cdn.example.com/receita.jpg',
+  flags: [],
+  eligibility_status: 'eligible'
+};
+
+assert('220d vencida blocked without flag', engine.evaluate({ ...rxBase, receita_vencida_dias: 220 }).eligible === false);
+assert('30d vencida ok without flag', engine.evaluate({ ...rxBase, receita_vencida_dias: 30 }).eligible === true);
+assert('180d vencida ok without flag', engine.evaluate({ ...rxBase, receita_vencida_dias: 180 }).eligible === true);
+
 console.log('Done.');

@@ -1,258 +1,257 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { API_BASE } from '@/services/api';
-import { requireSession } from '@/services/auth.service';
-import { getMemedConfig, getMemedToken, saveMemedReceipt, type MemedConfig } from '@/services/memed.service';
-import { Button, Card, PageHeader, StatusPill } from '@/components/ui/DesignSystem';
+import { MedicalActionRail } from '@/components/medical/MedicalActionRail';
+import { MedicalPatientSidebar } from '@/components/medical/MedicalPatientSidebar';
+import { MedicalWorkflowShell } from '@/components/medical/MedicalWorkflowShell';
+import { MedicalWorkflowSteps } from '@/components/medical/MedicalWorkflowSteps';
+import { MemedPrescriptionWorkspace } from '@/components/memed/MemedPrescriptionWorkspace';
+import { useMedicalWorkflow } from '@/hooks/useMedicalWorkflow';
+import { useMemedSinapse, parsePrescriptionPayload } from '@/hooks/useMemedSinapse';
+import {
+  getMemedConfig,
+  getMemedToken,
+  notifyMemedPrescriptionCancelled,
+  saveMemedReceipt,
+  startMemedEmission,
+  type MemedConfig,
+} from '@/services/memed.service';
+import { hasPersistedMemedReceipt } from '@/lib/atendimento-status';
 
-type Atendimento = {
-  id: string;
-  paciente_nome: string;
-  paciente_telefone?: string;
-  paciente_cpf?: string;
-  paciente_email?: string;
-  condicao?: string;
-  risco?: string | null;
-  status?: string;
-  dados_clinicos?: Record<string, unknown> & {
-    medicacao_em_uso?: string;
-    doenca_cronica?: string;
-  };
-};
-
-declare global {
-  interface Window {
-    MdHub?: {
-      command?: { send: (module: string, command: string, payload?: unknown) => Promise<unknown> | unknown };
-      module?: { show: (module: string) => void; waitForReady?: () => Promise<void> };
-      event?: { add: (event: string, callback: (data: unknown) => void) => void };
-    };
-    MdSinapsePrescricao?: {
-      event?: { add: (event: string, callback: (module: { name?: string }) => void) => void };
-      setToken?: (token: string) => void;
-    };
-    atendimentoAtual?: string;
-  }
-}
-
-const featureToggles = {
-  forceSign: true,
-  allowShareModal: true,
-  enableAlerts: true,
-  historyPrescription: true,
-  setPatientAllergy: true,
-  showProtocol: true,
-  guidesOnboarding: false,
-  dropdownSync: false,
-  editPatient: false,
-  removePatient: false,
-  deletePatient: false
-};
-
-function cleanDigits(value?: string) {
-  return String(value || '').replace(/\D/g, '');
-}
-
-function buildPatientPayload(atendimento: Atendimento) {
-  const cpf = cleanDigits(atendimento.paciente_cpf);
-  return {
-    idExterno: atendimento.id,
-    nome: atendimento.paciente_nome || 'Paciente sem nome',
-    telefone: cleanDigits(atendimento.paciente_telefone) || '11999999999',
-    email: atendimento.paciente_email || undefined,
-    ...(cpf ? { cpf } : { withoutCpf: true })
-  };
-}
-
-function ReceitaMemedContent() {
+function ReceitaWorkflowContent() {
   const searchParams = useSearchParams();
   const atendimentoId = searchParams.get('atendimentoId') || '';
+  const autoEmit = searchParams.get('emit') === '1';
+
+  const workflow = useMedicalWorkflow(atendimentoId);
   const [config, setConfig] = useState<MemedConfig | null>(null);
-  const [token, setToken] = useState('');
-  const [atendimento, setAtendimento] = useState<Atendimento | null>(null);
-  const [status, setStatus] = useState('Preparando integração Memed...');
-  const [error, setError] = useState<string | null>(null);
-  const [ready, setReady] = useState(false);
-  const scriptLoaded = useRef(false);
-  const eventsRegistered = useRef(false);
+  const [doctorToken, setDoctorToken] = useState('');
+  const [receiptSaved, setReceiptSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [memedError, setMemedError] = useState<string | null>(null);
 
-  const patientPayload = useMemo(() => (atendimento ? buildPatientPayload(atendimento) : null), [atendimento]);
-
-  useEffect(() => {
-    async function bootstrap() {
-      setError(null);
-      try {
-        await requireSession();
-        const [memedConfig, auth] = await Promise.all([getMemedConfig(), getMemedToken()]);
-        setConfig(memedConfig);
-        setToken(auth.token);
-
-        if (atendimentoId) {
-          const response = await fetch(`${API_BASE}/api/atendimentos/${atendimentoId}`);
-          const data = await response.json();
-          if (!response.ok || !data.success) throw new Error(data.error || 'Atendimento não encontrado');
-          setAtendimento(data.atendimento);
-          window.atendimentoAtual = atendimentoId;
-        }
-
-        setStatus(memedConfig.enabled ? 'Carregando prescrição embedded...' : 'Memed sem credenciais configuradas.');
-      } catch (e: any) {
-        setError(e.message || 'Erro ao iniciar Memed');
-        setStatus('Integração indisponível');
+  const handlePrescriptionPrinted = useCallback(
+    async (payload: unknown) => {
+      if (!atendimentoId) return;
+      const parsed = parsePrescriptionPayload(payload);
+      if (!parsed.receitaId && !parsed.pdfUrl && !parsed.receitaUrl) {
+        setSaveError('Confirme a emissão na prescrição digital antes de continuar.');
+        return;
       }
-    }
-
-    bootstrap();
-  }, [atendimentoId]);
-
-  useEffect(() => {
-    if (!config || !token || scriptLoaded.current) return;
-
-    const existing = document.getElementById('memed-prescription-script');
-    if (existing) existing.remove();
-
-    const script = document.createElement('script');
-    script.id = 'memed-prescription-script';
-    script.src = config.scriptUrl;
-    script.async = true;
-    script.dataset.token = token;
-    script.dataset.container = config.containerId;
-    script.dataset.color = config.primaryColor;
-
-    script.addEventListener('load', () => {
-      scriptLoaded.current = true;
-      setStatus('Script Memed carregado. Aguardando módulo de prescrição...');
-      registerModuleInit();
-    });
-
-    script.addEventListener('error', () => {
-      setError('Não foi possível carregar o script da Memed. Verifique domínio liberado, HTTPS e credenciais.');
-      setStatus('Falha ao carregar Memed');
-    });
-
-    document.body.appendChild(script);
-  }, [config, token, patientPayload]);
-
-  function registerModuleInit() {
-    const onModuleReady = async (module?: { name?: string }) => {
-      if (module?.name && module.name !== 'plataforma.prescricao') return;
-      await openPrescription();
-    };
-
-    if (window.MdSinapsePrescricao?.event?.add) {
-      window.MdSinapsePrescricao.event.add('core:moduleInit', onModuleReady);
-      return;
-    }
-
-    setTimeout(() => {
-      if (window.MdHub?.command?.send) onModuleReady({ name: 'plataforma.prescricao' });
-    }, 800);
-  }
-
-  async function registerEvents() {
-    if (eventsRegistered.current || !window.MdHub?.event?.add) return;
-    eventsRegistered.current = true;
-
-    window.MdHub.event.add('prescricaoImpressa', async (payload: unknown) => {
-      const data = payload as any;
-      const receitaId = data?.id || data?.prescription?.id || data?.prescricao?.id;
-      const receitaUrl = data?.url || data?.link || data?.prescription?.url || data?.prescricao?.url;
-
-      if (atendimentoId) {
+      setSaveError(null);
+      try {
         await saveMemedReceipt({
           atendimentoId,
-          receitaId,
-          receitaUrl,
-          pdfUrl: data?.pdf || data?.pdf_url || data?.prescription?.pdf,
-          payload
+          receitaId: parsed.receitaId || undefined,
+          receitaUrl: parsed.receitaUrl || parsed.digitalLink || undefined,
+          pdfUrl: parsed.pdfUrl || undefined,
+          digitalLink: parsed.digitalLink || undefined,
+          unlockCode: parsed.unlockCode || undefined,
+          payload: parsed.raw,
         });
+        await workflow.refresh();
+      } catch (e: unknown) {
+        setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
+    },
+    [atendimentoId, workflow],
+  );
 
-      setStatus('Prescrição impressa e vinculada ao atendimento.');
+  const refreshDoctorToken = useCallback(async (options?: { force?: boolean }) => {
+    const auth = await getMemedToken(options?.force ? { refresh: true } : undefined);
+    setDoctorToken(auth.token);
+    return auth.token;
+  }, []);
+
+  const { loadingModule, readyToOpen, isOpening, openPrescription, statusMessage } = useMemedSinapse({
+    config,
+    doctorToken,
+    atendimento: workflow.atendimento,
+    refreshDoctorToken,
+    onPrescriptionPrinted: handlePrescriptionPrinted,
+    onPrescriptionDeleted: async (payload) => {
+      if (!atendimentoId) return;
+      await notifyMemedPrescriptionCancelled(atendimentoId, payload);
+      await workflow.refresh();
+    },
+    autoOpenWhenReady: autoEmit,
+  });
+
+  useEffect(() => {
+    if (!atendimentoId || workflow.loading) return;
+
+    async function bootstrapMemed() {
+      setMemedError(null);
+      try {
+        const [memedConfig, auth] = await Promise.all([getMemedConfig(), getMemedToken()]);
+        setConfig(memedConfig);
+        setDoctorToken(auth.token);
+
+        if (!memedConfig.enabled) {
+          setMemedError('Prescrição digital indisponível — verifique credenciais no backend.');
+          return;
+        }
+
+        const currentStatus = String(workflow.atendimento?.status || '').toLowerCase();
+        if (['approved', 'receita_em_edicao'].includes(currentStatus)) {
+          await startMemedEmission(atendimentoId);
+          await workflow.refresh();
+        }
+
+        setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
+      } catch (e: unknown) {
+        setMemedError(e instanceof Error ? e.message : 'Erro ao iniciar prescrição digital');
+      }
+    }
+
+    void bootstrapMemed();
+  }, [atendimentoId, workflow.loading, workflow.atendimento?.status]);
+
+  useEffect(() => {
+    setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
+  }, [workflow.atendimento?.dados_clinicos?.memed_receita]);
+
+  const steps = useMemo(
+    () => [
+      {
+        id: 'approve',
+        label: 'Aprovar',
+        done: !workflow.flags.canApprove,
+        active: workflow.flags.canApprove,
+      },
+      {
+        id: 'emit',
+        label: 'Emitir',
+        done: receiptSaved || workflow.hasReceipt,
+        active: !workflow.flags.canApprove && !receiptSaved,
+      },
+      {
+        id: 'send',
+        label: 'Enviar',
+        done: workflow.flags.isDelivered,
+        active: receiptSaved && !workflow.flags.isDelivered,
+      },
+      {
+        id: 'finish',
+        label: 'Finalizar',
+        done: workflow.flags.isDelivered,
+        active: workflow.hasReceipt && !workflow.flags.isDelivered,
+      },
+    ],
+    [workflow.flags, receiptSaved, workflow.hasReceipt],
+  );
+
+  const handleSave = async () => {
+    if (!workflow.atendimento) return;
+    const clinical = workflow.atendimento.dados_clinicos || {};
+    await workflow.saveClinical({
+      conduta: workflow.motivo.trim() || clinical.conduta,
+      dados_clinicos: {
+        ...clinical,
+        conduta: workflow.motivo.trim() || clinical.conduta,
+      },
     });
+  };
+
+  if (workflow.loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#F6F9FD] text-sm text-[#5B6475]">
+        Carregando prescrição…
+      </main>
+    );
   }
 
-  async function openPrescription() {
-    if (!window.MdHub?.command?.send || !window.MdHub?.module?.show) {
-      setStatus('MdHub ainda não está pronto.');
-      return;
-    }
-
-    await registerEvents();
-
-    if (patientPayload) {
-      await window.MdHub.command.send('plataforma.prescricao', 'setPaciente', patientPayload);
-    }
-
-    await window.MdHub.command.send('plataforma.prescricao', 'setFeatureToggle', featureToggles);
-    window.MdHub.module.show('plataforma.prescricao');
-    setReady(true);
-    setStatus('Memed pronta para prescrição.');
+  if (!atendimentoId) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#F6F9FD] p-6">
+        <p className="text-sm text-[#5B6475]">Informe o atendimento na URL (?atendimentoId=).</p>
+        <Link href="/fila" className="text-sm font-bold text-[#1557FF]">
+          Voltar à fila
+        </Link>
+      </main>
+    );
   }
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] p-6 text-[#1E1E1E]">
-      <div className="mb-5">
-        <a href={atendimentoId ? `/atendimento/${atendimentoId}` : '/fila'} className="mb-3 inline-flex text-sm font-semibold text-[#1557FF]">
-          Voltar
-        </a>
-        <PageHeader
-          eyebrow="Prescrição digital"
-          title="Prescrição Memed"
-          subtitle={status}
-          action={(
-            <Button onClick={openPrescription} disabled={!scriptLoaded.current}>
-              {ready ? 'Reabrir Memed' : 'Abrir Memed'}
-            </Button>
-          )}
+    <MedicalWorkflowShell
+      title="Prescrição — Doctor Prescreve"
+      subtitle="Motor digital integrado. Controle o atendimento pelos botões do painel."
+      onOpenQueue={() => {
+        window.location.href = '/fila';
+      }}
+      breadcrumb={(
+        <nav className="mb-3 flex flex-wrap items-center gap-2 text-panel-xs font-semibold text-[#5B6475]">
+          <Link href="/fila" className="text-[#1557FF] hover:underline">
+            Fila
+          </Link>
+          <span>/</span>
+          <Link href={`/atendimento/${atendimentoId}`} className="text-[#1557FF] hover:underline">
+            Prontuário
+          </Link>
+          <span>/</span>
+          <span className="text-[#080D33]">Prescrição</span>
+        </nav>
+      )}
+      sidebar={(
+        <MedicalPatientSidebar
+          atendimento={workflow.atendimento}
+          stepHint="Use a barra inferior para aprovar, emitir, enviar e finalizar — sem sair do Doctor Prescreve."
         />
-      </div>
+      )}
+      actionRail={(
+        <MedicalActionRail
+          motivo={workflow.motivo}
+          onMotivoChange={workflow.setMotivo}
+          rejectReasonCode={workflow.rejectReasonCode}
+          onRejectReasonChange={workflow.setRejectReasonCode}
+          rejectReasons={workflow.rejectReasons}
+          actionKey={workflow.actionKey}
+          flags={workflow.flags}
+          hasReceipt={workflow.hasReceipt || receiptSaved}
+          onApprove={() => void workflow.approve()}
+          onReject={() => void workflow.reject()}
+          onSave={() => void handleSave()}
+          onEmit={() => void workflow.openPrescription({ autoEmit: true })}
+          onSend={() => void workflow.sendReceipt()}
+          onFinish={() => void workflow.finishAttendance()}
+          compact
+        />
+      )}
+    >
+      {(workflow.error || workflow.toast) && (
+        <div
+          className={`mb-3 rounded-[10px] border px-3 py-2 text-sm ${
+            workflow.error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+          }`}
+        >
+          {workflow.error || workflow.toast}
+        </div>
+      )}
 
-      {error && <div className="mb-4 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+      <MedicalWorkflowSteps steps={steps} />
 
-      <section className="grid gap-4 xl:grid-cols-[320px_1fr]">
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-bold">Atendimento</h2>
-            <StatusPill tone={atendimento ? 'success' : 'secondary'}>{atendimento ? 'Selecionado' : 'Pendente'}</StatusPill>
-          </div>
-          <dl className="mt-4 space-y-3 text-sm">
-            <div>
-              <dt className="font-semibold text-[#5B6475]">Paciente</dt>
-              <dd className="mt-1 font-bold">{atendimento?.paciente_nome || 'Não selecionado'}</dd>
-            </div>
-            <div>
-              <dt className="font-semibold text-[#5B6475]">Condição</dt>
-              <dd className="mt-1">{atendimento?.condicao || atendimento?.dados_clinicos?.doenca_cronica || 'Não informada'}</dd>
-            </div>
-            <div>
-              <dt className="font-semibold text-[#5B6475]">Medicação em uso</dt>
-              <dd className="mt-1">{String(atendimento?.dados_clinicos?.medicacao_em_uso || 'Não informada')}</dd>
-            </div>
-            <div>
-              <dt className="font-semibold text-[#5B6475]">Risco</dt>
-              <dd className="mt-1">{atendimento?.risco || 'Não definido'}</dd>
-            </div>
-          </dl>
-        </Card>
-
-        <Card className="overflow-auto p-4">
-          <div
-            id={config?.containerId || 'prescricao-memed'}
-            className="relative h-[calc(100vh-190px)] min-h-[700px] min-w-[820px] bg-white"
-          />
-        </Card>
-      </section>
-    </main>
+      <MemedPrescriptionWorkspace
+        atendimento={workflow.atendimento}
+        containerId={config?.containerId || 'prescricao-memed'}
+        statusMessage={statusMessage}
+        loadingModule={loadingModule || !doctorToken || !config?.enabled}
+        readyToOpen={readyToOpen}
+        isOpening={isOpening}
+        receiptSaved={receiptSaved}
+        saveError={saveError}
+        error={memedError}
+        onOpenPrescription={openPrescription}
+      />
+    </MedicalWorkflowShell>
   );
 }
 
 export default function ReceitaPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[#F8FAFC] p-6 text-sm text-[#5B6475]">Carregando...</main>}>
-      <ReceitaMemedContent />
+    <Suspense fallback={<main className="min-h-screen bg-[#F6F9FD] p-6 text-sm text-[#5B6475]">Carregando…</main>}>
+      <ReceitaWorkflowContent />
     </Suspense>
   );
 }

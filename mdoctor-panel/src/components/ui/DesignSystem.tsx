@@ -24,7 +24,7 @@ export function Button({
   return (
     <button
       className={cx(
-        'inline-flex h-11 items-center justify-center rounded-[14px] border px-4 text-sm font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex h-10 items-center justify-center rounded-xl border px-3.5 text-panel-sm font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-50',
         buttonTone[tone],
         className
       )}
@@ -66,14 +66,14 @@ export function AppShell({
 }) {
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#1E1E1E]">
-      <header className="flex min-h-20 flex-col gap-4 bg-white px-5 py-4 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+      <header className="flex min-h-[4.5rem] flex-col gap-3 bg-white px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#1557FF] text-sm font-black text-white">
             DP
           </div>
           <div className="min-w-0">
             <p className="text-xs font-black uppercase tracking-[0.08em] text-[#1557FF]">Doctor Prescreve</p>
-            <h1 className="truncate text-lg font-black">{title}</h1>
+            <h1 className="truncate text-panel-lg font-black">{title}</h1>
             {subtitle && <p className="text-sm text-[#5B6475]">{subtitle}</p>}
           </div>
         </div>
@@ -92,7 +92,7 @@ export function AppShell({
         </div>
       </header>
       <div className="h-1 bg-[#F4B000]" />
-      <section className="px-5 py-6 sm:px-8">{children}</section>
+      <section className="dp-panel-shell">{children}</section>
     </main>
   );
 }
@@ -185,7 +185,7 @@ export function PageHeader({
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         {eyebrow && <p className="text-xs font-black uppercase tracking-[0.08em] text-[#1557FF]">{eyebrow}</p>}
-        <h1 className="mt-1 text-2xl font-black text-[#1E1E1E]">{title}</h1>
+        <h1 className="mt-1 text-panel-2xl font-black text-[#1E1E1E]">{title}</h1>
         {subtitle && <p className="mt-1 max-w-2xl text-sm leading-6 text-[#5B6475]">{subtitle}</p>}
       </div>
       {action}

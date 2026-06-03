@@ -1,0 +1,90 @@
+{
+  "generated_at": "2026-05-29T09:38:25.635Z",
+  "supabase_project": "thbwoogytwcidxrrboym",
+  "sections": {
+    "supabase_migration": {
+      "ok": true,
+      "stdout": "{\n  \"project\": \"thbwoogytwcidxrrboym\",\n  \"bucket\": \"receitas-anteriores\",\n  \"steps\": [\n    {\n      \"step\": \"list_buckets\",\n      \"ok\": true,\n      \"exists\": true\n    },\n    {\n      \"step\": \"create_bucket\",\n      \"ok\": true,\n      \"skipped\": true\n    },\n    {\n      \"step\": \"upload_probe\",\n      \"ok\": true,\n      \"path\": \"atendimentos/migration-test/receita-anterior-1780047506145.txt\",\n      \"error\": null\n    },\n    {\n      \"step\": \"signed_url_probe\",\n      \"ok\": true,\n      \"error\": null\n    }\n  ],\n  \"migration_sql_file\": \"C:\\\\Users\\\\drmax\\\\OneDrive\\\\Área de Trabalho\\\\Mdoctor-Survive\\\\mdoctor-backend\\\\supabase\\\\migrations\\\\20260528_receitas_anteriores_bucket.sql\",\n  \"migration_sql_present\": true,\n  \"policies_note\": \"Service role bypassa RLS. Para auditoria, cole o SQL da migration no SQL Editor se políticas explícitas forem exigidas.\",\n  \"success\": true\n}",
+      "stderr": ""
+    },
+    "backend_unit_tests": {
+      "ok": true,
+      "unit": true,
+      "normalizer": true
+    },
+    "backend_health": {
+      "ok": true,
+      "url": "https://mdoctor-backend-staging-staging.up.railway.app",
+      "status": 200
+    },
+    "backend_endpoints": {
+      "ok": true,
+      "ingest": {
+        "ok": true,
+        "status": 200,
+        "hasStoragePath": true
+      },
+      "webhook": {
+        "ok": true,
+        "status": 200,
+        "queue": "waiting",
+        "hasMeta": true,
+        "ingestOk": true
+      },
+      "blockNoPhoto": {
+        "ok": true,
+        "status": 200
+      },
+      "viewUrl": {
+        "ok": true,
+        "status": 200
+      },
+      "atendimentoId": "334b0436-7eff-470d-a514-1d098d78e511"
+    },
+    "n8n_staging_webhook": {
+      "ok": true,
+      "status": 200,
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook"
+    },
+    "n8n_prod_webhook": {
+      "ok": true,
+      "status": 200,
+      "url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook"
+    },
+    "typebot_export": {
+      "ok": true,
+      "file": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\typebot\\typebot-doctor-prescreve-production.json",
+      "checks": {
+        "previous_prescription_file": true,
+        "webhook_prod": true,
+        "upload_block": true,
+        "free_plan_note": true
+      }
+    },
+    "n8n_prod_workflow_export": {
+      "ok": true,
+      "file": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\n8n-workflows\\production\\doctor-prescreve-typebot-production.json",
+      "uses_triagens": true,
+      "uses_backend_webhook": false,
+      "previous_prescription_in_export": false,
+      "gap": "Produção grava triagens Supabase; ingest foto no backend exige alinhar workflow ou usar staging n8n → backend."
+    },
+    "painel_http": {
+      "ok": true,
+      "dashboard": 200,
+      "login": 200,
+      "url": "https://painel-medico-staging-staging.up.railway.app"
+    },
+    "e2e_staging_operacional": {
+      "ok": true,
+      "stdout": "{\n  \"steps\": [\n    {\n      \"name\": \"backend_health\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"n8n_webhook\",\n      \"ok\": true,\n      \"status\": 200,\n      \"hasBody\": false\n    },\n    {\n      \"name\": \"backend_webhook_queue\",\n      \"ok\": true,\n      \"status\": 200,\n      \"atendimentoStatus\": \"waiting\"\n    },\n    {\n      \"name\": \"prescription_metadata\",\n      \"ok\": true,\n      \"storagePath\": \"atendimentos/8c1af03a-909d-4298-b191-02b93357e15e/receita-anterior-1780047520787.pdf\",\n      \"ingestOk\": true,\n      \"fotoUrl\": \"[set]\"\n    },\n    {\n      \"name\": \"terms_acceptance_persisted\",\n      \"ok\": true,\n      \"hasField\": true\n    },\n    {\n      \"name\": \"block_unpaid\",\n      \"ok\": true\n    },\n    {\n      \"name\": \"whatsapp_support\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"panel_login\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"get_atendimento_terms\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"previous_prescription_view_url\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"support_queue_route\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"webhook_idempotency\",\n      \"ok\": true,\n      \"status\": 200\n    },\n    {\n      \"name\": \"panel_dashboard_http\",\n      \"ok\": true,\n      \"status\": 200\n    }\n  ],\n  \"errors\": [],\n  \"success\": true\n}",
+      "stderr": ""
+    }
+  },
+  "success": true,
+  "failures": [],
+  "next_steps": [
+    "Typebot publish: upgrade plano (file upload) → node scripts/publish-typebot-production.js",
+    "n8n produção: alinhar ramo Typebot para POST /api/whatsapp/webhook (ingest automático) quando cutover oficial — hoje triagens legado."
+  ]
+}

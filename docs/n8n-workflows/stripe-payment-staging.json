@@ -1,0 +1,77 @@
+{
+  "name": "stripe-payment-staging",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stripe-payment-staging",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-stripe-payment",
+      "name": "Webhook Stripe Payment",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "stripe-payment-staging"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-mdoctor-webhook-secret'] || headers['X-MDoctor-Webhook-Secret'] || body.webhook_secret || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst backendUrl = String($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(/\\/$/, '');\nif (backendUrl.includes('web-production')) throw new Error('Backend staging must not be production web');\n\nconst atendimentoId = String(body.atendimento_id || body.atendimentoId || '').trim();\nconst phone = String(body.phone || body.from || body.telefone || body.whatsapp || '').replace(/\\D/g, '');\nif (!phone && !atendimentoId) throw new Error('phone or atendimento_id required');\n\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || body.correlation_id || `pay-${Date.now()}`;\nconst idempotencyKey = String(headers['idempotency-key'] || headers['Idempotency-Key'] || body.idempotency_key || `payment-${phone || atendimentoId}-${Date.now()}`);\n\nconst payload = {\n  from: phone ? `+${phone.startsWith('55') ? phone : `55${phone}`}` : undefined,\n  telefone: phone,\n  atendimento_id: atendimentoId || undefined,\n  payment_status: 'paid',\n  pagamento_status: 'CONFIRMADO',\n  payment_confirmed: true,\n  pagamento: true,\n  source: 'n8n-stripe-payment-staging',\n  protocol: 'staging-payment-v1',\n  correlation_id: correlationId\n};\n\nreturn [{\n  json: {\n    backendUrl,\n    correlationId,\n    idempotencyKey,\n    payload,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-MDoctor-Webhook-Secret': secret,\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey,\n      'X-N8N-Workflow': 'stripe-payment-staging'\n    }\n  }\n}];"
+      },
+      "id": "build-payment-payload",
+      "name": "Build Payment Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.backendUrl + '/api/whatsapp/webhook' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-MDoctor-Webhook-Secret", "value": "={{ $json.headers['X-MDoctor-Webhook-Secret'] }}" },
+            { "name": "X-Correlation-Id", "value": "={{ $json.correlationId }}" },
+            { "name": "Idempotency-Key", "value": "={{ $json.idempotencyKey }}" },
+            { "name": "X-N8N-Workflow", "value": "stripe-payment-staging" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}"
+      },
+      "id": "post-backend-payment",
+      "name": "POST Backend Payment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, workflow: 'stripe-payment-staging', correlationId: $('Build Payment Payload').first().json.correlationId, backend: $('Build Payment Payload').first().json.backendUrl, result: $json }) }}"
+      },
+      "id": "respond-ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [780, 0]
+    }
+  ],
+  "connections": {
+    "Webhook Stripe Payment": {
+      "main": [[{ "node": "Build Payment Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Payment Payload": {
+      "main": [[{ "node": "POST Backend Payment", "type": "main", "index": 0 }]]
+    },
+    "POST Backend Payment": {
+      "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "meta": { "template": "stripe-payment-staging", "active": true }
+}

@@ -2,14 +2,50 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
+const PRODUCTION_API_BASE = 'https://api.memed.com.br/v1';
+const HOMOLOG_API_BASE = 'https://integrations.api.memed.com.br/v1';
+
+function isMemedProductionConfigured() {
+  const env = String(process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || '').toLowerCase();
+  const url = String(process.env.MEMED_API_URL || '').trim();
+  return env === 'production' || url.includes('api.memed.com.br');
+}
+
+function isSinapseHomologContext() {
+  if (isMemedProductionConfigured()) return false;
+  const scriptUrl = String(process.env.MEMED_SCRIPT_URL || '');
+  const widgetSinapse = String(process.env.MEMED_WIDGET_SCRIPT || '').toLowerCase() === 'sinapse';
+  const memedEnv = String(process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || '').toLowerCase();
+  return (
+    scriptUrl.includes('integrations.memed.com.br') ||
+    widgetSinapse ||
+    ['homologation', 'homologacao', 'sandbox', 'development'].includes(memedEnv)
+  );
+}
+
+function resolveMemedApiMode(apiBase) {
+  return String(apiBase || '').includes('integrations.api.memed.com.br') ? 'sinapse_homolog' : 'sinapse_production';
+}
+
+function resolveMemedApiBaseUrl() {
+  const configured = String(process.env.MEMED_API_URL || '').trim();
+  if (configured) return configured.replace(/\/$/, '');
+  if (isMemedProductionConfigured()) return PRODUCTION_API_BASE;
+  if (isSinapseHomologContext()) return HOMOLOG_API_BASE;
+  const env = process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || 'development';
+  return env === 'production' ? PRODUCTION_API_BASE : HOMOLOG_API_BASE;
+}
+
+function isRetryableMemedStatus(status) {
+  return status === 404 || status === 502 || status === 503 || status === 504;
+}
+
 class MemedService {
   constructor() {
     this.apiKey = process.env.MEMED_API_KEY;
     this.secretKey = process.env.MEMED_SECRET_KEY;
     this.env = process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || 'development';
-    this.baseUrl =
-      process.env.MEMED_API_URL ||
-      (this.env === 'production' ? 'https://api.memed.com.br/v1' : 'https://integrations.api.memed.com.br/v1');
+    this.baseUrl = resolveMemedApiBaseUrl();
     this.tokenCache = {
       token: null,
       expiresAt: null,
@@ -25,8 +61,33 @@ class MemedService {
     return Boolean(process.env.MEMED_PRESCRITOR_TOKEN || process.env.NEXT_PUBLIC_MEMED_TOKEN);
   }
 
-  async authenticatePrescriber(doctor) {
-    if (this.tokenCache.token && this.tokenCache.expiresAt > Date.now()) {
+  invalidateTokenCache() {
+    this.tokenCache = { token: null, expiresAt: null, prescriber: null };
+  }
+
+  buildDoctorFromEnv(overrides = {}) {
+    return {
+      crm: overrides.crm || process.env.MEDICO_CRM || process.env.MEMED_PRESCRITOR_BOARD_NUMBER,
+      uf: overrides.uf || process.env.MEDICO_CRM_UF || process.env.MEMED_PRESCRITOR_BOARD_STATE,
+      nome:
+        overrides.nome ||
+        `${process.env.MEMED_PRESCRITOR_NOME || process.env.MEDICO_NOME || ''} ${
+          process.env.MEMED_PRESCRITOR_SOBRENOME || process.env.MEDICO_SOBRENOME || ''
+        }`.trim(),
+      cpf: overrides.cpf || process.env.MEDICO_CPF || process.env.MEMED_PRESCRITOR_CPF,
+      email: overrides.email || process.env.MEDICO_EMAIL || process.env.MEMED_PRESCRITOR_EMAIL,
+      telefone: overrides.telefone || process.env.MEDICO_TELEFONE || process.env.MEMED_PRESCRITOR_TELEFONE,
+      sexo: overrides.sexo || process.env.MEDICO_SEXO || process.env.MEMED_PRESCRITOR_SEXO,
+      data_nascimento:
+        overrides.data_nascimento || process.env.MEDICO_DATA_NASC || process.env.MEMED_PRESCRITOR_DATA_NASC,
+      external_id:
+        overrides.external_id || process.env.MEMED_PRESCRITOR_EXTERNAL_ID || process.env.MEDICO_EXTERNAL_ID
+    };
+  }
+
+  async authenticatePrescriber(doctor, options = {}) {
+    const forceRefresh = options.forceRefresh === true;
+    if (!forceRefresh && this.tokenCache.token && this.tokenCache.expiresAt > Date.now()) {
       return {
         token: this.tokenCache.token,
         prescriber: this.tokenCache.prescriber
@@ -54,7 +115,8 @@ class MemedService {
       throw new Error('CRM e UF são obrigatórios para autenticar o prescritor');
     }
 
-    const prescriber = await this.findOrCreatePrescriber(doctor);
+    const { prescriber, apiBase } = await this.findOrCreatePrescriberWithFallback(doctor);
+    this.baseUrl = apiBase;
     const token =
       prescriber.token ||
       prescriber.attributes?.token ||
@@ -63,13 +125,23 @@ class MemedService {
       process.env.NEXT_PUBLIC_MEMED_TOKEN ||
       '';
 
+    if (!token) {
+      throw new Error('Token Memed vazio — prescritor inativo ou credenciais inválidas');
+    }
+
+    const mode = resolveMemedApiMode(apiBase);
+    console.info('[memed] token obtido', { mode, apiBase, external_id: doctor.external_id || process.env.MEDICO_EXTERNAL_ID });
+
     const result = {
       token,
       prescriber: {
         id: prescriber.id || prescriber.external_id || doctor.external_id,
         nome: prescriber.nome || doctor.nome,
         crm: doctor.crm,
-        uf: doctor.uf
+        uf: doctor.uf,
+        external_id: doctor.external_id || process.env.MEMED_PRESCRITOR_EXTERNAL_ID,
+        mode,
+        api_base: apiBase
       }
     };
 
@@ -89,6 +161,41 @@ class MemedService {
     const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
     return raw;
+  }
+
+  getApiBaseCandidates() {
+    const primary = resolveMemedApiBaseUrl();
+    if (isMemedProductionConfigured()) {
+      return [primary.includes('api.memed.com.br') ? primary : PRODUCTION_API_BASE];
+    }
+    const alternate = primary.includes('integrations.api.memed.com.br') ? PRODUCTION_API_BASE : HOMOLOG_API_BASE;
+    return [...new Set([primary, alternate].filter(Boolean))];
+  }
+
+  async findOrCreatePrescriberWithFallback(doctor) {
+    let lastError;
+
+    for (const apiBase of this.getApiBaseCandidates()) {
+      const previous = this.baseUrl;
+      this.baseUrl = apiBase;
+      try {
+        const prescriber = await this.findOrCreatePrescriber(doctor);
+        const mode = resolveMemedApiMode(apiBase);
+        console.info('[memed] prescritor resolvido', { mode, apiBase, external_id: this.prescriberLookupId(doctor) });
+        return { prescriber, apiBase };
+      } catch (error) {
+        lastError = error;
+        this.baseUrl = previous;
+        const status = error.response?.status;
+        if (isRetryableMemedStatus(status)) {
+          console.warn('[memed] API indisponível, tentando fallback', { apiBase, status });
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw lastError || new Error('Falha ao autenticar prescritor na Memed');
   }
 
   prescriberLookupId(doctor) {
@@ -116,8 +223,8 @@ class MemedService {
 
       return response.data?.data?.attributes || response.data?.data || response.data;
     } catch (error) {
-      if (error.response?.status !== 404) throw error;
-      return this.createPrescriber(doctor);
+      if (error.response?.status === 404) return this.createPrescriber(doctor);
+      throw error;
     }
   }
 

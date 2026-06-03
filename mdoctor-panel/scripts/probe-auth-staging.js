@@ -23,7 +23,13 @@ async function probe(name, url, body) {
 }
 
 async function main() {
-  const creds = { user: 'drmax.matos', username: 'drmax.matos', email: 'drmax.matos', password: 'Gr@tid@0' };
+  const user = process.env.MEDICO_USER || 'drmax.matos';
+  const pass = process.env.MEDICO_PASS || '';
+  if (!pass) {
+    console.error('Defina MEDICO_PASS (ex.: MEDICO_PASS=... node scripts/probe-auth-staging.js)');
+    process.exit(1);
+  }
+  const creds = { user, username: user, email: user, password: pass };
   await probe('Backend drmax.matos', `${BACKEND}/api/auth/login`, creds);
   await probe('Backend staging-doctor (old)', `${BACKEND}/api/auth/login`, {
     user: 'staging-doctor',
