@@ -19,6 +19,13 @@ coverage/
 .env.*
 !.env.example
 !.env.production.example
+docker/n8n.env
+docker/n8n.staging.env
+mdoctor-backend/.env.evolution-staging
+scripts/_n8n-staging-vars.json
+scripts/railway-audit-output.json
+mdoctor-backend/scripts/_railway-web-prod-patch.json
+mdoctor-backend/scripts/_tmp-*.js
 
 # Logs and local runtime output
 logs/
@@ -64,7 +71,10 @@ whatsapp_auth/
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 .vscode-test/
 
 # Railway/local tooling
@@ -80,6 +90,14 @@ Thumbs.db
 !.yarn/sdks
 !.yarn/versions
 .yarn-integrity
+
+# Playwright tour artifacts (traces/vídeos pesados — screenshots numerados ficam em docs/)
+docs/playwright-artifacts/test-results/
+docs/playwright-artifacts/html-report/
+docs/playwright-artifacts/report.json
+playwright-report/
+test-results/
+blob-report/
 
 # Misc package artifacts
 *.tgz
