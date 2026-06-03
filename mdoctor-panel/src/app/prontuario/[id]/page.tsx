@@ -10,7 +10,7 @@ export default function ProntuarioRedirectPage() {
   const id = String(params?.id || '').trim();
 
   useEffect(() => {
-    if (id) router.replace(`/atendimento/${id}`);
+    if (id) router.replace(`/fila?atendimentoId=${encodeURIComponent(id)}`);
     else router.replace('/fila');
   }, [id, router]);
 

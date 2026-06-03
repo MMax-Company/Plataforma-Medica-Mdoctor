@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
 import { CheckCircle2, Clock3, MessageCircle, User, UserRound } from 'lucide-react';
 import { getApiBase } from '@/services/api';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
@@ -162,6 +163,8 @@ const columnIcons: Record<'queue' | 'review' | 'ready', typeof Clock3> = {
 
 export default function FilaPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [prontuarioId, setProntuarioId] = useState<string | null>(null);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,6 +234,9 @@ export default function FilaPage() {
   async function fetchAtendimentos() {
     setError(null);
     try {
+      const { isVisualSimulationMode, getVisualSimulationAtendimentos } = await import(
+        '@/lib/visual-simulation-fila'
+      );
       const res = await fetch(`${getApiBase()}/api/atendimentos/queue`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao buscar atendimentos');
@@ -238,7 +244,15 @@ export default function FilaPage() {
         ...item,
         status: toPanelAtendimentoStatus(item.status),
       }));
-      setAtendimentos(rows);
+      if (isVisualSimulationMode()) {
+        const simRows = getVisualSimulationAtendimentos().map((item) => ({
+          ...item,
+          status: toPanelAtendimentoStatus(item.status),
+        })) as Atendimento[];
+        setAtendimentos(simRows.length ? simRows : rows);
+      } else {
+        setAtendimentos(rows);
+      }
     } catch (e: any) {
       setError(e.message || 'Erro ao buscar fila');
     } finally {
@@ -275,6 +289,31 @@ export default function FilaPage() {
         window.location.href = '/login';
       });
   }, []);
+
+  useEffect(() => {
+    const fromUrl =
+      searchParams.get('atendimentoId')?.trim() || searchParams.get('atendimento')?.trim() || null;
+    if (fromUrl) setProntuarioId(fromUrl);
+  }, [searchParams]);
+
+  function syncProntuarioUrl(id: string | null) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('atendimento');
+    if (id) params.set('atendimentoId', id);
+    else params.delete('atendimentoId');
+    const query = params.toString();
+    router.replace(query ? `/fila?${query}` : '/fila', { scroll: false });
+  }
+
+  function openProntuarioModal(id: string) {
+    setProntuarioId(id);
+    syncProntuarioUrl(id);
+  }
+
+  function closeProntuarioModal() {
+    setProntuarioId(null);
+    syncProntuarioUrl(null);
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -315,19 +354,18 @@ export default function FilaPage() {
       return;
     }
 
-    setActionLoading(item.id);
-    setError(null);
-    try {
-      if (['QUEUE', 'FILA', 'TRIAGED'].includes(item.status)) {
-        await updateStatus(id, 'EM_ATENDIMENTO', 'Atendimento iniciado pelo painel medico');
-      }
-    } catch {
-      // Abre o prontuário mesmo se a transição de status falhar (ex.: rede).
-    } finally {
-      setActionLoading(null);
-    }
+    openProntuarioModal(id);
 
-    router.push(`/atendimento/${id}`);
+    if (['QUEUE', 'FILA', 'TRIAGED'].includes(item.status)) {
+      setActionLoading(item.id);
+      try {
+        await updateStatus(id, 'EM_ATENDIMENTO', 'Atendimento iniciado pelo painel medico');
+      } catch {
+        /* modal já aberto; status pode falhar sem bloquear UX */
+      } finally {
+        setActionLoading(null);
+      }
+    }
   }
 
   async function deliverPrescription(item: Atendimento, channel: DeliveryChannel) {
@@ -399,37 +437,37 @@ export default function FilaPage() {
 
     if (column === 'review') {
       return (
-        <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--pair">
-          <div className="dp-actions-pair">
-          <a
-            href={`/atendimento/${item.id}`}
-            className="dp-btn dp-btn-secondary dp-btn-secondary-pair dp-btn-outline-soft"
+        <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--review-stack">
+          <button
+            type="button"
+            onClick={() => openProntuarioModal(item.id)}
+            className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
           >
             VISUALIZAR RECEITA
-          </a>
+          </button>
           <button
             type="button"
             onClick={() => {
               void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
             }}
             disabled={actionLoading === item.id || item.status !== 'AWAITING_VALIDATION'}
-            className="dp-btn dp-btn-card-primary dp-btn-orange"
+            className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
           >
             ACEITAR RECEITA
           </button>
-          </div>
         </div>
       );
     }
 
     if (column === 'closed') {
       return (
-        <a
-          href={`/atendimento/${item.id}`}
+        <button
+          type="button"
+          onClick={() => openProntuarioModal(item.id)}
           className="dp-btn dp-btn-outline-soft px-4"
         >
           VER PRONTUÁRIO
-        </a>
+        </button>
       );
     }
 
@@ -438,17 +476,17 @@ export default function FilaPage() {
     const smsLoading = actionLoading === `${item.id}-sms`;
 
     return (
-      <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-row">
-        <div className="dp-patient-card__secondary-stack">
+      <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
+        <div className="dp-patient-card__ready-secondary">
           <button
             type="button"
             onClick={() => {
               void deliverPrescription(item, 'sms');
             }}
             disabled={smsLoading || !channelTarget(item, 'sms')}
-            className="dp-btn dp-btn-secondary dp-btn-secondary-ready dp-btn-outline-soft"
+            className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
           >
-            {smsLoading ? 'ENVIANDO...' : 'ENVIAR POR SMS'}
+            {smsLoading ? 'ENVIANDO...' : 'SMS'}
           </button>
           <button
             type="button"
@@ -456,24 +494,22 @@ export default function FilaPage() {
               void deliverPrescription(item, 'email');
             }}
             disabled={emailLoading || !channelTarget(item, 'email')}
-            className="dp-btn dp-btn-secondary dp-btn-secondary-ready dp-btn-outline-soft"
+            className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
           >
-            {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
+            {emailLoading ? 'ENVIANDO...' : 'E-MAIL'}
           </button>
         </div>
-        <div className="dp-action-slot">
-          <button
-            type="button"
-            onClick={() => {
-              void deliverPrescription(item, 'whatsapp');
-            }}
-            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-            className="dp-btn dp-btn-card-primary dp-btn-green dp-btn-green-nowrap"
-          >
-            <MessageCircle aria-hidden="true" />
-            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void deliverPrescription(item, 'whatsapp');
+          }}
+          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+          className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
+        >
+          <MessageCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {whatsappLoading ? 'ENVIANDO...' : 'WHATSAPP'}
+        </button>
       </div>
     );
   }
@@ -522,10 +558,11 @@ export default function FilaPage() {
       className="relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
     >
       <MedicalPanelHeader
+        operational
         onLogout={handleLogout}
         onOpenMedicalRecord={() => {
           const first = medicalAtendimentos[0];
-          if (first) window.location.href = `/atendimento/${first.id}`;
+          if (first) openProntuarioModal(first.id);
         }}
       />
 
@@ -720,6 +757,15 @@ export default function FilaPage() {
           direitos reservados.
         </span>
       </footer>
+
+      <ProntuarioOperacionalModal
+        atendimentoId={prontuarioId}
+        open={Boolean(prontuarioId)}
+        onClose={closeProntuarioModal}
+        onCompleted={() => {
+          void fetchAtendimentos();
+        }}
+      />
     </main>
   );
 }

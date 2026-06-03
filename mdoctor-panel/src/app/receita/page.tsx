@@ -187,7 +187,7 @@ function ReceitaWorkflowContent() {
             Fila
           </Link>
           <span>/</span>
-          <Link href={`/atendimento/${atendimentoId}`} className="text-[#1557FF] hover:underline">
+          <Link href={`/fila?atendimentoId=${encodeURIComponent(atendimentoId)}`} className="text-[#1557FF] hover:underline">
             Prontuário
           </Link>
           <span>/</span>

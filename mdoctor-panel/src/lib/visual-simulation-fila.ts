@@ -21,6 +21,7 @@ export type SimClinical = {
   medicacao_em_uso?: string;
   conduta_sugerida?: string;
   data_nascimento?: string;
+  idade?: string;
   paciente_cpf?: string;
   prontuario_display?: string;
   endereco?: string;
@@ -80,11 +81,21 @@ function buildPatients(): SimAtendimento[] {
         foto_receita_url: rxPhoto,
         medications: meds({ name: 'Losartana', dose: '50mg' }),
         medication: 'Losartana 50mg',
-        medicacao_em_uso: 'Losartana 50mg',
-        data_nascimento: '1990-04-15',
+        data_nascimento: '15/04/1988',
+        idade: '36 anos',
         paciente_cpf: '123.456.789-10',
-        endereco: 'Rua das Flores, 123 – Ap. 45 / Jardim Paulista – São Paulo/SP',
+        endereco: 'Rua das Flores, 123 — Ap 45',
         cep: '01458-000',
+        queixa_principal:
+          'Paciente se refere que sua receita está fora do prazo de validade, vem para consulta teleconsulta assíncrona para renovação de sua receita de uso contínuo. Sem queixas.',
+        historico_clinico:
+          'Paciente faz uso de medicação para doença crônica de forma contínua, não evidenciando sinais em teleconsulta assíncrona que impeça de realizar a renovação de sua receita.\n\nPaciente nega qualquer alteração física ou sinais e sintomas ou internação prévia.',
+        exame_fisico_telemedicina:
+          'Paciente nega qualquer alteração física ou clínica.\n\nNão apresenta sinais de alerta, nem critérios que o impeça de renovar a receita.\n\nEstável clinicamente.',
+        alergias: 'Nega alergias medicamentosas ou alimentares.',
+        medicacao_em_uso: 'Já declarado na teletriagem.\n\nNão há contraindicações identificadas.',
+        conduta_sugerida:
+          'Realizado renovação da receita de uso contínuo, emitida via certificado digital, dentro dos critérios permitidos, não constatando a necessidade de avaliação presencial.\n\nPaciente estável clinicamente, encaminha receita digital via WhatsApp ou e-mail designado ao paciente.\n\nPaciente orientado a procurar atendimento presencial, se necessário.\n\nEm caso de sinais de alerta, o paciente deverá procurar pronto atendimento.\n\nPaciente assinou os termos de telemedicina e declara que é responsável pela veracidade dos dados informados.',
       },
     },
     {
