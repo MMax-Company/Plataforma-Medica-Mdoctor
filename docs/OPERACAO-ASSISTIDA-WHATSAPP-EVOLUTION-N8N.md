@@ -84,6 +84,7 @@ Definir apenas no Railway ou `.env` local gitignored — **nunca commitar valore
 | `FLOW_ENV` | `staging` (workflow Evolution) |
 | `EVOLUTION_API_URL` / `EVOLUTION_API_KEY` / `EVOLUTION_INSTANCE` | Outbound menu |
 | `BACKEND_URL_STAGING` | Suporte / APIs backend |
+| `BACKEND_BASE_URL` | **Deve ser** `https://mdoctor-backend-staging-staging.up.railway.app` (Typebot → triagem). URL errada (`doctor-repositorio-central-…`) faz n8n retornar 200 sem `atendimentoId`. |
 | `N8N_TYPEBOT_WEBHOOK_URL` | Relay para Typebot |
 | `N8N_WEBHOOK_SECRET` | Chamadas ao backend |
 | `TYPEBOT_PUBLIC_ID` / `TYPEBOT_PUBLIC_URL` | Links no menu |

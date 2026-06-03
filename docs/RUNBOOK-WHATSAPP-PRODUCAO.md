@@ -86,6 +86,14 @@ node mdoctor-backend/scripts/deploy-n8n-workflow.js
 
 ---
 
+## Typebot 200 sem atendimento no painel
+
+1. Railway **`n8n Node`** → conferir `BACKEND_BASE_URL` = `https://mdoctor-backend-staging-staging.up.railway.app`
+2. Redeploy n8n
+3. `node scripts/primeiro-teste-real-completo.js` → `atendimentoId` preenchido
+
+---
+
 ## Troca API key (n8n 401)
 
 1. n8n UI → **Settings → n8n API** → criar chave nova

@@ -1,0 +1,152 @@
+{
+  "runId": "REAL-1780474888119",
+  "patientPhone": "5511974888119",
+  "phases": [
+    {
+      "name": "infrastructure",
+      "steps": [
+        {
+          "name": "evolution_open",
+          "ok": true,
+          "state": "open"
+        },
+        {
+          "name": "evolution_discrete_counts",
+          "ok": true,
+          "counts": {
+            "Message": 0,
+            "Contact": 0,
+            "Chat": 0
+          }
+        },
+        {
+          "name": "webhook_evolution-webhook",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "webhook_typebot-webhook",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "backend_health",
+          "ok": true
+        },
+        {
+          "name": "backend_readyz_supabase",
+          "ok": true
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "patient_whatsapp_n8n",
+      "steps": [
+        {
+          "name": "whatsapp_menu_greeting",
+          "label": "menu_greeting",
+          "ok": false,
+          "status": 200,
+          "latency_ms": 538
+        },
+        {
+          "name": "whatsapp_menu_medical",
+          "label": "menu_medical",
+          "ok": false,
+          "status": 200,
+          "latency_ms": 544
+        },
+        {
+          "name": "whatsapp_triage_relay",
+          "label": "triage_relay",
+          "ok": true,
+          "status": 200,
+          "route": "INBOUND_MESSAGE",
+          "menuAction": "e2e_relay",
+          "latency_ms": 557
+        },
+        {
+          "name": "whatsapp_support_option",
+          "label": "menu_support",
+          "ok": true,
+          "status": 200,
+          "latency_ms": 1344
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "typebot_backend",
+      "steps": [
+        {
+          "name": "typebot_webhook_n8n",
+          "ok": true,
+          "status": 200,
+          "atendimentoId": "7e1166ce-c1ab-4ef2-9f39-fa33bdbc7440"
+        },
+        {
+          "name": "typebot_idempotency_no_duplicate_storm",
+          "ok": true,
+          "status": 200
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "panel",
+      "steps": [
+        {
+          "name": "medico_login",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "panel_queue_has_patient",
+          "ok": true,
+          "queueSize": 67,
+          "status": "rejected",
+          "pagamento": "CONFIRMADO"
+        },
+        {
+          "name": "panel_login_page",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "panel_fila_page",
+          "ok": true,
+          "status": 200
+        },
+        {
+          "name": "atendimento_detail",
+          "ok": true,
+          "status": 200
+        }
+      ],
+      "ok": true
+    },
+    {
+      "name": "recovery_probe",
+      "steps": [
+        {
+          "name": "n8n_health_after_flow",
+          "ok": true
+        },
+        {
+          "name": "webhook_after_flow",
+          "ok": true,
+          "status": 200
+        }
+      ],
+      "ok": true
+    }
+  ],
+  "fixes": [],
+  "success": false,
+  "atendimentoId": "7e1166ce-c1ab-4ef2-9f39-fa33bdbc7440",
+  "failures": [
+    "patient_whatsapp_n8n/whatsapp_menu_greeting",
+    "patient_whatsapp_n8n/whatsapp_menu_medical"
+  ]
+}
