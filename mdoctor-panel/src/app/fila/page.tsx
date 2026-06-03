@@ -1,26 +1,16 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_BASE, checkEligibility } from '@/services/api';
-import { authHeaders, clearSession, requireSession } from '@/services/auth.service';
+import { CheckCircle2, Clock3, MessageCircle, User, UserRound } from 'lucide-react';
+import { getApiBase, checkEligibility } from '@/services/api';
+import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
+import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
+import { formatQueuePatientId, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
+import { buildEligibilityPayload, type SimClinical } from '@/lib/visual-simulation-fila';
+import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
 
-type AtendimentoStatus =
-  | 'QUEUE'
-  | 'UNDER_REVIEW'
-  | 'MEMED_PROCESSING'
-  | 'AWAITING_VALIDATION'
-  | 'VALIDATED'
-  | 'REJECTED'
-  | 'FINISHED'
-  | 'DELIVERED'
-  | 'TRIAGED'
-  | 'FILA'
-  | 'EM_ATENDIMENTO'
-  | 'PRONTO_PARA_DECISAO'
-  | 'APROVADO'
-  | 'RECUSADO'
-  | 'RECEITA_EMITIDA';
+type AtendimentoStatus = PanelAtendimentoStatus;
 
 type Atendimento = {
   id: string;
@@ -34,6 +24,7 @@ type Atendimento = {
   criado_em?: string;
   dados_clinicos?: {
     condition?: string;
+    queue_type?: string;
     previous_prescription?: boolean;
     continuous_use_proof?: boolean;
     flags?: string[];
@@ -101,11 +92,6 @@ const columns: Array<{
   }
 ];
 
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return (parts[0]?.[0] || 'P') + (parts[1]?.[0] || '');
-}
-
 function formatDate(value?: string) {
   if (!value) return 'Sem data';
   return new Intl.DateTimeFormat('pt-BR', {
@@ -124,9 +110,23 @@ function waitingTime(value?: string) {
   return hours ? `${hours}h ${minutes}min` : `${minutes || 1}min`;
 }
 
+function isSupportItem(item: Atendimento) {
+  const clinical = item.dados_clinicos || {};
+  return item.condicao === 'suporte_whatsapp' || clinical.queue_type === 'support';
+}
+
+function whatsappContactUrl(phone?: string) {
+  if (!phone) return null;
+  return waUrlFromPhone(phone);
+}
+
+function formatAttendanceId(id: string) {
+  return formatQueuePatientId(id);
+}
+
 function statusLabel(status: AtendimentoStatus, column: ColumnKey) {
   if (column === 'queue') return 'Aguardando atendimento';
-  if (status === 'AWAITING_VALIDATION') return 'Aguardando validacao';
+  if (status === 'AWAITING_VALIDATION') return 'Aguardando validação';
   if (status === 'MEMED_PROCESSING') return 'Memed em processamento';
   if (column === 'ready') return 'Receita validada';
   if (status === 'REJECTED' || status === 'RECUSADO') return 'Recusado';
@@ -150,8 +150,19 @@ function channelLabel(channel: DeliveryChannel) {
   return 'SMS';
 }
 
+function columnCountClass() {
+  return 'dp-col-count dp-col-count-alert';
+}
+
+const columnIcons: Record<'queue' | 'review' | 'ready', typeof Clock3> = {
+  queue: Clock3,
+  review: User,
+  ready: CheckCircle2,
+};
+
 export default function FilaPage() {
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
+  const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -204,20 +215,29 @@ export default function FilaPage() {
     };
   }, [filteredAtendimentos]);
 
+  const medicalAtendimentos = useMemo(
+    () => filteredAtendimentos.filter((item) => !isSupportItem(item)),
+    [filteredAtendimentos],
+  );
+
   const grouped = useMemo(() => {
     return columns.reduce<Record<ColumnKey, Atendimento[]>>((acc, column) => {
-      acc[column.key] = filteredAtendimentos.filter((item) => column.statuses.includes(item.status));
+      acc[column.key] = medicalAtendimentos.filter((item) => column.statuses.includes(item.status));
       return acc;
     }, { queue: [], review: [], ready: [], closed: [] });
-  }, [filteredAtendimentos]);
+  }, [medicalAtendimentos]);
 
   async function fetchAtendimentos() {
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/atendimentos/queue`);
+      const res = await fetch(`${getApiBase()}/api/atendimentos/queue`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao buscar atendimentos');
-      setAtendimentos(data.atendimentos);
+      const rows = (data.atendimentos || []).map((item: Atendimento) => ({
+        ...item,
+        status: toPanelAtendimentoStatus(item.status),
+      }));
+      setAtendimentos(rows);
     } catch (e: any) {
       setError(e.message || 'Erro ao buscar fila');
     } finally {
@@ -225,27 +245,61 @@ export default function FilaPage() {
     }
   }
 
+  async function fetchSupportQueue() {
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) return;
+      const rows = Array.isArray(data) ? data : data.atendimentos || data.data || [];
+      setSupportPatients(
+        rows.map((item: Atendimento) => ({
+          id: item.id,
+          paciente_nome: item.paciente_nome,
+          paciente_telefone: item.paciente_telefone,
+          criado_em: item.criado_em,
+        })),
+      );
+    } catch {
+      setSupportPatients([]);
+    }
+  }
+
   useEffect(() => {
     requireSession()
-      .then(() => fetchAtendimentos())
+      .then(async () => {
+        await Promise.all([fetchAtendimentos(), fetchSupportQueue()]);
+      })
       .catch((e: any) => {
         setError(e.message || 'Sessão expirada. Faça login novamente.');
         window.location.href = '/login';
       });
   }, []);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void fetchAtendimentos();
+        void fetchSupportQueue();
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   async function updateStatus(id: string, status: AtendimentoStatus, notes = 'Acao via painel medico') {
     setActionLoading(id);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/atendimentos/${id}/status`, {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ status, notes })
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao atualizar status');
-      setAtendimentos((prev) => prev.map((item) => (item.id === id ? data.atendimento : item)));
+      const updated = data.atendimento
+        ? { ...data.atendimento, status: toPanelAtendimentoStatus(data.atendimento.status) }
+        : null;
+      setAtendimentos((prev) => prev.map((item) => (item.id === id && updated ? updated : item)));
     } catch (e: any) {
       setError(e.message || 'Erro ao atualizar status');
     } finally {
@@ -258,15 +312,16 @@ export default function FilaPage() {
     setError(null);
     try {
       const clinical = item.dados_clinicos || {};
-      const decision = await checkEligibility({
-        condition: clinical.condition || item.condicao || '',
-        previous_prescription: Boolean(clinical.previous_prescription),
-        continuous_use_proof: Boolean(clinical.continuous_use_proof),
-        flags: clinical.flags || []
-      });
+      const payload = buildEligibilityPayload(
+        clinical as SimClinical,
+        item.condicao,
+      );
+      const decision = await checkEligibility(payload as import('@/services/api').EligibilityRequest);
+
       await updateStatus(item.id, decision.eligible ? 'UNDER_REVIEW' : 'REJECTED', 'Triagem automatica pelo painel medico');
     } catch (e: any) {
       setError(e.message || 'Erro ao avaliar elegibilidade');
+    } finally {
       setActionLoading(null);
     }
   }
@@ -276,7 +331,7 @@ export default function FilaPage() {
     setError(null);
     setToast(null);
     try {
-      const res = await fetch(`${API_BASE}/api/atendimentos/${item.id}/deliver`, {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${item.id}/deliver`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({ channel })
@@ -293,43 +348,73 @@ export default function FilaPage() {
     }
   }
 
-  function logout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     window.location.href = '/login';
   }
 
   function renderActions(item: Atendimento, column: ColumnKey) {
+
     if (column === 'queue') {
+      const waUrl = whatsappContactUrl(item.paciente_telefone);
       return (
-        <>
-          <button
-            onClick={() => autoEvaluate(item)}
-            disabled={actionLoading === item.id}
-            className="h-11 rounded-[10px] bg-[#1557FF] px-6 text-sm font-black text-white shadow-[0_8px_18px_rgba(21,87,255,0.18)] transition hover:-translate-y-0.5 disabled:opacity-50"
-          >
-            ♙ ATENDER
-          </button>
-        </>
+        <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--queue-row">
+          {waUrl ? (
+            <a
+              href={waUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="dp-btn dp-btn-secondary dp-btn-secondary-compact dp-btn-outline-soft inline-flex gap-1.5"
+              aria-label={`Contato paciente — ${item.paciente_nome}`}
+            >
+              <MessageCircle className="h-3 w-3 shrink-0 text-[#25D366]" aria-hidden="true" />
+              Contato paciente
+            </a>
+          ) : (
+            <span className="dp-btn dp-btn-secondary dp-btn-secondary-compact dp-btn-outline-soft inline-flex cursor-default gap-1.5 opacity-70">
+              <MessageCircle className="h-3 w-3 shrink-0 text-[#25D366]" aria-hidden="true" />
+              Contato paciente
+            </span>
+          )}
+          <div className="dp-action-slot">
+            <button
+              type="button"
+              onClick={() => {
+                void autoEvaluate(item);
+              }}
+              disabled={actionLoading === item.id}
+              className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5"
+            >
+              <UserRound className="h-4 w-4" aria-hidden="true" />
+              ATENDER
+            </button>
+          </div>
+        </div>
       );
     }
 
     if (column === 'review') {
       return (
-        <>
+        <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--pair">
+          <div className="dp-actions-pair">
           <a
             href={`/atendimento/${item.id}`}
-            className="inline-flex h-11 flex-1 items-center justify-center rounded-[10px] border border-[#080D33] bg-white px-4 text-xs font-black text-[#080D33] shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5"
+            className="dp-btn dp-btn-secondary dp-btn-secondary-pair dp-btn-outline-soft"
           >
-            ◉ VISUALIZAR RECEITA
+            VISUALIZAR RECEITA
           </a>
           <button
-            onClick={() => updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico')}
+            type="button"
+            onClick={() => {
+              void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
+            }}
             disabled={actionLoading === item.id || item.status !== 'AWAITING_VALIDATION'}
-            className="h-11 flex-1 rounded-[10px] bg-[#F4B000] px-4 text-xs font-black text-white shadow-[0_8px_18px_rgba(244,176,0,0.18)] transition hover:-translate-y-0.5 disabled:opacity-50"
+            className="dp-btn dp-btn-card-primary dp-btn-orange"
           >
-            ✓ ACEITAR RECEITA
+            ACEITAR RECEITA
           </button>
-        </>
+          </div>
+        </div>
       );
     }
 
@@ -337,65 +422,120 @@ export default function FilaPage() {
       return (
         <a
           href={`/atendimento/${item.id}`}
-          className="inline-flex h-9 items-center justify-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold text-[#1E1E1E] shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5"
+          className="dp-btn dp-btn-outline-soft px-4"
         >
-          VER PRONTUARIO
+          VER PRONTUÁRIO
         </a>
       );
     }
 
+    const whatsappLoading = actionLoading === `${item.id}-whatsapp`;
+    const emailLoading = actionLoading === `${item.id}-email`;
+    const smsLoading = actionLoading === `${item.id}-sms`;
+
     return (
-      <>
-        {(['whatsapp', 'email', 'sms'] as DeliveryChannel[]).map((channel) => {
-          const hasTarget = Boolean(channelTarget(item, channel));
-          const loadingKey = `${item.id}-${channel}`;
-          const primary = channel === 'whatsapp';
-          return (
-            <button
-              key={channel}
-              onClick={() => deliverPrescription(item, channel)}
-              disabled={actionLoading === loadingKey || !hasTarget}
-              title={hasTarget ? `Enviar por ${channelLabel(channel)}` : `Contato ausente para ${channelLabel(channel)}`}
-              className={
-                primary
-                  ? 'h-11 w-full rounded-[10px] bg-[#0BA84F] px-4 text-xs font-black text-white shadow-[0_8px_18px_rgba(11,168,79,0.18)] transition hover:-translate-y-0.5 disabled:opacity-50'
-                  : 'h-11 flex-1 rounded-[10px] border border-[#080D33] bg-white px-4 text-xs font-black text-[#080D33] shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5 disabled:opacity-50'
-              }
-            >
-              {actionLoading === loadingKey ? 'ENVIANDO...' : `${primary ? '◉ ' : ''}ENVIAR POR ${channelLabel(channel)}`}
-            </button>
-          );
-        })}
-      </>
+      <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-row">
+        <div className="dp-patient-card__secondary-stack">
+          <button
+            type="button"
+            onClick={() => {
+              void deliverPrescription(item, 'sms');
+            }}
+            disabled={smsLoading || !channelTarget(item, 'sms')}
+            className="dp-btn dp-btn-secondary dp-btn-secondary-ready dp-btn-outline-soft"
+          >
+            {smsLoading ? 'ENVIANDO...' : 'ENVIAR POR SMS'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void deliverPrescription(item, 'email');
+            }}
+            disabled={emailLoading || !channelTarget(item, 'email')}
+            className="dp-btn dp-btn-secondary dp-btn-secondary-ready dp-btn-outline-soft"
+          >
+            {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
+          </button>
+        </div>
+        <div className="dp-action-slot">
+          <button
+            type="button"
+            onClick={() => {
+              void deliverPrescription(item, 'whatsapp');
+            }}
+            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+            className="dp-btn dp-btn-card-primary dp-btn-green dp-btn-green-nowrap"
+          >
+            <MessageCircle aria-hidden="true" />
+            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderStatusBadge(item: Atendimento, column: ColumnKey) {
+    if (column === 'queue') {
+      return (
+        <span className="dp-status-badge dp-status-badge-neutral">
+          {waitingTime(item.criado_em)}
+        </span>
+      );
+    }
+    if (column === 'review') {
+      return (
+        <span className="dp-status-badge dp-status-badge-warn">
+          Aguardando validação
+        </span>
+      );
+    }
+    if (column === 'ready') {
+      return (
+        <span className="dp-status-badge dp-status-badge-success">
+          Receita validada
+        </span>
+      );
+    }
+    return (
+      <span className="dp-status-badge dp-status-badge-muted">
+        {statusLabel(item.status, column)}
+      </span>
     );
   }
 
   if (loading) {
-    return <main className="min-h-screen bg-[#F8FAFC] p-6 text-sm text-[#5B6475]">Carregando fila...</main>;
+    return (
+      <main className="flex h-[720px] w-full max-w-[1366px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
+        Carregando fila...
+      </main>
+    );
   }
 
+  const visibleColumns = columns.filter((column) => column.key !== 'closed');
+
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-[#080D33]">
+    <main
+      className="relative flex h-[720px] w-full max-w-[1366px] flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
+    >
       <MedicalPanelHeader
-        compact
-        onLogout={logout}
+        onLogout={handleLogout}
         onOpenMedicalRecord={() => {
-          const first = filteredAtendimentos[0];
+          const first = medicalAtendimentos[0];
           if (first) window.location.href = `/atendimento/${first.id}`;
         }}
       />
 
-      <section className="px-5 py-6 sm:px-8">
-        <div className="mb-4 flex justify-end">
-          <button
-            onClick={fetchAtendimentos}
-            className="h-10 rounded-[8px] border border-[#D8DFEA] bg-white px-4 text-xs font-black text-[#080D33] shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition hover:-translate-y-0.5"
-          >
-            ATUALIZAR
+      <div className="panel-page-body">
+        <MedicalSupportBand patients={supportPatients} />
+
+        <div className="sr-only" aria-hidden>
+          <button type="button" onClick={() => { fetchAtendimentos(); fetchSupportQueue(); }}>
+            Atualizar
           </button>
         </div>
 
-        <div className="mb-4 hidden gap-3 rounded-[8px] border border-[#E5EAF2] bg-white p-3 shadow-[0_4px_14px_rgba(0,0,0,0.04)] md:grid-cols-[1.25fr_0.75fr_0.75fr_0.75fr_auto]">
+        <div className="sr-only" aria-hidden>
+        <div className="mb-2 gap-2 rounded-[8px] border border-[#E5EAF2] bg-white p-2 xl:grid xl:grid-cols-[1.25fr_0.75fr_0.75fr_0.75fr_auto]">
           <label className="text-xs font-bold text-[#5B6475]">
             BUSCAR
             <input
@@ -460,129 +600,121 @@ export default function FilaPage() {
             LIMPAR
           </button>
         </div>
+        </div>
 
         {error && (
-          <div className="mb-4 rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="shrink-0 rounded-[14px] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
             {error}
           </div>
         )}
 
         {toast && (
-          <div className="fixed right-5 top-5 z-20 rounded-[14px] border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-[#0BA84F] shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
+          <div className="fixed right-5 top-20 z-40 rounded-[14px] border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-[#0BA84F] shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
             {toast}
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-3">
-          {columns.filter((column) => column.key !== 'closed').map((column) => (
-            <section
-              key={column.key}
-              className="flex max-h-[calc(100vh-210px)] min-h-[560px] flex-col rounded-[12px] border border-[#E5EAF2] bg-white shadow-[0_10px_30px_rgba(8,13,51,0.06)]"
-            >
-              <div className="flex items-center justify-between border-b border-[#E5EAF2] px-7 py-6">
-                <div className="flex items-center gap-3">
-                  <span className={`flex h-10 w-10 items-center justify-center rounded-[8px] text-xl font-black ${column.headerMark}`}>
-                    {column.key === 'queue' ? '◴' : column.key === 'review' ? '♙' : column.key === 'ready' ? '✓' : '•'}
-                  </span>
-                  <h2 className="text-base font-black tracking-normal">{column.title}</h2>
-                </div>
-                <span className="rounded-[8px] bg-[#FADADA] px-4 py-2 text-base font-black text-[#080D33]">
-                  {grouped[column.key].length}
-                </span>
-              </div>
-
-              <div className="space-y-4 overflow-y-auto p-4">
-                {grouped[column.key].length ? (
-                  grouped[column.key].map((item) => (
-                    <article
-                      key={item.id}
-                      className="rounded-[12px] border border-[#E5EAF2] bg-white p-5 shadow-[0_4px_18px_rgba(8,13,51,0.04)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)]"
+        <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-4">
+          {visibleColumns.map((column) => {
+            const Icon = columnIcons[column.key as 'queue' | 'review' | 'ready'];
+            return (
+              <section
+                key={column.key}
+                className="dp-fila-column fila-column-scroll h-full min-h-0 min-w-0"
+              >
+                <div className="dp-fila-column__head flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={`dp-col-heading-icon flex shrink-0 items-center justify-center rounded-full ${
+                        column.key === 'ready' ? 'bg-[#E8F8EE] text-[#0B7F3C]' : 'bg-[#E8F1FF] text-[#1557FF]'
+                      }`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-xl font-black text-[#1557FF]">
-                          {initials(item.paciente_nome)}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <h3 className="truncate text-lg font-black">{item.paciente_nome}</h3>
-                              <p className="text-sm font-bold text-[#26325F]">#{item.id.slice(0, 8).toUpperCase()}</p>
+                      <Icon className="h-[17px] w-[17px]" aria-hidden="true" />
+                    </span>
+                    <h2 className="dp-col-heading truncate">{column.title}</h2>
+                  </div>
+                  <span className={columnCountClass()}>{grouped[column.key].length}</span>
+                </div>
+
+                <div className="dp-fila-column__scroll space-y-3">
+                  {grouped[column.key].length ? (
+                    grouped[column.key].map((item) => {
+                      const patientLabel = patientInitials(item.paciente_nome);
+                      return (
+                        <article key={item.id} className={`dp-patient-card dp-patient-card--${column.key}`}>
+                          <div className="dp-patient-card__inner">
+                            <div
+                              className={`dp-patient-avatar dp-patient-initials shrink-0 ${
+                                patientLabel.length > 5 ? 'dp-patient-initials--compact' : ''
+                              }`}
+                              title={item.paciente_nome}
+                              aria-hidden="true"
+                            >
+                              {patientLabel}
                             </div>
-                            <span className={`shrink-0 rounded-[8px] px-3 py-2 text-xs font-bold ${column.badgeClass}`}>
-                              {column.key === 'queue' ? waitingTime(item.criado_em) : statusLabel(item.status, column.key)}
-                            </span>
+                            <div className="dp-patient-card__main">
+                              <div className="dp-patient-card__head">
+                                <div className="min-w-0">
+                                  <h3
+                                    className={`dp-patient-card-label truncate ${
+                                      patientLabel.length > 5 ? 'dp-patient-card-label--compact' : ''
+                                    }`}
+                                    title={item.paciente_nome}
+                                  >
+                                    {patientLabel}
+                                  </h3>
+                                  <p className="dp-patient-id">#{formatAttendanceId(item.id)}</p>
+                                </div>
+                                {renderStatusBadge(item, column.key)}
+                              </div>
+
+                              <div className="dp-patient-card__meta">
+                                {column.key === 'review' && item.elegibilidade?.reason ? (
+                                  <p className="dp-text-muted line-clamp-2 text-[11px] leading-4">{item.elegibilidade.reason}</p>
+                                ) : null}
+                                {column.key === 'ready' && latestDelivery(item) ? (
+                                  <p className="dp-text-muted line-clamp-2 text-[11px] leading-4">
+                                    Última entrega: {latestDelivery(item)?.status}
+                                  </p>
+                                ) : null}
+                              </div>
+
+                              <div className="dp-patient-card__actions">{renderActions(item, column.key)}</div>
+                            </div>
                           </div>
-
-                          <p className="mt-5 text-sm font-bold text-[#26325F]">
-                            <span className="mr-2 text-[#0BA84F]">◉</span>
-                            Contato paciente
-                          </p>
-
-                          {item.elegibilidade?.reason && (
-                            <p className="mt-3 hidden rounded-[8px] bg-[#F8FAFC] p-3 text-xs leading-5 text-[#5B6475]">
-                              {item.elegibilidade.reason}
-                            </p>
-                          )}
-
-                          {latestDelivery(item) && (
-                            <p className="mt-3 rounded-[14px] bg-[#EEF4FF] p-3 text-xs leading-5 text-[#5B6475]">
-                              Última entrega: <span className="font-bold text-[#1E1E1E]">{latestDelivery(item)?.status}</span>
-                              {' via '}
-                              <span className="font-bold text-[#1E1E1E]">{latestDelivery(item)?.provider || latestDelivery(item)?.channel}</span>
-                              {latestDelivery(item)?.error ? ` (${latestDelivery(item)?.error})` : ''}
-                            </p>
-                          )}
-
-                          <div className="mt-5 flex flex-wrap justify-end gap-3">
-                            {renderActions(item, column.key)}
-                          </div>
-                        </div>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <p className="rounded-[20px] border border-dashed border-[#E5EAF2] p-5 text-center text-xs font-semibold text-[#5B6475]">
-                    Sem atendimentos
-                  </p>
-                )}
-              </div>
-            </section>
-          ))}
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <p className="dp-text-subtle rounded-[14px] border border-dashed border-[#E4ECF7] p-5 text-center text-[12px] font-semibold">
+                      Sem atendimentos
+                    </p>
+                  )}
+                </div>
+                <div className="dp-fila-column__footer" aria-hidden="true">
+                  <div className="dp-fila-column__cap" />
+                </div>
+              </section>
+            );
+          })}
         </div>
 
         {grouped.closed.length > 0 && (
-          <section className="mt-5 rounded-[18px] border border-[#E5EAF2] bg-white p-4 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-slate-100 text-xs font-black text-[#5B6475]">FI</span>
-                <h2 className="text-sm font-black tracking-normal">FINALIZADOS</h2>
-              </div>
-              <span className="rounded-[12px] bg-slate-100 px-3 py-1 text-xs font-black text-[#5B6475]">{grouped.closed.length}</span>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {grouped.closed.map((item) => (
-                <article key={item.id} className="flex items-center justify-between gap-3 rounded-[14px] border border-[#E5EAF2] p-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-black">{item.paciente_nome}</p>
-                    <p className="text-xs text-[#5B6475]">{item.condicao || 'Condicao nao informada'} · {statusLabel(item.status, 'closed')}</p>
-                  </div>
-                  <a href={`/atendimento/${item.id}`} className="shrink-0 rounded-[12px] border border-[#E5EAF2] px-3 py-2 text-xs font-bold text-[#1E1E1E]">
-                    VER
-                  </a>
-                </article>
-              ))}
-            </div>
+          <section className="sr-only" aria-hidden>
+            {grouped.closed.map((item) => (
+              <a key={item.id} href={`/atendimento/${item.id}`}>
+                {item.paciente_nome}
+              </a>
+            ))}
           </section>
         )}
-      </section>
+      </div>
 
-      <footer className="flex items-center justify-between border-t border-[#E5EAF2] bg-white px-16 py-5 text-sm font-medium text-[#26325F]">
-        <div>
-          <p className="font-black text-[#080D33]">▣ Ambiente protegido LGPD</p>
-          <p>Dados protegidos e criptografados</p>
-        </div>
-        <p>Doctor Prescreve — Plataforma de Prescrição e Atendimento Médico</p>
-        <p>CNPJ 50.871.173/0001-53</p>
+      <footer className="panel-footer">
+        <span>
+          Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © 2025 Todos os
+          direitos reservados.
+        </span>
       </footer>
     </main>
   );

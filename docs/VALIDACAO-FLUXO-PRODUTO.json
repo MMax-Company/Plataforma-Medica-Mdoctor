@@ -1,0 +1,78 @@
+{
+  "runId": "PROD-1780476952961",
+  "steps": [
+    {
+      "name": "backend_health",
+      "ok": true
+    },
+    {
+      "name": "triagem_n8n",
+      "ok": true,
+      "status": 200,
+      "atendimentoId": "296e2cf6-6a1d-4f9a-8276-71d0bd68643c"
+    },
+    {
+      "name": "login",
+      "ok": true
+    },
+    {
+      "name": "fila_contains_atendimento",
+      "ok": true,
+      "queueSize": 70
+    },
+    {
+      "name": "prontuario_api",
+      "ok": true,
+      "status": "rejected"
+    },
+    {
+      "name": "clinical_save",
+      "ok": true
+    },
+    {
+      "name": "clinical_approve",
+      "ok": true,
+      "atendimentoId": "9fd72ad2-740a-4c00-8d0b-11261788c5e9",
+      "status": 409,
+      "finalStatus": "approved"
+    },
+    {
+      "name": "status_after_approve",
+      "ok": true,
+      "status": "approved"
+    },
+    {
+      "name": "memed_token",
+      "ok": true,
+      "mode": "sinapse_production"
+    },
+    {
+      "name": "panel_login",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "panel_fila",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "panel_atendimento_296e2cf6-6a1d-4f9a-8276-71d0bd68643c",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "panel_dashboard",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "name": "panel_prontuario_296e2cf6-6a1d-4f9a-8276-71d0bd68643c",
+      "ok": true,
+      "status": 200
+    }
+  ],
+  "success": true,
+  "atendimentoId": "296e2cf6-6a1d-4f9a-8276-71d0bd68643c",
+  "failures": []
+}
