@@ -509,7 +509,7 @@ export default function FilaPage() {
 
   if (loading) {
     return (
-      <main className="flex h-[720px] w-full max-w-[1366px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
+      <main className="flex min-h-[40vh] w-full max-w-[1366px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
         Carregando fila...
       </main>
     );
@@ -519,7 +519,7 @@ export default function FilaPage() {
 
   return (
     <main
-      className="relative flex h-[720px] w-full max-w-[1366px] flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
+      className="relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
     >
       <MedicalPanelHeader
         onLogout={handleLogout}
@@ -618,7 +618,7 @@ export default function FilaPage() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-4">
+        <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-3">
           {visibleColumns.map((column) => {
             const Icon = columnIcons[column.key as 'queue' | 'review' | 'ready'];
             return (
@@ -640,7 +640,7 @@ export default function FilaPage() {
                   <span className={columnCountClass()}>{grouped[column.key].length}</span>
                 </div>
 
-                <div className="dp-fila-column__scroll space-y-3">
+                <div className="dp-fila-column__scroll space-y-2">
                   {grouped[column.key].length ? (
                     grouped[column.key].map((item) => {
                       const patientLabel = patientInitials(item.paciente_nome);

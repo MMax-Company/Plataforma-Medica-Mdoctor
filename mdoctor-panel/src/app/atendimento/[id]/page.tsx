@@ -564,7 +564,7 @@ export default function AtendimentoPage({ params }: { params: { id: string } }) 
   const clinical = atendimento.dados_clinicos || {};
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-[#080D33]">
+    <main className="atendimento-page-fluid min-h-screen bg-[#F8FAFC] text-[#080D33]">
       <MedicalPanelHeader compact onLogout={handleLogout} />
 
       <section className="dp-panel-shell pb-28 pt-2">
@@ -602,9 +602,9 @@ export default function AtendimentoPage({ params }: { params: { id: string } }) 
           </div>
         )}
 
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(260px,300px)_minmax(0,1fr)]">
-          <section className="space-y-5">
-            <Card className="h-full rounded-[8px] p-4 sm:p-5">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(240px,280px)_minmax(0,1fr)]">
+          <section className="space-y-4">
+            <Card className="rounded-[8px] p-3 sm:p-4">
               <h3 className="mb-4 text-panel-sm font-bold">Dados do paciente</h3>
               <div className="mb-4 flex items-start gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EEF4FF] text-base font-bold text-[#1557FF]">
@@ -640,8 +640,8 @@ export default function AtendimentoPage({ params }: { params: { id: string } }) 
             </Card>
           </section>
 
-          <section className="space-y-5">
-              <div className="max-h-[40vh] overflow-y-auto rounded-[8px] border border-[#E5EAF2] bg-white p-3">
+          <section className="space-y-4">
+              <div className="rounded-[8px] border border-[#E5EAF2] bg-white p-3">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-panel-sm font-bold">História clínica</h2>
                 <div className="flex flex-wrap gap-2">
@@ -722,7 +722,7 @@ export default function AtendimentoPage({ params }: { params: { id: string } }) 
 
               <div className="rounded-[20px] border border-[#E5EAF2] bg-white p-5 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
                 <h3 className="text-sm font-black">HISTÓRICO</h3>
-                <div className="mt-4 max-h-64 space-y-3 overflow-y-auto">
+                <div className="mt-4 space-y-3">
                   {decisoes.length ? (
                     decisoes.map((item) => (
                       <div key={item.id} className="rounded-[14px] border border-[#E5EAF2] p-3 text-sm">
