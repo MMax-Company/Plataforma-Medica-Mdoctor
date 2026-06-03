@@ -2011,7 +2011,7 @@ a.prontuario-patient-card__whatsapp:hover {
   text-align: center;
 }
 
-/* Prontuário modal — ficha clínica 3x4 / visão integral (somente escala) */
+/* Prontuário modal — ficha clínica operacional equilibrada (somente escala) */
 .prontuario-modal-overlay {
   position: fixed;
   inset: 0;
@@ -2021,20 +2021,21 @@ a.prontuario-patient-card__whatsapp:hover {
   justify-content: center;
   background: rgba(15, 23, 42, 0.28);
   backdrop-filter: blur(4px);
-  padding: 12px 16px;
+  padding: 16px 20px;
 }
 
 .prontuario-modal {
   display: flex;
-  width: min(1140px, calc(100vw - 32px));
-  max-height: 72vh;
+  width: min(1240px, 92vw);
+  height: 84vh;
+  max-height: 84vh;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 18px;
   background: #ffffff;
   box-shadow:
-    0 12px 32px rgba(15, 23, 42, 0.12),
-    0 1px 3px rgba(15, 23, 42, 0.04);
+    0 16px 40px rgba(15, 23, 42, 0.14),
+    0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .prontuario-modal__loading,
@@ -2059,11 +2060,11 @@ a.prontuario-patient-card__whatsapp:hover {
 .prontuario-shell--modal {
   display: flex;
   height: 100%;
-  max-height: 72vh;
+  max-height: 84vh;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  padding: 6px 8px 7px;
+  padding: 16px;
   background: #ffffff;
 }
 
@@ -2071,17 +2072,17 @@ a.prontuario-patient-card__whatsapp:hover {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 5px;
-  height: auto;
-  min-height: 24px;
-  margin-bottom: 2px;
+  gap: 12px;
+  height: 64px;
+  min-height: 64px;
+  margin-bottom: 8px;
 }
 
 .prontuario-shell--modal .prontuario-back-btn {
-  height: 26px;
-  padding-left: 7px;
-  padding-right: 7px;
-  font-size: 10px;
+  height: 40px;
+  padding-left: 12px;
+  padding-right: 12px;
+  font-size: 12px;
 }
 
 .prontuario-page-top__center {
@@ -2097,15 +2098,15 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--modal .prontuario-page-title {
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  line-height: 1.05;
+  font-size: 21px;
+  letter-spacing: 0.04em;
+  line-height: 1.15;
 }
 
 .prontuario-shell--modal .prontuario-page-subtitle {
-  font-size: 8.5px;
-  line-height: 1.1;
-  margin-top: 0;
+  font-size: 12.5px;
+  line-height: 1.3;
+  margin-top: 2px;
 }
 
 .prontuario-shell--modal .prontuario-body {
@@ -2113,13 +2114,13 @@ a.prontuario-patient-card__whatsapp:hover {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 2px;
+  gap: 10px;
   overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-main-grid {
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: 312px minmax(0, 1fr);
+  gap: 15px;
   min-height: 0;
   flex: 1;
   overflow: hidden;
@@ -2128,26 +2129,26 @@ a.prontuario-patient-card__whatsapp:hover {
 
 .prontuario-shell--modal .prontuario-patient-card__head,
 .prontuario-shell--modal .prontuario-history-card__head {
-  padding: 3px 6px;
+  padding: 10px 14px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__title,
 .prontuario-shell--modal .prontuario-history-card__title {
-  font-size: 9.5px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .prontuario-shell--modal .prontuario-history-btn {
-  height: 22px;
-  min-width: 78px;
-  min-height: 22px;
-  padding-left: 5px;
-  padding-right: 5px;
+  height: 36px;
+  min-width: 118px;
+  min-height: 36px;
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .prontuario-shell--modal .prontuario-history-btn__label {
-  font-size: 7.5px;
-  letter-spacing: 0.02em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
 }
 
 .prontuario-shell--modal .prontuario-patient-card,
@@ -2159,56 +2160,61 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--modal .prontuario-patient-card__body {
-  padding: 4px 6px 5px;
+  padding: 12px 14px 14px;
   overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__hero {
   display: flex;
   align-items: center;
-  gap: 5px;
-  margin-bottom: 2px;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__avatar {
-  height: 38px;
-  width: 38px;
-  font-size: 11px;
-  font-weight: 600;
+  height: 56px;
+  width: 56px;
+  font-size: 17px;
+  font-weight: 700;
   border-radius: 9999px;
-  background-color: #f3f6fb;
-  color: #5a7ec4;
+  background-color: #e8f1ff;
+  color: #1557ff;
   box-shadow: none;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__name {
-  font-size: 10.5px;
+  font-size: 16px;
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.2;
   color: #071b3a;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__age,
 .prontuario-shell--modal .prontuario-patient-card__record,
 .prontuario-shell--modal .prontuario-patient-card__whatsapp {
-  font-size: 8.25px;
-  line-height: 1.1;
-  margin-top: 0;
+  font-size: 12px;
+  line-height: 1.25;
+  margin-top: 3px;
+}
+
+.prontuario-shell--modal .prontuario-patient-card__rows {
+  margin-top: 10px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__row {
-  padding-top: 1px;
-  padding-bottom: 1px;
-  font-size: 8.25px;
-  line-height: 1.15;
+  min-height: 28px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__label {
-  font-size: 7.75px;
+  font-size: 12px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__value {
-  font-size: 8.25px;
+  font-size: 12.5px;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body {
@@ -2216,24 +2222,25 @@ a.prontuario-patient-card__whatsapp:hover {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 1px;
+  gap: 8px;
   overflow: hidden;
-  padding: 3px 5px 4px;
+  padding: 10px 12px 12px;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body > .prontuario-clinical-block {
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 48px;
 }
 
 .prontuario-shell--modal .prontuario-clinical-pair {
-  flex: 1 1 0;
-  min-height: 0;
-  gap: 2px;
+  flex: 0 0 auto;
+  min-height: 72px;
+  gap: 8px;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body > .prontuario-clinical-block--conduct {
-  flex: 1.08 1 0;
+  flex: 1.2 1 auto;
+  min-height: 64px;
 }
 
 .prontuario-clinical-block--half {
@@ -2246,24 +2253,24 @@ a.prontuario-patient-card__whatsapp:hover {
   display: flex;
   min-height: 0;
   flex-direction: column;
-  padding: 2px 4px;
-  border-radius: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
   border-color: #e8edf3;
 }
 
 .prontuario-shell--modal .prontuario-clinical-pair .prontuario-clinical-block {
-  height: 100%;
+  min-height: 72px;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block__head {
-  margin-bottom: 1px;
+  margin-bottom: 4px;
   flex-shrink: 0;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block__title {
-  font-size: 7.25px;
-  letter-spacing: 0.08em;
-  line-height: 1.05;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block--conduct .prontuario-clinical-block__content,
@@ -2272,154 +2279,146 @@ a.prontuario-patient-card__whatsapp:hover {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  margin-top: 0;
-  font-size: 8.5px;
-  line-height: 1.15;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.32;
   white-space: pre-line;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block__textarea {
-  min-height: 0;
+  min-height: 48px;
   max-height: none;
   flex: 1;
   resize: none;
-  margin-top: 1px;
-  padding: 4px 5px;
-  font-size: 9.25px;
-  line-height: 1.2;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  line-height: 1.32;
 }
 
 .prontuario-shell--modal .prontuario-eligibility {
-  height: auto;
-  min-height: 22px;
-  margin-bottom: 2px;
-  padding-top: 3px;
-  padding-bottom: 3px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  margin-bottom: 0;
+  padding-top: 8px;
+  padding-bottom: 8px;
   flex-shrink: 0;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__icon {
-  height: 18px;
-  width: 18px;
+  height: 28px;
+  width: 28px;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__title {
-  font-size: 7.75px;
-  line-height: 1.05;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__message {
-  margin-top: 0;
-  font-size: 8.5px;
-  line-height: 1.1;
+  margin-top: 1px;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__badge {
-  padding: 1px 5px;
-  font-size: 7.75px;
+  padding: 4px 10px;
+  font-size: 11px;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar {
   flex-shrink: 0;
   margin-top: 0;
-  grid-template-columns: 148px minmax(0, 1fr) 148px;
-  gap: 5px;
+  min-height: 80px;
+  max-height: 84px;
+  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  gap: 12px;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__reject,
 .prontuario-shell--modal .prontuario-decision-bar__approve {
-  min-height: 34px;
-  max-height: 34px;
-  padding: 2px 5px;
-  border-radius: 7px;
+  min-height: 58px;
+  max-height: 60px;
+  padding: 6px 10px;
+  border-radius: 10px;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__icon-ring {
-  height: 15px;
-  width: 15px;
-  margin-bottom: 0;
+  height: 22px;
+  width: 22px;
+  margin-bottom: 2px;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__label {
-  font-size: 8.5px;
-  line-height: 1;
+  font-size: 12px;
+  line-height: 1.1;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__hint {
-  margin-top: 0;
-  font-size: 7px;
-  line-height: 1.05;
-  opacity: 0.88;
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1.15;
+  opacity: 0.9;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes {
-  min-height: 34px;
-  max-height: 34px;
-  padding: 3px 5px;
-  border-radius: 7px;
+  min-height: 58px;
+  max-height: 60px;
+  padding: 8px 10px;
+  border-radius: 10px;
   background-color: #fafbfd;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes-title {
-  margin-bottom: 0;
-  font-size: 7px;
+  margin-bottom: 2px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   color: #8f9aad;
   font-weight: 600;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes-input {
-  min-height: 18px;
-  max-height: 20px;
-  padding: 2px 4px;
+  min-height: 32px;
+  max-height: 36px;
+  padding: 6px 8px;
   resize: none;
-  font-size: 8.5px;
-  line-height: 1.15;
+  font-size: 12px;
+  line-height: 1.3;
   background-color: #ffffff;
   border-color: #e4eaf1;
 }
 
-/* Sobrescreve réplica — barra de decisão compacta no modal */
+/* Sobrescreve réplica — barra proporcional no modal (não faixa espremida) */
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__reject,
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__approve,
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__notes {
-  min-height: 34px;
-  max-height: 34px;
+  min-height: 58px;
+  max-height: 60px;
 }
 
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-eligibility {
-  height: auto;
-  min-height: 22px;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
 }
 
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-eligibility__icon {
-  height: 18px;
-  width: 18px;
+  height: 28px;
+  width: 28px;
 }
 
-/* Ficha 3x4 — viewports clínicos */
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
   .prontuario-shell--modal .prontuario-main-grid {
-    grid-template-columns: 208px minmax(0, 1fr);
+    grid-template-columns: 300px minmax(0, 1fr);
   }
 }
 
-@media (max-height: 820px) {
+@media (max-height: 760px) {
   .prontuario-modal,
   .prontuario-shell--modal {
-    max-height: 70vh;
-  }
-
-  .prontuario-shell--modal .prontuario-clinical-block__content {
-    font-size: 8.25px;
-    line-height: 1.12;
-  }
-}
-
-@media (min-height: 860px) {
-  .prontuario-modal,
-  .prontuario-shell--modal {
-    max-height: 74vh;
+    height: 82vh;
+    max-height: 82vh;
   }
 }
 
