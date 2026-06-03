@@ -1,0 +1,516 @@
+{
+  "updatedAt": "2026-05-29T20:55:21.411Z",
+  "createdAt": "2026-05-29T11:56:57.238Z",
+  "id": "VUDBmF4REtrj6ZJU",
+  "name": "Typebot Webhook - Staging",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "typebot-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "tb-wh",
+      "name": "Webhook Typebot",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "typebot-webhook-staging"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * n8n Code node: Typebot / webhook → POST /api/webhook/triagem (Doctor Prescreve)\n * Sync into typebot-webhook-staging.json when editing.\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nfunction pick(...values) {\n  for (const v of values) {\n    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n}\n\nfunction digits(v) {\n  return String(v || '').replace(/\\D/g, '');\n}\n\nconst correlationId =\n  headers['x-correlation-id'] ||\n  headers['X-Correlation-Id'] ||\n  body.correlation_id ||\n  `typebot-${Date.now()}`;\n\nconst idempotencyKey =\n  headers['idempotency-key'] ||\n  headers['Idempotency-Key'] ||\n  body.idempotency_key ||\n  `triagem-${digits(body.paciente?.telefone || body.telefone)}-${Date.now()}`;\n\nlet paciente;\nlet triagem;\n\nif (body.paciente && body.triagem) {\n  paciente = {\n    nome: pick(body.paciente.nome),\n    telefone: pick(body.paciente.telefone),\n    cpf: pick(body.paciente.cpf),\n    email: pick(body.paciente.email)\n  };\n  triagem = {\n    doencas: pick(body.triagem.doencas),\n    medicacao_em_uso: pick(body.triagem.medicacao_em_uso),\n    tempo_uso: pick(body.triagem.tempo_uso),\n    receita_anterior: pick(body.triagem.receita_anterior),\n    sinais_alerta: pick(body.triagem.sinais_alerta),\n    observacoes: pick(body.triagem.observacoes)\n  };\n} else {\n  const telefone = digits(\n    pick(body.telefone, body.whatsapp, body.from, body.paciente_telefone, body.phone)\n  );\n  paciente = {\n    nome: pick(body.patient_name, body.nome, body.Nome_Completo, body.paciente_nome),\n    telefone: telefone || pick(body.telefone, body.whatsapp),\n    cpf: digits(pick(body.cpf, body.cpf_paciente)),\n    email: pick(body.email, body.Email, body.paciente_email)\n  };\n  triagem = {\n    doencas: pick(\n      body.triagem?.doencas,\n      body.doenca_cronica,\n      body.chronic_condition,\n      body.doencas,\n      body.condition\n    ),\n    medicacao_em_uso: pick(\n      body.triagem?.medicacao_em_uso,\n      body.medicacao_em_uso,\n      body.primeiro_medicamento,\n      body.medication_name\n    ),\n    tempo_uso: pick(body.triagem?.tempo_uso, body.tempo_uso),\n    receita_anterior: pick(\n      body.triagem?.receita_anterior,\n      body.receita_anterior,\n      body.has_previous_prescription\n    ),\n    sinais_alerta: pick(body.triagem?.sinais_alerta, body.sinais_alerta),\n    observacoes: pick(body.triagem?.observacoes, body.observacoes, body.text)\n  };\n}\n\nif (!paciente.nome) throw new Error('paciente.nome é obrigatório');\nif (!triagem.doencas) throw new Error('triagem.doencas é obrigatório');\nif (!paciente.telefone) throw new Error('paciente.telefone é obrigatório');\n\nconst typebot_context = {\n  patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),\n  birth_date: pick(body.birth_date, body.data_nascimento),\n  address: pick(body.address, body.Endereco, body.endereco),\n  cep: pick(body.cep, body.CEP),\n  payment_status: pick(body.payment_status),\n  pagamento_status: pick(body.pagamento_status),\n  pagamento: pick(body.pagamento),\n  eligibility_status: pick(body.eligibility_status),\n  ineligibility_reason: pick(body.ineligibility_reason),\n  has_previous_prescription: body.has_previous_prescription,\n  has_prescription_photo_ready: body.has_prescription_photo_ready,\n  previous_prescription_file: pick(\n    body.previous_prescription_file,\n    body.foto_receita_url,\n    body.prescription_photo_url\n  ),\n  foto_receita_url: pick(body.foto_receita_url, body.previous_prescription_file),\n  medications: body.medications,\n  medication_1_name: body.medication_1_name,\n  medication_1_dose: body.medication_1_dose,\n  medication_1_frequency: body.medication_1_frequency,\n  medication_1_route: body.medication_1_route,\n  medication_2_name: body.medication_2_name,\n  medication_2_dose: body.medication_2_dose,\n  medication_2_frequency: body.medication_2_frequency,\n  medication_2_route: body.medication_2_route,\n  medication_3_name: body.medication_3_name,\n  medication_3_dose: body.medication_3_dose,\n  medication_3_frequency: body.medication_3_frequency,\n  medication_3_route: body.medication_3_route,\n  continuous_use_days: body.continuous_use_days,\n  tempo_uso: pick(body.tempo_uso, triagem.tempo_uso),\n  has_warning_signs: body.has_warning_signs,\n  sinais_alerta: pick(body.sinais_alerta, triagem.sinais_alerta),\n  protocol: pick(body.protocol),\n  source: pick(body.source),\n  typebot_public_id: pick(body.typebot_public_id),\n  lgpd_accepted: body.lgpd_accepted,\n  privacy_policy_accepted: body.privacy_policy_accepted,\n  telemedicine_consent_accepted: body.telemedicine_consent_accepted,\n  non_urgency_notice_accepted: body.non_urgency_notice_accepted,\n  terms_of_use_accepted: body.terms_of_use_accepted,\n  accepted_terms_at: body.accepted_terms_at,\n  accepted_terms_links: body.accepted_terms_links,\n  terms_presented: body.terms_presented,\n  terms_accepted: body.terms_accepted\n};\n\nconst triagemPayload = { paciente, triagem, typebot_context };\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      triagemPayload\n    }\n  }\n];\n"
+      },
+      "id": "tb-build",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.BACKEND_BASE_URL || '').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $json.correlationId }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotencyKey }}"
+            },
+            {
+              "name": "X-MDoctor-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "X-N8N-Workflow",
+              "value": "typebot-webhook-staging"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.triagemPayload }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "tb-post",
+      "name": "POST Triagem Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * n8n Code node: monta resposta Typebot após POST /api/webhook/triagem\n */\nconst item = $input.first();\nconst json = item.json || {};\nlet statusCode = item.statusCode || json.statusCode || 200;\nlet body = json;\n\nif (json.body !== undefined) {\n  try {\n    body = typeof json.body === 'string' ? JSON.parse(json.body) : json.body;\n  } catch {\n    body = { raw: json.body };\n  }\n}\n\nconst ctx = $('Build Payload').first().json;\nconst httpOk = Number(statusCode) >= 200 && Number(statusCode) < 300;\nconst apiSuccess = body?.success !== false && !body?.error;\nconst ok = httpOk && apiSuccess;\n\nconst atendimentoId =\n  body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;\n\nreturn [\n  {\n    json: {\n      ok,\n      statusCode: Number(statusCode),\n      correlationId: ctx.correlationId,\n      typebotResponse: ok\n        ? {\n            success: true,\n            message: body?.message || 'Triagem recebida com sucesso',\n            atendimentoId\n          }\n        : {\n            success: false,\n            message: body?.message || body?.error || 'Erro ao processar triagem'\n          }\n    }\n  }\n];\n"
+      },
+      "id": "tb-route",
+      "name": "Route Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ok-check",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "id": "tb-if",
+      "name": "Backend OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1180,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.typebotResponse }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "tb-ok",
+      "name": "Resposta Sucesso",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.typebotResponse }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "tb-err",
+      "name": "Resposta Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1420,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Typebot": {
+      "main": [
+        [
+          {
+            "node": "Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Payload": {
+      "main": [
+        [
+          {
+            "node": "POST Triagem Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Triagem Backend": {
+      "main": [
+        [
+          {
+            "node": "Route Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Response": {
+      "main": [
+        [
+          {
+            "node": "Backend OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backend OK?": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+  "activeVersionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+  "versionCounter": 7,
+  "triggerCount": 1,
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-05-29T11:57:04.635Z",
+    "createdAt": "2026-05-29T11:57:03.349Z",
+    "versionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+    "workflowId": "VUDBmF4REtrj6ZJU",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "typebot-webhook",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "tb-wh",
+        "name": "Webhook Typebot",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          300
+        ],
+        "webhookId": "typebot-webhook-staging"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "/**\n * n8n Code node: Typebot / webhook → POST /api/webhook/triagem (Doctor Prescreve)\n * Sync into typebot-webhook-staging.json when editing.\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nfunction pick(...values) {\n  for (const v of values) {\n    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n}\n\nfunction digits(v) {\n  return String(v || '').replace(/\\D/g, '');\n}\n\nconst correlationId =\n  headers['x-correlation-id'] ||\n  headers['X-Correlation-Id'] ||\n  body.correlation_id ||\n  `typebot-${Date.now()}`;\n\nconst idempotencyKey =\n  headers['idempotency-key'] ||\n  headers['Idempotency-Key'] ||\n  body.idempotency_key ||\n  `triagem-${digits(body.paciente?.telefone || body.telefone)}-${Date.now()}`;\n\nlet paciente;\nlet triagem;\n\nif (body.paciente && body.triagem) {\n  paciente = {\n    nome: pick(body.paciente.nome),\n    telefone: pick(body.paciente.telefone),\n    cpf: pick(body.paciente.cpf),\n    email: pick(body.paciente.email)\n  };\n  triagem = {\n    doencas: pick(body.triagem.doencas),\n    medicacao_em_uso: pick(body.triagem.medicacao_em_uso),\n    tempo_uso: pick(body.triagem.tempo_uso),\n    receita_anterior: pick(body.triagem.receita_anterior),\n    sinais_alerta: pick(body.triagem.sinais_alerta),\n    observacoes: pick(body.triagem.observacoes)\n  };\n} else {\n  const telefone = digits(\n    pick(body.telefone, body.whatsapp, body.from, body.paciente_telefone, body.phone)\n  );\n  paciente = {\n    nome: pick(body.patient_name, body.nome, body.Nome_Completo, body.paciente_nome),\n    telefone: telefone || pick(body.telefone, body.whatsapp),\n    cpf: digits(pick(body.cpf, body.cpf_paciente)),\n    email: pick(body.email, body.Email, body.paciente_email)\n  };\n  triagem = {\n    doencas: pick(\n      body.triagem?.doencas,\n      body.doenca_cronica,\n      body.chronic_condition,\n      body.doencas,\n      body.condition\n    ),\n    medicacao_em_uso: pick(\n      body.triagem?.medicacao_em_uso,\n      body.medicacao_em_uso,\n      body.primeiro_medicamento,\n      body.medication_name\n    ),\n    tempo_uso: pick(body.triagem?.tempo_uso, body.tempo_uso),\n    receita_anterior: pick(\n      body.triagem?.receita_anterior,\n      body.receita_anterior,\n      body.has_previous_prescription\n    ),\n    sinais_alerta: pick(body.triagem?.sinais_alerta, body.sinais_alerta),\n    observacoes: pick(body.triagem?.observacoes, body.observacoes, body.text)\n  };\n}\n\nif (!paciente.nome) throw new Error('paciente.nome é obrigatório');\nif (!triagem.doencas) throw new Error('triagem.doencas é obrigatório');\nif (!paciente.telefone) throw new Error('paciente.telefone é obrigatório');\n\nconst typebot_context = {\n  patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),\n  birth_date: pick(body.birth_date, body.data_nascimento),\n  address: pick(body.address, body.Endereco, body.endereco),\n  cep: pick(body.cep, body.CEP),\n  payment_status: pick(body.payment_status),\n  pagamento_status: pick(body.pagamento_status),\n  pagamento: pick(body.pagamento),\n  eligibility_status: pick(body.eligibility_status),\n  ineligibility_reason: pick(body.ineligibility_reason),\n  has_previous_prescription: body.has_previous_prescription,\n  has_prescription_photo_ready: body.has_prescription_photo_ready,\n  previous_prescription_file: pick(\n    body.previous_prescription_file,\n    body.foto_receita_url,\n    body.prescription_photo_url\n  ),\n  foto_receita_url: pick(body.foto_receita_url, body.previous_prescription_file),\n  medications: body.medications,\n  medication_1_name: body.medication_1_name,\n  medication_1_dose: body.medication_1_dose,\n  medication_1_frequency: body.medication_1_frequency,\n  medication_1_route: body.medication_1_route,\n  medication_2_name: body.medication_2_name,\n  medication_2_dose: body.medication_2_dose,\n  medication_2_frequency: body.medication_2_frequency,\n  medication_2_route: body.medication_2_route,\n  medication_3_name: body.medication_3_name,\n  medication_3_dose: body.medication_3_dose,\n  medication_3_frequency: body.medication_3_frequency,\n  medication_3_route: body.medication_3_route,\n  continuous_use_days: body.continuous_use_days,\n  tempo_uso: pick(body.tempo_uso, triagem.tempo_uso),\n  has_warning_signs: body.has_warning_signs,\n  sinais_alerta: pick(body.sinais_alerta, triagem.sinais_alerta),\n  protocol: pick(body.protocol),\n  source: pick(body.source),\n  typebot_public_id: pick(body.typebot_public_id),\n  lgpd_accepted: body.lgpd_accepted,\n  privacy_policy_accepted: body.privacy_policy_accepted,\n  telemedicine_consent_accepted: body.telemedicine_consent_accepted,\n  non_urgency_notice_accepted: body.non_urgency_notice_accepted,\n  terms_of_use_accepted: body.terms_of_use_accepted,\n  accepted_terms_at: body.accepted_terms_at,\n  accepted_terms_links: body.accepted_terms_links,\n  terms_presented: body.terms_presented,\n  terms_accepted: body.terms_accepted\n};\n\nconst triagemPayload = { paciente, triagem, typebot_context };\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      triagemPayload\n    }\n  }\n];\n"
+        },
+        "id": "tb-build",
+        "name": "Build Payload",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ ($env.BACKEND_BASE_URL || '').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "X-Correlation-Id",
+                "value": "={{ $json.correlationId }}"
+              },
+              {
+                "name": "Idempotency-Key",
+                "value": "={{ $json.idempotencyKey }}"
+              },
+              {
+                "name": "X-MDoctor-Webhook-Secret",
+                "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+              },
+              {
+                "name": "X-N8N-Workflow",
+                "value": "typebot-webhook-staging"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.triagemPayload }}",
+          "options": {
+            "timeout": 30000,
+            "response": {
+              "response": {
+                "fullResponse": true,
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "tb-post",
+        "name": "POST Triagem Backend",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          700,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "/**\n * n8n Code node: monta resposta Typebot após POST /api/webhook/triagem\n */\nconst item = $input.first();\nconst json = item.json || {};\nlet statusCode = item.statusCode || json.statusCode || 200;\nlet body = json;\n\nif (json.body !== undefined) {\n  try {\n    body = typeof json.body === 'string' ? JSON.parse(json.body) : json.body;\n  } catch {\n    body = { raw: json.body };\n  }\n}\n\nconst ctx = $('Build Payload').first().json;\nconst httpOk = Number(statusCode) >= 200 && Number(statusCode) < 300;\nconst apiSuccess = body?.success !== false && !body?.error;\nconst ok = httpOk && apiSuccess;\n\nconst atendimentoId =\n  body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;\n\nreturn [\n  {\n    json: {\n      ok,\n      statusCode: Number(statusCode),\n      correlationId: ctx.correlationId,\n      typebotResponse: ok\n        ? {\n            success: true,\n            message: body?.message || 'Triagem recebida com sucesso',\n            atendimentoId\n          }\n        : {\n            success: false,\n            message: body?.message || body?.error || 'Erro ao processar triagem'\n          }\n    }\n  }\n];\n"
+        },
+        "id": "tb-route",
+        "name": "Route Response",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          940,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "version": 2,
+              "leftValue": "",
+              "caseSensitive": true,
+              "typeValidation": "strict"
+            },
+            "combinator": "and",
+            "conditions": [
+              {
+                "id": "ok-check",
+                "leftValue": "={{ $json.ok }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ]
+          }
+        },
+        "id": "tb-if",
+        "name": "Backend OK?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1180,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json.typebotResponse }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "tb-ok",
+        "name": "Resposta Sucesso",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          1420,
+          200
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ $json.typebotResponse }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "tb-err",
+        "name": "Resposta Erro",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          1420,
+          420
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Typebot": {
+        "main": [
+          [
+            {
+              "node": "Build Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Payload": {
+        "main": [
+          [
+            {
+              "node": "POST Triagem Backend",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "POST Triagem Backend": {
+        "main": [
+          [
+            {
+              "node": "Route Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Response": {
+        "main": [
+          [
+            {
+              "node": "Backend OK?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Backend OK?": {
+        "main": [
+          [
+            {
+              "node": "Resposta Sucesso",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Resposta Erro",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Max Matos",
+    "name": "Version 634d92df",
+    "description": "",
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-05-29T11:57:04.628Z",
+        "id": 615,
+        "workflowId": "VUDBmF4REtrj6ZJU",
+        "versionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-05-29T11:57:07.702Z",
+        "id": 616,
+        "workflowId": "VUDBmF4REtrj6ZJU",
+        "versionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+        "event": "deactivated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-05-29T11:57:07.751Z",
+        "id": 617,
+        "workflowId": "VUDBmF4REtrj6ZJU",
+        "versionId": "634d92df-35c0-4396-bde3-47d3005008f1",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      }
+    ]
+  }
+}

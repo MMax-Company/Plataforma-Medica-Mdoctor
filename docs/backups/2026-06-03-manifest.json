@@ -1,0 +1,22 @@
+{
+  "generated_at": "2026-06-03T08:05:48.818Z",
+  "baseUrl": "https://n8n-node-production-f844.up.railway.app",
+  "exported": [
+    {
+      "target": "2026-06-03-evolution-webhook-production.json",
+      "ok": true,
+      "id": "z1J2Fjk0aEePt0X8",
+      "name": "Evolution Webhook - Production",
+      "active": true,
+      "path": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\backups\\2026-06-03-evolution-webhook-production.json"
+    },
+    {
+      "target": "2026-06-03-typebot-webhook-production.json",
+      "ok": true,
+      "id": "VUDBmF4REtrj6ZJU",
+      "name": "Typebot Webhook - Staging",
+      "active": true,
+      "path": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\backups\\2026-06-03-typebot-webhook-production.json"
+    }
+  ]
+}

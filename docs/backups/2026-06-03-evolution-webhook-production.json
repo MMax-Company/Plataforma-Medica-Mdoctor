@@ -1,0 +1,800 @@
+{
+  "updatedAt": "2026-06-03T07:56:23.892Z",
+  "createdAt": "2026-06-03T07:43:25.198Z",
+  "id": "z1J2Fjk0aEePt0X8",
+  "name": "Evolution Webhook - Production",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-base",
+      "name": "Webhook Base",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        300
+      ],
+      "webhookId": "evolution-webhook-base"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook/messages-upsert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-upsert",
+      "name": "Webhook Messages Upsert",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        120
+      ],
+      "webhookId": "evolution-webhook-messages-upsert"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook/messages-update",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-update",
+      "name": "Webhook Messages Update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        200
+      ],
+      "webhookId": "evolution-webhook-messages-update"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook/send-message",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-send",
+      "name": "Webhook Send Message",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        400
+      ],
+      "webhookId": "evolution-webhook-send-message"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook/connection-update",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-conn",
+      "name": "Webhook Connection Update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        500
+      ],
+      "webhookId": "evolution-webhook-connection-update"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook/qrcode-updated",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "evo-wh-qr",
+      "name": "Webhook Qrcode Updated",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        120,
+        600
+      ],
+      "webhookId": "evolution-webhook-qrcode-updated"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst path = String(headers['x-n8n-webhook-path'] || headers['x-original-uri'] || '').toLowerCase();\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst expectedInstance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\nconst instanceName = String(body.instance || body.instanceName || '').trim();\nif (instanceName && instanceName !== expectedInstance) throw new Error(`instanceName mismatch: ${instanceName}`);\n\nlet event = String(body.event || body.type || '').toUpperCase().replace(/\\./g, '_').replace(/-/g, '_');\nif (!event) {\n  if (path.includes('messages-upsert')) event = 'MESSAGES_UPSERT';\n  else if (path.includes('messages-update')) event = 'MESSAGES_UPDATE';\n  else if (path.includes('send-message')) event = 'SEND_MESSAGE';\n  else if (path.includes('connection-update')) event = 'CONNECTION_UPDATE';\n  else if (path.includes('qrcode-updated')) event = 'QRCODE_UPDATED';\n  else event = 'UNKNOWN';\n}\n\nconst allowed = new Set(['MESSAGES_UPSERT','MESSAGES_UPDATE','SEND_MESSAGE','CONNECTION_UPDATE','QRCODE_UPDATED']);\nif (!allowed.has(event)) {\n  return [{ json: { route: 'IGNORED_EVENT', event, correlationId: `evo-${Date.now()}`, log: { ignored: true } } }];\n}\n\nconst data = body.data || body;\nconst key = data.key || body.key || {};\nconst message = data.message || body.message || {};\nconst remoteJid = String(key.remoteJid || data.remoteJid || '').trim();\nconst fromMe = Boolean(key.fromMe ?? data.fromMe ?? false);\nconst messageId = String(key.id || data.id || `${Date.now()}`);\nconst text = String(message.conversation || message.extendedTextMessage?.text || data.text || body.text || '').trim();\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `evo-${event.toLowerCase()}-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || messageId;\nconst inbound = event === 'MESSAGES_UPSERT' && !fromMe && Boolean(remoteJid);\n\nreturn [{ json: {\n  route: inbound ? 'INBOUND_MESSAGE' : 'EVENT_LOG',\n  event, flowEnv, instanceName: instanceName || expectedInstance,\n  correlationId, idempotencyKey, inbound, remoteJid, fromMe, text, messageId,\n  n8nTypebotWebhook: String($env.N8N_TYPEBOT_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook').trim(),\n  log: { event, remoteJid: remoteJid || null, fromMe, hasText: Boolean(text), messageId, path }\n}}];"
+      },
+      "id": "evo-parse",
+      "name": "Parse Evolution Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "INBOUND_MESSAGE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "inbound"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "EVENT_LOG",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "event"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "evo-route",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "/**\n * Source for n8n Code node \"Handle WhatsApp Inbound Menu\" (Evolution webhook).\n * Sync into evolution-webhook-staging.json when editing menu logic.\n */\nconst input = $input.first().json || {};\nconst ctx = input;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.sessions) staticData.sessions = {};\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst evoUrl = String($env.EVOLUTION_API_URL || $env.RAILWAY_SERVICE_EVOLUTION_API_STAGING_URL || '')\n  .replace(/\\/$/, '')\n  .replace(/\\.railway\\.internal.*/, '.up.railway.app');\nconst evoKey = String($env.EVOLUTION_API_KEY || $env.AUTHENTICATION_API_KEY || '').trim();\nconst instance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\nconst backendUrl = String($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(\n  /\\/$/,\n  ''\n);\nconst n8nSecret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst typebotPublicId = String($env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim();\nconst typebotUrl = String($env.TYPEBOT_PUBLIC_URL || `https://typebot.co/${typebotPublicId}`).trim();\nconst n8nTypebotWebhook = String(\n  $env.N8N_TYPEBOT_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook'\n).trim();\n\nfunction normalizePhone(jid) {\n  return String(jid || '')\n    .replace(/\\D/g, '')\n    .replace(/@.*/, '');\n}\n\nfunction normalizeText(value) {\n  return String(value || '')\n    .trim()\n    .toUpperCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '');\n}\n\nconst phone = normalizePhone(ctx.remoteJid);\nconst rawText = String(ctx.text || '').trim();\nconst text = normalizeText(rawText);\nconst correlationId = ctx.correlationId || `evo-menu-${Date.now()}`;\nconst idempotencyKey = ctx.idempotencyKey || ctx.messageId || `${phone}-${Date.now()}`;\n\nconst MENU_TEXT = [\n  '*Doctor Prescreve*',\n  '',\n  'Como podemos ajudar?',\n  '',\n  '*1* - ATENDIMENTO MÉDICO ONLINE',\n  '*2* - FALAR COM EQUIPE / SUPORTE',\n  '',\n  'Responda com o número da opção.'\n].join('\\n');\n\nconst SUPPORT_WAIT_TEXT = [\n  'Aguarde, em breve nossa equipe realizará seu atendimento.',\n  '',\n  '*0* - Voltar ao menu inicial',\n  '*ENCERRAR* - Encerrar atendimento'\n].join('\\n');\n\nasync function sendWhatsAppText(message) {\n  if (!evoUrl || !evoKey || !instance || !phone) return { skipped: true, reason: 'evolution_not_configured' };\n  return this.helpers.httpRequest({\n    method: 'POST',\n    url: `${evoUrl}/message/sendText/${instance}`,\n    headers: { apikey: evoKey, 'Content-Type': 'application/json' },\n    body: { number: phone, text: message },\n    json: true,\n    timeout: 30000\n  });\n}\n\nasync function callBackend(path, body) {\n  return this.helpers.httpRequest({\n    method: 'POST',\n    url: `${backendUrl}${path}`,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-MDoctor-Webhook-Secret': n8nSecret,\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey\n    },\n    body,\n    json: true,\n    timeout: 30000\n  });\n}\n\nlet relayResult = null;\nlet menuAction = 'none';\nconst sentMessages = [];\n\nif (rawText.toUpperCase().includes('STAGING_E2E_COMPLETE')) {\n  const payload = {\n    nome: `Paciente WhatsApp ${phone.slice(-4)}`,\n    telefone: phone,\n    cpf: '12345678909',\n    email: `wa.${phone}@staging.invalid`,\n    data_nascimento: '15/08/1988',\n    condicao: 'hipertensao',\n    medicacao: 'losartana 50mg',\n    uso_continuo: 'sim',\n    receita_anterior: 'sim',\n    tempo_uso: '180 dias',\n    sinais_alerta: 'NAO',\n    lgpd: 'sim',\n    consentimento: 'sim',\n    from: phone,\n    text: rawText,\n    rawMessage: { messageId: idempotencyKey, channel: 'whatsapp-evolution', original: ctx.log }\n  };\n  relayResult = await this.helpers.httpRequest({\n    method: 'POST',\n    url: n8nTypebotWebhook,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey\n    },\n    body: payload,\n    json: true,\n    timeout: 30000\n  });\n  menuAction = 'e2e_relay';\n} else if (phone) {\n  const session = staticData.sessions[phone] || { state: 'menu' };\n\n  const isMenuBack = text === '0' || text === '00' || text.includes('MENU') || text.includes('VOLTAR');\n  const isClose = text.includes('ENCERRAR') || text.includes('CANCELAR') || text === 'SAIR';\n  const isMedical = text === '1' || text.includes('ATENDIMENTO MEDICO') || text.includes('RENOVACAO');\n  const isSupport = text === '2' || text.includes('SUPORTE') || text.includes('EQUIPE') || text.includes('FALAR COM');\n\n  if (session.state === 'support') {\n    if (isMenuBack) {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'support_to_menu';\n    } else if (isClose) {\n      await callBackend('/api/whatsapp/support/close', { from: phone, phone });\n      session.state = 'menu';\n      await sendWhatsAppText(`Atendimento encerrado.\\n\\n${MENU_TEXT}`);\n      sentMessages.push('support_closed');\n      menuAction = 'support_closed';\n    } else {\n      await sendWhatsAppText(SUPPORT_WAIT_TEXT);\n      sentMessages.push('support_reminder');\n      menuAction = 'support_waiting';\n    }\n  } else if (session.state === 'typebot') {\n    if (isMenuBack) {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'typebot_to_menu';\n    } else {\n      const medicalMsg = [\n        'Para continuar o atendimento médico, acesse:',\n        typebotUrl,\n        '',\n        '*0* - Voltar ao menu inicial'\n      ].join('\\n');\n      await sendWhatsAppText(medicalMsg);\n      sentMessages.push('typebot_reminder');\n      menuAction = 'typebot_reminder';\n    }\n  } else {\n    if (isMedical) {\n      session.state = 'typebot';\n      const medicalMsg = [\n        'Para iniciar o *Atendimento Médico Online*, acesse o assistente:',\n        typebotUrl,\n        '',\n        '_Você será guiado pelo fluxo do Doctor Prescreve._',\n        '',\n        '*0* - Voltar ao menu inicial'\n      ].join('\\n');\n      await sendWhatsAppText(medicalMsg);\n      sentMessages.push('typebot_link');\n      menuAction = 'medical_typebot';\n    } else if (isSupport) {\n      const supportResult = await callBackend('/api/whatsapp/support', { from: phone, phone });\n      session.state = 'support';\n      await sendWhatsAppText(supportResult?.reply || SUPPORT_WAIT_TEXT);\n      sentMessages.push('support_created');\n      menuAction = 'support_created';\n    } else {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'menu_shown';\n    }\n  }\n\n  staticData.sessions[phone] = session;\n}\n\nreturn [\n  {\n    json: {\n      ...ctx,\n      route: 'INBOUND_MESSAGE',\n      menuAction,\n      relayResult,\n      sentMessages,\n      typebotUrl,\n      log: { ...(ctx.log || {}), phone, menuAction }\n    }\n  }\n];"
+      },
+      "id": "evo-inbound",
+      "name": "Handle WhatsApp Inbound Menu",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, relay: $json.relayResult ? { ok: true } : null, log: $json.log } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "evo-respond-inbound",
+      "name": "Respond Inbound",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1180,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, log: $json.log } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "evo-respond-event",
+      "name": "Respond Event Log",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        940,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, route: 'IGNORED', event: $json.event } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "evo-respond-ignored",
+      "name": "Respond Ignored",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        940,
+        560
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Base": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Messages Upsert": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Messages Update": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Send Message": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Connection Update": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Qrcode Updated": {
+      "main": [
+        [
+          {
+            "node": "Parse Evolution Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Evolution Event": {
+      "main": [
+        [
+          {
+            "node": "Route Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Event": {
+      "main": [
+        [
+          {
+            "node": "Handle WhatsApp Inbound Menu",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Event Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle WhatsApp Inbound Menu": {
+      "main": [
+        [
+          {
+            "node": "Respond Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": {
+    "global": {
+      "sessions": {}
+    }
+  },
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+  "activeVersionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+  "versionCounter": 1,
+  "triggerCount": 6,
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-06-03T07:43:25.198Z",
+    "createdAt": "2026-06-03T07:43:25.198Z",
+    "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+    "workflowId": "z1J2Fjk0aEePt0X8",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-base",
+        "name": "Webhook Base",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          300
+        ],
+        "webhookId": "evolution-webhook-base"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook/messages-upsert",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-upsert",
+        "name": "Webhook Messages Upsert",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          120
+        ],
+        "webhookId": "evolution-webhook-messages-upsert"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook/messages-update",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-update",
+        "name": "Webhook Messages Update",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          200
+        ],
+        "webhookId": "evolution-webhook-messages-update"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook/send-message",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-send",
+        "name": "Webhook Send Message",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          400
+        ],
+        "webhookId": "evolution-webhook-send-message"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook/connection-update",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-conn",
+        "name": "Webhook Connection Update",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          500
+        ],
+        "webhookId": "evolution-webhook-connection-update"
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "evolution-webhook/qrcode-updated",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "evo-wh-qr",
+        "name": "Webhook Qrcode Updated",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          120,
+          600
+        ],
+        "webhookId": "evolution-webhook-qrcode-updated"
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst path = String(headers['x-n8n-webhook-path'] || headers['x-original-uri'] || '').toLowerCase();\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst expectedInstance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\nconst instanceName = String(body.instance || body.instanceName || '').trim();\nif (instanceName && instanceName !== expectedInstance) throw new Error(`instanceName mismatch: ${instanceName}`);\n\nlet event = String(body.event || body.type || '').toUpperCase().replace(/\\./g, '_').replace(/-/g, '_');\nif (!event) {\n  if (path.includes('messages-upsert')) event = 'MESSAGES_UPSERT';\n  else if (path.includes('messages-update')) event = 'MESSAGES_UPDATE';\n  else if (path.includes('send-message')) event = 'SEND_MESSAGE';\n  else if (path.includes('connection-update')) event = 'CONNECTION_UPDATE';\n  else if (path.includes('qrcode-updated')) event = 'QRCODE_UPDATED';\n  else event = 'UNKNOWN';\n}\n\nconst allowed = new Set(['MESSAGES_UPSERT','MESSAGES_UPDATE','SEND_MESSAGE','CONNECTION_UPDATE','QRCODE_UPDATED']);\nif (!allowed.has(event)) {\n  return [{ json: { route: 'IGNORED_EVENT', event, correlationId: `evo-${Date.now()}`, log: { ignored: true } } }];\n}\n\nconst data = body.data || body;\nconst key = data.key || body.key || {};\nconst message = data.message || body.message || {};\nconst remoteJid = String(key.remoteJid || data.remoteJid || '').trim();\nconst fromMe = Boolean(key.fromMe ?? data.fromMe ?? false);\nconst messageId = String(key.id || data.id || `${Date.now()}`);\nconst text = String(message.conversation || message.extendedTextMessage?.text || data.text || body.text || '').trim();\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `evo-${event.toLowerCase()}-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || messageId;\nconst inbound = event === 'MESSAGES_UPSERT' && !fromMe && Boolean(remoteJid);\n\nreturn [{ json: {\n  route: inbound ? 'INBOUND_MESSAGE' : 'EVENT_LOG',\n  event, flowEnv, instanceName: instanceName || expectedInstance,\n  correlationId, idempotencyKey, inbound, remoteJid, fromMe, text, messageId,\n  n8nTypebotWebhook: String($env.N8N_TYPEBOT_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook').trim(),\n  log: { event, remoteJid: remoteJid || null, fromMe, hasText: Boolean(text), messageId, path }\n}}];"
+        },
+        "id": "evo-parse",
+        "name": "Parse Evolution Event",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          420,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.route }}",
+                      "rightValue": "INBOUND_MESSAGE",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "inbound"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "typeValidation": "strict",
+                    "version": 2
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.route }}",
+                      "rightValue": "EVENT_LOG",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "event"
+              }
+            ]
+          },
+          "options": {
+            "fallbackOutput": "extra"
+          }
+        },
+        "id": "evo-route",
+        "name": "Route Event",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.2,
+        "position": [
+          680,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "runOnceForAllItems",
+          "jsCode": "/**\n * Source for n8n Code node \"Handle WhatsApp Inbound Menu\" (Evolution webhook).\n * Sync into evolution-webhook-staging.json when editing menu logic.\n */\nconst input = $input.first().json || {};\nconst ctx = input;\nconst staticData = $getWorkflowStaticData('global');\nif (!staticData.sessions) staticData.sessions = {};\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst evoUrl = String($env.EVOLUTION_API_URL || $env.RAILWAY_SERVICE_EVOLUTION_API_STAGING_URL || '')\n  .replace(/\\/$/, '')\n  .replace(/\\.railway\\.internal.*/, '.up.railway.app');\nconst evoKey = String($env.EVOLUTION_API_KEY || $env.AUTHENTICATION_API_KEY || '').trim();\nconst instance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\nconst backendUrl = String($env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(\n  /\\/$/,\n  ''\n);\nconst n8nSecret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst typebotPublicId = String($env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim();\nconst typebotUrl = String($env.TYPEBOT_PUBLIC_URL || `https://typebot.co/${typebotPublicId}`).trim();\nconst n8nTypebotWebhook = String(\n  $env.N8N_TYPEBOT_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook'\n).trim();\n\nfunction normalizePhone(jid) {\n  return String(jid || '')\n    .replace(/\\D/g, '')\n    .replace(/@.*/, '');\n}\n\nfunction normalizeText(value) {\n  return String(value || '')\n    .trim()\n    .toUpperCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '');\n}\n\nconst phone = normalizePhone(ctx.remoteJid);\nconst rawText = String(ctx.text || '').trim();\nconst text = normalizeText(rawText);\nconst correlationId = ctx.correlationId || `evo-menu-${Date.now()}`;\nconst idempotencyKey = ctx.idempotencyKey || ctx.messageId || `${phone}-${Date.now()}`;\n\nconst MENU_TEXT = [\n  '*Doctor Prescreve*',\n  '',\n  'Como podemos ajudar?',\n  '',\n  '*1* - ATENDIMENTO MÉDICO ONLINE',\n  '*2* - FALAR COM EQUIPE / SUPORTE',\n  '',\n  'Responda com o número da opção.'\n].join('\\n');\n\nconst SUPPORT_WAIT_TEXT = [\n  'Aguarde, em breve nossa equipe realizará seu atendimento.',\n  '',\n  '*0* - Voltar ao menu inicial',\n  '*ENCERRAR* - Encerrar atendimento'\n].join('\\n');\n\nasync function sendWhatsAppText(message) {\n  if (!evoUrl || !evoKey || !instance || !phone) return { skipped: true, reason: 'evolution_not_configured' };\n  return this.helpers.httpRequest({\n    method: 'POST',\n    url: `${evoUrl}/message/sendText/${instance}`,\n    headers: { apikey: evoKey, 'Content-Type': 'application/json' },\n    body: { number: phone, text: message },\n    json: true,\n    timeout: 30000\n  });\n}\n\nasync function callBackend(path, body) {\n  return this.helpers.httpRequest({\n    method: 'POST',\n    url: `${backendUrl}${path}`,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-MDoctor-Webhook-Secret': n8nSecret,\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey\n    },\n    body,\n    json: true,\n    timeout: 30000\n  });\n}\n\nlet relayResult = null;\nlet menuAction = 'none';\nconst sentMessages = [];\n\nif (rawText.toUpperCase().includes('STAGING_E2E_COMPLETE')) {\n  const payload = {\n    nome: `Paciente WhatsApp ${phone.slice(-4)}`,\n    telefone: phone,\n    cpf: '12345678909',\n    email: `wa.${phone}@staging.invalid`,\n    data_nascimento: '15/08/1988',\n    condicao: 'hipertensao',\n    medicacao: 'losartana 50mg',\n    uso_continuo: 'sim',\n    receita_anterior: 'sim',\n    tempo_uso: '180 dias',\n    sinais_alerta: 'NAO',\n    lgpd: 'sim',\n    consentimento: 'sim',\n    from: phone,\n    text: rawText,\n    rawMessage: { messageId: idempotencyKey, channel: 'whatsapp-evolution', original: ctx.log }\n  };\n  relayResult = await this.helpers.httpRequest({\n    method: 'POST',\n    url: n8nTypebotWebhook,\n    headers: {\n      'Content-Type': 'application/json',\n      'X-Correlation-Id': correlationId,\n      'Idempotency-Key': idempotencyKey\n    },\n    body: payload,\n    json: true,\n    timeout: 30000\n  });\n  menuAction = 'e2e_relay';\n} else if (phone) {\n  const session = staticData.sessions[phone] || { state: 'menu' };\n\n  const isMenuBack = text === '0' || text === '00' || text.includes('MENU') || text.includes('VOLTAR');\n  const isClose = text.includes('ENCERRAR') || text.includes('CANCELAR') || text === 'SAIR';\n  const isMedical = text === '1' || text.includes('ATENDIMENTO MEDICO') || text.includes('RENOVACAO');\n  const isSupport = text === '2' || text.includes('SUPORTE') || text.includes('EQUIPE') || text.includes('FALAR COM');\n\n  if (session.state === 'support') {\n    if (isMenuBack) {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'support_to_menu';\n    } else if (isClose) {\n      await callBackend('/api/whatsapp/support/close', { from: phone, phone });\n      session.state = 'menu';\n      await sendWhatsAppText(`Atendimento encerrado.\\n\\n${MENU_TEXT}`);\n      sentMessages.push('support_closed');\n      menuAction = 'support_closed';\n    } else {\n      await sendWhatsAppText(SUPPORT_WAIT_TEXT);\n      sentMessages.push('support_reminder');\n      menuAction = 'support_waiting';\n    }\n  } else if (session.state === 'typebot') {\n    if (isMenuBack) {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'typebot_to_menu';\n    } else {\n      const medicalMsg = [\n        'Para continuar o atendimento médico, acesse:',\n        typebotUrl,\n        '',\n        '*0* - Voltar ao menu inicial'\n      ].join('\\n');\n      await sendWhatsAppText(medicalMsg);\n      sentMessages.push('typebot_reminder');\n      menuAction = 'typebot_reminder';\n    }\n  } else {\n    if (isMedical) {\n      session.state = 'typebot';\n      const medicalMsg = [\n        'Para iniciar o *Atendimento Médico Online*, acesse o assistente:',\n        typebotUrl,\n        '',\n        '_Você será guiado pelo fluxo do Doctor Prescreve._',\n        '',\n        '*0* - Voltar ao menu inicial'\n      ].join('\\n');\n      await sendWhatsAppText(medicalMsg);\n      sentMessages.push('typebot_link');\n      menuAction = 'medical_typebot';\n    } else if (isSupport) {\n      const supportResult = await callBackend('/api/whatsapp/support', { from: phone, phone });\n      session.state = 'support';\n      await sendWhatsAppText(supportResult?.reply || SUPPORT_WAIT_TEXT);\n      sentMessages.push('support_created');\n      menuAction = 'support_created';\n    } else {\n      session.state = 'menu';\n      await sendWhatsAppText(MENU_TEXT);\n      sentMessages.push('menu');\n      menuAction = 'menu_shown';\n    }\n  }\n\n  staticData.sessions[phone] = session;\n}\n\nreturn [\n  {\n    json: {\n      ...ctx,\n      route: 'INBOUND_MESSAGE',\n      menuAction,\n      relayResult,\n      sentMessages,\n      typebotUrl,\n      log: { ...(ctx.log || {}), phone, menuAction }\n    }\n  }\n];"
+        },
+        "id": "evo-inbound",
+        "name": "Handle WhatsApp Inbound Menu",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          940,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, relay: $json.relayResult ? { ok: true } : null, log: $json.log } }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "evo-respond-inbound",
+        "name": "Respond Inbound",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          1180,
+          180
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { success: true, route: $json.route, event: $json.event, correlationId: $json.correlationId, log: $json.log } }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "evo-respond-event",
+        "name": "Respond Event Log",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          940,
+          420
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { success: false, route: 'IGNORED', event: $json.event } }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "evo-respond-ignored",
+        "name": "Respond Ignored",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.3,
+        "position": [
+          940,
+          560
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Base": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Messages Upsert": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Messages Update": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Send Message": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Connection Update": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook Qrcode Updated": {
+        "main": [
+          [
+            {
+              "node": "Parse Evolution Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Evolution Event": {
+        "main": [
+          [
+            {
+              "node": "Route Event",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Route Event": {
+        "main": [
+          [
+            {
+              "node": "Handle WhatsApp Inbound Menu",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Event Log",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Respond Ignored",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Handle WhatsApp Inbound Menu": {
+        "main": [
+          [
+            {
+              "node": "Respond Inbound",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "Max Matos",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-06-03T07:43:25.902Z",
+        "id": 618,
+        "workflowId": "z1J2Fjk0aEePt0X8",
+        "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-06-03T07:45:24.214Z",
+        "id": 619,
+        "workflowId": "z1J2Fjk0aEePt0X8",
+        "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+        "event": "deactivated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-06-03T07:56:23.508Z",
+        "id": 621,
+        "workflowId": "z1J2Fjk0aEePt0X8",
+        "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+        "event": "deactivated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-06-03T07:45:25.216Z",
+        "id": 620,
+        "workflowId": "z1J2Fjk0aEePt0X8",
+        "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      },
+      {
+        "createdAt": "2026-06-03T07:56:24.551Z",
+        "id": 622,
+        "workflowId": "z1J2Fjk0aEePt0X8",
+        "versionId": "58d8c75d-1c81-462e-a6a0-e906d10cebdd",
+        "event": "activated",
+        "userId": "799b9ccd-d176-4070-a0a7-dd4c5c98252b"
+      }
+    ]
+  }
+}

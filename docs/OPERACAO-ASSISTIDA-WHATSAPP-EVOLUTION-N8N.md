@@ -4,6 +4,8 @@ Guia operacional do fluxo WhatsApp ponta a ponta do Doctor Prescreve (modo discr
 
 **Última validação:** 2026-06-03 — API n8n 200, webhooks Evolution/Typebot 200, E2E Evolution → n8n OK.
 
+**Operação rápida:** `node scripts/check-production-health.js` · runbook `docs/RUNBOOK-WHATSAPP-PRODUCAO.md` · backups `docs/backups/`
+
 ---
 
 ## 1. Arquitetura final
