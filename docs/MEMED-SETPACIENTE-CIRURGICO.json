@@ -1,0 +1,1050 @@
+{
+  "generated_at": "2026-06-07T15:57:51.272Z",
+  "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "probe_timeout_ms": 12000,
+  "environment": {
+    "memed_script": "https://memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js",
+    "memed_env": "production",
+    "memed_real_mode": true,
+    "prescriber": {
+      "id": "dr_max_vinicius_001",
+      "nome": "Max",
+      "crm": "163032",
+      "uf": "SP",
+      "external_id": "dr_max_vinicius_001",
+      "mode": "sinapse_production",
+      "api_base": "https://api.memed.com.br/v1"
+    }
+  },
+  "getUsuario_baseline": {
+    "id": "PRE",
+    "label": "getUsuario baseline",
+    "module": "plataforma.usuario",
+    "command": "getUsuario",
+    "payload": null,
+    "outcome": "OK",
+    "duration_ms": 1667,
+    "response": {
+      "nome": "Max",
+      "sobrenome": "Vinicius Ferreira Matos",
+      "cpf": "01739134150",
+      "email": "dr.max.vinicius.cg@outlook.com",
+      "data_nascimento": "09/02/1988",
+      "sexo": "M",
+      "avatar": null,
+      "status": "Em análise",
+      "ambiente": "producao",
+      "related_id": 900639,
+      "is_editor": 0,
+      "user_name": "",
+      "biografia": "",
+      "imagem_capa": "",
+      "terms_accepted": 0,
+      "cidade": "",
+      "cidade_obj": null,
+      "clinica_ativa": "",
+      "cns": null,
+      "cnes": "",
+      "configuracoes": {
+        "early_access": "true",
+        "digital_signature": "1",
+        "digital_signature_provider": "soluti",
+        "digital_signature_soluti_certificate_alias": "MAX VINICIUS FERREIRA MATOS:01739134150",
+        "digital_signature_soluti_token_expiration_hours": 12,
+        "digital_signature_token_expiration_hours": "12",
+        "digital_signature_valid_until": "2029-03-02 11:58:59",
+        "list_of_prescription_item_with_continuous_use": null,
+        "onboarding_bem_vindo": {
+          "itens": [
+            {
+              "id": "1",
+              "status": "false"
+            },
+            {
+              "id": "2",
+              "status": "false"
+            },
+            {
+              "id": "3",
+              "status": "false"
+            }
+          ]
+        }
+      },
+      "crm": "163032",
+      "endereco": "Rua Aurora 965, Republica",
+      "especialidade": {
+        "id": 59,
+        "nome": "Generalista"
+      },
+      "estudante": false,
+      "farmacia_artesanal": false,
+      "iamspe": false,
+      "is_partner": true,
+      "nome_completo": "Max Vinicius Ferreira Matos",
+      "perola_byington": false,
+      "sociedades": [],
+      "telefone": "11968123900",
+      "token": "[REDACTED]",
+      "uf": "SP",
+      "universidade": "",
+      "fabricante": "",
+      "user_type": "Medicos",
+      "total_of_prescriptions": 0,
+      "total_of_prescripted_drugs": 0,
+      "total_of_sms_prescriptions": 0,
+      "synchronized": false,
+      "percentage_of_completed_profile": 66.66,
+      "parceiros_id": 792,
+      "filter_web_pki_certificates_by_cpf": false,
+      "external_id": "dr_max_vinicius_001",
+      "partner_name": "Doctor Prescreve",
+      "is_partner_standalone": false,
+      "board": {
+        "boards_id": 1,
+        "board_number": "163032",
+        "board_state": "SP",
+        "board_code": "CRM"
+      },
+      "is_partner_webhook_enabled": false,
+      "id": 977299,
+      "parceiro": {
+        "id": 792
+      }
+    }
+  },
+  "discovered_modules": [
+    "plataforma.prescricao",
+    "plataforma.usuario",
+    "platform.patient-management",
+    "plataforma.patient-management"
+  ],
+  "mdHub_keys": [
+    "domain",
+    "initialized",
+    "mode",
+    "options",
+    "hasStorage",
+    "init",
+    "getLastMessage",
+    "onReady",
+    "client",
+    "command",
+    "dict",
+    "event",
+    "module",
+    "postMessage",
+    "server",
+    "optionsCustom"
+  ],
+  "summary": {
+    "total_probes": 19,
+    "ok": 13,
+    "timeout": 1,
+    "reject": 5,
+    "any_setPaciente_ok": true,
+    "any_newPrescription_after_ok": true
+  },
+  "tests": [
+    {
+      "id": "BASELINE",
+      "label": "Payload atual completo",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      },
+      "outcome": "TIMEOUT",
+      "duration_ms": 12072,
+      "error": "TIMEOUT"
+    },
+    {
+      "id": "TEST_A",
+      "label": "Payload mínimo",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 2049,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "74a47ef1-f13f-421e-826e-e30cb4016716",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            }
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 34
+      }
+    },
+    {
+      "id": "FIELD_cpf",
+      "label": "Mínimo + cpf",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900"
+      },
+      "outcome": "OK",
+      "duration_ms": 2292,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "cpf": "23100299900",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "09fba1dd-5af6-4d77-9d69-ad55c80bfdcb",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 71
+      }
+    },
+    {
+      "id": "FIELD_email",
+      "label": "Mínimo + email",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "email": "homolog.teste05@mdoctor.local"
+      },
+      "outcome": "OK",
+      "duration_ms": 1518,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "email": "homolog.teste05@mdoctor.local",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "50057add-542a-4613-b84a-35097993a0c5",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 26
+      }
+    },
+    {
+      "id": "FIELD_data_nascimento",
+      "label": "Mínimo + data_nascimento",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "data_nascimento": "22/01/1964"
+      },
+      "outcome": "OK",
+      "duration_ms": 1481,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "data_nascimento": "22/01/1964",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "bf60fb7b-d819-4256-b0b7-17f39b9f9f40",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 16
+      }
+    },
+    {
+      "id": "FIELD_nome_longo",
+      "label": "Nome longo baseline",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 1762,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+              "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "8f1e48fe-e5e5-41c9-b25a-38af9d974bef",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 26
+      }
+    },
+    {
+      "id": "FIELD_triple",
+      "label": "cpf + email + data_nascimento",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      },
+      "outcome": "OK",
+      "duration_ms": 1495,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "cpf": "23100299900",
+              "email": "homolog.teste05@mdoctor.local",
+              "data_nascimento": "22/01/1964",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "a3e5eb4b-933b-4e84-98f7-de1285149941",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 27
+      }
+    },
+    {
+      "id": "FIELD_all_short_nome",
+      "label": "Todos extras nome curto",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      },
+      "outcome": "OK",
+      "duration_ms": 1596,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "cpf": "23100299900",
+              "email": "homolog.teste05@mdoctor.local",
+              "data_nascimento": "22/01/1964",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "66f11c77-69f5-4ae8-bf3d-6db8c2fc76a4",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 22
+      }
+    },
+    {
+      "id": "TEST_B",
+      "label": "Sem telefone",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 1747,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "71934e26-54a3-49de-bcbd-775da67496db",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 38
+      }
+    },
+    {
+      "id": "TEST_C",
+      "label": "Campos memed-react vazios",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "endereco": "",
+        "cidade": "",
+        "altura": ""
+      },
+      "outcome": "OK",
+      "duration_ms": 1578,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "endereco": "",
+              "cidade": "",
+              "altura": "",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "5d3d1eca-389c-41c1-bd63-62ab38626420",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 19
+      }
+    },
+    {
+      "id": "TEST_A_EXT",
+      "label": "Mínimo com external_id (doc Memed)",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 1459,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "64fb139a-cacf-4d41-bca2-04c0f522764d",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 30
+      }
+    },
+    {
+      "id": "TEST_A_SNAKE",
+      "label": "Mínimo id_externo snake",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "id_externo": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 1848,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "id_externo": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "2cb0d492-7d40-4b73-8ed7-5eac2cad6ddf",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 51
+      }
+    },
+    {
+      "id": "TEST_D_setPatient",
+      "label": "Comando alternativo: setPatient",
+      "module": "plataforma.prescricao",
+      "command": "setPatient",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "REJECT",
+      "duration_ms": 7,
+      "error": "undefined"
+    },
+    {
+      "id": "TEST_D_setPatientData",
+      "label": "Comando alternativo: setPatientData",
+      "module": "plataforma.prescricao",
+      "command": "setPatientData",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "REJECT",
+      "duration_ms": 1,
+      "error": "undefined"
+    },
+    {
+      "id": "TEST_D_setPaciente",
+      "label": "Comando alternativo: setPaciente",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 1425,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": {
+              "nome_atualizado": "PACIENTE TESTE 05",
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+              "external_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "screening": null,
+            "additionalData": null,
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "bf306004-fff7-4a61-a39d-8d5c430d2185",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 23
+      }
+    },
+    {
+      "id": "TEST_D_setAdditionalData",
+      "label": "Comando alternativo: setAdditionalData",
+      "module": "plataforma.prescricao",
+      "command": "setAdditionalData",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "OK",
+      "duration_ms": 3,
+      "response": {
+        "data": {
+          "type": "prescricoes",
+          "attributes": {
+            "paciente": null,
+            "pacienteId": null,
+            "screening": null,
+            "additionalData": {
+              "nome": "PACIENTE TESTE 05",
+              "telefone": "11988700005",
+              "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+            },
+            "workplace": null,
+            "prescriptionDate": "07/06/2026",
+            "prescriptionUuid": "ecf41590-9923-49cb-9b32-29ac366687ac",
+            "medicamentos": [],
+            "reprint": false,
+            "prescriptionTimer": {
+              "hasStarted": true,
+              "startTime": 1780847852415
+            },
+            "id": null,
+            "version": 1
+          }
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 4
+      }
+    },
+    {
+      "id": "TEST_E_plataforma_usuario",
+      "label": "setPaciente em módulo plataforma.usuario",
+      "module": "plataforma.usuario",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "REJECT",
+      "duration_ms": 11,
+      "error": "undefined"
+    },
+    {
+      "id": "TEST_E_platform_patient_management",
+      "label": "setPaciente em módulo platform.patient-management",
+      "module": "platform.patient-management",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "REJECT",
+      "duration_ms": 8,
+      "error": "undefined"
+    },
+    {
+      "id": "TEST_E_plataforma_patient_management",
+      "label": "setPaciente em módulo plataforma.patient-management",
+      "module": "plataforma.patient-management",
+      "command": "setPaciente",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "outcome": "REJECT",
+      "duration_ms": 2,
+      "error": "undefined"
+    }
+  ],
+  "console_memed_related": [
+    "[warning] O serviço de métricas foi inciado no módulo de sinapse.prescricao",
+    "[debug] Error",
+    "[debug] Error",
+    "[warning] O módulo  platform.patient-management  está em execução.",
+    "[warning] O módulo  plataforma.prescricao  está em execução.",
+    "[info] [Mdhub] Carregando...",
+    "[info] [Mdhub] Script carregado com sucesso.",
+    "[error] Error {error: idExterno do paciente é obrigatório!}"
+  ],
+  "network_memed_related": [
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.sinapse-prescricao/tag/3.10.1/build/sinapse-prescricao.min.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.usuario/",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.usuario/tag/5.24.2/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.usuario/css/main.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/plataforma.usuario/build/plataforma.usuario.min.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://api.memed.com.br/v1/usuarios",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/measurement/conversion",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/measurement/conversion",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/814259327/",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/814259327/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.googleadservices.com/pagead/conversion/814259327/",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/rmkt/collect/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/ccm/collect",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/814259327/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-user-list/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com.br/pagead/1p-user-list/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com.br/pagead/1p-user-list/10810132658/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com.br/pagead/1p-user-list/814259327/",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/measurement/conversion",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://googleads.g.doubleclick.net/pagead/viewthroughconversion/814259327/",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com/pagead/1p-conversion/814259327/",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://www.google.com.br/pagead/1p-conversion/814259327/",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://10393281.fls.doubleclick.net/activityi;src=10393281;type=Invmedia;cat=memed0;rcb=1;ord=4175744778407;npa=0;uaa=x86;uab=64;uafvl=Chromium%3B148.0.7778.96%7CHeadlessChrome%3B148.0.7778.96%7CNot%252FA)Brand%3B99.0.0.0;uamb=0;uam=;uap=Windows;uapv=19.0.0;uaw=0;pscdl=noapi;frm=2;_tu=KFA;gtm=45fe6631v9181771271z8853787398za20gzb853787398zd853787398xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=2;tag_exp=0~115616986~115938465~115938469~118228215~119027222;epver=2;dc_random=1780847838_bCC3xnTRyd8XlMGw5fZt4NyzWWlg9SgkPA;_dc_test=1;~oref=https%3A%2F%2Fmemed.com.br%2Fmodulos%2Fplataforma.usuario%2Ftag%2F5.24.2%2F",
+      "status": 302
+    },
+    {
+      "method": "POST",
+      "url": "https://ad.doubleclick.net/activity;src=10393281;type=Invmedia;cat=memed0;rcb=1;ord=4175744778407;npa=0;uaa=x86;uab=64;uafvl=Chromium%3B148.0.7778.96%7CHeadlessChrome%3B148.0.7778.96%7CNot%252FA)Brand%3B99.0.0.0;uamb=0;uam=;uap=Windows;uapv=19.0.0;uaw=0;pscdl=noapi;frm=2;_tu=KFA;gtm=45fe6631v9181771271z8853787398za20gzb853787398zd853787398xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=3;tag_exp=0~115616986~115938465~115938469~118228215~119027222;epver=2;dc_random=1780847838_bCC3xnTRyd8XlMGw5fZt4NyzWWlg9SgkPA;~oref=https%3A%2F%2Fmemed.com.br%2Fmodulos%2Fplataforma.usuario%2Ftag%2F5.24.2%2F",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://ad.doubleclick.net/activity;dc_pre=CMmBmZe_9ZQDFWytlQIdyegOEg;src=10393281;type=Invmedia;cat=memed0;rcb=1;ord=4175744778407;npa=0;uaa=x86;uab=64;uafvl=Chromium%3B148.0.7778.96%7CHeadlessChrome%3B148.0.7778.96%7CNot%252FA)Brand%3B99.0.0.0;uamb=0;uam=;uap=Windows;uapv=19.0.0;uaw=0;pscdl=noapi;frm=2;_tu=KFA;gtm=45fe6631v9181771271z8853787398za20gzb853787398zd853787398xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=3;tag_exp=0~115616986~115938465~115938469~118228215~119027222;epver=2;dc_random=1780847838_bCC3xnTRyd8XlMGw5fZt4NyzWWlg9SgkPA;~oref=https%3A%2F%2Fmemed.com.br%2Fmodulos%2Fplataforma.usuario%2Ftag%2F5.24.2%2F",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://10393281.fls.doubleclick.net/activityi;dc_pre=CNaXm5e_9ZQDFbmFYQYd-Ukgdg;src=10393281;type=Invmedia;cat=memed0;rcb=1;ord=4175744778407;npa=0;uaa=x86;uab=64;uafvl=Chromium%3B148.0.7778.96%7CHeadlessChrome%3B148.0.7778.96%7CNot%252FA)Brand%3B99.0.0.0;uamb=0;uam=;uap=Windows;uapv=19.0.0;uaw=0;pscdl=noapi;frm=2;_tu=KFA;gtm=45fe6631v9181771271z8853787398za20gzb853787398zd853787398xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=2;tag_exp=0~115616986~115938465~115938469~118228215~119027222;epver=2;dc_random=1780847838_bCC3xnTRyd8XlMGw5fZt4NyzWWlg9SgkPA;_dc_test=1;~oref=https%3A%2F%2Fmemed.com.br%2Fmodulos%2Fplataforma.usuario%2Ftag%2F5.24.2%2F",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://adservice.google.com/ddm/fls/z/dc_pre=CNaXm5e_9ZQDFbmFYQYd-Ukgdg;src=10393281;type=Invmedia;cat=memed0;rcb=1;ord=4175744778407;npa=0;uaa=x86;uab=64;uafvl=Chromium%3B148.0.7778.96%7CHeadlessChrome%3B148.0.7778.96%7CNot%252FA)Brand%3B99.0.0.0;uamb=0;uam=;uap=Windows;uapv=19.0.0;uaw=0;pscdl=noapi;frm=2;_tu=KFA;gtm=45fe6631v9181771271z8853787398za20gzb853787398zd853787398xea;gcd=13l3l3l3l1l1;dma=0;dc_fmt=2;tag_exp=0~115616986~115938465~115938469~118228215~119027222;epver=2;dc_random=1780847838_bCC3xnTRyd8XlMGw5fZt4NyzWWlg9SgkPA;_dc_test=1;~oref=https%3A%2F%2Fmemed.com.br%2Fmodulos%2Fplataforma.usuario%2Ftag%2F5.24.2%2F",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/platform.patient-management/build/index.html",
+      "status": 302
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/platform.patient-management/tag/5.32.0/build/index.html",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/platform.patient-management/tag/5.32.0/build/static/css/main.a2f0ae3b.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "https://memed.com.br/modulos/platform.patient-management/tag/5.32.0/build/static/js/main.debbe68b.js",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "url": "https://www.google.com/measurement/conversion",
+      "status": 200
+    }
+  ],
+  "conclusions": {
+    "working_command": "setPaciente",
+    "working_module": "plataforma.prescricao",
+    "working_payload": {
+      "nome": "PACIENTE TESTE 05",
+      "telefone": "11988700005",
+      "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+    },
+    "blocking_field_hypothesis": null
+  }
+}

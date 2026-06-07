@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-06-07T16:25:00.000Z",
+  "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "correcao": {
+    "arquivo": "mdoctor-panel/src/lib/memed/setMemedPatient.ts",
+    "funcoes": [
+      "normalizeNomeForMemedSetPaciente",
+      "buildSetPacientePayload",
+      "setMemedPatient"
+    ],
+    "regra": "setPaciente envia somente nome curto, telefone limpo e idExterno (atendimento.id)"
+  },
+  "internal_paciente_nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+  "setPaciente_payload_enviado": {
+    "nome": "PACIENTE TESTE 05",
+    "telefone": "11988700005",
+    "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+  },
+  "addItem_payload_enviado": {
+    "nome": "Losartana 50mg",
+    "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+    "quantidade": 30
+  },
+  "validacao_staging_sequencia_cirurgica": {
+    "script": "scripts/probe-surgical-sequence.mjs",
+    "nota": "No atendimento c302bd9e já exercitado hoje, setPaciente mínimo isolado pode pendurar; após timeout do payload completo (baseline), o mínimo responde OK — padrão reproduzido de docs/MEMED-SETPACIENTE-CIRURGICO.json",
+    "commands": {
+      "getUsuario": {
+        "outcome": "OK",
+        "duration_ms": 5946
+      },
+      "setPaciente_baseline_completo": {
+        "outcome": "TIMEOUT",
+        "duration_ms": 12004,
+        "payload_tipo": "completo_trava"
+      },
+      "setPaciente_minimo": {
+        "outcome": "OK",
+        "duration_ms": 1511,
+        "payload": {
+          "nome": "PACIENTE TESTE 05",
+          "telefone": "11988700005",
+          "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+        },
+        "paciente_vinculado": {
+          "nome": "PACIENTE TESTE 05",
+          "telefone": "11988700005",
+          "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+        }
+      },
+      "newPrescription": {
+        "outcome": "OK",
+        "duration_ms": 10
+      },
+      "addItem": {
+        "outcome": "OK",
+        "duration_ms": 10,
+        "item": "Losartana 50mg com posologia"
+      },
+      "show": {
+        "outcome": "OK",
+        "nota": "MdHub.module.show executado no fluxo E2E anterior; widget abriu com iframes"
+      }
+    }
+  },
+  "builder_unitario": {
+    "comando": "npx tsx -e buildSetPacientePayload(atendimento c302bd9e)",
+    "memed_payload": {
+      "nome": "PACIENTE TESTE 05",
+      "telefone": "11988700005",
+      "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+    },
+    "internal_has_cpf": true
+  },
+  "localhost_limitacao": "127.0.0.1:3003 — CORS Memed + setPaciente pendente; validação oficial no staging Railway",
+  "nao_commitado": true,
+  "nao_deployado": true
+}
