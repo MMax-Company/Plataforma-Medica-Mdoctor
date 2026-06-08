@@ -1,5 +1,4 @@
 import { addMedicationsFromAtendimento } from './addMedicationsFromAtendimento';
-import { applyClinicalMemedUx } from './applyClinicalUx';
 import { setClinicalOrientations } from './setClinicalOrientations';
 import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 import { buildPatientFromAtendimento } from './buildPatientFromAtendimento';
@@ -16,7 +15,9 @@ export type PreparePrescriptionResult = {
   pending_reasons: string[];
 };
 
-/** Ordem oficial: setPaciente → newPrescription → addItem → toggles → (delay) → show */
+/** Ordem oficial: setPaciente → newPrescription → addItem → orientações → (delay) → show.
+ *  Feature toggles (forceSign, setAllowedSignatureProviders) são aplicados uma vez na
+ *  inicialização da sessão, não aqui, para preservar a sessão BirdID entre receitas. */
 export async function prepareAndShowPrescription(
   atendimento: AtendimentoForMemed,
   patient?: MemedPatient | null,
@@ -29,7 +30,6 @@ export async function prepareAndShowPrescription(
   const { added, memed_items_sent, pending_medical_review, pending_reasons } =
     await addMedicationsFromAtendimento(atendimento);
   await setClinicalOrientations(atendimento);
-  await applyClinicalMemedUx();
 
   await new Promise((r) => setTimeout(r, 80));
 

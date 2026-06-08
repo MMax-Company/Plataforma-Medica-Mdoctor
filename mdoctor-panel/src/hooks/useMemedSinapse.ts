@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MemedConfig } from '@/services/memed.service';
 import {
+  applyClinicalMemedUx,
   buildPatientFromAtendimento,
   ensureMemedScript,
   getLastMemedToken,
@@ -127,6 +128,8 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
         onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,
       });
       callbackRegistered.current = true;
+      // Aplicar UX clínica uma única vez por sessão — preserva sessão BirdID entre receitas.
+      void applyClinicalMemedUx().catch(() => undefined);
     }
 
     setClinicalReady(true);
