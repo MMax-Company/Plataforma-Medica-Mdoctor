@@ -23,7 +23,7 @@ declare global {
 
 const DEFAULT_TIMEOUT_MS: Record<string, number> = {
   'plataforma.usuario.getUsuario': 20_000,
-  'plataforma.prescricao.setPaciente': 30_000,
+  'plataforma.prescricao.setPaciente': 12_000,
   'plataforma.prescricao.newPrescription': 15_000,
   'plataforma.prescricao.addItem': 20_000,
 };
@@ -143,7 +143,16 @@ export async function verifyMemedUsuario(): Promise<unknown> {
 }
 
 export async function setMemedPatientWithDiagnostic(payload: Record<string, unknown>): Promise<unknown> {
-  return sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload);
+  try {
+    // First attempt uses the 12s default. platform.patient-management typically needs
+    // ~12-15s to initialize after plataforma.prescricao fires core:moduleInit.
+    // If the first call hangs waiting for that module, it will timeout here rather than at 30s.
+    return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload);
+  } catch {
+    // patient-management has now had time to finish loading. Retry once with full budget.
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+    return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload, 30_000);
+  }
 }
 
 export async function sendNewPrescriptionWithDiagnostic(): Promise<unknown> {
