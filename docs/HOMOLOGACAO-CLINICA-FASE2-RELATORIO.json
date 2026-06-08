@@ -1,35 +1,9 @@
 {
-  "generated_at": "2026-05-29T21:41:35.287Z",
-  "closed_at": "2026-05-29T21:42:00.000Z",
-  "phase2_status": "CONCLUIDA_STAGING",
+  "generated_at": "2026-06-07T12:16:56.587Z",
   "environment": "staging",
   "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
-  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
-  "phase": "FASE2_CLOSE",
-  "deploy": {
-    "backend_service": "mdoctor-backend-staging",
-    "backend_deployment_id": "e3aa7a15-abd4-402c-9ebf-13e990b42389",
-    "panel_service": "painel-medico-staging",
-    "panel_deployment_id": "084e0b9a-fea7-434c-a974-a8d737d300e1",
-    "method": "railway up --detach",
-    "note": "2026-05-29 — código Fase 2 (motivos estruturados + clinical endpoints no painel)"
-  },
-  "ingress": {
-    "atendimento_create": "POST /api/webhook/triagem (direto; n8n typebot-webhook retorna 200 vazio)",
-    "reject_reasons": "GET /api/atendimentos/clinical/reject-reasons"
-  },
-  "status_transitions": {
-    "approve_flow": [
-      "waiting",
-      "memed_processing",
-      "ready",
-      "delivered"
-    ],
-    "reject_flow": [
-      "waiting",
-      "rejected"
-    ]
-  },
+  "flow": "ready",
+  "correlationId": "fase2-e2e-1780834616587",
   "steps": [
     {
       "name": "login",
@@ -37,131 +11,27 @@
       "status": 200
     },
     {
-      "name": "reject_reasons_catalog",
-      "status": 200,
+      "name": "use_existing_atendimento",
       "ok": true,
-      "count": 8,
-      "codes": [
-        "RED_FLAG",
-        "DOCUMENTACAO_INSUFICIENTE",
-        "RECEITA_AUSENTE",
-        "FORA_DO_PROTOCOLO",
-        "MEDICACAO_INCOMPATIVEL",
-        "RISCO_CLINICO",
-        "DADOS_INCONSISTENTES",
-        "OUTROS"
-      ]
+      "atendimentoId": "ad6844c5-fc01-432c-a633-a081cf4305d6"
     },
     {
-      "name": "triagem_create_atendimento_approve_flow",
-      "ok": true,
-      "atendimentoId": "11ccc0ac-fc66-42ad-b266-4009ebdf39db"
-    },
-    {
-      "name": "clinical_approve",
-      "status": 200,
-      "ok": true,
-      "statusNovo": "memed_processing",
-      "memedSource": "mock"
-    },
-    {
-      "name": "memed_mock_persisted",
-      "status": 200,
-      "ok": true,
-      "hasMemedReceipt": true,
-      "pdfUrl": "/api/prescriptions/mock-11ccc0ac-fc66-42ad-b266-4009ebdf39db/pdf",
-      "source": "mock"
-    },
-    {
-      "name": "clinical_validate_ready",
-      "status": 200,
-      "ok": true,
-      "statusNovo": "ready"
-    },
-    {
-      "name": "deliver_mock",
-      "status": 200,
-      "ok": true,
-      "provider": "dry-run",
-      "deliveryStatus": "sent",
-      "statusFinal": "delivered"
-    },
-    {
-      "name": "triagem_create_atendimento_reject_flow",
-      "ok": true,
-      "atendimentoId": "a930e2af-2652-4487-9918-d8f9dfdf0a89"
-    },
-    {
-      "name": "clinical_reject",
-      "status": 200,
-      "ok": true,
-      "statusNovo": "rejected",
-      "reason_code": "DOCUMENTACAO_INSUFICIENTE",
-      "motivoRejeicao": {
-        "code": "DOCUMENTACAO_INSUFICIENTE",
-        "label": "Documentação insuficiente",
-        "detail": "Fase 2 — documentação insuficiente para renovação segura",
-        "rejected_at": "2026-05-29T21:41:50.670Z",
-        "rejected_by": "staging-doctor"
-      }
-    },
-    {
-      "name": "panel_login_page",
-      "ok": true,
-      "status": 200
+      "name": "validate_only",
+      "status": 422,
+      "ok": false,
+      "error": "Nenhuma receita Memed vinculada para validar."
     }
   ],
-  "manual_ui_checklist": {
-    "fila": "signoff_recomendado — usar atendimento_approve_id na fila/histórico",
-    "abertura_atendimento": "signoff_recomendado — /atendimento/11ccc0ac-fc66-42ad-b266-4009ebdf39db",
-    "prontuario": "signoff_recomendado",
-    "approve": "ok_e2e_api",
-    "reject": "ok_e2e_api",
-    "validate": "ok_e2e_api",
-    "deliver_mock": "ok_e2e_api"
-  },
-  "success": true,
-  "has_medico_pass": true,
-  "has_n8n_secret": true,
-  "correlationId": "fase2-close-1780090895289",
-  "atendimento_approve_id": "11ccc0ac-fc66-42ad-b266-4009ebdf39db",
-  "atendimento_reject_id": "a930e2af-2652-4487-9918-d8f9dfdf0a89",
-  "evidence": {
-    "approve_flow": {
-      "status": "delivered",
-      "memed_receita_id": "dbb54a08-07d5-4e74-a1de-cd0ddf7817ca",
-      "clinical_audit_approvedBy": "staging-doctor",
-      "delivery_provider": "dry-run",
-      "persistencia": {
-        "memed_bloqueado": false,
-        "motivo_rejeicao": null
-      }
-    },
-    "reject_flow": {
-      "status": "rejected",
-      "reason_code": "DOCUMENTACAO_INSUFICIENTE",
-      "reason_label": "Documentação insuficiente",
-      "audit_rejectReasonCode": "DOCUMENTACAO_INSUFICIENTE",
-      "memed_bloqueado": true
-    },
-    "audit_actions": [
-      "clinical_approved",
-      "memed_prescription_validated",
-      "delivery_completed",
-      "clinical_rejected"
-    ]
-  },
-  "criterios_fase2": {
-    "abertura_atendimento": true,
-    "approve": true,
-    "reject_motivo_estruturado": true,
-    "ready_validate": true,
-    "deliver_mock": true,
-    "memed_mock": true,
-    "reject_reasons_endpoint": true,
-    "logs_minimos": true,
-    "repetivel_staging": true
-  },
-  "report_path": "docs/HOMOLOGACAO-CLINICA-FASE2-RELATORIO.json",
-  "runner": "mdoctor-backend/scripts/fechar-fase2-staging.js"
+  "success": false,
+  "atendimento_id": "ad6844c5-fc01-432c-a633-a081cf4305d6",
+  "valid_reject_codes": [
+    "RED_FLAG",
+    "DOCUMENTACAO_INSUFICIENTE",
+    "RECEITA_AUSENTE",
+    "FORA_DO_PROTOCOLO",
+    "MEDICACAO_INCOMPATIVEL",
+    "RISCO_CLINICO",
+    "DADOS_INCONSISTENTES",
+    "OUTROS"
+  ]
 }

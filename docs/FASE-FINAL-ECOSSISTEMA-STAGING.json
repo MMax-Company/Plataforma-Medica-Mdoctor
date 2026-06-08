@@ -1,0 +1,364 @@
+{
+  "generated_at": "2026-06-07T11:28:57.934Z",
+  "targets": {
+    "BACKEND": "https://mdoctor-backend-staging-staging.up.railway.app",
+    "PANEL": "https://painel-medico-staging-staging.up.railway.app",
+    "N8N_BASE": "https://n8n-staging-staging-2dfe.up.railway.app",
+    "EVOLUTION_URL": "https://evolution-api-staging-staging-40d1.up.railway.app",
+    "EVOLUTION_INSTANCE": "mdoctor-staging"
+  },
+  "validated": [
+    {
+      "item": "backend_health",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "item": "backend_readyz",
+      "ok": true,
+      "status": 200,
+      "supabase": true
+    },
+    {
+      "item": "panel_login_page",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "item": "n8n_health",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "item": "backend_whatsapp_provider_status",
+      "ok": true,
+      "provider": "evolution",
+      "evolution_configured": true,
+      "evolution_connected": false
+    },
+    {
+      "item": "backend_whatsapp_webhook",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "item": "endpoint_survey_trigger",
+      "ok": true,
+      "status": 500
+    },
+    {
+      "item": "endpoint_survey_inbound",
+      "ok": true,
+      "status": 200
+    },
+    {
+      "item": "endpoint_upsert",
+      "ok": true,
+      "status": 500
+    },
+    {
+      "item": "simulation_evidence_flow",
+      "ok": false,
+      "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+      "phone_masked": "*********2216",
+      "trigger": {
+        "status": 200
+      },
+      "steps": [
+        {
+          "step": "q1",
+          "status": 200,
+          "handled": false
+        },
+        {
+          "step": "q2",
+          "status": 200,
+          "handled": false
+        },
+        {
+          "step": "q3",
+          "status": 200,
+          "handled": false
+        }
+      ],
+      "saved": {
+        "id": "4ce6dca3-30c5-48a9-81d2-4851b5b947e7",
+        "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+        "patient_id": null,
+        "created_at": "2026-06-07T11:27:43.281832+00:00",
+        "survey_version": "fase1_v1",
+        "q1_access_alternative": "ubs",
+        "q2_avoided_interruption": "sim",
+        "q3_would_use_again": "sim"
+      }
+    },
+    {
+      "item": "simulation_deliver_endpoint",
+      "ok": false,
+      "status": 422
+    }
+  ],
+  "pending": [
+    {
+      "item": "n8n_webhook_typebot",
+      "ok": false,
+      "status": 404,
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook",
+      "fix": "Ativar workflow n8n correspondente"
+    },
+    {
+      "item": "n8n_webhook_evolution",
+      "ok": false,
+      "status": 404,
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook",
+      "fix": "Ativar workflow n8n correspondente"
+    },
+    {
+      "item": "simulation_evidence_flow_incomplete",
+      "ok": false,
+      "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+      "phone_masked": "*********2216",
+      "trigger": {
+        "status": 200
+      },
+      "steps": [
+        {
+          "step": "q1",
+          "status": 200,
+          "handled": false
+        },
+        {
+          "step": "q2",
+          "status": 200,
+          "handled": false
+        },
+        {
+          "step": "q3",
+          "status": 200,
+          "handled": false
+        }
+      ],
+      "saved": {
+        "id": "4ce6dca3-30c5-48a9-81d2-4851b5b947e7",
+        "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+        "patient_id": null,
+        "created_at": "2026-06-07T11:27:43.281832+00:00",
+        "survey_version": "fase1_v1",
+        "q1_access_alternative": "ubs",
+        "q2_avoided_interruption": "sim",
+        "q3_would_use_again": "sim"
+      }
+    }
+  ],
+  "blockers_whatsapp_only": [
+    {
+      "item": "evolution_instance_not_open",
+      "ok": false,
+      "state": "close",
+      "note": "Requer escaneamento de QR quando houver número dedicado"
+    },
+    {
+      "item": "evolution_instance_not_open",
+      "ok": false,
+      "state": "close",
+      "note": "Requer escaneamento de QR quando houver número dedicado"
+    }
+  ],
+  "simulation": {
+    "ok": false,
+    "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+    "phone_masked": "*********2216",
+    "trigger": {
+      "status": 200
+    },
+    "steps": [
+      {
+        "step": "q1",
+        "status": 200,
+        "handled": false
+      },
+      {
+        "step": "q2",
+        "status": 200,
+        "handled": false
+      },
+      {
+        "step": "q3",
+        "status": 200,
+        "handled": false
+      }
+    ],
+    "saved": {
+      "id": "4ce6dca3-30c5-48a9-81d2-4851b5b947e7",
+      "attendance_id": "bb1765fc-a17e-40e7-8947-486152605afc",
+      "patient_id": null,
+      "created_at": "2026-06-07T11:27:43.281832+00:00",
+      "survey_version": "fase1_v1",
+      "q1_access_alternative": "ubs",
+      "q2_avoided_interruption": "sim",
+      "q3_would_use_again": "sim"
+    }
+  },
+  "endpoints": {
+    "whatsapp_provider_status": {
+      "ok": true,
+      "status": 200,
+      "data": {
+        "success": true,
+        "correlationId": "86ad86f1-0594-48d0-ad40-8ada8a3a36d7",
+        "provider": "evolution",
+        "mode": "mock",
+        "deliveryMockEnabled": true,
+        "sandboxMode": true,
+        "dryRun": true,
+        "fallbackActive": true,
+        "antiSpam": {
+          "maxPerWindow": 10,
+          "windowMs": 60000,
+          "minIntervalMs": 15000,
+          "trackedNumbers": 0,
+          "trackedEvents": 0
+        },
+        "evolution": {
+          "configured": true,
+          "configuredParts": {
+            "url": true,
+            "apiKey": true,
+            "instance": true
+          },
+          "runtime": {
+            "lastError": null,
+            "lastTimeoutAt": null,
+            "lastHealthState": "close",
+            "lastHealthAt": "2026-06-07T11:29:02.530Z"
+          },
+          "safeReadEndpoints": [
+            "GET /",
+            "GET /instance/fetchInstances",
+            "GET /instance/connectionState/{instanceName}"
+          ],
+          "ok": true,
+          "provider": "evolution",
+          "instanceName": "mdoctor-staging",
+          "apiReachable": true,
+          "apiVersion": "2.3.7",
+          "swaggerUrl": "https://doc.evolution-api.com",
+          "managerUrl": "http://evolution-api-staging-staging-40d1.up.railway.app/manager",
+          "instanceFound": true,
+          "instanceState": "close",
+          "connected": false,
+          "disconnected": true,
+          "connecting": false,
+          "state": "close",
+          "timeout": false,
+          "lastError": null,
+          "lastTimeoutAt": null,
+          "probes": {
+            "apiInfo": {
+              "apiReachable": true,
+              "httpStatus": 200,
+              "apiVersion": "2.3.7",
+              "managerUrl": "http://evolution-api-staging-staging-40d1.up.railway.app/manager",
+              "swaggerUrl": "https://doc.evolution-api.com",
+              "message": "Welcome to the Evolution API, it is working!",
+              "timeout": false
+            },
+            "fetchInstances": {
+              "ok": true,
+              "httpStatus": 200,
+              "instancesCount": 1,
+              "instanceFound": true,
+              "instanceName": "mdoctor-staging",
+              "instanceState": "connecting",
+              "timeout": false
+            },
+            "connectionState": {
+              "ok": true,
+              "httpStatus": 200,
+              "instanceName": "mdoctor-staging",
+              "instanceState": "close",
+              "connected": false,
+              "disconnected": true,
+              "connecting": false,
+              "timeout": false
+            }
+          }
+        }
+      },
+      "latency_ms": 436
+    },
+    "evolution_connection": {
+      "ok": true,
+      "state": "close",
+      "status": 200
+    },
+    "backend_whatsapp_webhook": {
+      "status": 200,
+      "ok": true
+    },
+    "survey_trigger": {
+      "status": 500,
+      "ok": false,
+      "snippet": {
+        "success": false,
+        "correlationId": "476f8f1e-3c57-4416-831c-b0de6214d3e2",
+        "error": "insert or update on table \"patient_outcomes\" violates foreign key constraint \"patient_outcomes_attendance_id_fkey\""
+      }
+    },
+    "survey_inbound": {
+      "status": 200,
+      "ok": true,
+      "snippet": {
+        "success": true,
+        "correlationId": "3cdecad4-5cbb-4d01-88b7-24676c49debb",
+        "handled": false,
+        "reason": "no_active_survey"
+      }
+    },
+    "upsert": {
+      "status": 500,
+      "ok": false,
+      "snippet": {
+        "success": false,
+        "correlationId": "1cfb420d-4e60-4a23-81a2-88556c0da26d",
+        "error": "insert or update on table \"patient_outcomes\" violates foreign key constraint \"patient_outcomes_attendance_id_fkey\"",
+        "code": "PERSISTENCE_REQUIRED"
+      }
+    }
+  },
+  "webhooks": {
+    "typebot": {
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook",
+      "status": 404,
+      "ok": false,
+      "body": {
+        "code": 404,
+        "message": "The requested webhook \"POST typebot-webhook\" is not registered.",
+        "hint": "The workflow must be active for a production URL to run successfully. You can activate the workflow using the toggle in the top-right of the editor. Note that unlike test URL calls, production URL calls aren't shown on the canvas (only in the executions list)"
+      }
+    },
+    "evolution": {
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook",
+      "status": 404,
+      "ok": false,
+      "body": {
+        "code": 404,
+        "message": "The requested webhook \"POST evolution-webhook\" is not registered.",
+        "hint": "The workflow must be active for a production URL to run successfully. You can activate the workflow using the toggle in the top-right of the editor. Note that unlike test URL calls, production URL calls aren't shown on the canvas (only in the executions list)"
+      }
+    }
+  },
+  "simulation_deliver": {
+    "atendimento_id": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+    "deliver_status": 422,
+    "deliver_ok": false,
+    "outcome_status": 404,
+    "outcome": null
+  },
+  "summary": {
+    "validated_count": 9,
+    "pending_count": 3,
+    "whatsapp_blockers_count": 2,
+    "ready_for_number_only": false
+  }
+}

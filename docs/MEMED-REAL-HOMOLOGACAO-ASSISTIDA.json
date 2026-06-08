@@ -1,0 +1,64 @@
+{
+  "executed_at": "2026-06-07T12:28:13.731Z",
+  "backend": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel": "https://painel-medico-staging-staging.up.railway.app",
+  "correlationId": "memed-real-assistida-1780835293731",
+  "steps": [
+    {
+      "name": "readyz",
+      "ok": true,
+      "memed": {
+        "configured": true,
+        "source": "memed",
+        "real_mode": true,
+        "mock_fallback_allowed": false,
+        "env": "production",
+        "apiUrl": "https://api.memed.com.br/v1"
+      },
+      "storage": "supabase"
+    },
+    {
+      "name": "memed_config",
+      "ok": true,
+      "realMode": true,
+      "mockFallbackAllowed": false,
+      "emissionMode": "sinapse_widget_real",
+      "environment": "production"
+    },
+    {
+      "name": "triagem",
+      "ok": true,
+      "atendimentoId": "d600ab73-2a18-4681-9502-723cd1d4331a"
+    },
+    {
+      "name": "medico_login",
+      "ok": true
+    },
+    {
+      "name": "clinical_approve",
+      "ok": true,
+      "status": "approved"
+    },
+    {
+      "name": "atendimento_approved",
+      "ok": true,
+      "status": "approved",
+      "paciente_nome": "Paciente Fase2 1780835295199",
+      "medicacao": "Losartana"
+    },
+    {
+      "name": "memed_token",
+      "ok": true
+    }
+  ],
+  "atendimentoId": "d600ab73-2a18-4681-9502-723cd1d4331a",
+  "urls": {
+    "receita": "https://painel-medico-staging-staging.up.railway.app/receita?atendimentoId=d600ab73-2a18-4681-9502-723cd1d4331a",
+    "atendimento": "https://painel-medico-staging-staging.up.railway.app/atendimento/d600ab73-2a18-4681-9502-723cd1d4331a",
+    "prontuario": "https://painel-medico-staging-staging.up.railway.app/prontuario/d600ab73-2a18-4681-9502-723cd1d4331a",
+    "fila": "https://painel-medico-staging-staging.up.railway.app/fila"
+  },
+  "mock_blocked": true,
+  "medico_emitir_agora": true,
+  "ok": true
+}

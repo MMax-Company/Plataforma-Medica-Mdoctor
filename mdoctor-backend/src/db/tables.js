@@ -33,5 +33,6 @@ module.exports = {
   DOCTOR_PERMISSIONS: 'doctor_permissions',
   SYSTEM_SETTINGS: 'system_settings',
   SYSTEM_EVENTS: 'system_events',
-  ERROR_LOGS: 'error_logs'
+  ERROR_LOGS: 'error_logs',
+  PATIENT_OUTCOMES: 'patient_outcomes'
 };

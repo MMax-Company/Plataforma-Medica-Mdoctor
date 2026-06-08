@@ -18,16 +18,23 @@ const RECEITA_FLOW_STATUSES = new Set([
   'receita_em_edicao'
 ]);
 
-const SINAPSE_SCRIPT_URL =
+const SINAPSE_HOMOLOG_SCRIPT_URL =
   'https://integrations.memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js';
+const SINAPSE_PRODUCTION_SCRIPT_URL =
+  'https://memed.com.br/modulos/plataforma.sinapse-prescricao/build/sinapse-prescricao.min.js';
 const PARTNERS_SCRIPT_URL = 'https://partners.memed.com.br/integration.js';
+
+function isMemedProductionScriptContext() {
+  const env = String(process.env.MEMED_ENVIRONMENT || process.env.MEMED_ENV || '').toLowerCase();
+  const apiUrl = String(process.env.MEMED_API_URL || '').toLowerCase();
+  return env === 'production' || apiUrl.includes('api.memed.com.br');
+}
 
 function defaultScriptUrl() {
   if (process.env.MEMED_SCRIPT_URL) return process.env.MEMED_SCRIPT_URL;
   if (process.env.MEMED_WIDGET_SCRIPT === 'partners') return PARTNERS_SCRIPT_URL;
-  if (process.env.MEMED_WIDGET_SCRIPT === 'sinapse') return SINAPSE_SCRIPT_URL;
-  // Padrão clínico embedded: Sinapse (homologação/staging). API Memed pode ser production separadamente.
-  return SINAPSE_SCRIPT_URL;
+  if (isMemedProductionScriptContext()) return SINAPSE_PRODUCTION_SCRIPT_URL;
+  return SINAPSE_HOMOLOG_SCRIPT_URL;
 }
 
 function resolveDoctorId(req) {

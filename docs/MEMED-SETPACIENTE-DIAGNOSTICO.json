@@ -1,0 +1,335 @@
+{
+  "generated_at": "2026-06-07T15:41:46.939Z",
+  "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+  "paciente": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+  "atendimento_status": "receita_em_edicao",
+  "panel_url": "http://127.0.0.1:3002",
+  "timeouts": {
+    "setPaciente_ms": 30000,
+    "openPrescription_ms": 45000,
+    "setPaciente_had_timeout_before_diagnostic": "sim — código novo adiciona timeout 30s por comando; staging atual ainda sem deploy"
+  },
+  "expected_setPaciente_payload": {
+    "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+    "telefone": "5511988700005",
+    "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+    "cpf": "23100299900"
+  },
+  "page_status_lines": [
+    "Certificado digital Memed",
+    "Prescrição",
+    "Prescrição — Doctor Prescreve",
+    "Prescrição em andamento",
+    "Use a barra inferior para aprovar, emitir, enviar e finalizar — sem sair do Doctor Prescreve.",
+    "EMITIR",
+    "PRESCRIÇÃO DIGITAL",
+    "Timeout 30000ms em plataforma.prescricao.setPaciente",
+    "Pronto para emitir",
+    "Emitir Receita",
+    "Assinatura digital (BirdID/Soluti) permanece ativa na sessão do turno. Revise, assine e fecione — o painel Doctor Prescreve persiste PDF e link automaticamente.",
+    "EMITIR RECEITA"
+  ],
+  "diagnostic_log": [
+    {
+      "id": "plataforma.prescricao.setPaciente-1780846864210-before",
+      "at": "2026-06-07T15:41:04.210Z",
+      "phase": "before",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "method": "MdHub.command.send",
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      }
+    },
+    {
+      "id": "plataforma.prescricao.setPaciente-1780846864210-before",
+      "at": "2026-06-07T15:41:04.210Z",
+      "phase": "before",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "method": "MdHub.command.send",
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      }
+    },
+    {
+      "id": "plataforma.sdk.setToken-1780846865280-before",
+      "at": "2026-06-07T15:41:05.280Z",
+      "phase": "before",
+      "module": "plataforma.sdk",
+      "command": "setToken",
+      "method": "MdHub.command.send",
+      "payload": "[REDACTED]"
+    },
+    {
+      "id": "plataforma.sdk.setToken-1780846865280-after",
+      "at": "2026-06-07T15:41:05.915Z",
+      "phase": "after",
+      "module": "plataforma.sdk",
+      "command": "setToken",
+      "method": "MdHub.command.send",
+      "payload": "[REDACTED]",
+      "response": "undefined",
+      "duration_ms": 635,
+      "ok": true
+    },
+    {
+      "id": "plataforma.usuario.getUsuario-1780846876214-before",
+      "at": "2026-06-07T15:41:16.214Z",
+      "phase": "before",
+      "module": "plataforma.usuario",
+      "command": "getUsuario",
+      "method": "MdHub.command.send",
+      "payload": "undefined"
+    },
+    {
+      "id": "plataforma.usuario.getUsuario-1780846876214-after",
+      "at": "2026-06-07T15:41:16.225Z",
+      "phase": "after",
+      "module": "plataforma.usuario",
+      "command": "getUsuario",
+      "method": "MdHub.command.send",
+      "payload": "undefined",
+      "response": {
+        "nome": "Max",
+        "sobrenome": "Vinicius Ferreira Matos",
+        "cpf": "01739134150",
+        "email": "dr.max.vinicius.cg@outlook.com",
+        "data_nascimento": "09/02/1988",
+        "sexo": "M",
+        "avatar": null,
+        "status": "Em análise",
+        "ambiente": "producao",
+        "related_id": 900639,
+        "is_editor": 0,
+        "user_name": "",
+        "biografia": "",
+        "imagem_capa": "",
+        "terms_accepted": 0,
+        "cidade": "",
+        "cidade_obj": null,
+        "clinica_ativa": "",
+        "cns": null,
+        "cnes": "",
+        "configuracoes": {
+          "early_access": "true",
+          "digital_signature": "1",
+          "digital_signature_provider": "soluti",
+          "digital_signature_soluti_certificate_alias": "MAX VINICIUS FERREIRA MATOS:01739134150",
+          "digital_signature_soluti_token_expiration_hours": 12,
+          "digital_signature_token_expiration_hours": "12",
+          "digital_signature_valid_until": "2029-03-02 11:58:59",
+          "list_of_prescription_item_with_continuous_use": null,
+          "onboarding_bem_vindo": {
+            "itens": [
+              {
+                "id": "1",
+                "status": "false"
+              },
+              {
+                "id": "2",
+                "status": "false"
+              },
+              {
+                "id": "3",
+                "status": "false"
+              }
+            ]
+          }
+        },
+        "crm": "163032",
+        "endereco": "Rua Aurora 965, Republica",
+        "especialidade": {
+          "id": 59,
+          "nome": "Generalista"
+        },
+        "estudante": false,
+        "farmacia_artesanal": false,
+        "iamspe": false,
+        "is_partner": true,
+        "nome_completo": "Max Vinicius Ferreira Matos",
+        "perola_byington": false,
+        "sociedades": [],
+        "telefone": "11968123900",
+        "token": "[REDACTED]",
+        "uf": "SP",
+        "universidade": "",
+        "fabricante": "",
+        "user_type": "Medicos",
+        "total_of_prescriptions": 0,
+        "total_of_prescripted_drugs": 0,
+        "total_of_sms_prescriptions": 0,
+        "synchronized": false,
+        "percentage_of_completed_profile": 66.66,
+        "parceiros_id": 792,
+        "filter_web_pki_certificates_by_cpf": false,
+        "external_id": "dr_max_vinicius_001",
+        "partner_name": "Doctor Prescreve",
+        "is_partner_standalone": false,
+        "board": {
+          "boards_id": 1,
+          "board_number": "163032",
+          "board_state": "SP",
+          "board_code": "CRM"
+        },
+        "is_partner_webhook_enabled": false,
+        "id": 977299,
+        "parceiro": {
+          "id": 792
+        }
+      },
+      "duration_ms": 12,
+      "ok": true
+    },
+    {
+      "id": "plataforma.prescricao.setPaciente-1780846864210-after",
+      "at": "2026-06-07T15:41:34.226Z",
+      "phase": "after",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "method": "MdHub.command.send",
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      },
+      "duration_ms": 30016,
+      "ok": false,
+      "error": "Timeout 30000ms em plataforma.prescricao.setPaciente",
+      "timed_out": true
+    }
+  ],
+  "resumo": {
+    "getUsuario": {
+      "status": "OK",
+      "duration_ms": 12,
+      "payload": "undefined",
+      "response": {
+        "nome": "Max",
+        "sobrenome": "Vinicius Ferreira Matos",
+        "cpf": "01739134150",
+        "email": "dr.max.vinicius.cg@outlook.com",
+        "data_nascimento": "09/02/1988",
+        "sexo": "M",
+        "avatar": null,
+        "status": "Em análise",
+        "ambiente": "producao",
+        "related_id": 900639,
+        "is_editor": 0,
+        "user_name": "",
+        "biografia": "",
+        "imagem_capa": "",
+        "terms_accepted": 0,
+        "cidade": "",
+        "cidade_obj": null,
+        "clinica_ativa": "",
+        "cns": null,
+        "cnes": "",
+        "configuracoes": {
+          "early_access": "true",
+          "digital_signature": "1",
+          "digital_signature_provider": "soluti",
+          "digital_signature_soluti_certificate_alias": "MAX VINICIUS FERREIRA MATOS:01739134150",
+          "digital_signature_soluti_token_expiration_hours": 12,
+          "digital_signature_token_expiration_hours": "12",
+          "digital_signature_valid_until": "2029-03-02 11:58:59",
+          "list_of_prescription_item_with_continuous_use": null,
+          "onboarding_bem_vindo": {
+            "itens": [
+              {
+                "id": "1",
+                "status": "false"
+              },
+              {
+                "id": "2",
+                "status": "false"
+              },
+              {
+                "id": "3",
+                "status": "false"
+              }
+            ]
+          }
+        },
+        "crm": "163032",
+        "endereco": "Rua Aurora 965, Republica",
+        "especialidade": {
+          "id": 59,
+          "nome": "Generalista"
+        },
+        "estudante": false,
+        "farmacia_artesanal": false,
+        "iamspe": false,
+        "is_partner": true,
+        "nome_completo": "Max Vinicius Ferreira Matos",
+        "perola_byington": false,
+        "sociedades": [],
+        "telefone": "11968123900",
+        "token": "[REDACTED]",
+        "uf": "SP",
+        "universidade": "",
+        "fabricante": "",
+        "user_type": "Medicos",
+        "total_of_prescriptions": 0,
+        "total_of_prescripted_drugs": 0,
+        "total_of_sms_prescriptions": 0,
+        "synchronized": false,
+        "percentage_of_completed_profile": 66.66,
+        "parceiros_id": 792,
+        "filter_web_pki_certificates_by_cpf": false,
+        "external_id": "dr_max_vinicius_001",
+        "partner_name": "Doctor Prescreve",
+        "is_partner_standalone": false,
+        "board": {
+          "boards_id": 1,
+          "board_number": "163032",
+          "board_state": "SP",
+          "board_code": "CRM"
+        },
+        "is_partner_webhook_enabled": false,
+        "id": 977299,
+        "parceiro": {
+          "id": 792
+        }
+      },
+      "method": "MdHub.command.send"
+    },
+    "setPaciente": {
+      "status": "TIMEOUT",
+      "duration_ms": 30016,
+      "payload": {
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "cpf": "23100299900",
+        "email": "homolog.teste05@mdoctor.local",
+        "data_nascimento": "22/01/1964"
+      },
+      "error": "Timeout 30000ms em plataforma.prescricao.setPaciente",
+      "method": "MdHub.command.send"
+    },
+    "newPrescription": {
+      "status": "NAO_EXECUTADO"
+    },
+    "addItem": {
+      "status": "NAO_EXECUTADO"
+    }
+  },
+  "ui": {
+    "iframe_count": 13,
+    "mdHub_present": true
+  }
+}

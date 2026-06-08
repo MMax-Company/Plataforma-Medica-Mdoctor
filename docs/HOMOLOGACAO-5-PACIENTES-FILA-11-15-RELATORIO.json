@@ -1,0 +1,124 @@
+{
+  "generated_at": "2026-06-07T05:51:57.161Z",
+  "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "run_tag": "homolog-11-15-1780811517160",
+  "patients": [
+    {
+      "num": 11,
+      "nome": "PACIENTE TESTE 11",
+      "cpf": "52998224725",
+      "telefone": "+5511999110011",
+      "email": "homolog.teste11@mdoctor.local",
+      "sexo": "F",
+      "idade": 41,
+      "queixa": "Renovação HAS — homologação fila painel TESTE 11.",
+      "atendimentoId": "d3558391-d39a-4c5a-92b6-f0abc2ba5c7b",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 12,
+      "nome": "PACIENTE TESTE 12",
+      "cpf": "11144477735",
+      "telefone": "+5511999110012",
+      "email": "homolog.teste12@mdoctor.local",
+      "sexo": "M",
+      "idade": 52,
+      "queixa": "Controle pressórico — homologação fila painel TESTE 12.",
+      "atendimentoId": "9103258e-6663-4006-bdfa-46c008d145ee",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 13,
+      "nome": "PACIENTE TESTE 13",
+      "cpf": "39053344705",
+      "telefone": "+5511999110013",
+      "email": "homolog.teste13@mdoctor.local",
+      "sexo": "F",
+      "idade": 47,
+      "queixa": "Renovação metformina — homologação fila painel TESTE 13.",
+      "atendimentoId": "74d799c3-2c21-4f11-9578-4758add23cea",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 14,
+      "nome": "PACIENTE TESTE 14",
+      "cpf": "28625587896",
+      "telefone": "+5511999110014",
+      "email": "homolog.teste14@mdoctor.local",
+      "sexo": "M",
+      "idade": 38,
+      "queixa": "Renovação levotiroxina — homologação fila painel TESTE 14.",
+      "atendimentoId": "f982361b-daa1-4bd9-97c9-fa778c7f18b9",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 15,
+      "nome": "PACIENTE TESTE 15",
+      "cpf": "81717023088",
+      "telefone": "+5511999110015",
+      "email": "homolog.teste15@mdoctor.local",
+      "sexo": "F",
+      "idade": 59,
+      "queixa": "Renovação crônica — homologação fluxo approve/reject TESTE 15.",
+      "atendimentoId": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    }
+  ],
+  "ready_for_human": true
+}

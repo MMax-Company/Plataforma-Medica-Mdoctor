@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-06-07T16:23:41.997Z",
+  "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+  "idExterno_tested": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6-validacao-1780849384221",
+  "note": "idExterno fresco evita hang de re-bind Memed no mesmo paciente já vinculado hoje",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "setPaciente_payload": {
+    "nome": "PACIENTE TESTE 05",
+    "telefone": "11988700005",
+    "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6-validacao-1780849384221"
+  },
+  "addItem_payload": {
+    "nome": "Losartana 50mg",
+    "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+    "quantidade": 30
+  },
+  "flow": [
+    {
+      "command": "setPaciente",
+      "outcome": "TIMEOUT",
+      "duration_ms": 20016,
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6-validacao-1780849384221"
+      },
+      "error": "TIMEOUT"
+    },
+    {
+      "command": "newPrescription",
+      "outcome": "OK",
+      "duration_ms": 4,
+      "response": true
+    },
+    {
+      "command": "addItem",
+      "outcome": "OK",
+      "duration_ms": 33,
+      "payload": {
+        "nome": "Losartana 50mg",
+        "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+        "quantidade": 30
+      },
+      "response": {
+        "nome": "Losartana 50mg",
+        "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+        "quantidade": 30,
+        "isFromCommand": true,
+        "tipo": "custom",
+        "descontinuado": false,
+        "status": "",
+        "categoria_posologia": "",
+        "composicao": "",
+        "fabricante": "",
+        "titularidade": "",
+        "preco": 0,
+        "price_list": [],
+        "anamnese": "",
+        "cid_id": "",
+        "data_solicitacao": "",
+        "descricao_tratamento": "",
+        "quantidade_mes_1": "",
+        "quantidade_mes_2": "",
+        "quantidade_mes_3": "",
+        "quantidade_mes_4": "",
+        "quantidade_mes_5": "",
+        "quantidade_mes_6": "",
+        "tratamento_previo": "",
+        "exames_tuss_codigo": null,
+        "exames_sus_codigo": null,
+        "tipo_exame_selecionado": null,
+        "custom_categoria": null,
+        "catmat_codigo_br": null,
+        "catmat_descricao": null,
+        "form_units": [],
+        "unit": "embalagens",
+        "formas_fisicas_unidades_id": null,
+        "has_more_details": false,
+        "is_cid": false,
+        "cid_numero": "",
+        "cid_descricao": "",
+        "journeyPsp": {},
+        "origem": "Prescrição",
+        "cid": "c313",
+        "id": "c313",
+        "mostrarDescricao": false,
+        "subtitulo": "",
+        "titulo": "Losartana 50mg",
+        "shouldShowStructuredDocuments": true,
+        "isC5": false
+      }
+    },
+    {
+      "command": "show",
+      "outcome": "OK",
+      "duration_ms": 0
+    },
+    {
+      "command": "getUsuario",
+      "outcome": "REJECT",
+      "duration_ms": 45,
+      "error": "undefined"
+    }
+  ]
+}

@@ -25,6 +25,8 @@ const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../s
 const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.service');
 const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
+const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -638,6 +640,23 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
     snapshot: delivery,
     criado_em: delivery.sent_at
   });
+
+  if (channel === 'whatsapp' && delivery.status === 'sent' && previous.paciente_telefone) {
+    setImmediate(() => {
+      triggerPostDeliverySurvey({
+        attendanceId: req.params.id,
+        patientId: previous.patient_id || null,
+        phone: previous.paciente_telefone,
+        correlationId
+      }).catch((error) => {
+        logger.error('post_delivery_survey_trigger_failed', {
+          correlationId,
+          attendanceId: req.params.id,
+          error: error.message
+        });
+      });
+    });
+  }
 
   return res.json({ success: true, correlationId, atendimento, decisao, delivery });
 });

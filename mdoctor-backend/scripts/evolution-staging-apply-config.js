@@ -11,7 +11,7 @@ const apiKey = String(process.env.EVOLUTION_API_KEY || process.env.AUTHENTICATIO
 const instance = String(process.env.EVOLUTION_INSTANCE || 'DoctorTeste').trim();
 const n8nWebhook =
   process.env.N8N_EVOLUTION_WEBHOOK_URL ||
-  'https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook';
+  'https://n8n-node-production-f844.up.railway.app/webhook/evolution-webhook';
 
 if (!apiKey) {
   console.error('EVOLUTION_API_KEY ou AUTHENTICATION_API_KEY obrigatório');

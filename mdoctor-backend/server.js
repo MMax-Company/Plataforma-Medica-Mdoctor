@@ -200,6 +200,7 @@ registerUploadPageRoutes(app);
 app.use('/api/memed',require('./src/routes/memed.routes'));
 app.use('/api/auth',require('./src/auth/auth.routes'));
 app.use('/api/admin',require('./src/routes/admin.routes'));
+app.use('/api/patient-outcomes', require('./src/routes/patient-outcomes.routes'));
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Rota nao encontrada' });

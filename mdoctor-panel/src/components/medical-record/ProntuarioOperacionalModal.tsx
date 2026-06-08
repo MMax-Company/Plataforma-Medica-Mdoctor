@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { ProntuarioDecisionBar } from '@/components/medical-record/ProntuarioDecisionBar';
 import { useProntuarioAtendimento, type ClinicalEditForm } from '@/hooks/useProntuarioAtendimento';
+import { whatsappContactUrl } from '@/lib/patient-display';
 
 interface ProntuarioOperacionalModalProps {
   atendimentoId: string | null;
@@ -13,6 +14,30 @@ interface ProntuarioOperacionalModalProps {
   onCompleted?: () => void;
 }
 
+const CLINICAL_LABELS: Record<string, string> = {
+  'QUEIXA PRINCIPAL': 'Queixa Principal',
+  'HISTÓRICO CLÍNICO': 'Histórico Clínico',
+  'EXAME FÍSICO': 'Exame Físico',
+  ALERGIAS: 'Alergias',
+  'MEDICAÇÕES EM USO': 'Medicações em Uso',
+  'CONDUTA MÉDICA': 'Conduta Médica',
+};
+
+const CLINICAL_EMOJI: Record<string, string> = {
+  'QUEIXA PRINCIPAL': '💬',
+  'HISTÓRICO CLÍNICO': '📄',
+  'EXAME FÍSICO': '🩺',
+  ALERGIAS: '🛡️',
+  'MEDICAÇÕES EM USO': '💊',
+  'CONDUTA MÉDICA': '📋',
+};
+
+const headerBtnClass =
+  'border border-slate-300 bg-white px-3 py-1 rounded-lg font-bold text-[10px] text-slate-700 uppercase tracking-wide hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45';
+
+const headerBtnCompactClass =
+  'border border-slate-300 bg-white px-2.5 py-1 rounded-lg font-bold text-[9px] text-slate-700 uppercase tracking-wide hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45';
+
 function ClinicalBlock({
   title,
   value,
@@ -20,7 +45,6 @@ function ClinicalBlock({
   editing,
   editForm,
   onEdit,
-  wide = true,
   conduct = false,
 }: {
   title: string;
@@ -29,29 +53,49 @@ function ClinicalBlock({
   editing: boolean;
   editForm: ClinicalEditForm | null;
   onEdit?: (field: keyof ClinicalEditForm, value: string) => void;
-  wide?: boolean;
   conduct?: boolean;
 }) {
   const editValue = field && editForm ? editForm[field] : value;
+  const label = CLINICAL_LABELS[title] || title;
+  const emoji = CLINICAL_EMOJI[title] || '💬';
+  const condutaParts = value.split(/\n\n+/);
+  const condutaPrimary = condutaParts[0] || value;
+  const condutaSecondary = condutaParts.slice(1).join('\n\n');
+
+  const sectionClass = conduct
+    ? 'bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm flex-1 items-start overflow-hidden min-h-0'
+    : 'bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center shrink-0';
 
   return (
-    <article
-      className={`prontuario-clinical-block${conduct ? ' prontuario-clinical-block--conduct' : ''}${wide ? '' : ' prontuario-clinical-block--half'}`}
-    >
-      <div className="prontuario-clinical-block__head">
-        <h4 className="prontuario-clinical-block__title">{title}</h4>
+    <section className={sectionClass}>
+      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-[#eff6ff] text-xs text-[#2563eb]">
+        {emoji}
       </div>
-      {editing && field && onEdit ? (
-        <textarea
-          className="prontuario-clinical-block__textarea"
-          value={editValue}
-          onChange={(event) => onEdit(field, event.target.value)}
-          rows={conduct ? 4 : 3}
-        />
-      ) : (
-        <p className="prontuario-clinical-block__content">{value}</p>
-      )}
-    </article>
+      <div className={`min-w-0 flex-1 ${conduct ? 'flex h-full w-full flex-col justify-between overflow-hidden' : ''}`}>
+        <h4 className="mb-0.5 text-[8.5px] font-bold uppercase leading-none tracking-wide text-slate-400">
+          {label}
+        </h4>
+        {editing && field && onEdit ? (
+          <textarea
+            className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-slate-50 p-2 text-[10.5px] leading-tight text-slate-700 focus:border-blue-500 focus:outline-none"
+            value={editValue}
+            onChange={(event) => onEdit(field, event.target.value)}
+            rows={conduct ? 4 : 3}
+          />
+        ) : conduct ? (
+          <>
+            <p className="text-[10.5px] font-medium leading-normal text-slate-700">{condutaPrimary}</p>
+            {condutaSecondary ? (
+              <p className="border-t border-slate-100 pt-1 text-[10px] font-normal leading-tight text-slate-500">
+                {condutaSecondary}
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <p className="text-[10.5px] font-medium leading-tight text-slate-700">{value}</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -110,6 +154,7 @@ export function ProntuarioOperacionalModal({
   } = prontuario;
 
   const eligible = atendimento?.elegibilidade?.eligible !== false;
+  const whatsappUrl = atendimento ? whatsappContactUrl(atendimento.paciente_telefone || '') : null;
 
   async function handleApprove() {
     if (editing && editForm) {
@@ -131,60 +176,88 @@ export function ProntuarioOperacionalModal({
     }
   }
 
+  const patientRows = atendimento
+    ? [
+        {
+          label: '📅 Data de nascimento',
+          value: firstText(clinical.data_nascimento, clinical.birth_date),
+        },
+        { label: '🪪 CPF', value: atendimento.paciente_cpf || 'Não informado' },
+        {
+          label: '✉️ E-mail',
+          value: atendimento.paciente_email || 'Não informado',
+          highlight: true,
+        },
+        { label: '📞 WhatsApp', value: atendimento.paciente_telefone || 'Não informado' },
+        {
+          label: '📍 Endereço',
+          value: firstText(clinical.endereco, clinical.address),
+          multiline: true,
+        },
+      ]
+    : [];
+
+  const cepValue = atendimento ? firstText(clinical.cep, clinical.postal_code) : 'Não informado';
+
   return createPortal(
     <div
-      className="prontuario-modal-overlay"
-      role="presentation"
-      onClick={onClose}
+      id="modalProntuario"
+      className="modal-overlay prontuario-modal-overlay"
       aria-hidden={false}
+      role="dialog"
+      aria-modal="true"
     >
       <div
-        className="prontuario-modal"
-        role="dialog"
-        aria-modal="true"
+        className="modal-content prontuario-modal-content flex flex-col justify-between"
+        role="region"
         aria-labelledby="prontuario-modal-title"
-        onClick={(event) => event.stopPropagation()}
       >
         {loading && !atendimento ? (
-          <div className="prontuario-modal__loading">Carregando prontuário...</div>
+          <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+            Carregando prontuário...
+          </div>
         ) : null}
 
         {error && !atendimento ? (
-          <div className="prontuario-modal__error">
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 text-sm text-slate-600">
             <p>{error}</p>
-            <button type="button" className="prontuario-back-btn" onClick={onClose}>
+            <button type="button" className={headerBtnClass} onClick={onClose}>
               ← Voltar para painel
             </button>
           </div>
         ) : null}
 
         {atendimento && displayBlocks ? (
-          <div className="prontuario-shell prontuario-shell--replica prontuario-shell--modal">
-            <header className="prontuario-page-top">
-              <button type="button" className="prontuario-back-btn" onClick={onClose}>
-                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                Voltar para painel
+          <>
+            <header className="mb-2 flex h-9 w-full shrink-0 items-center justify-between">
+              <button type="button" className={headerBtnClass} onClick={onClose}>
+                ← Voltar para painel
               </button>
-              <div className="prontuario-page-top__center">
-                <h2 id="prontuario-modal-title" className="prontuario-page-title">
-                  PRONTUÁRIO MÉDICO
-                </h2>
-                <p className="prontuario-page-subtitle">
+
+              <div className="text-center">
+                <h1
+                  id="prontuario-modal-title"
+                  className="text-[15px] font-black uppercase leading-none tracking-tight text-slate-950"
+                >
+                  Prontuário Médico
+                </h1>
+                <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
                   Avalie as informações do paciente e aprove o atendimento
                 </p>
               </div>
-              <div className="prontuario-page-top__actions">
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="prontuario-history-btn"
+                  className={headerBtnCompactClass}
                   onClick={() => void viewAttachedPrescription()}
                   disabled={!hasAttachedPrescription}
                 >
-                  <span className="prontuario-history-btn__label">RECEITA ANEXADA</span>
+                  📄 Receita Anexada
                 </button>
                 <button
                   type="button"
-                  className="prontuario-history-btn prontuario-history-btn--edit"
+                  className={headerBtnClass}
                   onClick={() => {
                     if (editing) {
                       cancelEditing();
@@ -193,139 +266,186 @@ export function ProntuarioOperacionalModal({
                     }
                   }}
                 >
-                  <span className="prontuario-history-btn__label">{editing ? 'BLOQUEAR' : 'EDITAR'}</span>
+                  ✏️ {editing ? 'Bloquear' : 'Editar'}
                 </button>
               </div>
             </header>
 
-            <div className={`prontuario-eligibility prontuario-eligibility--${eligible ? 'ok' : 'warn'}`}>
-              <span className="prontuario-eligibility__icon" aria-hidden="true">
-                <Check className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="prontuario-eligibility__title">CRITÉRIOS DE ELEGIBILIDADE</p>
-                <p className="prontuario-eligibility__message">{eligibilityMessage}</p>
+            <div
+              className={`mb-2 flex h-7 w-full shrink-0 items-center justify-between rounded-xl border px-3 ${
+                eligible ? 'border-[#bbf7d0] bg-[#f0fdf4]' : 'border-amber-200 bg-amber-50'
+              }`}
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <div
+                  className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white ${
+                    eligible ? 'bg-[#22c55e]' : 'bg-amber-500'
+                  }`}
+                >
+                  {eligible ? (
+                    '✓'
+                  ) : (
+                    <Check className="h-2.5 w-2.5" aria-hidden="true" />
+                  )}
+                </div>
+                <p className={`truncate text-[10px] font-bold ${eligible ? 'text-[#166534]' : 'text-amber-900'}`}>
+                  CRITÉRIOS DE ELEGIBILIDADE:{' '}
+                  <span className={`ml-1 font-normal ${eligible ? 'text-[#15803d]' : 'text-amber-800'}`}>
+                    {eligibilityMessage}
+                  </span>
+                </p>
               </div>
-              <span className="prontuario-eligibility__badge">VERIFICADO</span>
+              <span
+                className={`ml-2 shrink-0 rounded-full border bg-white px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wider ${
+                  eligible ? 'border-[#bbf7d0] text-[#166534]' : 'border-amber-200 text-amber-800'
+                }`}
+              >
+                ✓ Verificado
+              </span>
             </div>
 
             {error ? (
-              <div className="prontuario-modal__inline-error" role="alert">
+              <div
+                className="mb-2 shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-800"
+                role="alert"
+              >
                 {error}
               </div>
             ) : null}
 
-            <div className="prontuario-body">
-              <div className="prontuario-main-grid">
-                <section className="prontuario-patient-card">
-                  <div className="prontuario-patient-card__head">
-                    <h3 className="prontuario-patient-card__title">Dados do paciente</h3>
-                  </div>
-                  <div className="prontuario-patient-card__body">
-                    <div className="prontuario-patient-card__hero">
-                      <div className="prontuario-patient-card__avatar">{initials(atendimento.paciente_nome)}</div>
-                      <div className="min-w-0">
-                        <p className="prontuario-patient-card__name">{atendimento.paciente_nome}</p>
-                        <p className="prontuario-patient-card__age">
-                          {firstText(clinical.idade, clinical.age, '36 anos')}
-                        </p>
-                        <p className="prontuario-patient-card__record">
-                          Prontuário: #
-                          {String(clinical.prontuario_display || formatRecordId(atendimento.id))}
-                        </p>
-                        <p className="prontuario-patient-card__whatsapp">Contato via WhatsApp</p>
+            <div className="mb-2 grid min-h-0 w-full flex-1 grid-cols-[240px_1fr] items-stretch gap-3 overflow-hidden">
+              <aside className="flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div className="flex h-full flex-col justify-between">
+                  <h2 className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                    Dados do Paciente
+                  </h2>
+
+                  <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 pb-2">
+                    <div className="flex h-9 w-9 min-w-[36px] items-center justify-center rounded-full bg-[#eff6ff] text-xs font-black text-[#2563eb]">
+                      {initials(atendimento.paciente_nome)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-[12px] font-black leading-none text-slate-900">
+                          {atendimento.paciente_nome || 'Não informado'}
+                        </h3>
+                        <span className="rounded bg-[#eff6ff] px-1 py-0.5 text-[8px] font-bold text-[#2563eb]">
+                          {firstText(clinical.idade, clinical.age)}
+                        </span>
                       </div>
+                      <p className="mt-0.5 text-[8.5px] font-bold text-slate-400">
+                        Prontuário:{' '}
+                        <span className="text-[#2563eb]">
+                          #{String(clinical.prontuario_display || formatRecordId(atendimento.id))}
+                        </span>
+                      </p>
+                      {whatsappUrl ? (
+                        <a
+                          href={whatsappUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-0.5 block text-[8.5px] font-bold text-[#16a34a] hover:underline"
+                        >
+                          💬 Contato via WhatsApp
+                        </a>
+                      ) : (
+                        <span className="mt-0.5 block text-[8.5px] font-bold text-[#16a34a]">
+                          💬 Contato via WhatsApp
+                        </span>
+                      )}
                     </div>
-                    <dl className="prontuario-patient-card__rows">
-                      {[
-                        ['Data nascimento', firstText(clinical.data_nascimento, clinical.birth_date, '15/04/1988')],
-                        ['CPF', atendimento.paciente_cpf || 'Não informado'],
-                        ['E-mail', atendimento.paciente_email || 'Não informado'],
-                        ['WhatsApp', atendimento.paciente_telefone || 'Não informado'],
-                        ['Endereço', firstText(clinical.endereco, clinical.address)],
-                        ['CEP', firstText(clinical.cep, clinical.postal_code)],
-                      ].map(([label, value]) => (
-                        <div key={label} className="prontuario-patient-card__row">
-                          <dt className="prontuario-patient-card__label">{label}</dt>
-                          <dd className="prontuario-patient-card__value">{value}</dd>
-                        </div>
-                      ))}
-                    </dl>
                   </div>
-                </section>
 
-                <section className="prontuario-history-card">
-                  <div className="prontuario-history-card__head">
-                    <h3 className="prontuario-history-card__title">História clínica</h3>
-                  </div>
-                  <div className="prontuario-history-card__body">
-                    <ClinicalBlock
-                      title="QUEIXA PRINCIPAL"
-                      value={displayBlocks.queixa}
-                      field="queixa_principal"
-                      editing={editing}
-                      editForm={editForm}
-                      onEdit={updateEditField}
-                    />
-                    <ClinicalBlock
-                      title="HISTÓRICO CLÍNICO"
-                      value={displayBlocks.historico}
-                      field="historico_clinico"
-                      editing={editing}
-                      editForm={editForm}
-                      onEdit={updateEditField}
-                    />
-                    <ClinicalBlock
-                      title="EXAME FÍSICO"
-                      value={displayBlocks.exame}
-                      field="exame_fisico"
-                      editing={editing}
-                      editForm={editForm}
-                      onEdit={updateEditField}
-                    />
-                    <div className="prontuario-clinical-pair">
-                      <ClinicalBlock
-                        title="ALERGIAS"
-                        value={displayBlocks.alergias}
-                        field="alergias"
-                        editing={editing}
-                        editForm={editForm}
-                        onEdit={updateEditField}
-                        wide={false}
-                      />
-                      <ClinicalBlock
-                        title="MEDICAÇÕES EM USO"
-                        value={displayBlocks.medicacao}
-                        field="medicacao_em_uso"
-                        editing={editing}
-                        editForm={editForm}
-                        onEdit={updateEditField}
-                        wide={false}
-                      />
+                  <div className="flex flex-1 flex-col justify-between gap-0.5 py-1 text-[10px] font-semibold text-slate-600">
+                    {patientRows.map(({ label, value, highlight, multiline }) => (
+                      <div
+                        key={label}
+                        className={`flex border-b border-slate-50 pb-0.5 ${
+                          multiline ? 'items-start gap-1' : 'items-center justify-between'
+                        }`}
+                      >
+                        <span className="text-slate-400">{label}</span>
+                        <span
+                          className={`font-bold ${highlight ? 'text-[#2563eb]' : 'text-slate-900'} ${
+                            multiline ? 'max-w-[120px] text-right leading-tight' : ''
+                          } ${label.includes('E-mail') ? 'max-w-[120px] truncate' : ''}`}
+                        >
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-1">
+                      <span className="text-slate-400">📮 CEP</span>
+                      <span className="font-bold text-slate-900">{cepValue}</span>
                     </div>
-                    <ClinicalBlock
-                      title="CONDUTA MÉDICA"
-                      value={displayBlocks.conduta}
-                      field="conduta"
-                      editing={editing}
-                      editForm={editForm}
-                      onEdit={updateEditField}
-                      conduct
-                    />
                   </div>
-                </section>
-              </div>
+                </div>
+              </aside>
 
-              <ProntuarioDecisionBar
-                notes={notes}
-                onNotesChange={setNotes}
-                onReject={() => void handleReject()}
-                onApprove={() => void handleApprove()}
-                disabled={actionLoading === 'save'}
-                loadingAction={actionLoading === 'approve' ? 'approve' : actionLoading === 'reject' ? 'reject' : null}
-              />
+              <main className="flex h-full min-h-0 flex-col justify-between gap-1.5 overflow-hidden">
+                <ClinicalBlock
+                  title="QUEIXA PRINCIPAL"
+                  value={displayBlocks.queixa}
+                  field="queixa_principal"
+                  editing={editing}
+                  editForm={editForm}
+                  onEdit={updateEditField}
+                />
+                <ClinicalBlock
+                  title="HISTÓRICO CLÍNICO"
+                  value={displayBlocks.historico}
+                  field="historico_clinico"
+                  editing={editing}
+                  editForm={editForm}
+                  onEdit={updateEditField}
+                />
+                <ClinicalBlock
+                  title="EXAME FÍSICO"
+                  value={displayBlocks.exame}
+                  field="exame_fisico"
+                  editing={editing}
+                  editForm={editForm}
+                  onEdit={updateEditField}
+                />
+                <div className="grid shrink-0 grid-cols-2 gap-2">
+                  <ClinicalBlock
+                    title="ALERGIAS"
+                    value={displayBlocks.alergias}
+                    field="alergias"
+                    editing={editing}
+                    editForm={editForm}
+                    onEdit={updateEditField}
+                  />
+                  <ClinicalBlock
+                    title="MEDICAÇÕES EM USO"
+                    value={displayBlocks.medicacao}
+                    field="medicacao_em_uso"
+                    editing={editing}
+                    editForm={editForm}
+                    onEdit={updateEditField}
+                  />
+                </div>
+                <ClinicalBlock
+                  title="CONDUTA MÉDICA"
+                  value={displayBlocks.conduta}
+                  field="conduta"
+                  editing={editing}
+                  editForm={editForm}
+                  onEdit={updateEditField}
+                  conduct
+                />
+              </main>
             </div>
-          </div>
+
+            <ProntuarioDecisionBar
+              notes={notes}
+              onNotesChange={setNotes}
+              onReject={() => void handleReject()}
+              onApprove={() => void handleApprove()}
+              disabled={actionLoading === 'save'}
+              loadingAction={actionLoading === 'approve' ? 'approve' : actionLoading === 'reject' ? 'reject' : null}
+            />
+          </>
         ) : null}
       </div>
     </div>,

@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1366, initial-scale=1" />
+  <title>Doctor Prescreve — Painel Médico (Réplica Estática)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-page: #f6f9fd;
+      --ink: #071b3a;
+      --ink-muted: #3f4d5e;
+      --ink-subtle: #4a5568;
+      --blue: #0647b8;
+      --blue-dark: #003b93;
+      --blue-accent: #1557ff;
+      --blue-soft: #1a3f8f;
+      --orange: #f97316;
+      --orange-dark: #ea6c0c;
+      --green: #09a94f;
+      --green-dark: #089746;
+      --red: #b91c2b;
+      --header-divider: #e0e0e0;
+      --border: #e4ecf7;
+      --border-soft: #d5e0ee;
+      --card-bg: #ffffff;
+      --col-bg: #f7faff;
+      --support-bg: #eef4ff;
+      --support-border: #d9e6ff;
+      --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.04);
+      --radius-col: 18px;
+      --radius-card: 12px;
+      --radius-btn: 10px;
+      --max-width: 1312px;
+      --shell-pad-x: 22px;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-page);
+      color: var(--ink);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+    }
+
+    .page {
+      width: 100%;
+      max-width: var(--max-width);
+      height: 100vh;
+      max-height: 100vh;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-page);
+      transform: scale(0.93);
+      transform-origin: top center;
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    /* ── Header ── */
+    .panel-header {
+      flex-shrink: 0;
+      background: #fff;
+      border-bottom: 1px solid var(--header-divider);
+    }
+
+    .panel-shell {
+      width: 100%;
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 0 var(--shell-pad-x);
+    }
+
+    .panel-header__shell {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 52px;
+      padding: 2px var(--shell-pad-x);
+    }
+
+    .panel-header__brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    .panel-header__logo {
+      width: 132px;
+      max-width: 132px;
+      height: auto;
+      max-height: 48px;
+      object-fit: contain;
+      object-position: left center;
+      user-select: none;
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    .panel-header__title {
+      margin: 0 0 0 18px;
+      font-family: Georgia, "Times New Roman", Times, serif;
+      font-size: 34px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: var(--ink);
+      white-space: nowrap;
+    }
+
+    .panel-header__center {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      font-weight: 700;
+      line-height: 1;
+      cursor: default;
+      user-select: none;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-prontuario {
+      height: 36px;
+      min-height: 36px;
+      padding: 0 16px;
+      font-size: 13px;
+      border-radius: 11px;
+      border-color: var(--border-soft);
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .panel-header__ops {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex: 0 1 410px;
+      min-height: 46px;
+      padding: 4px 10px;
+      border: 1px solid #e1e8f2;
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
+    }
+
+    .panel-header__memed {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 34px;
+      padding: 0 10px;
+      border: 1px solid #d9e2f2;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #1a2333;
+      white-space: nowrap;
+    }
+
+    .dot-green {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #0ba84f;
+      flex-shrink: 0;
+    }
+
+    .divider-v {
+      width: 1px;
+      height: 22px;
+      background: #e8edf4;
+      flex-shrink: 0;
+    }
+
+    .panel-header__profile {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      background: #155eef;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .profile-text .name {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+
+    .profile-text .role {
+      margin: 2px 0 0;
+      font-size: 12px;
+      color: var(--ink-muted);
+      line-height: 1.2;
+    }
+
+    .btn-logout {
+      height: 31px;
+      min-height: 31px;
+      padding: 0 8px;
+      font-size: 9px;
+      gap: 4px;
+      border-radius: var(--radius-btn);
+      background: var(--red);
+      color: #fff;
+    }
+
+    /* ── Support band ── */
+    .panel-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 3px var(--shell-pad-x) 0;
+      gap: 4px;
+    }
+
+    .support-band {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      min-height: 36px;
+      border: 1px solid var(--support-border);
+      border-radius: 12px;
+      background: var(--support-bg);
+      box-shadow: 0 2px 10px rgba(15, 23, 42, 0.03);
+      padding: 0 12px;
+    }
+
+    .support-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr 1.1fr;
+      align-items: center;
+      width: 100%;
+      gap: 0;
+    }
+
+    .support-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding-right: 16px;
+      border-right: 1px solid var(--support-border);
+    }
+
+    .support-icon-wrap {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #e3edff;
+      color: #1a3f8f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      overflow: visible;
+    }
+
+    .support-icon-wrap svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 2;
+    }
+
+    .support-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--blue-soft);
+    }
+
+    .support-sub {
+      margin: 1px 0 0;
+      font-size: 11px;
+      line-height: 1.35;
+      color: var(--ink-muted);
+    }
+
+    .support-center {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0;
+      padding: 0 16px;
+      border-right: 1px solid var(--support-border);
+    }
+
+    .support-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1a2333;
+    }
+
+    .support-stat strong {
+      font-weight: 800;
+    }
+
+    .support-stat--muted {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ink-muted);
+    }
+
+    .support-stat--muted .time {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--blue-soft);
+    }
+
+    .support-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      justify-content: center;
+      padding-left: 12px;
+      min-width: 0;
+    }
+
+    .support-chips {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      min-height: 26px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+      padding: 0;
+      border-radius: 50%;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      border: 1px solid #c5d8f5;
+      background: #fff;
+      color: var(--blue-soft);
+    }
+
+    .chip--active {
+      border-color: var(--blue-accent);
+      background: var(--blue-accent);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(21, 87, 255, 0.18);
+    }
+
+    .support-hint {
+      margin: 2px 0 0;
+      font-size: 10px;
+      color: var(--ink-subtle);
+    }
+
+    /* ── Three columns ── */
+    .columns {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      min-height: 0;
+      align-items: stretch;
+    }
+
+    .column {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-col);
+      background: var(--col-bg);
+      box-shadow: var(--shadow-md);
+    }
+
+    .column__head {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 48px;
+      padding: 8px 12px;
+    }
+
+    .column__head-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .column__icon {
+      width: 28px;
+      height: 28px;
+      flex-shrink: 0;
+      color: var(--blue-soft);
+    }
+
+    .column__title {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+      line-height: 1.1;
+    }
+
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      padding: 0;
+      border-radius: 50%;
+      border: none;
+      background: var(--red);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      box-shadow: 0 1px 3px rgba(185, 28, 43, 0.22);
+      flex-shrink: 0;
+    }
+
+    .column__scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .column__footer {
+      flex-shrink: 0;
+      padding: 8px 10px 10px;
+      background: var(--col-bg);
+      border-top: 1px solid var(--border);
+    }
+
+    .column__cap {
+      height: 16px;
+      border: 1px solid #dce6f4;
+      border-radius: 0 0 13px 13px;
+      background: #eef4fc;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        0 1px 0 rgba(228, 236, 247, 0.9);
+    }
+
+    /* ── Patient cards ── */
+    .patient-card {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid #e1e8f2;
+      border-radius: var(--radius-card);
+      background: var(--card-bg);
+      padding: 9px 10px 10px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .patient-card--queue {
+      min-height: 120px;
+    }
+
+    .patient-card--review {
+      min-height: 118px;
+    }
+
+    /* CORREÇÃO AQUI: Mudado de 132px para 156px para dar espaço aos novos botões da Coluna 3 */
+    .patient-card--ready {
+      min-height: 156px !important;
+    }
+
+    .patient-card__inner {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .patient-initials {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background: #e8f0ff;
+      color: var(--blue-soft);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .patient-card__main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .patient-card__head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .patient-name {
+      margin: 0;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      color: var(--ink);
+      line-height: 1.15;
+    }
+
+    .patient-id {
+      margin: 2px 0 0;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #4a6fa5;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .wait-time {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ink-muted);
+      white-space: nowrap;
+      padding: 4px 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
+      background: #eef2f7;
+      line-height: 1;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 22px;
+      padding: 0 8px;
+      border-radius: 7px;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+
+    .status-badge--warn {
+      border-color: #f5d9bc;
+      background: #fff4e8;
+      color: #9a4b12;
+    }
+
+    .status-badge--success {
+      border-color: #c8eed8;
+      background: #e8f8ee;
+      color: #0b7f3c;
+    }
+
+    /* ── Cards: rodapés e botões (IDs isolados + classes espelho) ── */
+    #btn-atender-c1, .btn-atender-c1,
+    #btn-aceitar-c2, .btn-aceitar-c2 {
+      width: 180px !important;
+      height: 42px !important;
+      min-width: 180px !important;
+      max-width: 180px !important;
+      border-radius: 8px !important;
+      font-weight: bold !important;
+      font-size: 14px !important;
+      text-transform: uppercase !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 8px !important;
+      border: none !important;
+      cursor: pointer !important;
+      box-sizing: border-box !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      flex-shrink: 0 !important;
+      font-family: inherit !important;
+      line-height: 1 !important;
+    }
+
+    #btn-atender-c1, .btn-atender-c1 {
+      background-color: #00469b !important;
+      color: #ffffff !important;
+    }
+
+    #btn-aceitar-c2, .btn-aceitar-c2 {
+      background-color: #f27405 !important;
+      color: #ffffff !important;
+    }
+
+    #btn-visualizar-c2, .btn-visualizar-c2 {
+      width: 165px !important;
+      height: 38px !important;
+      min-width: 165px !important;
+      max-width: 165px !important;
+      border-radius: 6px !important;
+      border: 1px solid #dcdcdc !important;
+      background-color: #ffffff !important;
+      font-size: 13px !important;
+      font-weight: bold !important;
+      color: #333333 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      text-transform: uppercase !important;
+      cursor: pointer !important;
+      box-sizing: border-box !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      flex-shrink: 0 !important;
+      white-space: nowrap !important;
+      font-family: inherit !important;
+      line-height: 1 !important;
+    }
+
+    #link-contato-c1, .link-contato-c1 {
+      display: flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      width: 165px !important;
+      min-width: 165px !important;
+      max-width: 165px !important;
+      font-size: 13px !important;
+      color: #444444 !important;
+      font-weight: 500 !important;
+      text-decoration: none !important;
+      background: transparent !important;
+      border: none !important;
+      flex-shrink: 0 !important;
+      white-space: nowrap !important;
+      cursor: pointer !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      font-family: inherit !important;
+    }
+
+    #link-contato-c1 .icon-wa-contato,
+    .link-contato-c1 .icon-wa-contato {
+      width: 15px !important;
+      height: 15px !important;
+      flex-shrink: 0 !important;
+      display: block !important;
+    }
+
+    #btn-atender-c1 .icon-user-branco,
+    .btn-atender-c1 .icon-user-branco {
+      width: 14px !important;
+      height: 14px !important;
+      flex-shrink: 0 !important;
+      display: block !important;
+      color: #ffffff !important;
+    }
+
+    .container-footer-coluna1 {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 14px !important;
+      width: 100% !important;
+      margin-top: 14px !important;
+    }
+
+    .container-footer-coluna2 {
+      display: flex !important;
+      flex-direction: row !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      gap: 14px !important;
+      width: 100% !important;
+      margin-top: 14px !important;
+    }
+
+    .icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+
+    .icon-sm {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* ── Footer ── */
+    .panel-footer {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 18px;
+      padding: 2px 16px;
+      border-top: 1px solid #e5eaf2;
+      background: #fff;
+      font-size: 12px;
+      line-height: 1.25;
+      letter-spacing: 0.025em;
+      color: #6a7788;
+      text-align: center;
+    }
+
+    svg {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <!-- CABEÇALHO -->
+    <header class="panel-header">
+      <div class="panel-shell panel-header__shell">
+        <div class="panel-header__brand">
+          <img
+            class="panel-header__logo"
+            src="./doctor-prescreve-logo-transparent.png"
+            alt="Doctor Prescreve"
+            width="132"
+            height="48"
+          />
+          <h1 class="panel-header__title">Painel Médico</h1>
+        </div>
+
+        <div class="panel-header__center">
+          <button type="button" class="btn btn-prontuario" aria-label="Prontuário">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <path d="M12 11h4"></path>
+              <path d="M12 16h4"></path>
+              <path d="M8 11h.01"></path>
+              <path d="M8 16h.01"></path>
+            </svg>
+            PRONTUÁRIO
+          </button>
+        </div>
+
+        <div class="panel-header__ops">
+          <div class="panel-header__memed">
+            <span class="dot-green" aria-hidden="true"></span>
+            <span>Certificado digital Memed</span>
+          </div>
+          <span class="divider-v" aria-hidden="true"></span>
+          <div class="panel-header__profile">
+            <div class="avatar" aria-hidden="true">MM</div>
+            <div class="profile-text">
+              <p class="name">Dr. Max Matos</p>
+              <p class="role">Administrador</p>
+            </div>
+          </div>
+          <span class="divider-v" aria-hidden="true"></span>
+          <button type="button" class="btn btn-logout" aria-label="Sair">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            SAIR
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="panel-body">
+      <!-- SUPORTE WHATSAPP -->
+      <section class="support-band" aria-label="Suporte médico via WhatsApp">
+        <div class="support-grid">
+          <div class="support-left">
+            <div class="support-icon-wrap" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 14h3a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H3"></path>
+                <path d="M21 14h-3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3"></path>
+                <path d="M12 19v-4"></path>
+                <path d="M8 19h8"></path>
+              </svg>
+            </div>
+            <div>
+              <h2 class="support-title">SUPORTE MÉDICO VIA WHATSAPP</h2>
+              <p class="support-sub">Pacientes aguardando atendimento da equipe de suporte via WhatsApp.</p>
+            </div>
+          </div>
+
+          <div class="support-center">
+            <p class="support-stat">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#1a3f8f" stroke-width="2.2" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+              <span><strong>6</strong> aguardando atendimento</span>
+            </p>
+            <p class="support-stat support-stat--muted">
+              <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="#1a3f8f" stroke-width="2.2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              Próximo atendimento em <span class="time">15 min</span>
+            </p>
+          </div>
+
+          <div class="support-right">
+            <div class="support-chips">
+              <span class="chip chip--active">1</span>
+              <span class="chip">2</span>
+              <span class="chip">3</span>
+              <span class="chip">4</span>
+              <span class="chip">5</span>
+              <span class="chip">6</span>
+            </div>
+            <p class="support-hint">Clique no número para abrir a conversa no WhatsApp</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRÊS COLUNAS -->
+      <div class="columns">
+        <!-- FILA DE ESPERA -->
+        <section class="column" aria-label="Fila de espera">
+          <div class="column__head">
+            <div class="column__head-left">
+              <svg class="column__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+              <h3 class="column__title">FILA DE ESPERA</h3>
+            </div>
+            <span class="count-badge" aria-label="6 pacientes">6</span>
+          </div>
+
+          <div class="column__scroll">
+            <article class="patient-card patient-card--queue">
+              <div class="patient-card__inner">
+                <div class="patient-initials">R.A</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">R.A</p>
+                      <p class="patient-id">#ATD-01</p>
+                    </div>
+                    <span class="wait-time">6h 20min</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna1">
+                <a href="#" id="link-contato-c1">
+                  <svg class="icon-wa-contato" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Contato paciente
+                </a>
+                <button type="button" id="btn-atender-c1">
+                  <svg class="icon-user-branco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                  ATENDER
+                </button>
+              </div>
+            </article>
+
+            <article class="patient-card patient-card--queue">
+              <div class="patient-card__inner">
+                <div class="patient-initials">J.S</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">J.S</p>
+                      <p class="patient-id">#ATD-02</p>
+                    </div>
+                    <span class="wait-time">5h 45min</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna1">
+                    <a href="#" class="link-contato-c1">
+                      <svg class="icon-wa-contato" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      Contato paciente
+                    </a>
+                    <button type="button" class="btn-atender-c1">
+                      <svg class="icon-user-branco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                      ATENDER
+                    </button>
+              </div>
+            </article>
+
+            <article class="patient-card patient-card--queue">
+              <div class="patient-card__inner">
+                <div class="patient-initials">M.L</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">M.L</p>
+                      <p class="patient-id">#ATD-03</p>
+                    </div>
+                    <span class="wait-time">4h 30min</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna1">
+                    <a href="#" class="link-contato-c1">
+                      <svg class="icon-wa-contato" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      Contato paciente
+                    </a>
+                    <button type="button" class="btn-atender-c1">
+                      <svg class="icon-user-branco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                      ATENDER
+                    </button>
+              </div>
+            </article>
+
+            <article class="patient-card patient-card--queue">
+              <div class="patient-card__inner">
+                <div class="patient-initials">C.F</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">C.F</p>
+                      <p class="patient-id">#ATD-04</p>
+                    </div>
+                    <span class="wait-time">3h 15min</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna1">
+                    <a href="#" class="link-contato-c1">
+                      <svg class="icon-wa-contato" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      Contato paciente
+                    </a>
+                    <button type="button" class="btn-atender-c1">
+                      <svg class="icon-user-branco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                      </svg>
+                      ATENDER
+                    </button>
+              </div>
+            </article>
+          </div>
+
+          <div class="column__footer" aria-hidden="true"><div class="column__cap"></div></div>
+        </section>
+
+        <!-- EM ATENDIMENTO -->
+        <section class="column" aria-label="Em atendimento">
+          <div class="column__head">
+            <div class="column__head-left">
+              <svg class="column__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+              <h3 class="column__title">EM ATENDIMENTO</h3>
+            </div>
+            <span class="count-badge" aria-label="3 pacientes">3</span>
+          </div>
+
+          <div class="column__scroll">
+            <article class="patient-card patient-card--review">
+              <div class="patient-card__inner">
+                <div class="patient-initials">R.S</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">R.S</p>
+                      <p class="patient-id">#ATD-07</p>
+                    </div>
+                    <span class="status-badge status-badge--warn">Aguardando validação</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna2">
+                <button type="button" id="btn-visualizar-c2">VISUALIZAR RECEITA</button>
+                <button type="button" id="btn-aceitar-c2">ACEITAR RECEITA</button>
+              </div>
+            </article>
+
+            <article class="patient-card patient-card--review">
+              <div class="patient-card__inner">
+                <div class="patient-initials">A.F</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">A.F</p>
+                      <p class="patient-id">#ATD-08</p>
+                    </div>
+                    <span class="status-badge status-badge--warn">Aguardando validação</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna2">
+                <button type="button" class="btn-visualizar-c2">VISUALIZAR RECEITA</button>
+                <button type="button" class="btn-aceitar-c2">ACEITAR RECEITA</button>
+              </div>
+            </article>
+
+            <article class="patient-card patient-card--review">
+              <div class="patient-card__inner">
+                <div class="patient-initials">G.N</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">G.N</p>
+                      <p class="patient-id">#ATD-09</p>
+                    </div>
+                    <span class="status-badge status-badge--warn">Aguardando validação</span>
+                  </div>
+                </div>
+              </div>
+              <div class="container-footer-coluna2">
+                <button type="button" class="btn-visualizar-c2">VISUALIZAR RECEITA</button>
+                <button type="button" class="btn-aceitar-c2">ACEITAR RECEITA</button>
+              </div>
+            </article>
+          </div>
+
+          <div class="column__footer" aria-hidden="true"><div class="column__cap"></div></div>
+        </section>
+
+        <!-- RECEITAS PRONTAS -->
+        <section class="column" aria-label="Receitas prontas">
+          <div class="column__head">
+            <div class="column__head-left">
+              <svg class="column__icon" viewBox="0 0 24 24" fill="none" stroke="#0b7f3c" stroke-width="2.2" aria-hidden="true">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+              </svg>
+              <h3 class="column__title">RECEITAS PRONTAS</h3>
+            </div>
+            <span class="count-badge" aria-label="1 paciente">1</span>
+          </div>
+
+          <div class="column__scroll">
+            <article class="patient-card patient-card--ready">
+              <div class="patient-card__inner">
+                <div class="patient-initials">P.M</div>
+                <div class="patient-card__main">
+                  <div class="patient-card__head">
+                    <div>
+                      <p class="patient-name">P.M</p>
+                      <p class="patient-id">#ATD-04</p>
+                    </div>
+                    <span class="status-badge status-badge--success">Receita validada</span>
+                  </div>
+                </div>
+              </div>
+              <div class="coluna3-footer-ajustado" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 14px !important; width: 100% !important; margin-top: 14px !important; box-sizing: border-box !important;">
+                <div class="bloco-esquerdo-sms-email" style="display: flex !important; flex-direction: column !important; gap: 8px !important; width: 165px !important; min-width: 165px !important; max-width: 165px !important; box-sizing: border-box !important;">
+                  <button type="button" style="width: 165px !important; min-width: 165px !important; max-width: 165px !important; height: 38px !important; border-radius: 6px !important; border: 1px solid #dcdcdc !important; background-color: #ffffff !important; font-size: 13px !important; font-weight: bold !important; color: #333333 !important; display: flex !important; align-items: center !important; justify-content: center !important; text-transform: uppercase !important; cursor: pointer !important; box-sizing: border-box !important; padding: 0 !important; margin: 0 !important; line-height: 1 !important; flex-shrink: 0 !important; white-space: nowrap !important;">ENVIAR POR SMS</button>
+                  <button type="button" style="width: 165px !important; min-width: 165px !important; max-width: 165px !important; height: 38px !important; border-radius: 6px !important; border: 1px solid #dcdcdc !important; background-color: #ffffff !important; font-size: 13px !important; font-weight: bold !important; color: #333333 !important; display: flex !important; align-items: center !important; justify-content: center !important; text-transform: uppercase !important; cursor: pointer !important; box-sizing: border-box !important; padding: 0 !important; margin: 0 !important; line-height: 1 !important; flex-shrink: 0 !important; white-space: nowrap !important;">ENVIAR POR E-MAIL</button>
+                </div>
+                <button type="button" class="botao-whatsapp-final" style="display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; background-color: #00a859 !important; color: #ffffff !important; width: 180px !important; min-width: 180px !important; max-width: 180px !important; height: 42px !important; border-radius: 8px !important; font-weight: bold !important; font-size: 14px !important; text-transform: uppercase !important; border: none !important; cursor: pointer !important; box-sizing: border-box !important; padding: 0 !important; line-height: 1 !important; flex-shrink: 0 !important; margin: 0 !important;">
+                  <i class="fab fa-whatsapp" style="font-size: 16px !important; flex-shrink: 0 !important;"></i>
+                  <span style="text-align: center !important;">ENVIAR POR<br>WHATSAPP</span>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div class="column__footer" aria-hidden="true"><div class="column__cap"></div></div>
+        </section>
+      </div>
+    </div>
+
+    <footer class="panel-footer">
+      Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © 2025 Todos os direitos reservados.
+    </footer>
+  </div>
+</body>
+</html>

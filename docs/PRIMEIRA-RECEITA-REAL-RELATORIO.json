@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-05-29T23:18:00.337Z",
+  "generated_at": "2026-06-07T12:37:32.356Z",
   "script": "primeira-receita-real-supervisionada.js",
   "purpose": "Primeira emissão REAL supervisionada — staging",
   "backend_url": "https://mdoctor-backend-staging-staging.up.railway.app",
   "panel_url": "https://painel-medico-staging-staging.up.railway.app",
-  "correlation_id": "primeira-receita-real-1780096680337",
+  "correlation_id": "primeira-receita-real-1780835852355",
   "mvp_operacional_real": false,
-  "success": true,
+  "success": false,
   "steps": [
     {
       "name": "readyz",
@@ -14,6 +14,8 @@
       "memed": {
         "configured": true,
         "source": "memed",
+        "real_mode": true,
+        "mock_fallback_allowed": false,
         "env": "production",
         "apiUrl": "https://api.memed.com.br/v1"
       },
@@ -24,96 +26,29 @@
       "ok": true,
       "enabled": true,
       "environment": "production",
-      "emissionMode": "sinapse_widget_manual"
+      "emissionMode": "sinapse_widget_real"
     },
     {
       "name": "login",
       "ok": true
     },
     {
-      "name": "create_atendimento",
-      "ok": true,
-      "source": "backend_triagem",
-      "atendimentoId": "06b7a4de-c915-4a76-b938-0c24bf61784f"
-    },
-    {
       "name": "pre_approve_state",
       "ok": true,
-      "status": "waiting",
+      "status": "receita_em_edicao",
       "has_memed_receita": false
     },
     {
       "name": "clinical_approve",
-      "ok": true,
-      "status": "approved",
-      "memedEmission": "manual_sinapse_required",
+      "ok": false,
       "no_auto_prescription": true
-    },
-    {
-      "name": "no_auto_emission_after_approve",
-      "ok": true,
-      "has_memed_receita": false
-    },
-    {
-      "name": "memed_iniciar_emissao",
-      "ok": true,
-      "status": "receita_em_edicao"
-    },
-    {
-      "name": "memed_token",
-      "ok": true,
-      "has_token": true,
-      "prescriber_id": "dr_max_vinicius_001"
-    },
-    {
-      "name": "memed_receita_persist",
-      "ok": true,
-      "status": "receita_emitida",
-      "memed_id": "pipeline-mock-1780096688167",
-      "pdf_url": "https://example.invalid/pipeline-mock-06b7a4de-c915-4a76-b938-0c24bf61784f.pdf",
-      "issued_at": "2026-05-29T23:18:08.931Z"
-    },
-    {
-      "name": "clinical_validate",
-      "ok": true,
-      "status": "ready"
-    },
-    {
-      "name": "deliver_controlled",
-      "ok": true,
-      "status": "delivered",
-      "provider": "dry-run",
-      "delivery_status": "sent"
     }
   ],
-  "atendimento_id": "06b7a4de-c915-4a76-b938-0c24bf61784f",
-  "manual_widget_gate": {
-    "required": false,
-    "panel_receita_url": "https://painel-medico-staging-staging.up.railway.app/receita?atendimentoId=06b7a4de-c915-4a76-b938-0c24bf61784f",
-    "panel_atendimento_url": "https://painel-medico-staging-staging.up.railway.app/atendimento/06b7a4de-c915-4a76-b938-0c24bf61784f",
-    "instructions": [
-      "Abrir panel_receita_url com médico logado",
-      "Revisar paciente/medicação no widget Sinapse",
-      "Emitir e imprimir receita (ação explícita)",
-      "Reexecutar script com MEMED_RECEITA_ID e MEMED_PDF_URL"
-    ]
-  },
-  "receipt": {
-    "memed_id": "pipeline-mock-1780096688167",
-    "pdf_url": "https://example.invalid/pipeline-mock-06b7a4de-c915-4a76-b938-0c24bf61784f.pdf",
-    "issued_at": "2026-05-29T23:18:08.931Z",
-    "source": "pipeline_mock_not_mvp"
-  },
-  "audit_summary": {
-    "decisoes_count": 0,
-    "status_transitions": [],
-    "actions_expected": [
-      "clinical_approved",
-      "memed_emission_started",
-      "memed_receipt_persisted",
-      "memed_prescription_validated",
-      "delivery_completed"
-    ]
-  },
-  "errors": []
+  "atendimento_id": "d600ab73-2a18-4681-9502-723cd1d4331a",
+  "manual_widget_gate": null,
+  "receipt": null,
+  "audit_summary": null,
+  "errors": [
+    "approve_not_approved_status"
+  ]
 }

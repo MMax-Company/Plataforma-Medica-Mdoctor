@@ -24,9 +24,10 @@ interface MedicalPanelHeaderProps {
   onLogout: () => void;
   onOpenMedicalRecord?: () => void;
   compact?: boolean;
+  operational?: boolean;
 }
 
-export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord }: MedicalPanelHeaderProps) {
+export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational = false }: MedicalPanelHeaderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
@@ -39,7 +40,7 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord }: MedicalPan
 
   return (
     <>
-    <header className="panel-header">
+    <header className={`panel-header${operational ? ' panel-header--operational' : ''}`}>
       <div className="panel-shell panel-header__shell">
         <div className="panel-header__col panel-header__col--brand">
           <div className="panel-header__brand">
@@ -81,9 +82,9 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord }: MedicalPan
 
             <div className="panel-header__profile">
               <div className="panel-header__avatar">{initials}</div>
-              <div className="hidden min-w-0 lg:block">
-                <p className="panel-header__name">{doctorName}</p>
-                <p className="panel-header__role">{doctorRole}</p>
+              <div className="panel-header__profile-text min-w-0">
+                <p className="panel-header__name truncate">{doctorName}</p>
+                <p className="panel-header__role truncate">{doctorRole}</p>
               </div>
             </div>
 

@@ -17,7 +17,8 @@ const MIGRATIONS = [
   '20260601_receitas_memed_compat.sql',
   '20260601_entregas_receita_compat.sql',
   '20260602_fechamento_stripe_payments_idempotency.sql',
-  '20260603_audit_logs_staging_align.sql'
+  '20260603_audit_logs_staging_align.sql',
+  '20260607_patient_outcomes.sql'
 ];
 
 const RAILWAY_PROJECT = process.env.RAILWAY_PROJECT_ID || 'bed0e3b3-fa4b-4bc2-a7fb-dcabca09cd9b';

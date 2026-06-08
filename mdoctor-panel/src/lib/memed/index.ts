@@ -13,3 +13,7 @@ export * from './cleanUpMemed';
 export * from './buildPatientFromAtendimento';
 export * from './parsePrescriptionPayload';
 export * from './addMedicationsFromAtendimento';
+export * from './clinicalPrescription.types';
+export * from './clinicalPrescriptionToMemedItems';
+export * from './buildClinicalPrescriptionFromAtendimento';
+export * from './memedCommandDiagnostic';

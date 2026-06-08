@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Prescreve — Painel Médico</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden !important;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.45);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            box-sizing: border-box;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            width: 75vw;
+            max-width: 1060px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 16px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+            padding: 24px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body class="bg-[#e2e8f0] font-sans h-screen w-screen relative overflow-hidden select-none">
+
+    <!-- 1. TELA DE FUNDO: PAINEL MÉDICO CENTRAL (Estático atrás do modal) -->
+    <div class="painel-medico w-full h-full flex flex-col pointer-events-none">
+        <!-- Cabeçalho Oficial do Painel (Visível na imagem image_00c6da.jpg) -->
+        <header class="w-full bg-white h-16 border-b border-slate-200 px-6 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-blue-600 text-xl font-black">🩺</span>
+                <span class="font-black text-slate-800 tracking-tight text-sm uppercase">DOCTOR PRESCREVE</span>
+            </div>
+            <h2 class="text-xl font-serif text-slate-900 font-bold">Painel Médico</h2>
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs">MM</div>
+                <div class="text-left">
+                    <p class="text-xs font-black text-slate-800 leading-none">Dr. Max Matos</p>
+                    <p class="text-[10px] text-slate-400 font-medium">Administrador</p>
+                </div>
+            </div>
+        </header>
+        <!-- Restante do conteúdo fictício do painel ao fundo -->
+        <div class="flex-1 p-6">
+            <div class="h-full w-full border-2 border-dashed border-slate-300 rounded-2xl"></div>
+        </div>
+    </div>
+
+    <!-- 2. CAMADA DO MODAL (OVERLAY SOBRE O PAINEL) -->
+    <div id="modalProntuario" class="modal-overlay">
+        
+        <!-- CAIXA DO PRONTUÁRIO -->
+        <div class="modal-content flex flex-col justify-between">
+            
+            <!-- HEADER INTERNO DO MODAL -->
+            <header class="w-full flex items-center justify-between h-9 shrink-0 mb-2">
+                <button class="border border-slate-300 bg-white px-3 py-1 rounded-lg font-bold text-[10px] text-slate-700 uppercase tracking-wide">
+                    ← Voltar para painel
+                </button>
+                <div class="text-center">
+                    <h1 class="text-[15px] font-black text-slate-950 uppercase tracking-tight leading-none">Prontuário Médico</h1>
+                    <p class="text-[9px] text-slate-400 font-semibold mt-0.5">Avalie as informações do paciente e aprove o atendimento</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button class="border border-slate-300 bg-white px-2.5 py-1 rounded-lg font-bold text-[9px] text-slate-700 uppercase tracking-wide">
+                        📄 Receita Anexada
+                    </button>
+                    <button class="border border-slate-300 bg-white px-3 py-1 rounded-lg font-bold text-[10px] text-slate-700 uppercase tracking-wide">
+                        ✏️ Editar
+                    </button>
+                </div>
+            </header>
+
+            <!-- BANNER DE ELEGIBILIDADE -->
+            <div class="w-full flex items-center justify-between bg-[#f0fdf4] border border-[#bbf7d0] rounded-xl px-3 h-7 shrink-0 mb-2">
+                <div class="flex items-center gap-2">
+                    <div class="bg-[#22c55e] text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[9px] font-bold">✓</div>
+                    <p class="text-[10px] text-[#166534] font-bold">
+                        CRITÉRIOS DE ELEGIBILIDADE: <span class="font-normal text-[#15803d] ml-1">Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.</span>
+                    </p>
+                </div>
+                <span class="bg-white border border-[#bbf7d0] text-[#166534] px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider">
+                    ✓ Verificado
+                </span>
+            </div>
+
+            <!-- GRADE DE DUAS COLUNAS AS-SIMÉTRICAS -->
+            <div class="w-full flex-1 grid grid-cols-[240px_1fr] gap-3 overflow-hidden mb-2 items-stretch min-h-0">
+                
+                <!-- COLUNA ESQUERDA: DADOS DO PACIENTE -->
+                <aside class="bg-white border border-slate-200 rounded-xl p-3 flex flex-col justify-between shadow-sm overflow-hidden">
+                    <div class="flex flex-col h-full justify-between">
+                        <h2 class="text-[9px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Dados do Paciente</h2>
+                        
+                        <div class="flex items-center gap-2 border-b border-slate-100 pb-2 shrink-0">
+                            <div class="w-9 h-9 min-w-[36px] bg-[#eff6ff] rounded-full flex items-center justify-center text-[#2563eb] font-black text-xs">
+                                MV
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-1">
+                                  <h3 class="text-[12px] font-black text-slate-900 leading-none">MVXZ</h3>
+                                  <span class="bg-[#eff6ff] text-[#2563eb] px-1 py-0.5 rounded text-[8px] font-bold">36 anos</span>
+                                </div>
+                                <p class="text-[8.5px] font-bold text-slate-400 mt-0.5">Prontuário: <span class="text-[#2563eb]">#10273827</span></p>
+                                <span class="text-[8.5px] font-bold text-[#16a34a] block mt-0.5">💬 Contato via WhatsApp</span>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 flex flex-col justify-between py-1 text-[10px] text-slate-600 font-semibold gap-0.5">
+                            <div class="flex justify-between items-center border-b border-slate-50 pb-0.5">
+                                <span class="text-slate-400">📅 Data de nascimento</span>
+                                <span class="text-slate-900 font-bold">15/04/1988</span>
+                            </div>
+                            <div class="flex justify-between items-center border-b border-slate-50 pb-0.5">
+                                <span class="text-slate-400">🪪 CPF</span>
+                                <span class="text-slate-900 font-bold">123.456.789-10</span>
+                            </div>
+                            <div class="flex justify-between items-center border-b border-slate-50 pb-0.5">
+                                <span class="text-slate-400">✉️ E-mail</span>
+                                <span class="text-[#2563eb] font-bold truncate max-w-[120px]">paciente@email.com</span>
+                            </div>
+                            <div class="flex justify-between items-center border-b border-slate-50 pb-0.5">
+                                <span class="text-slate-400">📞 WhatsApp</span>
+                                <span class="text-slate-900 font-bold">(11) 98765-4321</span>
+                            </div>
+                            <div class="flex justify-between items-start gap-1">
+                                <span class="text-slate-400 whitespace-nowrap">📍 Endereço</span>
+                                <span class="text-slate-900 font-bold text-right leading-tight max-w-[120px]">Rua das Flores, 123 - Ap. 45<br>Jardim Paulista - SP</span>
+                            </div>
+                            <div class="flex justify-between items-center border-t border-slate-100 pt-1 shrink-0">
+                                <span class="text-slate-400">📮 CEP</span>
+                                <span class="text-slate-900 font-bold">01458-000</span>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- COLUNA DIREITA: CARDS CLÍNICOS -->
+                <main class="flex flex-col justify-between h-full overflow-hidden gap-1.5 min-h-0">
+                    <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center shrink-0">
+                        <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0">💬</div>
+                        <div>
+                            <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">Queixa Principal</h4>
+                            <p class="text-[10.5px] text-slate-700 leading-tight font-medium">Paciente se refere que a sua receita está fora do prazo de validade, vem para a consulta teleconsulta assíncrona para renovação de sua receita de uso contínuo. Sem queixas.</p>
+                        </div>
+                    </section>
+
+                    <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center shrink-0">
+                        <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0">📄</div>
+                        <div>
+                            <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">Histórico Clínico</h4>
+                            <p class="text-[10.5px] text-slate-700 leading-tight font-medium">Paciente faz uso de medicação para doença crônica de forma contínua, não evidenciando sinais em teleconsulta assíncrona que impeça de realizar a renovação de sua receita.</p>
+                        </div>
+                    </section>
+
+                    <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center shrink-0">
+                        <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0">🩺</div>
+                        <div>
+                            <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">Exame Físico</h4>
+                            <p class="text-[10.5px] text-slate-700 leading-tight font-medium">Paciente nega qualquer alteração física ou clínica. Não apresenta sinais de alerta, nem critérios que o impeça de renovar a receita. Estável clinicamente.</p>
+                        </div>
+                    </section>
+
+                    <div class="grid grid-cols-2 gap-2 shrink-0">
+                        <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center">
+                            <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0">🛡️</div>
+                            <div>
+                                <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">Alergias</h4>
+                                <p class="text-[10.5px] text-slate-700 leading-tight font-medium">Nega alergias medicamentosas ou alimentares.</p>
+                            </div>
+                        </section>
+                        <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm items-center">
+                            <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0">💊</div>
+                            <div>
+                                <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-0.5">Medicações em Uso</h4>
+                                <p class="text-[10.5px] text-slate-700 leading-tight font-medium">Já declarado na teletriagem. Não há contraindicações.</p>
+                            </div>
+                        </section>
+                    </div>
+
+                    <section class="bg-white border border-slate-200 rounded-xl p-2 flex gap-2 shadow-sm flex-1 items-start overflow-hidden min-h-0">
+                        <div class="w-5 h-5 rounded bg-[#eff6ff] flex items-center justify-center text-[#2563eb] text-xs shrink-0 mt-0.5">📋</div>
+                        <div class="flex flex-col justify-between h-full w-full min-w-0 overflow-hidden">
+                            <div>
+                                <h4 class="text-[8.5px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-1">Conduta Médica</h4>
+                                <p class="text-[10.5px] text-slate-700 leading-normal font-medium">
+                                    Realizado renovação da receita de uso contínuo, emitida via certificado digital, dentro dos critérios permitidos, nada constatado à emissão. Paciente estável clinicamente.
+                                </p>
+                            </div>
+                            <p class="text-[10px] text-slate-500 leading-tight font-normal border-t border-slate-100 pt-1">
+                                Paciente orientado a procurar atendimento presencial, se necessário. Em caso de sinais de alerta, o paciente deverá procurar pronto atendimento. Paciente assinou os termos de eletividade.
+                            </p>
+                        </div>
+                    </section>
+                </main>
+            </div>
+
+            <!-- FOOTER DO MODAL (Com altura ajustada para não cortar as quinas dos botões) -->
+            <footer class="w-full flex items-center justify-between h-10 gap-2.5 bg-white shrink-0">
+                <button class="px-3 h-full bg-[#ef4444] hover:bg-[#dc2626] text-white font-black rounded-xl flex flex-col items-center justify-center min-w-[130px] shadow-sm uppercase">
+                    <span class="text-[10px]">✕ REPROVAR</span>
+                    <span class="text-[7px] font-normal lowercase opacity-80 leading-none">não autorizar</span>
+                </button>
+
+                <div class="flex-1 relative h-full min-w-0">
+                    <label class="absolute left-3 top-1 text-[7.5px] font-bold text-slate-400 uppercase tracking-wider">Conduta Médica Opcional</label>
+                    <input type="text" 
+                           placeholder="Digite aqui orientações adicionais, observações ou justificativas (opcional)..." 
+                           class="w-full h-full bg-slate-50 border border-slate-200 rounded-xl pl-3 pr-12 pt-2.5 pb-0.5 text-[11px] text-slate-800 focus:outline-none">
+                    <span class="absolute right-3 bottom-1 text-[8px] text-slate-400 font-bold">0/1000</span>
+                </div>
+
+                <button class="px-3 h-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-black rounded-xl flex flex-col items-center justify-center min-w-[130px] shadow-sm uppercase">
+                    <span class="text-[10px]">✓ APROVAR</span>
+                    <span class="text-[7px] font-normal lowercase opacity-80 leading-none">autorizar atendimento</span>
+                </button>
+            </footer>
+
+        </div>
+    </div>
+
+</body>
+</html>

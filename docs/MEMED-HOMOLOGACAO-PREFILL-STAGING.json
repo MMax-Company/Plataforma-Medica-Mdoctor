@@ -1,0 +1,62 @@
+{
+  "generated_at": "2026-06-07T17:05:00.000Z",
+  "homologacao_memed_prefill_staging": "NAO_HOMOLOGADA",
+  "motivo": "Fluxo emit=1 falha no primeiro setPaciente com payload mínimo (9127d96) em idExterno virgem. Memed exige payload completo no primeiro vínculo; minimal só responde após unlock com cpf/email/data_nascimento.",
+  "atendimentoId": "63387135-460b-4b7d-bc42-4ced4efd7a2f",
+  "paciente_nome": "MEMED CLEAN 1780851386869",
+  "paciente_telefone": "+5511951386869",
+  "status_atendimento": "approved",
+  "medicacao_em_uso": "Losartana 50mg",
+  "elegibilidade": "eligible / BAIXO / hipertensao",
+  "validated_url": "https://painel-medico-staging-staging.up.railway.app/receita?atendimentoId=63387135-460b-4b7d-bc42-4ced4efd7a2f&emit=1",
+  "deployed_commit": "9127d96",
+  "emit1_app_flow": {
+    "getUsuario": { "outcome": "NAO_EXECUTADO", "nota": "App não chama no prepareAndShowPrescription" },
+    "setPaciente": {
+      "outcome": "TIMEOUT",
+      "duration_ms": 30007,
+      "payload": {
+        "nome": "MEMED CLEAN 1780851386869",
+        "telefone": "11951386869",
+        "idExterno": "63387135-460b-4b7d-bc42-4ced4efd7a2f"
+      },
+      "error": "Timeout 30000ms em plataforma.prescricao.setPaciente"
+    },
+    "newPrescription": { "outcome": "NAO_EXECUTADO" },
+    "addItem": { "outcome": "NAO_EXECUTADO" },
+    "show": { "outcome": "PARCIAL", "iframeCount": 13, "widget_preenchido": false }
+  },
+  "probe_isolamento_memed_mesmo_id": {
+    "minimal_first": { "outcome": "TIMEOUT", "ms": 20008 },
+    "full_second": {
+      "outcome": "OK",
+      "ms": 1773,
+      "payload": {
+        "nome": "MEMED CLEAN TEST",
+        "telefone": "11951386869",
+        "idExterno": "63387135-460b-4b7d-bc42-4ced4efd7a2f",
+        "cpf": "52998224725",
+        "email": "memed.clean@homolog.local",
+        "data_nascimento": "15/08/1988"
+      }
+    },
+    "minimal_third": { "outcome": "OK", "ms": 1374 },
+    "newPrescription": { "outcome": "OK" },
+    "addItem": {
+      "outcome": "OK",
+      "ms": 1382,
+      "payload": {
+        "nome": "Losartana 50mg",
+        "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+        "quantidade": 30
+      }
+    },
+    "show": { "outcome": "OK", "widget_losartana_visivel": true }
+  },
+  "evidencias": {
+    "emit1_falha_screenshot": "docs/MEMED-HOMOLOGACAO-PREFILL-STAGING-WIDGET.png",
+    "cadeia_pos_full_screenshot": "docs/MEMED-HOMOLOGACAO-PREFILL-STAGING-WIDGET.png",
+    "log_json": "docs/MEMED-HOMOLOGACAO-PREFILL-STAGING.json"
+  },
+  "conclusao": "Pré-preenchimento Memed NÃO homologado via emit=1 em staging. Cadeia addItem/show funciona somente após setPaciente completo no primeiro vínculo."
+}

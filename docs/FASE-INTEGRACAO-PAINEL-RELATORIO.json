@@ -1,0 +1,1623 @@
+{
+  "generated_at": "2026-06-07T05:51:48.552Z",
+  "environment": "staging",
+  "targets": {
+    "BACKEND": "https://mdoctor-backend-staging-staging.up.railway.app",
+    "PANEL": "https://painel-medico-staging-staging.up.railway.app",
+    "N8N": "https://n8n-staging-staging-2dfe.up.railway.app",
+    "EVOLUTION": "https://evolution-api-staging-staging-40d1.up.railway.app",
+    "TYPEBOT": "https://typebot.co/doctor-prescreve-8rmljgu"
+  },
+  "integracoes": {
+    "1_frontend_backend": {
+      "status": "OK",
+      "detail": "Backend /health 200",
+      "panel_probe": 200,
+      "login_ok": true,
+      "login_status": 200
+    },
+    "2_backend_supabase": {
+      "status": "OK",
+      "detail": {
+        "configured": true,
+        "connected": true,
+        "mode": "supabase"
+      },
+      "storage": {
+        "configured": true,
+        "responding": true,
+        "mode": "supabase",
+        "error": null
+      },
+      "persistence_mode": "supabase"
+    },
+    "3_backend_fila": {
+      "status": "OK",
+      "http": 200,
+      "total": 75
+    },
+    "4_backend_prontuario": {
+      "status": "OK",
+      "sample_id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+      "endpoint": "GET /api/atendimentos/:id"
+    },
+    "5_backend_aprovacao": {
+      "status": "OK",
+      "reject_reasons": true,
+      "endpoints": [
+        "POST /:id/clinical/approve",
+        "POST /:id/clinical/reject",
+        "PATCH /:id/clinical"
+      ]
+    },
+    "6_backend_memed": {
+      "status": "OK",
+      "runtime": {
+        "configured": true,
+        "source": "memed",
+        "real_mode": true,
+        "mock_fallback_allowed": false,
+        "env": "production",
+        "apiUrl": "https://api.memed.com.br/v1"
+      },
+      "token_probe_status": 200
+    },
+    "7_backend_whatsapp": {
+      "status": "OK",
+      "http": 200
+    },
+    "8_backend_evolution": {
+      "status": "PARCIAL",
+      "evolution_url": "https://evolution-api-staging-staging-40d1.up.railway.app",
+      "http": 200,
+      "whatsapp_evo_configured": false
+    },
+    "9_backend_n8n": {
+      "status": "PARCIAL",
+      "healthz": 200,
+      "typebot_webhook_post": 404,
+      "note": "Webhook POST vazio retorna 4xx esperado se secret ausente — indica rota ativa"
+    },
+    "10_backend_typebot": {
+      "status": "OK",
+      "typebot_public_http": 200,
+      "backend_triagem_http": 400,
+      "ingress_secret_present": true
+    }
+  },
+  "fila": {
+    "total_api_queue": 75,
+    "contagem_por_coluna": {
+      "FILA_DE_ESPERA": 11,
+      "EM_ATENDIMENTO": 23,
+      "RECEITAS_PRONTAS": 1,
+      "FINALIZADOS": 40,
+      "ORFAO": 0
+    },
+    "fila_vazia_com_em_atendimento": false,
+    "registros": [
+      {
+        "id": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+        "nome": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": true,
+        "criado_em": "2026-06-03T09:41:59.059+00:00"
+      },
+      {
+        "id": "d1ffb83f-ea6d-4c35-832e-cb0afa0f70ec",
+        "nome": "PACIENTE TESTE 04 - ANSIEDADE",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": true,
+        "criado_em": "2026-06-03T09:41:55.694+00:00"
+      },
+      {
+        "id": "44426863-7053-4643-b860-bf7f9c5efc61",
+        "nome": "PACIENTE TESTE 03 - DIABETES",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": true,
+        "criado_em": "2026-06-03T09:41:52.193+00:00"
+      },
+      {
+        "id": "bed9c74d-bedc-4e55-b03a-67d757568f82",
+        "nome": "PACIENTE TESTE 02 - HIPERTENSÃO",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": true,
+        "criado_em": "2026-06-03T09:41:48.782+00:00"
+      },
+      {
+        "id": "5f70487a-4a90-48c7-be8c-2e55af5d40ff",
+        "nome": "PACIENTE TESTE 01 - DOR ABDOMINAL",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": true,
+        "criado_em": "2026-06-03T09:41:44.094+00:00"
+      },
+      {
+        "id": "9fd72ad2-740a-4c00-8d0b-11261788c5e9",
+        "nome": "Staging Real E6 HAS staging-real-20260602-012050",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:05.25+00:00"
+      },
+      {
+        "id": "6ad0683c-6ad0-4db4-8241-cfffb794d9c6",
+        "nome": "Staging Real E5 DLP staging-real-20260602-012050",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:02.68+00:00"
+      },
+      {
+        "id": "b72b22df-8f88-4e1c-b42f-0532842c04e8",
+        "nome": "Mass E6 HAS 120d mass-1780369806431",
+        "status_backend": "receita_em_edicao",
+        "status_painel": "MEMED_PROCESSING",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:11:04.713+00:00"
+      },
+      {
+        "id": "2cbd7281-027f-43d5-ad1e-32a548dea2f5",
+        "nome": "Mass E5 DLP 90d mass-1780369806431",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:10:54.224+00:00"
+      },
+      {
+        "id": "5ce0580b-66b1-41c1-98dc-91715429d286",
+        "nome": "Mass E4 Hipotireoidismo mass-1780369806431",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:10:43.618+00:00"
+      },
+      {
+        "id": "d3a7a6cb-4324-458b-9275-62538429789b",
+        "nome": "Mass E3 HAS+DM 60d mass-1780369806431",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:10:33.134+00:00"
+      },
+      {
+        "id": "067a9461-72e3-4cc7-bc79-de9237169b49",
+        "nome": "Mass E2 DM2 45d mass-1780369806431",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:10:22.405+00:00"
+      },
+      {
+        "id": "b7c53ea2-66c8-4e14-a9b0-57b52e57fefe",
+        "nome": "Mass E1 HAS 30d mass-1780369806431",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:10:09.467+00:00"
+      },
+      {
+        "id": "27666837-74c2-4aec-a1c2-f60bfe82a2f8",
+        "nome": "Paciente Fase2 1780368798146",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:53:19.041+00:00"
+      },
+      {
+        "id": "157cef2c-1f32-41c6-bfe9-99ce1581c1cb",
+        "nome": "Paciente Fase2 1780368337198",
+        "status_backend": "receita_em_edicao",
+        "status_painel": "MEMED_PROCESSING",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:45:37.887+00:00"
+      },
+      {
+        "id": "c70bf0c0-ddc6-4bd3-80d6-c981d2ecf300",
+        "nome": "Paciente Fase2 1780368320956",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:45:21.594+00:00"
+      },
+      {
+        "id": "4fc2216b-3655-4af1-ad5e-e806b7dfb33e",
+        "nome": "E2E Operacional 1780368284160",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:44:45.811+00:00"
+      },
+      {
+        "id": "558fa61f-43b9-4a76-8cc1-a5665c275fcf",
+        "nome": "Paciente Fase2 1780324788553",
+        "status_backend": "receita_emitida",
+        "status_painel": "RECEITA_EMITIDA",
+        "coluna_esperada": "RECEITAS_PRONTAS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T14:39:49.64+00:00"
+      },
+      {
+        "id": "8fa0d862-222c-46c9-a23a-e9e7eeb54b36",
+        "nome": "Paciente Fase2 1780324214355",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T14:30:15.593+00:00"
+      },
+      {
+        "id": "27a8a4b1-9f6f-4727-9907-df551818095d",
+        "nome": "Paciente Fase2 1780310497398",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:41:38.232+00:00"
+      },
+      {
+        "id": "90bb88f0-5667-416a-9fff-59c011efbd44",
+        "nome": "Paciente Fase2 1780310449774",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:40:50.642+00:00"
+      },
+      {
+        "id": "3e982ae0-faf6-4296-b905-9b1877a16f7e",
+        "nome": "Paciente Fase2 1780310400738",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:40:01.698+00:00"
+      },
+      {
+        "id": "98db3ddd-d99b-4c5b-bb92-5a72cbf6cef2",
+        "nome": "Paciente Fase2 1780310082515",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:34:43.676+00:00"
+      },
+      {
+        "id": "4b7abec6-4bd8-4a1d-b720-298987cb03c1",
+        "nome": "Paciente Fase2 1780309897782",
+        "status_backend": "approved",
+        "status_painel": "EM_ATENDIMENTO",
+        "coluna_esperada": "EM_ATENDIMENTO",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:31:38.911+00:00"
+      },
+      {
+        "id": "296e2cf6-6a1d-4f9a-8276-71d0bd68643c",
+        "nome": "Produto PROD-1780476952961",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:55:55.413+00:00"
+      },
+      {
+        "id": "628afb48-6125-4965-9b15-e7af257615d3",
+        "nome": "Produto PROD-1780476904973",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:55:07.376+00:00"
+      },
+      {
+        "id": "e448eb93-4b53-4f2f-aad4-bbf8dfdb8656",
+        "nome": "Produto PROD-1780476599050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:50:01.621+00:00"
+      },
+      {
+        "id": "7e1166ce-c1ab-4ef2-9f39-fa33bdbc7440",
+        "nome": "Paciente Real REAL-1780474888119",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:21:36.279+00:00"
+      },
+      {
+        "id": "4ea25c7a-2807-4f74-945d-691e1d8fee02",
+        "nome": "Suporte WhatsApp 8119",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:21:34.981+00:00"
+      },
+      {
+        "id": "581a96c5-2a67-451c-99c9-8296583307d4",
+        "nome": "Paciente Real REAL-1780474747664",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-03T08:19:22.084+00:00"
+      },
+      {
+        "id": "725f5fcf-663c-44dd-936f-2ced245771a8",
+        "nome": "Staging Real I9 Receita 220d staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:12.979+00:00"
+      },
+      {
+        "id": "88f114d8-0332-4b34-bbf7-55aca210ab77",
+        "nome": "Staging Real I8 Controlado staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:10.404+00:00"
+      },
+      {
+        "id": "7f323957-b196-4f7e-97c6-d7793541b692",
+        "nome": "Staging Real I7 Alerta staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:07.824+00:00"
+      },
+      {
+        "id": "01c0d7b3-738d-4817-90a8-1ad30924ea45",
+        "nome": "Staging Real E4 Hipotireoidismo staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:21:00.091+00:00"
+      },
+      {
+        "id": "66eb06bf-4c76-4a48-8296-3e0fe6f27b5f",
+        "nome": "Staging Real E3 HAS+DM staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:20:57.496+00:00"
+      },
+      {
+        "id": "ab9c5c77-accd-4dda-aa3a-f05cc5405b84",
+        "nome": "Staging Real E2 DM2 staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:20:54.91+00:00"
+      },
+      {
+        "id": "100805ba-6562-4ae6-8a45-67dbeca7ab36",
+        "nome": "Staging Real E1 HAS staging-real-20260602-012050",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:20:52.208+00:00"
+      },
+      {
+        "id": "231276c8-5418-467f-8f6c-cd19e015d389",
+        "nome": "Mass I9 Receita 220d mass-1780373322211",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:10:17.613+00:00"
+      },
+      {
+        "id": "300a1d8c-6592-4c64-98bd-252b4f6a95e1",
+        "nome": "Mass I8 Controlado mass-1780373322211",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:10:10.117+00:00"
+      },
+      {
+        "id": "38b01cad-848d-4184-a2da-5849db003d5a",
+        "nome": "Mass I7 Sinais alerta mass-1780373322211",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:10:02.066+00:00"
+      },
+      {
+        "id": "2d6b6b09-61b0-40d2-9ffa-fac24b6333dc",
+        "nome": "Mass I9 Receita 220d mass-1780373175825",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:07:45.143+00:00"
+      },
+      {
+        "id": "3a7e3716-8f83-45fc-8199-526921eaaa84",
+        "nome": "Mass I8 Controlado mass-1780373175825",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:07:37.138+00:00"
+      },
+      {
+        "id": "c86040db-1a7c-4f9f-9622-bd671c48e7be",
+        "nome": "Mass I7 Sinais alerta mass-1780373175825",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T04:07:29.468+00:00"
+      },
+      {
+        "id": "40b4c71b-4ffe-4869-890c-7c0540516ac9",
+        "nome": "Mass I9 Receita 220d mass-1780370307671",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:19:54.84+00:00"
+      },
+      {
+        "id": "c3986331-b7f4-455d-b634-ed54c2508b85",
+        "nome": "Mass I8 Controlado mass-1780370307671",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:19:46.233+00:00"
+      },
+      {
+        "id": "45a847b0-921b-45e6-8d6c-c192642c8821",
+        "nome": "Mass I7 Sinais alerta mass-1780370307671",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:19:37.533+00:00"
+      },
+      {
+        "id": "d1045728-80ea-47d0-96fc-0573c67093e0",
+        "nome": "Mass I9 Receita 220d mass-1780370118259",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:16:40.078+00:00"
+      },
+      {
+        "id": "06b93a4b-06f4-47e9-9415-a413e819646f",
+        "nome": "Mass I8 Controlado mass-1780370118259",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:16:31.974+00:00"
+      },
+      {
+        "id": "98697185-6d2c-457e-a4aa-da3c6b3711af",
+        "nome": "Mass I7 Sinais alerta mass-1780370118259",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:16:23.633+00:00"
+      },
+      {
+        "id": "19bec0a7-2a95-4ae9-9e21-65e8fb4a21e4",
+        "nome": "Mass I9 Receita 220d mass-1780369806431",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:11:30.663+00:00"
+      },
+      {
+        "id": "34bc0765-d471-46fe-b4b5-fe72d7c8a593",
+        "nome": "Mass I8 Controlado mass-1780369806431",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:11:22.963+00:00"
+      },
+      {
+        "id": "86743fab-b8bc-4752-8aa6-45767552cb44",
+        "nome": "Mass I7 Sinais alerta mass-1780369806431",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T03:11:15.302+00:00"
+      },
+      {
+        "id": "9bb606a4-0cde-412d-9cab-0a036fcc4b2d",
+        "nome": "Suporte WhatsApp 4160",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:44:49.329+00:00"
+      },
+      {
+        "id": "47c39766-8ea2-4cc2-9d94-fc3892be957c",
+        "nome": "Smoke Fase1",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:44:29.11+00:00"
+      },
+      {
+        "id": "dd89a25a-0e22-4094-b626-f7ba09439643",
+        "nome": "+5511988112233",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:31:25.876+00:00"
+      },
+      {
+        "id": "b7e2a0c1-8daa-4632-9d8c-f5e0426e65ec",
+        "nome": "Smoke Fase1",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:30:31.916+00:00"
+      },
+      {
+        "id": "21451710-0aec-44de-89d2-a2c40c85d39d",
+        "nome": "Smoke Fase1",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BLOQUEADO",
+        "suporte": false,
+        "visibility": [
+          "inelegivel",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-02T02:10:44.342+00:00"
+      },
+      {
+        "id": "d8e1dcd8-66a8-45fe-ba5c-82dcf077c249",
+        "nome": "Paciente Fase2 1780321261862",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T13:41:05.64+00:00"
+      },
+      {
+        "id": "b23c8b86-4be2-4afc-b958-f7b4352497e2",
+        "nome": "Paciente Fase2 1780321033956",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T13:37:15.434+00:00"
+      },
+      {
+        "id": "344ec972-cb2e-4c79-84ee-2a0e9f9a8158",
+        "nome": "Paciente Fase2 1780321004727",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T13:36:46.04+00:00"
+      },
+      {
+        "id": "a858aef0-794d-41b3-a684-2015fb7be499",
+        "nome": "Paciente Fase2 1780320992003",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T13:36:33.55+00:00"
+      },
+      {
+        "id": "066d1147-7231-4736-aef4-303625a59441",
+        "nome": "Paciente Fase2 1780310628117",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:43:49.418+00:00"
+      },
+      {
+        "id": "605992c3-26f0-42c6-a6a1-fd808eb725ec",
+        "nome": "Paciente Fase2 1780310477083",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:41:18.001+00:00"
+      },
+      {
+        "id": "f31eb201-f58f-4203-a6fe-ddcd813be3ad",
+        "nome": "Suporte WhatsApp 7033",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:23:33.575+00:00"
+      },
+      {
+        "id": "f8ac1ce6-7d56-4280-980e-68166bff90a8",
+        "nome": "Suporte WhatsApp 1294",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:22:58.103+00:00"
+      },
+      {
+        "id": "bfc78dac-51dd-41db-bef3-74ed32f401e7",
+        "nome": "Suporte WhatsApp 3046",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:22:48.571+00:00"
+      },
+      {
+        "id": "0ac57935-7003-46d7-9a10-a2d96b388d74",
+        "nome": "E2E Operacional 1780309363046",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:22:45.744+00:00"
+      },
+      {
+        "id": "c2bc9381-1f84-4d44-862b-2f7fb23eb448",
+        "nome": "Suporte WhatsApp 7248",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:19:41.605+00:00"
+      },
+      {
+        "id": "d055e0ec-eca3-46b7-97b4-70e8a7f5aedb",
+        "nome": "Suporte WhatsApp 1746",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:19:16.309+00:00"
+      },
+      {
+        "id": "79f3b9dd-2c2c-4b6f-9b62-75629ced92c1",
+        "nome": "Suporte WhatsApp 7737",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:18:42.439+00:00"
+      },
+      {
+        "id": "a155f9ea-ce86-4323-88f4-a7c5de6dba8c",
+        "nome": "Suporte WhatsApp 9232",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:18:03.083+00:00"
+      },
+      {
+        "id": "b80b492b-33d9-44a6-8976-4eea8fdd45ac",
+        "nome": "Suporte WhatsApp 2992",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:17:57.841+00:00"
+      },
+      {
+        "id": "a4933166-1b2e-4b7d-96b4-691eda49d737",
+        "nome": "E2E Operacional 1780309072992",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:17:55.074+00:00"
+      },
+      {
+        "id": "5c6b3c2f-7407-4fb9-a42f-24ce45d5279b",
+        "nome": "Suporte WhatsApp 1183",
+        "status_backend": "waiting",
+        "status_painel": "QUEUE",
+        "coluna_esperada": "FILA_DE_ESPERA",
+        "pagamento": "CONFIRMADO",
+        "elegivel": false,
+        "risco": "BAIXO",
+        "suporte": true,
+        "visibility": [
+          "suporte_whatsapp",
+          "sem_foto_receita"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:17:27.711+00:00"
+      },
+      {
+        "id": "48ed6f94-1bf5-4185-900e-282ef3d10d6f",
+        "nome": "E2E Operacional 1780309041183",
+        "status_backend": "rejected",
+        "status_painel": "REJECTED",
+        "coluna_esperada": "FINALIZADOS",
+        "pagamento": "CONFIRMADO",
+        "elegivel": true,
+        "risco": "BAIXO",
+        "suporte": false,
+        "visibility": [
+          "visivel"
+        ],
+        "homologacao": false,
+        "criado_em": "2026-06-01T10:17:23.755+00:00"
+      }
+    ],
+    "filtros_backend": [
+      "pagamento_status === CONFIRMADO",
+      "elegibilidade.eligible === true (ou risco BAIXO via isClinicallyEligible)",
+      "isVisibleInMedicalPanel: pago + elegível + foto receita + não suporte + não awaiting_prescription_upload",
+      "exclui delivered/cancelado; merge rejeitados pagos para exibição"
+    ],
+    "filtros_frontend": [
+      "Exclui suporte (condicao suporte_whatsapp / queue_type support)",
+      "Coluna FILA: status QUEUE | FILA | TRIAGED",
+      "Coluna EM ATENDIMENTO: EM_ATENDIMENTO | UNDER_REVIEW | MEMED_PROCESSING | AWAITING_VALIDATION",
+      "Coluna RECEITAS PRONTAS: VALIDATED | APROVADO | RECEITA_EMITIDA",
+      "Filtros UI opcionais: search, statusFilter, riskFilter, paymentFilter",
+      "Polling 30s quando aba visível"
+    ],
+    "status_alimentam_colunas": {
+      "FILA_DE_ESPERA": [
+        "waiting",
+        "queue",
+        "fila",
+        "triaged"
+      ],
+      "EM_ATENDIMENTO": [
+        "em_atendimento",
+        "under_review",
+        "approved",
+        "memed_processing",
+        "receita_em_edicao"
+      ],
+      "RECEITAS_PRONTAS": [
+        "ready",
+        "validated",
+        "aprovado",
+        "receita_emitida",
+        "awaiting_validation"
+      ]
+    },
+    "causas_fila_vazia": [],
+    "orfaos": [],
+    "teste_11_15_na_fila": [
+      {
+        "id": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+        "nome": "PACIENTE TESTE 15",
+        "status": "waiting",
+        "coluna": "FILA_DE_ESPERA"
+      },
+      {
+        "id": "f982361b-daa1-4bd9-97c9-fa778c7f18b9",
+        "nome": "PACIENTE TESTE 14",
+        "status": "waiting",
+        "coluna": "FILA_DE_ESPERA"
+      },
+      {
+        "id": "74d799c3-2c21-4f11-9578-4758add23cea",
+        "nome": "PACIENTE TESTE 13",
+        "status": "waiting",
+        "coluna": "FILA_DE_ESPERA"
+      },
+      {
+        "id": "9103258e-6663-4006-bdfa-46c008d145ee",
+        "nome": "PACIENTE TESTE 12",
+        "status": "waiting",
+        "coluna": "FILA_DE_ESPERA"
+      },
+      {
+        "id": "d3558391-d39a-4c5a-92b6-f0abc2ba5c7b",
+        "nome": "PACIENTE TESTE 11",
+        "status": "waiting",
+        "coluna": "FILA_DE_ESPERA"
+      }
+    ]
+  },
+  "supabase": {
+    "configured": true,
+    "connected": true,
+    "mode": "supabase"
+  },
+  "prontuario": {
+    "edit_test_ok": true
+  },
+  "approve_reject": {
+    "approve": {
+      "step": "4_aprovar",
+      "ok": true,
+      "http": 200,
+      "after_status": "approved",
+      "memed": "present"
+    },
+    "reject": {
+      "step": "5_reprovar",
+      "ok": false,
+      "http": 400,
+      "after_status": "em_atendimento",
+      "error": "reason_code obrigatório. Valores: RED_FLAG, DOCUMENTACAO_INSUFICIENTE, RECEITA_AUSENTE, FORA_DO_PROTOCOLO, MEDICACAO_INCOMPATIVEL, RISCO_CLINICO, DADOS_INCONSISTENTES, OUTROS"
+    }
+  },
+  "pacientes_teste": [
+    {
+      "num": 11,
+      "nome": "PACIENTE TESTE 11",
+      "cpf": "52998224725",
+      "telefone": "+5511999110011",
+      "email": "homolog.teste11@mdoctor.local",
+      "sexo": "F",
+      "idade": 41,
+      "queixa": "Renovação HAS — homologação fila painel TESTE 11.",
+      "atendimentoId": "d3558391-d39a-4c5a-92b6-f0abc2ba5c7b",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 12,
+      "nome": "PACIENTE TESTE 12",
+      "cpf": "11144477735",
+      "telefone": "+5511999110012",
+      "email": "homolog.teste12@mdoctor.local",
+      "sexo": "M",
+      "idade": 52,
+      "queixa": "Controle pressórico — homologação fila painel TESTE 12.",
+      "atendimentoId": "9103258e-6663-4006-bdfa-46c008d145ee",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 13,
+      "nome": "PACIENTE TESTE 13",
+      "cpf": "39053344705",
+      "telefone": "+5511999110013",
+      "email": "homolog.teste13@mdoctor.local",
+      "sexo": "F",
+      "idade": 47,
+      "queixa": "Renovação metformina — homologação fila painel TESTE 13.",
+      "atendimentoId": "74d799c3-2c21-4f11-9578-4758add23cea",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 14,
+      "nome": "PACIENTE TESTE 14",
+      "cpf": "28625587896",
+      "telefone": "+5511999110014",
+      "email": "homolog.teste14@mdoctor.local",
+      "sexo": "M",
+      "idade": 38,
+      "queixa": "Renovação levotiroxina — homologação fila painel TESTE 14.",
+      "atendimentoId": "f982361b-daa1-4bd9-97c9-fa778c7f18b9",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    },
+    {
+      "num": 15,
+      "nome": "PACIENTE TESTE 15",
+      "cpf": "81717023088",
+      "telefone": "+5511999110015",
+      "email": "homolog.teste15@mdoctor.local",
+      "sexo": "F",
+      "idade": 59,
+      "queixa": "Renovação crônica — homologação fluxo approve/reject TESTE 15.",
+      "atendimentoId": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+      "status": "waiting",
+      "elegivel": true,
+      "checks": {
+        "na_fila": true,
+        "fila_status": 200,
+        "prontuario_carrega": true,
+        "status": "waiting",
+        "elegivel": true,
+        "pago": true,
+        "nome_painel": true
+      },
+      "ok": true
+    }
+  ],
+  "testes_operacionais": [
+    {
+      "step": "1_ATENDER",
+      "ok": true,
+      "before_status": "waiting",
+      "after_status": "em_atendimento",
+      "http": 200
+    },
+    {
+      "step": "2_abrir_modal_prontuario",
+      "ok": true,
+      "id": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+      "nome": "PACIENTE TESTE 15"
+    },
+    {
+      "step": "3_editar_prontuario",
+      "ok": true,
+      "http": 200,
+      "persisted": true
+    },
+    {
+      "step": "4_aprovar",
+      "ok": true,
+      "http": 200,
+      "after_status": "approved",
+      "memed": "present"
+    },
+    {
+      "step": "5_reprovar",
+      "ok": false,
+      "http": 400,
+      "after_status": "em_atendimento",
+      "error": "reason_code inválido no script (clinical_ineligible). Reteste TESTE 13 com FORA_DO_PROTOCOLO: HTTP 200, status rejected.",
+      "reteste_teste_13": { "ok": true, "http": 200, "status": "rejected", "reason_code": "FORA_DO_PROTOCOLO" }
+    },
+    {
+      "step": "6_atualizacao_fila",
+      "ok": true,
+      "total_queue": 80,
+      "testes_visiveis": 5,
+      "testes_por_status": [
+        {
+          "nome": "PACIENTE TESTE 15",
+          "status": "approved"
+        },
+        {
+          "nome": "PACIENTE TESTE 14",
+          "status": "em_atendimento"
+        },
+        {
+          "nome": "PACIENTE TESTE 13",
+          "status": "waiting"
+        },
+        {
+          "nome": "PACIENTE TESTE 12",
+          "status": "waiting"
+        },
+        {
+          "nome": "PACIENTE TESTE 11",
+          "status": "waiting"
+        }
+      ]
+    },
+    {
+      "step": "7_mudanca_status",
+      "ok": true,
+      "patient_id": "e9a6a871-1284-4ee6-b3cb-e27e682dad09",
+      "status_backend": "approved",
+      "status_painel": "EM_ATENDIMENTO",
+      "coluna": "EM_ATENDIMENTO"
+    },
+    {
+      "step": "8_persistencia_banco",
+      "ok": true,
+      "historico_persistido": true,
+      "status_persistido": "approved"
+    }
+  ],
+  "problemas": [
+    "Antes do seed TESTE 11-15, os 11 registros waiting na API eram 100% suporte WhatsApp — o frontend exclui suporte das colunas médicas, gerando FILA DE ESPERA visualmente vazia.",
+    "23 pacientes em EM ATENDIMENTO com status approved (pós-approve) — acumulados de testes anteriores; não avançam sozinhos para RECEITAS PRONTAS.",
+    "Teste automatizado de reject falhou com reason_code inválido (clinical_ineligible); com FORA_DO_PROTOCOLO retorna 200 e status rejected (TESTE 13).",
+    "Evolution API responde HTTP 200 mas provider WhatsApp não reporta evolution configured no /api/whatsapp/status.",
+    "Webhook n8n /webhook/typebot-webhook retorna 404 (rota pode ter path diferente em staging)."
+  ],
+  "recomendacoes": [
+    "Manter pacientes homologação identificados via homologacao_painel=true e prefixo PACIENTE TESTE.",
+    "Após ATENDER, paciente sai da FILA DE ESPERA imediatamente — repor fila com novos ingressos ou reset de status em staging.",
+    "Garantir foto_receita_url em todo ingresso Typebot/n8n para passar isVisibleInMedicalPanel.",
+    "Monitorar registros ORFAO (status approved vs colunas do painel).",
+    "Executar teste humano no painel staging: /fila sem visualSim para validar modal + botões.",
+    "Limpar pacientes TESTE 11-15 após homologação para não poluir fila operacional."
+  ]
+}

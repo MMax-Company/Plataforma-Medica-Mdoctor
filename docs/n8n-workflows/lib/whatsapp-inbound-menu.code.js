@@ -129,6 +129,23 @@ if (rawText.toUpperCase().includes('STAGING_E2E_COMPLETE')) {
   });
   menuAction = 'e2e_relay';
 } else if (phone) {
+  let surveyHandled = false;
+  try {
+    const surveyResult = await callBackend('/api/patient-outcomes/survey/inbound', {
+      from: phone,
+      phone,
+      text: rawText
+    });
+    if (surveyResult?.handled) {
+      surveyHandled = true;
+      menuAction = surveyResult.completed ? 'post_delivery_survey_completed' : 'post_delivery_survey_step';
+      sentMessages.push(menuAction);
+    }
+  } catch (_surveyError) {
+    // segue para menu principal
+  }
+
+  if (!surveyHandled) {
   const session = staticData.sessions[phone] || { state: 'menu' };
 
   const isMenuBack = text === '0' || text === '00' || text.includes('MENU') || text.includes('VOLTAR');
@@ -199,6 +216,7 @@ if (rawText.toUpperCase().includes('STAGING_E2E_COMPLETE')) {
   }
 
   staticData.sessions[phone] = session;
+  }
 }
 
 return [

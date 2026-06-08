@@ -1,51 +1,65 @@
-import { PRESCRIPTION_MODULE } from './onLoadPrescription';
+import { buildMemedItemsFromAtendimento } from './buildClinicalPrescriptionFromAtendimento';
+import type { MemedPrescriptionItem } from './clinicalPrescription.types';
+import { sendAddItemWithDiagnostic, sendNewPrescriptionWithDiagnostic } from './memedCommandDiagnostic';
 import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 
-type MedicationRow = {
-  name?: string;
-  nome?: string;
-  dose?: string;
-  posology?: string;
-  raw_text?: string;
-  label?: string;
-  frequency?: string;
+export type AddMedicationsResult = {
+  added: number;
+  memed_items_sent: MemedPrescriptionItem[];
+  pending_medical_review: boolean;
+  pending_reasons: string[];
 };
 
-/** Pré-carrega itens via addItem antes de abrir o módulo (doc Memed MdHub). */
-export async function addMedicationsFromAtendimento(atendimento: AtendimentoForMemed): Promise<number> {
-  if (!window.MdHub?.command?.send) return 0;
+/** Pré-carrega itens via newPrescription + addItem (somente nome/posologia/quantidade). */
+export async function addMedicationsFromAtendimento(
+  atendimento: AtendimentoForMemed,
+): Promise<AddMedicationsResult> {
+  if (!window.MdHub?.command?.send) {
+    return { added: 0, memed_items_sent: [], pending_medical_review: false, pending_reasons: [] };
+  }
 
-  const clinical = (atendimento.dados_clinicos || {}) as Record<string, unknown>;
-  const list = (clinical.medications as MedicationRow[] | undefined) || [];
-  const fallbackName =
-    String(clinical.medicacao_em_uso || clinical.medication || atendimento.medicacao_em_uso || '').trim();
+  const { memed_items, pending_medical_review, pending_reasons } = buildMemedItemsFromAtendimento(atendimento);
 
-  const items: MedicationRow[] =
-    list.length > 0
-      ? list
-      : fallbackName
-        ? [{ name: fallbackName, raw_text: fallbackName, posology: String(clinical.posology || '') }]
-        : [];
+  if (memed_items.length === 0) {
+    return {
+      added: 0,
+      memed_items_sent: [],
+      pending_medical_review,
+      pending_reasons,
+    };
+  }
+
+  try {
+    await sendNewPrescriptionWithDiagnostic();
+  } catch {
+    // módulo pode já estar em prescrição nova — não bloqueia
+  }
 
   let added = 0;
-  for (const med of items) {
-    const nome = String(med.name || med.nome || med.raw_text || med.label || '').trim();
-    if (!nome) continue;
+  const memed_items_sent: MemedPrescriptionItem[] = [];
 
-    const posologia = String(med.posology || med.label || med.raw_text || '').trim();
-    const dose = String(med.dose || '').trim();
+  for (const item of memed_items) {
+    const payload: MemedPrescriptionItem = {
+      nome: item.nome,
+      posologia: item.posologia,
+    };
+    if (typeof item.quantidade === 'number' && item.quantidade > 0) {
+      payload.quantidade = item.quantidade;
+    }
 
     try {
-      await window.MdHub.command.send(PRESCRIPTION_MODULE, 'addItem', {
-        nome,
-        ...(dose ? { dose } : {}),
-        ...(posologia ? { posologia } : {}),
-      });
+      await sendAddItemWithDiagnostic(payload as Record<string, unknown>);
       added += 1;
+      memed_items_sent.push(payload);
     } catch {
-      // item pode já existir ou exigir busca — não bloqueia o fluxo
+      // item pode exigir seleção manual no catálogo — não bloqueia abertura do widget
     }
   }
 
-  return added;
+  return {
+    added,
+    memed_items_sent,
+    pending_medical_review,
+    pending_reasons,
+  };
 }

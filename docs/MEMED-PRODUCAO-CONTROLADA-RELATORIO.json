@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T22:37:14.328Z",
+  "generated_at": "2026-06-07T12:29:23.768Z",
   "script": "validar-memed-producao-controlada.js",
   "purpose": "Validação isolada Memed produção — sem approve clínico, WhatsApp ou deliver",
   "environment_used": "production",
@@ -37,8 +37,8 @@
     "cpf_configured": true,
     "crm": "163032",
     "crm_uf": "SP",
-    "medico_user": "staging-doctor",
-    "medico_nome": "Medico Staging"
+    "medico_user": "drmax.matos",
+    "medico_nome": "Dr Max Matos"
   },
   "payload_validado": {
     "ok": true,
@@ -76,20 +76,11 @@
     "atendimento_status_changed": false
   },
   "errors": [],
-  "api_url_note": "Credenciais de produção Memed usam https://api.memed.com.br/v1. integrations.api.memed.com.br retorna 401 com as mesmas chaves.",
-  "staging_endpoint_probe": {
-    "GET /api/memed/token": {
-      "http_status": 200,
-      "success": true,
-      "has_token": true
-    }
-  },
-  "conclusion": "Memed produção isolada: gates OK, prescritor autenticado (JWT). REST /prescriptions retorna 403 — approve clínico deve usar widget Sinapse + POST /api/memed/receita.",
   "prescriber_auth": {
     "ok": true,
     "has_token": true,
     "prescriber_id": "dr_max_vinicius_001",
-    "mode": "sinapse",
+    "mode": "sinapse_production",
     "token_valid_jwt": true
   },
   "prescription_api_probe": {
@@ -97,8 +88,8 @@
     "success": false,
     "prescriptionId": null,
     "pdfUrl": null,
-    "error": "Ocorreu um erro inesperado, por favor contate o nosso suporte.",
-    "http_status": 403,
+    "error": "Emissão REST descontinuada. Use widget Memed/Sinapse no painel e POST /api/memed/receita após confirmação do médico.",
+    "http_status": null,
     "note": "Em produção Memed a emissão costuma ocorrer via widget Sinapse; REST /prescriptions pode estar bloqueado."
   }
 }

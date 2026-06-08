@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-29T21:46:39.476Z",
+  "generated_at": "2026-06-07T11:22:08.954Z",
   "targets": {
     "BACKEND": "https://mdoctor-backend-staging-staging.up.railway.app",
     "PANEL": "https://painel-medico-staging-staging.up.railway.app",
@@ -12,12 +12,12 @@
       "url": "https://mdoctor-backend-staging-staging.up.railway.app/health",
       "ok": true,
       "status": 200,
-      "latency_ms": 998,
+      "latency_ms": 1826,
       "snippet": {
         "status": "OK",
         "service": "Backend-MDoctor",
         "port": "3004",
-        "timestamp": "2026-05-29T21:46:40.431Z"
+        "timestamp": "2026-06-07T11:22:11.589Z"
       }
     },
     {
@@ -25,7 +25,7 @@
       "url": "https://mdoctor-backend-staging-staging.up.railway.app/readyz",
       "ok": true,
       "status": 200,
-      "latency_ms": 585,
+      "latency_ms": 1596,
       "snippet": {
         "status": "warning",
         "production": false,
@@ -36,17 +36,8 @@
         },
         "storage": {
           "configured": true,
-          "initialized": true,
           "responding": true,
           "mode": "supabase",
-          "buckets": {
-            "documents": "documents",
-            "prescriptions": "receitas",
-            "previousPrescriptions": "receitas-anteriores",
-            "medicalRecords": "medical-records",
-            "consents": "consents",
-            "logs": "logs"
-          },
           "error": null
         },
         "supabase": {
@@ -55,13 +46,15 @@
           "mode": "supabase"
         },
         "memed": {
-          "configured": false,
-          "source": "mock",
-          "env": "mock",
-          "apiUrl": "https://integrations.api.memed.com.br/v1"
+          "configured": true,
+          "source": "memed",
+          "real_mode": true,
+          "mock_fallback_allowed": false,
+          "env": "production",
+          "apiUrl": "https://api.memed.com.br/v1"
         },
-        "fallback_local": false,
-        "checkedAt": "2026-05-29T21:46:41.039Z",
+        "persistence_mode": "supabase",
+        "checkedAt": "2026-06-07T11:22:12.281Z",
         "checks": [
           {
             "name": "node_env",
@@ -73,61 +66,73 @@
             "name": "jwt_secret",
             "ok": true,
             "message": "JWT_SECRET obrigatório e com pelo menos 32 caracteres",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "medico_user",
             "ok": true,
             "message": "MEDICO_USER obrigatório",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "medico_pass",
             "ok": true,
             "message": "MEDICO_PASS não pode usar senha padrão sem ALLOW_DEFAULT_MEDICO_PASS=true",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "cors_origin",
-            "ok": false,
+            "ok": true,
             "message": "CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "supabase_url",
             "ok": true,
             "message": "SUPABASE_URL obrigatório",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "supabase_service_key",
             "ok": true,
             "message": "Service key do Supabase obrigatória",
-            "severity": "warning"
+            "severity": "fail"
           },
           {
             "name": "local_db_fallback_disabled",
             "ok": true,
-            "message": "DISABLE_LOCAL_DB_FALLBACK=true obrigatório em produção para impedir fallback local",
+            "message": "DISABLE_LOCAL_DB_FALLBACK=true obrigatório em staging/produção para impedir fallback local",
             "severity": "fail"
           },
           {
-            "name": "memed_credentials",
-            "ok": false,
-            "message": "Credenciais Memed obrigatórias para prescrição em produção",
+            "name": "ingress_service_secret",
+            "ok": true,
+            "message": "INGRESS_SERVICE_SECRET ou N8N_WEBHOOK_SECRET obrigatório para rotas de ingress em staging/produção",
+            "severity": "fail"
+          },
+          {
+            "name": "stripe_webhook_secret",
+            "ok": true,
+            "message": "STRIPE_WEBHOOK_SECRET recomendado quando pagamentos Stripe estiverem ativos",
             "severity": "warning"
           },
           {
+            "name": "memed_credentials",
+            "ok": true,
+            "message": "Credenciais Memed obrigatórias para prescrição em produção",
+            "severity": "fail"
+          },
+          {
             "name": "memed_environment",
-            "ok": false,
+            "ok": true,
             "message": "MEMED_ENVIRONMENT deve ser production no ambiente final",
             "severity": "warning"
           },
           {
             "name": "delivery_provider",
-            "ok": false,
+            "ok": true,
             "message": "Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true",
-            "severity": "warning"
+            "severity": "fail"
           }
         ],
         "failures": [],
@@ -137,32 +142,9 @@
             "ok": false,
             "message": "NODE_ENV deve ser production no ambiente final",
             "severity": "warning"
-          },
-          {
-            "name": "cors_origin",
-            "ok": false,
-            "message": "CORS_ORIGIN deve apontar para domínio(s) explícito(s), sem wildcard",
-            "severity": "warning"
-          },
-          {
-            "name": "memed_credentials",
-            "ok": false,
-            "message": "Credenciais Memed obrigatórias para prescrição em produção",
-            "severity": "warning"
-          },
-          {
-            "name": "memed_environment",
-            "ok": false,
-            "message": "MEMED_ENVIRONMENT deve ser production no ambiente final",
-            "severity": "warning"
-          },
-          {
-            "name": "delivery_provider",
-            "ok": false,
-            "message": "Configure Twilio/Resend ou habilite ALLOW_PRODUCTION_DELIVERY_MOCK=true com DELIVERY_MOCK_ENABLED=true",
-            "severity": "warning"
           }
-        ]
+        ],
+        "persistence_required": true
       }
     },
     {
@@ -170,15 +152,15 @@
       "url": "https://painel-medico-staging-staging.up.railway.app/login",
       "ok": true,
       "status": 200,
-      "latency_ms": 851,
-      "snippet": "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"image\" imageSrcSet=\"/_next/image?url=%2Flogo"
+      "latency_ms": 1257,
+      "snippet": "<!DOCTYPE html><html lang=\"pt-BR\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\"/><link rel=\"preload\" as=\"image\" href=\"/doctor-prescr"
     },
     {
       "name": "n8n_health",
       "url": "https://n8n-staging-staging-2dfe.up.railway.app/healthz",
       "ok": true,
       "status": 200,
-      "latency_ms": 681,
+      "latency_ms": 1218,
       "snippet": {
         "status": "ok"
       }
@@ -188,7 +170,7 @@
       "url": "https://typebot.co/doctor-prescreve-8rmljgu",
       "ok": true,
       "status": 200,
-      "latency_ms": 320,
+      "latency_ms": 947,
       "snippet": null
     }
   ],

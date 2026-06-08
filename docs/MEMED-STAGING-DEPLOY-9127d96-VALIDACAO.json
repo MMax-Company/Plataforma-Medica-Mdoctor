@@ -1,0 +1,79 @@
+{
+  "generated_at": "2026-06-07T16:50:14.453Z",
+  "deployed_commit": "9127d96",
+  "deployment_id": "f418342e-a737-4859-be6f-3c4f47b91171",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "validated_url": "https://painel-medico-staging-staging.up.railway.app/receita?atendimentoId=c302bd9e-060a-4ee8-b4cf-0c78392f60c6&emit=1",
+  "status_lines": [
+    "Prescrição",
+    "Prescrição — Doctor Prescreve",
+    "Prescrição em andamento",
+    "Losartana 50mg",
+    "Paciente solicita renovação de Losartana 50mg para controle de Hipertensão arterial (HAS), sem relato de piora aguda recente.",
+    "PRESCRIÇÃO DIGITAL",
+    "Medicação: Losartana 50mg",
+    "Assinatura digital (BirdID/Soluti) permanece ativa na sessão do turno. Revise, assine e fecione — o painel Doctor Prescreve persiste PDF e link automaticamente."
+  ],
+  "commands": {
+    "getUsuario": {
+      "outcome": "NAO_EXECUTADO"
+    },
+    "setPaciente": {
+      "outcome": "TIMEOUT",
+      "duration_ms": 30002,
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "error": "Timeout 30000ms em plataforma.prescricao.setPaciente"
+    },
+    "newPrescription": {
+      "outcome": "NAO_EXECUTADO"
+    },
+    "addItem": {
+      "outcome": "NAO_EXECUTADO"
+    },
+    "show": {
+      "outcome": "OK",
+      "iframeCount": 13
+    }
+  },
+  "diagnostic_log_count": 2,
+  "diagnostic_log": [
+    {
+      "id": "plataforma.prescricao.setPaciente-1780850902965-before",
+      "at": "2026-06-07T16:48:22.965Z",
+      "phase": "before",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "method": "MdHub.command.send",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      }
+    },
+    {
+      "id": "plataforma.prescricao.setPaciente-1780850902965-after",
+      "at": "2026-06-07T16:48:52.968Z",
+      "phase": "after",
+      "module": "plataforma.prescricao",
+      "command": "setPaciente",
+      "method": "MdHub.command.send",
+      "payload": {
+        "nome": "PACIENTE TESTE 05",
+        "telefone": "11988700005",
+        "idExterno": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6"
+      },
+      "duration_ms": 30002,
+      "ok": false,
+      "error": "Timeout 30000ms em plataforma.prescricao.setPaciente",
+      "timed_out": true
+    }
+  ],
+  "ui": {
+    "iframeCount": 13,
+    "mdHub": true
+  }
+}

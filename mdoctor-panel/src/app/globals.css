@@ -1245,6 +1245,35 @@ body {
   flex: none;
 }
 
+/* —— Prontuário modal overlay (sobre o Painel Médico) —— */
+.modal-overlay,
+.prontuario-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  box-sizing: border-box;
+}
+
+.modal-content,
+.prontuario-modal-content {
+  background-color: #ffffff;
+  width: 75vw;
+  max-width: 1060px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  padding: 24px;
+  box-sizing: border-box;
+}
+
 /* —— Prontuário médico (réplica visual oficial) —— */
 .prontuario-shell {
   @apply relative flex w-full max-w-[1366px] flex-col overflow-x-hidden text-[#071b3a];
@@ -2011,33 +2040,7 @@ a.prontuario-patient-card__whatsapp:hover {
   text-align: center;
 }
 
-/* Prontuário modal — ficha clínica operacional equilibrada (somente escala) */
-.prontuario-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 23, 42, 0.28);
-  backdrop-filter: blur(4px);
-  padding: 16px 20px;
-}
-
-.prontuario-modal {
-  display: flex;
-  width: min(1240px, 92vw);
-  height: 84vh;
-  max-height: 84vh;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow:
-    0 16px 40px rgba(15, 23, 42, 0.14),
-    0 2px 6px rgba(15, 23, 42, 0.06);
-}
-
+/* Prontuário — estados auxiliares do modal operacional */
 .prontuario-modal__loading,
 .prontuario-modal__error {
   padding: 32px 24px;
@@ -2060,12 +2063,12 @@ a.prontuario-patient-card__whatsapp:hover {
 .prontuario-shell--modal {
   display: flex;
   height: 100%;
-  max-height: 84vh;
+  max-height: 100%;
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  padding: 16px;
-  background: #ffffff;
+  padding: 10px 4px 0;
+  background: #f6f9fd;
 }
 
 .prontuario-shell--modal .prontuario-page-top {
@@ -2075,11 +2078,13 @@ a.prontuario-patient-card__whatsapp:hover {
   gap: 12px;
   height: 64px;
   min-height: 64px;
+  max-height: 64px;
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .prontuario-shell--modal .prontuario-back-btn {
-  height: 40px;
+  height: 38px;
   padding-left: 12px;
   padding-right: 12px;
   font-size: 12px;
@@ -2119,29 +2124,48 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--modal .prontuario-main-grid {
+  display: grid;
   grid-template-columns: 312px minmax(0, 1fr);
-  gap: 15px;
+  gap: 16px;
   min-height: 0;
   flex: 1;
   overflow: hidden;
   align-items: stretch;
 }
 
+.prontuario-shell--modal .prontuario-patient-card,
+.prontuario-shell--modal .prontuario-history-card {
+  display: flex;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #e8edf3;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(37, 48, 68, 0.05);
+}
+
 .prontuario-shell--modal .prontuario-patient-card__head,
 .prontuario-shell--modal .prontuario-history-card__head {
+  flex-shrink: 0;
   padding: 10px 14px;
+  border-bottom: 1px solid #eef2f7;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__title,
 .prontuario-shell--modal .prontuario-history-card__title {
   font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #071b3a;
 }
 
 .prontuario-shell--modal .prontuario-history-btn {
-  height: 36px;
-  min-width: 118px;
-  min-height: 36px;
+  height: 38px;
+  min-width: 128px;
+  min-height: 38px;
   padding-left: 10px;
   padding-right: 10px;
 }
@@ -2151,35 +2175,40 @@ a.prontuario-patient-card__whatsapp:hover {
   letter-spacing: 0.04em;
 }
 
-.prontuario-shell--modal .prontuario-patient-card,
-.prontuario-shell--modal .prontuario-history-card {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  overflow: hidden;
-}
-
 .prontuario-shell--modal .prontuario-patient-card__body {
-  padding: 12px 14px 14px;
+  flex: 1;
+  min-height: 0;
+  padding: 14px 16px 16px;
   overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__hero {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__avatar {
-  height: 56px;
-  width: 56px;
-  font-size: 17px;
+  display: flex;
+  height: 64px;
+  width: 64px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
   font-weight: 700;
   border-radius: 9999px;
-  background-color: #e8f1ff;
-  color: #1557ff;
+  background-color: #eff6ff;
+  color: #2563eb;
   box-shadow: none;
+}
+
+.prontuario-shell--modal .prontuario-patient-card__name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__name {
@@ -2189,32 +2218,74 @@ a.prontuario-patient-card__whatsapp:hover {
   color: #071b3a;
 }
 
-.prontuario-shell--modal .prontuario-patient-card__age,
-.prontuario-shell--modal .prontuario-patient-card__record,
-.prontuario-shell--modal .prontuario-patient-card__whatsapp {
+.prontuario-shell--modal .prontuario-patient-card__age {
+  display: inline-flex;
+  border-radius: 8px;
+  background-color: #eff6ff;
+  padding: 2px 8px;
   font-size: 12px;
+  font-weight: 700;
   line-height: 1.25;
-  margin-top: 3px;
+  color: #2563eb;
+}
+
+.prontuario-shell--modal .prontuario-patient-card__record {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #2563eb;
+}
+
+.prontuario-shell--modal .prontuario-patient-card__whatsapp {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  color: #4d5b75;
+}
+
+.prontuario-shell--modal a.prontuario-patient-card__whatsapp:hover {
+  color: #071b3a;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__rows {
-  margin-top: 10px;
+  margin-top: 8px;
+  border-top: 1px solid #eef2f7;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
   min-height: 28px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  font-size: 12.5px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 12px;
   line-height: 1.3;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
+  color: #5b6475;
+  flex-shrink: 0;
 }
 
 .prontuario-shell--modal .prontuario-patient-card__value {
-  font-size: 12.5px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #071b3a;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body {
@@ -2222,31 +2293,30 @@ a.prontuario-patient-card__whatsapp:hover {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
   padding: 10px 12px 12px;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body > .prontuario-clinical-block {
-  flex: 1 1 auto;
-  min-height: 48px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-clinical-pair {
-  flex: 0 0 auto;
-  min-height: 72px;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 16px;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-history-card__body > .prontuario-clinical-block--conduct {
-  flex: 1.2 1 auto;
-  min-height: 64px;
-}
-
-.prontuario-clinical-block--half {
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
+  flex: 1.25 1 0;
+  min-height: 120px;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block {
@@ -2254,46 +2324,80 @@ a.prontuario-patient-card__whatsapp:hover {
   min-height: 0;
   flex-direction: column;
   padding: 10px 12px;
-  border-radius: 10px;
-  border-color: #e8edf3;
+  border-radius: 12px;
+  border: 1px solid #e4ecf7;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(37, 48, 68, 0.04);
+  overflow: hidden;
 }
 
-.prontuario-shell--modal .prontuario-clinical-pair .prontuario-clinical-block {
-  min-height: 72px;
+.prontuario-shell--modal .prontuario-clinical-block__layout {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: hidden;
 }
 
-.prontuario-shell--modal .prontuario-clinical-block__head {
-  margin-bottom: 4px;
+.prontuario-shell--modal .prontuario-clinical-block__icon {
+  display: inline-flex;
+  height: 40px;
+  width: 40px;
   flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+
+.prontuario-shell--modal .prontuario-clinical-block__copy {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block__title {
-  font-size: 11px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.06em;
   line-height: 1.2;
+  text-transform: uppercase;
+  color: #1e293b;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block--conduct .prontuario-clinical-block__content,
 .prontuario-shell--modal .prontuario-clinical-block__content {
   display: block;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  margin-top: 2px;
-  font-size: 12.5px;
-  line-height: 1.32;
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.3;
+  color: #475569;
   white-space: pre-line;
 }
 
 .prontuario-shell--modal .prontuario-clinical-block__textarea {
-  min-height: 48px;
-  max-height: none;
-  flex: 1;
+  min-height: 0;
+  flex: 1 1 auto;
+  width: 100%;
   resize: none;
   margin-top: 4px;
   padding: 8px 10px;
-  font-size: 12.5px;
-  line-height: 1.32;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #d9e2f0;
+  background-color: #f6f9fd;
+  color: #071b3a;
 }
 
 .prontuario-shell--modal .prontuario-eligibility {
@@ -2304,11 +2408,12 @@ a.prontuario-patient-card__whatsapp:hover {
   padding-top: 8px;
   padding-bottom: 8px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__icon {
-  height: 28px;
-  width: 28px;
+  height: 32px;
+  width: 32px;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__title {
@@ -2320,6 +2425,7 @@ a.prontuario-patient-card__whatsapp:hover {
   margin-top: 1px;
   font-size: 12.5px;
   line-height: 1.3;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-eligibility__badge {
@@ -2329,16 +2435,21 @@ a.prontuario-patient-card__whatsapp:hover {
 
 .prontuario-shell--modal .prontuario-decision-bar {
   flex-shrink: 0;
-  margin-top: 0;
+  margin-top: auto;
   min-height: 80px;
   max-height: 84px;
-  grid-template-columns: 220px minmax(0, 1fr) 220px;
+  grid-template-columns: 240px minmax(0, 1fr) 240px;
   gap: 12px;
+  overflow: hidden;
+  border-top: 1px solid #e4ecf7;
+  background: #f6f9fd;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__reject,
 .prontuario-shell--modal .prontuario-decision-bar__approve {
-  min-height: 58px;
+  min-height: 56px;
   max-height: 60px;
   padding: 6px 10px;
   border-radius: 10px;
@@ -2363,11 +2474,14 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes {
-  min-height: 58px;
+  position: relative;
+  min-height: 56px;
   max-height: 60px;
-  padding: 8px 10px;
+  padding: 8px 10px 18px;
   border-radius: 10px;
-  background-color: #fafbfd;
+  background-color: #ffffff;
+  border: 1px solid #e4ecf7;
+  overflow: hidden;
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes-title {
@@ -2379,21 +2493,33 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--modal .prontuario-decision-bar__notes-input {
-  min-height: 32px;
-  max-height: 36px;
-  padding: 6px 8px;
+  min-height: 28px;
+  max-height: 32px;
+  width: 100%;
+  padding: 5px 7px;
   resize: none;
   font-size: 12px;
   line-height: 1.3;
   background-color: #ffffff;
-  border-color: #e4eaf1;
+  border: 1px solid #e4eaf1;
+  overflow: hidden;
 }
 
-/* Sobrescreve réplica — barra proporcional no modal (não faixa espremida) */
+.prontuario-shell--modal .prontuario-decision-bar__notes-counter {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 10px;
+  line-height: 1;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+/* Sobrescreve réplica — painel full-width operacional */
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__reject,
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__approve,
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-decision-bar__notes {
-  min-height: 58px;
+  min-height: 56px;
   max-height: 60px;
 }
 
@@ -2404,21 +2530,14 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 .prontuario-shell--replica.prontuario-shell--modal .prontuario-eligibility__icon {
-  height: 28px;
-  width: 28px;
+  height: 32px;
+  width: 32px;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .prontuario-shell--modal .prontuario-main-grid {
     grid-template-columns: 300px minmax(0, 1fr);
-  }
-}
-
-@media (max-height: 760px) {
-  .prontuario-modal,
-  .prontuario-shell--modal {
-    height: 82vh;
-    max-height: 82vh;
+    gap: 14px;
   }
 }
 

@@ -68,5 +68,37 @@ export default defineConfig({
       name: 'fila-atender-chromium',
       testMatch: /fila-atender-prontuario\.spec\.ts/,
     },
+    {
+      name: 'memed-prefill-clinical-chromium',
+      testMatch: /memed-prefill-clinical\.spec\.ts/,
+    },
+    {
+      name: 'memed-setpaciente-diagnostic-chromium',
+      testMatch: /memed-setpaciente-diagnostic\.spec\.ts/,
+    },
+    {
+      name: 'memed-setpaciente-surgical-chromium',
+      testMatch: /memed-setpaciente-surgical\.spec\.ts/,
+      timeout: 900_000,
+    },
+    {
+      name: 'memed-setpaciente-diagnostic-chromium',
+      testMatch: /memed-setpaciente-diagnostic\.spec\.ts/,
+    },
+    {
+      name: 'memed-setpaciente-surgical-chromium',
+      testMatch: /memed-setpaciente-surgical\.spec\.ts/,
+      timeout: 900_000,
+    },
+    {
+      name: 'memed-minimal-payload-chromium',
+      testMatch: /memed-minimal-payload-validation\.spec\.ts/,
+      timeout: 300_000,
+    },
+    {
+      name: 'memed-minimal-payload-fresh-chromium',
+      testMatch: /memed-minimal-payload-fresh-id\.spec\.ts/,
+      timeout: 240_000,
+    },
   ],
 });

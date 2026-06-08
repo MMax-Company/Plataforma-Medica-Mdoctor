@@ -5,12 +5,14 @@ import type { MemedConfig } from '@/services/memed.service';
 import {
   buildPatientFromAtendimento,
   ensureMemedScript,
+  getLastMemedToken,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
   setupPrescriptionCallback,
   softHideMemed,
   syncMemedScriptToken,
   getMemedScriptId,
+  isMemedRuntimeReady,
   type AtendimentoForMemed,
   type MemedPatient,
 } from '@/lib/memed';
@@ -33,6 +35,17 @@ export type UseMemedSinapseResult = {
   openPrescription: () => Promise<void>;
   statusMessage: string;
 };
+
+const MEMED_OPEN_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
 
 /**
  * Manual alinhado ao memed-react (sem MemedProvider): script único global, paciente antes do show.
@@ -131,15 +144,26 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     setIsOpening(true);
     try {
       setStatusMessage('Aplicando dados clínicos e abrindo prescrição…');
-      const freshToken = await refreshDoctorToken({ force: true });
-      syncMemedScriptToken(getMemedScriptId(), freshToken);
-      await ensureMemedScript(freshToken, scriptConfig);
-
-      const { medCount } = await prepareAndShowPrescription(atendimento, patient);
+      const result = await withTimeout(
+        (async () => {
+          const moduleAlreadyReady = isMemedRuntimeReady();
+          const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
+          if (freshToken !== getLastMemedToken() && freshToken !== tokenRef.current) {
+            syncMemedScriptToken(getMemedScriptId(), freshToken);
+          }
+          await ensureMemedScript(freshToken, scriptConfig);
+          return prepareAndShowPrescription(atendimento, patient);
+        })(),
+        MEMED_OPEN_TIMEOUT_MS,
+        'Tempo esgotado ao abrir a prescrição Memed. Verifique token/script/API alinhados e tente novamente.',
+      );
+      const pendingNote = result.pending_medical_review
+        ? ' Alguns dados clínicos exigem revisão médica antes de emitir.'
+        : '';
       setStatusMessage(
-        medCount > 0
-          ? 'Prescrição aberta com paciente e medicamentos. Revise e assine digitalmente.'
-          : 'Prescrição aberta com paciente vinculado. Revise e assine digitalmente.',
+        result.medCount > 0
+          ? `Prescrição aberta com paciente e ${result.medCount} medicamento(s) pré-preenchido(s). Revise e assine digitalmente.${pendingNote}`
+          : `Prescrição aberta com paciente vinculado. Revise medicamentos e assine digitalmente.${pendingNote}`,
       );
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'Não foi possível abrir a prescrição');

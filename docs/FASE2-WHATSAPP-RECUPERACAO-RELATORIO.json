@@ -1,0 +1,230 @@
+{
+  "generated_at": "2026-06-07T09:31:51.714Z",
+  "phase": "FASE2-WHATSAPP-RECUPERACAO-STAGING",
+  "constraints": [
+    "sem nova instancia",
+    "sem limpeza",
+    "sem alteracao banco",
+    "sem frontend"
+  ],
+  "instance": {
+    "exists": true,
+    "id": "aa0ac829-44ab-44ed-bbb5-e3bd840e7381",
+    "id_matches_expected": true,
+    "name": "mdoctor-staging",
+    "connectionStatus": "connecting",
+    "connectionState": "connecting",
+    "total_instances": 1,
+    "all_names": [
+      "mdoctor-staging"
+    ]
+  },
+  "api_key": {
+    "evolution_authentication_api_key": "mdoc_doctorprescreve_2026",
+    "backend_key_before": "mdoc_YfEf7gBKLH3JAlGSceBtvqWQrmr66rhRXUCAlJnqTWs",
+    "backend_key_target": "mdoc_doctorprescreve_2026",
+    "railway_set_ok": true,
+    "railway_stdout": "",
+    "railway_stderr": "",
+    "aligned": true
+  },
+  "webhooks": {
+    "before": {
+      "per_instance": {
+        "id": "cmpw7m2dn0005lg5r4hmkq6ik",
+        "url": "https://n8n-node-production-f844.up.railway.app/webhook/evolution-webhook",
+        "headers": null,
+        "enabled": true,
+        "events": [
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED",
+          "MESSAGES_UPSERT",
+          "SEND_MESSAGE"
+        ],
+        "webhookByEvents": false,
+        "webhookBase64": false,
+        "createdAt": "2026-06-02T05:41:12.971Z",
+        "updatedAt": "2026-06-02T06:07:42.494Z",
+        "instanceId": "aa0ac829-44ab-44ed-bbb5-e3bd840e7381"
+      },
+      "per_instance_url": "https://n8n-node-production-f844.up.railway.app/webhook/evolution-webhook",
+      "per_instance_points_to_staging": false,
+      "per_instance_points_to_prod": true,
+      "n8n_staging_webhook_probe": {
+        "status": 404,
+        "ok": false
+      },
+      "n8n_prod_webhook_probe": {
+        "status": 200,
+        "ok": true
+      },
+      "note_global_webhook": "WEBHOOK_GLOBAL_URL no Railway evolution-api-staging → n8n staging (verificado read-only)",
+      "official_staging": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook"
+    },
+    "after": {
+      "per_instance": {
+        "id": "cmpw7m2dn0005lg5r4hmkq6ik",
+        "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook",
+        "headers": null,
+        "enabled": true,
+        "events": [
+          "CONNECTION_UPDATE",
+          "QRCODE_UPDATED",
+          "MESSAGES_UPSERT",
+          "SEND_MESSAGE"
+        ],
+        "webhookByEvents": false,
+        "webhookBase64": false,
+        "createdAt": "2026-06-02T05:41:12.971Z",
+        "updatedAt": "2026-06-07T09:31:59.343Z",
+        "instanceId": "aa0ac829-44ab-44ed-bbb5-e3bd840e7381"
+      },
+      "per_instance_url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook",
+      "per_instance_points_to_staging": true,
+      "per_instance_points_to_prod": false,
+      "n8n_staging_webhook_probe": {
+        "status": 404,
+        "ok": false
+      },
+      "n8n_prod_webhook_probe": {
+        "status": 200,
+        "ok": true
+      },
+      "note_global_webhook": "WEBHOOK_GLOBAL_URL no Railway evolution-api-staging → n8n staging (verificado read-only)",
+      "official_staging": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook"
+    },
+    "official_staging_endpoint": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook"
+  },
+  "actions_executed": [
+    {
+      "action": "confirmar instancia existente (sem create)",
+      "ok": true
+    },
+    {
+      "action": "railway variable set EVOLUTION_API_KEY on mdoctor-backend-staging",
+      "ok": true
+    },
+    {
+      "action": "webhook/set/mdoctor-staging",
+      "ok": true,
+      "status": 201,
+      "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook"
+    },
+    {
+      "action": "aguardar redeploy backend (25s)",
+      "ok": true
+    }
+  ],
+  "validation": {
+    "backend": {
+      "health": true,
+      "readyz": {
+        "configured": true,
+        "connected": true,
+        "mode": "supabase"
+      },
+      "provider_status": {
+        "configured": true,
+        "configuredParts": {
+          "url": true,
+          "apiKey": true,
+          "instance": true
+        },
+        "runtime": {
+          "lastError": null,
+          "lastTimeoutAt": null,
+          "lastHealthState": "connecting",
+          "lastHealthAt": "2026-06-07T09:32:29.009Z"
+        },
+        "safeReadEndpoints": [
+          "GET /",
+          "GET /instance/fetchInstances",
+          "GET /instance/connectionState/{instanceName}"
+        ],
+        "ok": true,
+        "provider": "evolution",
+        "instanceName": "mdoctor-staging",
+        "apiReachable": true,
+        "apiVersion": "2.3.7",
+        "swaggerUrl": "https://doc.evolution-api.com",
+        "managerUrl": "http://evolution-api-staging-staging-40d1.up.railway.app/manager",
+        "instanceFound": true,
+        "instanceState": "connecting",
+        "connected": false,
+        "disconnected": false,
+        "connecting": true,
+        "state": "connecting",
+        "timeout": false,
+        "lastError": null,
+        "lastTimeoutAt": null,
+        "probes": {
+          "apiInfo": {
+            "apiReachable": true,
+            "httpStatus": 200,
+            "apiVersion": "2.3.7",
+            "managerUrl": "http://evolution-api-staging-staging-40d1.up.railway.app/manager",
+            "swaggerUrl": "https://doc.evolution-api.com",
+            "message": "Welcome to the Evolution API, it is working!",
+            "timeout": false
+          },
+          "fetchInstances": {
+            "ok": true,
+            "httpStatus": 200,
+            "instancesCount": 1,
+            "instanceFound": true,
+            "instanceName": "mdoctor-staging",
+            "instanceState": "connecting",
+            "timeout": false
+          },
+          "connectionState": {
+            "ok": true,
+            "httpStatus": 200,
+            "instanceName": "mdoctor-staging",
+            "instanceState": "connecting",
+            "connected": false,
+            "disconnected": false,
+            "connecting": true,
+            "timeout": false
+          }
+        }
+      },
+      "provider_fetch_instances_ok": true,
+      "provider_connection_state": "connecting"
+    },
+    "n8n": {
+      "healthz": 200,
+      "evolution_webhook_messages_upsert": 404,
+      "evolution_webhook_ok": false
+    },
+    "supabase": {
+      "configured": true,
+      "connected": true,
+      "mode": "supabase"
+    },
+    "evolution_to_n8n": {
+      "webhook_url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/evolution-webhook",
+      "n8n_probe_status": 404
+    }
+  },
+  "qr": {
+    "http": 200,
+    "ok": true,
+    "pairingCode": null,
+    "count": 16,
+    "png_saved": "C:\\Users\\drmax\\OneDrive\\Área de Trabalho\\Mdoctor-Survive\\docs\\FASE2-WHATSAPP-QR-mdoctor-staging.png",
+    "file_written": true,
+    "connection_state_after_connect": "connecting"
+  },
+  "e2e": {
+    "exit": 1,
+    "ok": false,
+    "stdout_tail": "{\n  \"steps\": [\n    {\n      \"name\": \"n8n_typebot_webhook\",\n      \"status\": 404,\n      \"ok\": false\n    }\n  ]\n}\n",
+    "stderr_tail": "",
+    "blocker": "Workflows n8n staging inativos ou ausentes — POST /webhook/evolution-webhook e /webhook/typebot-webhook retornam 404. Deploy via API falhou (N8N_API_KEY Railway inválida). Ação manual: ativar workflows no n8n UI ou rotacionar N8N_API_KEY."
+  },
+  "pending_manual": [
+    "Escanear QR em docs/FASE2-WHATSAPP-QR-mdoctor-staging.png ou /manager/instance/mdoctor-staging/dashboard",
+    "Ativar workflows evolution-webhook-staging e typebot-webhook-staging no n8n staging",
+    "Repetir E2E após n8n ativo e WhatsApp open"
+  ]
+}

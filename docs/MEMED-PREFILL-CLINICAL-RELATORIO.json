@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-06-07T15:08:35.383Z",
+  "atendimentoId": "c302bd9e-060a-4ee8-b4cf-0c78392f60c6",
+  "paciente": "PACIENTE TESTE 05 - RENOVAÇÃO RECEITA",
+  "panel_url": "https://painel-medico-staging-staging.up.railway.app",
+  "panel_code_version": "pendente deploy — staging ainda com código anterior",
+  "status_message": "Aplicando dados clínicos e abrindo prescrição…",
+  "expected_addItem_payloads": [
+    {
+      "nome": "Losartana 50mg",
+      "posologia": "Tomar 1 comprimido por via oral a cada 24 horas. Uso contínuo.",
+      "quantidade": 30
+    }
+  ],
+  "addItem_payloads_captured": [],
+  "commands_relevant": {
+    "setPaciente": "não concluiu (fluxo travou antes de addItem)",
+    "newPrescription": "não executado",
+    "addItem": "não executado",
+    "getUsuario": "ok"
+  },
+  "failed_commands_non_blocking": [
+    "plataforma.prescricao.updateModuleStyle (4x, erro undefined — cosmético, não bloqueia prescrição)"
+  ],
+  "prefill_ok": false,
+  "root_cause": "setPaciente pendente/hang — mesmo bloqueio conhecido do staging; addItem só roda após setPaciente + newPrescription"
+}
