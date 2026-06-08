@@ -76,8 +76,8 @@ export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed): M
   return {
     idExterno: atendimento.id,
     nome,
-    telefone: telefone || '11999999999',
-    email,
+    ...(telefone ? { telefone } : {}),
+    ...(email ? { email } : {}),
     ...(dataNascimento ? { data_nascimento: dataNascimento } : {}),
     ...(endereco ? { endereco } : {}),
     ...(cep ? { cep } : {}),

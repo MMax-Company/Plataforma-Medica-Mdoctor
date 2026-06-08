@@ -20,15 +20,17 @@ export function normalizeNomeForMemedSetPaciente(nome: string): string {
 }
 
 /**
- * Payload mínimo oficial Memed — somente nome, telefone, idExterno.
+ * Payload mínimo oficial Memed — nome e idExterno obrigatórios; telefone apenas se presente.
  * cpf/email/data_nascimento ficam na camada clínica interna (prontuário/painel).
+ * telefone fictício omitido: sherlock-api rejeita com 422 e trava a promise do setPaciente.
  */
 export function buildSetPacientePayload(patient: MemedPatient): Record<string, unknown> {
-  return {
+  const payload: Record<string, unknown> = {
     nome: normalizeNomeForMemedSetPaciente(patient.nome),
-    telefone: patient.telefone,
     idExterno: patient.idExterno,
   };
+  if (patient.telefone) payload.telefone = patient.telefone;
+  return payload;
 }
 
 export async function setMemedPatient(patient: MemedPatient): Promise<void> {

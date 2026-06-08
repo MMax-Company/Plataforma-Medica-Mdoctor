@@ -3,7 +3,7 @@
 export interface MemedPatient {
   nome: string;
   idExterno: string;
-  telefone: string;
+  telefone?: string;
   endereco?: string;
   cidade?: string;
   cep?: string;
