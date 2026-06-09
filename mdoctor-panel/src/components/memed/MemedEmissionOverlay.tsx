@@ -1,9 +1,7 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { MedicalWorkflowShell } from '@/components/medical/MedicalWorkflowShell';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { MemedPrescriptionWorkspace } from '@/components/memed/MemedPrescriptionWorkspace';
 import { useMedicalWorkflow } from '@/hooks/useMedicalWorkflow';
 import { useMemedSinapse, parsePrescriptionPayload } from '@/hooks/useMemedSinapse';
@@ -18,6 +16,12 @@ import {
 import { validatePrescription } from '@/services/prescriptions';
 import { hasPersistedMemedReceipt } from '@/lib/atendimento-status';
 
+type Props = {
+  atendimentoId: string;
+  onClose: () => void;
+  onComplete: () => void;
+};
+
 function checkPatientReady(atendimento: ReturnType<typeof useMedicalWorkflow>['atendimento']): string[] {
   if (!atendimento) return [];
   const missing: string[] = [];
@@ -28,18 +32,15 @@ function checkPatientReady(atendimento: ReturnType<typeof useMedicalWorkflow>['a
   return missing;
 }
 
-function ReceitaWorkflowContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const atendimentoId = searchParams.get('atendimentoId') || '';
-  const autoEmit = searchParams.get('emit') === '1';
-
+export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Props) {
   const workflow = useMedicalWorkflow(atendimentoId);
+
   const [config, setConfig] = useState<MemedConfig | null>(null);
   const [doctorToken, setDoctorToken] = useState('');
   const [receiptSaved, setReceiptSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [memedError, setMemedError] = useState<string | null>(null);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
   const missingPatientFields = useMemo(
     () => checkPatientReady(workflow.atendimento),
@@ -66,15 +67,15 @@ function ReceitaWorkflowContent() {
           unlockCode: parsed.unlockCode || undefined,
           payload: parsed.raw,
         });
-        // Avança status para validated/ready — paciente vai direto para RECEITAS PRONTAS.
-        // Não aguarda: falha não impede retorno ao painel.
         void validatePrescription(atendimentoId).catch(() => undefined);
-        router.push('/fila');
+        setReceiptSaved(true);
+        // Pequeno delay para o médico ver a confirmação antes de fechar.
+        window.setTimeout(() => onComplete(), 1400);
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
     },
-    [atendimentoId, router],
+    [atendimentoId, onComplete],
   );
 
   const refreshDoctorToken = useCallback(async (options?: { force?: boolean }) => {
@@ -94,14 +95,13 @@ function ReceitaWorkflowContent() {
       await notifyMemedPrescriptionCancelled(atendimentoId, payload);
       await workflow.refresh();
     },
-    // Bloquear auto-abertura se dados cadastrais insuficientes para emissão segura.
-    autoOpenWhenReady: autoEmit && !patientBlocked,
+    autoOpenWhenReady: bootstrapped && !patientBlocked,
   });
 
   useEffect(() => {
     if (!atendimentoId || workflow.loading) return;
 
-    async function bootstrapMemed() {
+    async function bootstrap() {
       setMemedError(null);
       try {
         const [memedConfig, auth] = await Promise.all([getMemedConfig(), getMemedToken()]);
@@ -120,93 +120,90 @@ function ReceitaWorkflowContent() {
         }
 
         setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
+        setBootstrapped(true);
       } catch (e: unknown) {
         setMemedError(e instanceof Error ? e.message : 'Erro ao iniciar prescrição digital');
       }
     }
 
-    void bootstrapMemed();
+    void bootstrap();
   }, [atendimentoId, workflow.loading, workflow.atendimento?.status]);
 
   useEffect(() => {
     setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
   }, [workflow.atendimento?.dados_clinicos?.memed_receita]);
 
-  if (workflow.loading) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F6F9FD] text-sm text-[#5B6475]">
-        Carregando prescrição…
-      </main>
-    );
-  }
-
-  if (!atendimentoId) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-[#F6F9FD] p-6">
-        <p className="text-sm text-[#5B6475]">Informe o atendimento na URL (?atendimentoId=).</p>
-        <Link href="/fila" className="text-sm font-bold text-[#1557FF]">
-          Voltar à fila
-        </Link>
-      </main>
-    );
-  }
-
-  // Bloquear emissão se dados obrigatórios ausentes — segurança contra receita no paciente errado.
-  if (!workflow.loading && patientBlocked) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#F6F9FD] p-6">
-        <div className="w-full max-w-md rounded-[14px] border border-amber-200 bg-amber-50 px-5 py-4">
-          <p className="text-sm font-bold text-amber-900">Cadastro incompleto para emissão de receita</p>
-          <p className="mt-1 text-sm text-amber-800">
-            Dados obrigatórios ausentes: <strong>{missingPatientFields.join(', ')}</strong>
-          </p>
-          <p className="mt-2 text-xs text-amber-700">
-            Corrija o cadastro do paciente no chatbot antes de aprovar o atendimento.
-          </p>
-        </div>
-        <Link href="/fila" className="text-sm font-bold text-[#1557FF]">
-          Voltar à fila
-        </Link>
-      </main>
-    );
-  }
+  const patientName = workflow.atendimento?.paciente_nome || 'Paciente';
 
   return (
-    <MedicalWorkflowShell
-      title="Prescrição digital"
-      onOpenQueue={() => { window.location.href = '/fila'; }}
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Prescrição digital — ${patientName}`}
+      className="fixed inset-0 z-50 flex flex-col bg-[#F6F9FD]"
     >
-      {(workflow.error || workflow.toast) && (
-        <div
-          className={`mb-3 rounded-[10px] border px-3 py-2 text-sm ${
-            workflow.error ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-          }`}
-        >
-          {workflow.error || workflow.toast}
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
+            Prescrição digital
+          </p>
+          <h2 className="truncate text-sm font-bold text-[#080D33]">{patientName}</h2>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#5B6475] transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
+          aria-label="Fechar prescrição"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-      <MemedPrescriptionWorkspace
-        atendimento={workflow.atendimento}
-        containerId={config?.containerId || 'prescricao-memed'}
-        statusMessage={statusMessage}
-        loadingModule={loadingModule || !doctorToken || !config?.enabled}
-        readyToOpen={readyToOpen}
-        isOpening={isOpening}
-        receiptSaved={receiptSaved}
-        saveError={saveError}
-        error={memedError}
-        onOpenPrescription={openPrescription}
-        minHeight={380}
-      />
-    </MedicalWorkflowShell>
-  );
-}
-
-export default function ReceitaPage() {
-  return (
-    <Suspense fallback={<main className="min-h-screen bg-[#F6F9FD] p-6 text-sm text-[#5B6475]">Carregando…</main>}>
-      <ReceitaWorkflowContent />
-    </Suspense>
+      {/* Content */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 sm:p-4">
+        {workflow.loading ? (
+          <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
+            Carregando dados do paciente…
+          </div>
+        ) : patientBlocked ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4">
+            <div className="w-full max-w-md rounded-[14px] border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-sm font-bold text-amber-900">
+                Cadastro incompleto para emissão de receita
+              </p>
+              <p className="mt-1 text-sm text-amber-800">
+                Dados obrigatórios ausentes:{' '}
+                <strong>{missingPatientFields.join(', ')}</strong>
+              </p>
+              <p className="mt-2 text-xs text-amber-700">
+                Corrija o cadastro do paciente no chatbot antes de aprovar o atendimento.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm font-bold text-[#1557FF] hover:underline"
+            >
+              Voltar ao painel
+            </button>
+          </div>
+        ) : (
+          <MemedPrescriptionWorkspace
+            atendimento={workflow.atendimento}
+            containerId={config?.containerId || 'prescricao-memed'}
+            statusMessage={statusMessage}
+            loadingModule={loadingModule || !doctorToken || !config?.enabled}
+            readyToOpen={readyToOpen}
+            isOpening={isOpening}
+            receiptSaved={receiptSaved}
+            saveError={saveError}
+            error={memedError}
+            onOpenPrescription={openPrescription}
+            minHeight={480}
+          />
+        )}
+      </div>
+    </div>
   );
 }

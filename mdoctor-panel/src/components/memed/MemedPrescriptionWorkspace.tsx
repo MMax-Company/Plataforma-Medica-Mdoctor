@@ -41,7 +41,7 @@ export function MemedPrescriptionWorkspace({
   error,
   onOpenPrescription,
   minWidth = 720,
-  minHeight = 520,
+  minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
   return (
     <div className="memed-native-panel rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
@@ -74,7 +74,7 @@ export function MemedPrescriptionWorkspace({
       ) : null}
       {receiptSaved ? (
         <div className="mx-4 mt-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-          Receita registrada no prontuário. Use <strong>Enviar Receita</strong> ou <strong>Finalizar Atendimento</strong> na barra inferior.
+          Receita registrada. Retornando ao painel…
         </div>
       ) : null}
 
@@ -100,10 +100,6 @@ export function MemedPrescriptionWorkspace({
           data-dp-memed-engine="sinapse"
         />
 
-        <p className="mt-2 text-[11px] leading-relaxed text-[#5B6475]">
-          Assinatura digital (BirdID/Soluti) permanece ativa na sessão do turno. Revise, assine e fecione — o painel Doctor
-          Prescreve persiste PDF e link automaticamente.
-        </p>
       </div>
     </div>
   );

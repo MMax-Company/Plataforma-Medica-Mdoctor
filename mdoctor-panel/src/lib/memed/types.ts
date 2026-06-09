@@ -11,6 +11,7 @@ export interface MemedPatient {
   withoutCpf?: boolean;
   email?: string;
   data_nascimento?: string;
+  sexo?: 'M' | 'F';
   peso?: number;
   altura?: number;
 }

@@ -21,6 +21,8 @@ export async function applyClinicalMemedUx(): Promise<void> {
     deletePatient: false,
     removePatient: false,
     editPatient: false,
+    changePatient: false,
+    addPatient: false,
     dropdownSync: false,
     showHelpMenu: false,
     allowShareModal: false,

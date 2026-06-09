@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
+import { MemedEmissionOverlay } from '@/components/memed/MemedEmissionOverlay';
 import { CheckCircle2, Clock3, User, UserRound } from 'lucide-react';
 
 function WhatsAppIcon({ className }: { className?: string }) {
@@ -26,6 +27,7 @@ type Atendimento = {
   status: AtendimentoStatus;
   paciente_nome: string;
   paciente_telefone?: string;
+  paciente_cpf?: string;
   paciente_email?: string;
   condicao?: string;
   risco?: string | null;
@@ -37,6 +39,8 @@ type Atendimento = {
     previous_prescription?: boolean;
     continuous_use_proof?: boolean;
     flags?: string[];
+    medicacao_em_uso?: string;
+    data_nascimento?: string;
     memed_receita?: {
       receitaUrl?: string;
       pdfUrl?: string;
@@ -119,6 +123,17 @@ function waitingTime(value?: string) {
   return hours ? `${hours}h ${minutes}min` : `${minutes || 1}min`;
 }
 
+function missingMemedFields(item: Atendimento): string[] {
+  const missing: string[] = [];
+  if (!item.paciente_nome?.trim()) missing.push('nome');
+  const cpf = (item.paciente_cpf || '').replace(/\D/g, '');
+  if (cpf.length !== 11) missing.push('CPF');
+  if (!item.dados_clinicos?.data_nascimento) missing.push('data de nascimento');
+  if (!item.paciente_telefone?.trim()) missing.push('telefone');
+  if (!item.dados_clinicos?.medicacao_em_uso?.trim()) missing.push('medicamento');
+  return missing;
+}
+
 function isSupportItem(item: Atendimento) {
   const clinical = item.dados_clinicos || {};
   return item.condicao === 'suporte_whatsapp' || clinical.queue_type === 'support';
@@ -173,6 +188,7 @@ export default function FilaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
+  const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -407,6 +423,8 @@ export default function FilaPage() {
 
     if (column === 'queue') {
       const waUrl = whatsappContactUrl(item.paciente_telefone);
+      const missing = missingMemedFields(item);
+      const blocked = missing.length > 0;
       return (
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--queue-row">
           {waUrl ? (
@@ -426,19 +444,33 @@ export default function FilaPage() {
               Contato paciente
             </span>
           )}
-          <div className="dp-action-slot">
-            <button
-              type="button"
-              onClick={() => {
-                void openAtendimento(item);
-              }}
-              disabled={actionLoading === item.id}
-              className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5"
-            >
-              <UserRound className="h-4 w-4" aria-hidden="true" />
-              ATENDER
-            </button>
-          </div>
+          {blocked ? (
+            <div className="dp-action-slot flex flex-col items-end gap-1">
+              <span className="rounded-[6px] bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                Cadastro incompleto: {missing.join(', ')}
+              </span>
+              <button
+                type="button"
+                disabled
+                className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5 cursor-not-allowed opacity-40"
+              >
+                <UserRound className="h-4 w-4" aria-hidden="true" />
+                ATENDER
+              </button>
+            </div>
+          ) : (
+            <div className="dp-action-slot">
+              <button
+                type="button"
+                onClick={() => { void openAtendimento(item); }}
+                disabled={actionLoading === item.id}
+                className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5"
+              >
+                <UserRound className="h-4 w-4" aria-hidden="true" />
+                ATENDER
+              </button>
+            </div>
+          )}
         </div>
       );
     }
@@ -779,9 +811,20 @@ export default function FilaPage() {
         }}
         onApproved={(id) => {
           closeProntuarioModal();
-          router.push(`/receita?atendimentoId=${encodeURIComponent(id)}`);
+          setMemedOverlayId(id);
         }}
       />
+
+      {memedOverlayId && (
+        <MemedEmissionOverlay
+          atendimentoId={memedOverlayId}
+          onClose={() => setMemedOverlayId(null)}
+          onComplete={() => {
+            setMemedOverlayId(null);
+            void fetchAtendimentos();
+          }}
+        />
+      )}
     </main>
   );
 }

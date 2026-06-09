@@ -14,6 +14,8 @@ export type AtendimentoForMemed = {
     birth_date?: string;
     address?: string;
     cep?: string;
+    sexo?: string;
+    gender?: string;
     triagem_nested?: {
       paciente?: {
         nome?: string;
@@ -23,6 +25,7 @@ export type AtendimentoForMemed = {
         data_nascimento?: string;
         endereco?: string;
         cep?: string;
+        sexo?: string;
       };
     };
   };
@@ -73,12 +76,20 @@ export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed): M
     triagemPaciente.endereco || String(clinical.address || '') || undefined;
   const cep = triagemPaciente.cep || String(clinical.cep || '') || undefined;
 
+  const rawSexo = String(
+    triagemPaciente.sexo || clinical.sexo || clinical.gender || '',
+  ).toUpperCase();
+  let sexo: 'M' | 'F' | undefined;
+  if (rawSexo === 'M' || rawSexo === 'MASCULINO') sexo = 'M';
+  else if (rawSexo === 'F' || rawSexo === 'FEMININO') sexo = 'F';
+
   return {
     idExterno: atendimento.id,
     nome,
     ...(telefone ? { telefone } : {}),
     ...(email ? { email } : {}),
     ...(dataNascimento ? { data_nascimento: dataNascimento } : {}),
+    ...(sexo ? { sexo } : {}),
     ...(endereco ? { endereco } : {}),
     ...(cep ? { cep } : {}),
     ...(cpf ? { cpf } : { withoutCpf: true }),

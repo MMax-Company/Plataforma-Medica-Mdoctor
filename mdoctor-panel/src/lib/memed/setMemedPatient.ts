@@ -20,16 +20,26 @@ export function normalizeNomeForMemedSetPaciente(nome: string): string {
 }
 
 /**
- * Payload mínimo oficial Memed — nome e idExterno obrigatórios; telefone apenas se presente.
- * cpf/email/data_nascimento ficam na camada clínica interna (prontuário/painel).
- * telefone fictício omitido: sherlock-api rejeita com 422 e trava a promise do setPaciente.
+ * Payload oficial Memed para setPaciente.
+ * CPF obrigatório para identificação: sem ele, Memed exibe formulário vazio de cadastro.
+ * Telefone fictício omitido: sherlock-api rejeita com 422 e trava a promise do setPaciente.
+ * Nome normalizado para ≤80 chars para evitar freeze relatado com nomes longos.
  */
 export function buildSetPacientePayload(patient: MemedPatient): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     nome: normalizeNomeForMemedSetPaciente(patient.nome),
     idExterno: patient.idExterno,
   };
-  if (patient.telefone) payload.telefone = patient.telefone;
+  // CPF: incluir apenas quando válido (11 dígitos exatos). Sem CPF o Memed não identifica o paciente.
+  if (patient.cpf && /^\d{11}$/.test(patient.cpf)) {
+    payload.cpf = patient.cpf;
+  }
+  // Telefone: omitir fallback fictício — sherlock-api rejeita número inválido com 422.
+  if (patient.telefone && patient.telefone !== '11999999999') {
+    payload.telefone = patient.telefone;
+  }
+  if (patient.data_nascimento) payload.data_nascimento = patient.data_nascimento;
+  if (patient.sexo) payload.sexo = patient.sexo;
   return payload;
 }
 

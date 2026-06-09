@@ -36,7 +36,7 @@ export function MedicalWorkflowShell({
         onOpenMedicalRecord={onOpenQueue}
       />
 
-      <div className="medical-workflow-body mx-auto w-full max-w-panel px-3 pb-28 pt-2 sm:px-4">
+      <div className={`medical-workflow-body mx-auto w-full max-w-panel px-3 pt-2 sm:px-4 ${actionRail ? 'pb-28' : 'pb-4'}`}>
         {breadcrumb}
 
         <header className="mb-4">
