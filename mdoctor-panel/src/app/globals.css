@@ -2604,6 +2604,13 @@ a.prontuario-patient-card__whatsapp:hover {
   max-width: 100% !important;
 }
 
+/* Container usa flex-1 — iframe deve preencher toda a altura disponível */
+.memed-embedded-host iframe {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 .memed-native-panel .memed-embedded-host {
   isolation: isolate;
 }

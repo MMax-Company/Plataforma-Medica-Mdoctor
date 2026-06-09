@@ -174,7 +174,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
         </div>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F6F9FD] p-2 sm:p-3">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F6F9FD] p-2 sm:p-3">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…
@@ -202,6 +202,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
               </button>
             </div>
           ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
             <MemedPrescriptionWorkspace
               atendimento={workflow.atendimento}
               containerId={config?.containerId || 'prescricao-memed'}
@@ -216,6 +217,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
               onOpenPrescription={openPrescription}
               minHeight={380}
             />
+            </div>
           )}
         </div>
       </div>

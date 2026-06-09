@@ -60,7 +60,7 @@ export function MemedPrescriptionWorkspace({
   const showEmitButton = !prescriptionOpenedOnce || !!error;
 
   return (
-    <div className="memed-native-panel rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
+    <div className="memed-native-panel flex h-full flex-col rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
       <div className="flex flex-col gap-2 border-b border-[#E5EAF2] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-[#1557FF]">Prescrição digital</p>
@@ -85,19 +85,19 @@ export function MemedPrescriptionWorkspace({
       </div>
 
       {error ? (
-        <div className="mx-4 mt-3 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       ) : null}
       {saveError ? (
-        <div className="mx-4 mt-3 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{saveError}</div>
+        <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">{saveError}</div>
       ) : null}
       {receiptSaved ? (
-        <div className="mx-4 mt-3 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+        <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           Receita registrada. Retornando ao painel…
         </div>
       ) : null}
 
-      <div className="p-2 sm:p-3">
-        <div className="mb-1.5 flex flex-wrap gap-2 text-[11px] text-[#5B6475]">
+      <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
+        <div className="mb-1.5 flex shrink-0 flex-wrap gap-2 text-[11px] text-[#5B6475]">
           <span>
             <strong className="text-[#080D33]">Paciente:</strong> {atendimento?.paciente_nome || '—'}
           </span>
@@ -109,17 +109,16 @@ export function MemedPrescriptionWorkspace({
 
         <div
           id={containerId}
-          className="memed-embedded-host relative w-full overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+          className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
           style={{
             minWidth: `min(100%, ${minWidth}px)`,
             minHeight: `${minHeight}px`,
-            height: 'clamp(380px, 62vh, 680px)',
           }}
           data-dp-memed-engine="sinapse"
         />
 
         {!receiptSaved && (
-          <p className="mt-1.5 text-[10px] text-[#8A95A5]">
+          <p className="mt-1.5 shrink-0 text-[10px] text-[#8A95A5]">
             Após assinar, clique em{' '}
             <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
             {' '}para concluir. O envio ao paciente é feito pelo Doctor Prescreve.
