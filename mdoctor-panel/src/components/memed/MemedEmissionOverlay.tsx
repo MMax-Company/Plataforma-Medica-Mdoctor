@@ -95,7 +95,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
     return auth.token;
   }, []);
 
-  const { loadingModule, readyToOpen, isOpening, openPrescription, statusMessage } = useMemedSinapse({
+  const { loadingModule, readyToOpen, isOpening, prescriptionOpenedOnce, openPrescription, statusMessage } = useMemedSinapse({
     config,
     doctorToken,
     atendimento: workflow.atendimento,
@@ -212,6 +212,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
               loadingModule={loadingModule || !doctorToken || !config?.enabled}
               readyToOpen={readyToOpen}
               isOpening={isOpening}
+              prescriptionOpenedOnce={prescriptionOpenedOnce}
               receiptSaved={receiptSaved}
               saveError={saveError}
               error={memedError}

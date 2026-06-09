@@ -33,6 +33,8 @@ export type UseMemedSinapseResult = {
   loadingModule: boolean;
   readyToOpen: boolean;
   isOpening: boolean;
+  /** true após openPrescription() concluir com sucesso pela primeira vez — oculta botão redundante */
+  prescriptionOpenedOnce: boolean;
   openPrescription: () => Promise<void>;
   statusMessage: string;
 };
@@ -65,6 +67,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
   const [moduleReady, setModuleReady] = useState(false);
   const [clinicalReady, setClinicalReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Preparando prescrição digital…');
+  const [prescriptionOpenedOnce, setPrescriptionOpenedOnce] = useState(false);
   const callbackRegistered = useRef(false);
   const autoOpened = useRef(false);
   const openingInFlight = useRef(false);
@@ -163,6 +166,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
       const pendingNote = result.pending_medical_review
         ? ' Alguns dados clínicos exigem revisão médica antes de emitir.'
         : '';
+      setPrescriptionOpenedOnce(true);
       setStatusMessage(
         result.medCount > 0
           ? `Prescrição aberta com paciente e ${result.medCount} medicamento(s) pré-preenchido(s). Revise e assine digitalmente.${pendingNote}`
@@ -189,6 +193,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     loadingModule,
     readyToOpen,
     isOpening,
+    prescriptionOpenedOnce,
     openPrescription,
     statusMessage,
   };

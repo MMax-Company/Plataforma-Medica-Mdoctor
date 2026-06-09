@@ -21,6 +21,8 @@ type MemedPrescriptionWorkspaceProps = {
   loadingModule: boolean;
   readyToOpen?: boolean;
   isOpening?: boolean;
+  /** Prescrição já foi aberta automaticamente — oculta botão "Emitir Receita" para evitar reset acidental */
+  prescriptionOpenedOnce?: boolean;
   receiptSaved: boolean;
   saveError: string | null;
   error: string | null;
@@ -36,6 +38,7 @@ export function MemedPrescriptionWorkspace({
   loadingModule,
   readyToOpen = false,
   isOpening = false,
+  prescriptionOpenedOnce = false,
   receiptSaved,
   saveError,
   error,
@@ -43,6 +46,19 @@ export function MemedPrescriptionWorkspace({
   minWidth = 720,
   minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
+  // Rótulos calculados fora do JSX para evitar ternários aninhados
+  let buttonLabel = 'Emitir Receita';
+  if (receiptSaved) buttonLabel = 'Receita emitida';
+  else if (isOpening) buttonLabel = 'Abrindo…';
+
+  let pillLabel = 'Aguardando';
+  if (loadingModule) pillLabel = 'Preparando…';
+  else if (readyToOpen) pillLabel = 'Pronto para emitir';
+
+  // Após a prescrição abrir automaticamente, o botão some para não resetar o fluxo.
+  // Só reexibe em caso de erro (fallback manual).
+  const showEmitButton = !prescriptionOpenedOnce || !!error;
+
   return (
     <div className="memed-native-panel rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
       <div className="flex flex-col gap-3 border-b border-[#E5EAF2] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -51,19 +67,21 @@ export function MemedPrescriptionWorkspace({
           <h2 className="text-panel-base font-bold text-[#080D33]">Emissão integrada</h2>
           <p className="mt-1 text-panel-xs text-[#5B6475]">{statusMessage}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusPill tone={readyToOpen ? 'success' : 'secondary'}>
-            {loadingModule ? 'Preparando…' : readyToOpen ? 'Pronto para emitir' : 'Aguardando'}
-          </StatusPill>
-          <button
-            type="button"
-            onClick={() => void onOpenPrescription()}
-            disabled={!readyToOpen || receiptSaved || loadingModule || isOpening}
-            className="inline-flex h-10 items-center justify-center rounded-[10px] bg-[#1557FF] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#1246d4] disabled:cursor-not-allowed disabled:bg-[#9AA5B5]"
-          >
-            {receiptSaved ? 'Receita emitida' : isOpening ? 'Abrindo…' : 'Emitir Receita'}
-          </button>
-        </div>
+        {showEmitButton && (
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusPill tone={readyToOpen ? 'success' : 'secondary'}>
+              {pillLabel}
+            </StatusPill>
+            <button
+              type="button"
+              onClick={() => void onOpenPrescription()}
+              disabled={!readyToOpen || receiptSaved || loadingModule || isOpening}
+              className="inline-flex h-10 items-center justify-center rounded-[10px] bg-[#1557FF] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#1246d4] disabled:cursor-not-allowed disabled:bg-[#9AA5B5]"
+            >
+              {buttonLabel}
+            </button>
+          </div>
+        )}
       </div>
 
       {error ? (
