@@ -20,19 +20,20 @@ export function normalizeNomeForMemedSetPaciente(nome: string): string {
 }
 
 /**
- * CPF e telefone omitidos: quando presentes, disparam lookup assíncrono no sherlock-api
- * da Memed que não conclui antes do showPrescription(). O MdHub.command.send resolve
- * imediatamente (comando recebido), mas o estado interno do paciente fica "pending"
- * até o sherlock-api responder — o widget abre com "Digite o nome do paciente".
+ * CPF incluído: necessário para o sherlock-api criar/localizar o paciente na base Memed.
+ * Telefone SEMPRE omitido: sherlock-api rejeita números sem cadastro com 422 que resolve
+ * (não rejeita) a promise, fazendo o fluxo continuar com paciente não registrado.
  *
- * Com idExterno + nome, o Memed identifica o paciente localmente de forma síncrona:
- * o nome aparece imediatamente quando showPrescription() é chamado.
+ * setPaciente deve ser chamado APÓS newPrescription para evitar race condition:
+ * o newPrescription reseta o contexto da prescrição enquanto o sherlock-api ainda
+ * processa o paciente assincronamente — ver prepareAndShowPrescription.ts.
  */
 export function buildSetPacientePayload(patient: MemedPatient): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     nome: normalizeNomeForMemedSetPaciente(patient.nome),
     idExterno: patient.idExterno,
   };
+  if (patient.cpf && /^\d{11}$/.test(patient.cpf)) payload.cpf = patient.cpf;
   if (patient.data_nascimento) payload.data_nascimento = patient.data_nascimento;
   if (patient.sexo) payload.sexo = patient.sexo;
   return payload;
