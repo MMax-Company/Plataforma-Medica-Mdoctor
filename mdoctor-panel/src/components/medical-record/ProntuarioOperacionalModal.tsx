@@ -12,6 +12,7 @@ interface ProntuarioOperacionalModalProps {
   open: boolean;
   onClose: () => void;
   onCompleted?: () => void;
+  onApproved?: (id: string) => void;
 }
 
 const CLINICAL_LABELS: Record<string, string> = {
@@ -104,6 +105,7 @@ export function ProntuarioOperacionalModal({
   open,
   onClose,
   onCompleted,
+  onApproved,
 }: ProntuarioOperacionalModalProps) {
   const prontuario = useProntuarioAtendimento(atendimentoId, open);
   const [mounted, setMounted] = useState(false);
@@ -157,14 +159,24 @@ export function ProntuarioOperacionalModal({
   const whatsappUrl = atendimento ? whatsappContactUrl(atendimento.paciente_telefone || '') : null;
 
   async function handleApprove() {
+    if (!atendimentoId) return;
+
+    const currentStatus = String(atendimento?.status || '').toLowerCase();
+    const postApproveStatuses = ['approved', 'receita_em_edicao', 'receita_emitida', 'memed_processing', 'ready', 'delivered'];
+    if (postApproveStatuses.includes(currentStatus)) {
+      onClose();
+      onApproved?.(atendimentoId);
+      return;
+    }
+
     if (editing && editForm) {
       const saved = await saveClinicalEdit();
       if (!saved) return;
     }
     const ok = await approveAttendance();
     if (ok) {
-      onCompleted?.();
       onClose();
+      onApproved?.(atendimentoId);
     }
   }
 

@@ -451,7 +451,7 @@ export default function FilaPage() {
             onClick={() => {
               const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
               if (url) window.open(url, '_blank', 'noopener,noreferrer');
-              else openProntuarioModal(item.id);
+              else router.push(`/receita?atendimentoId=${encodeURIComponent(item.id)}`);
             }}
             className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
           >
@@ -776,6 +776,10 @@ export default function FilaPage() {
         onClose={closeProntuarioModal}
         onCompleted={() => {
           void fetchAtendimentos();
+        }}
+        onApproved={(id) => {
+          closeProntuarioModal();
+          router.push(`/receita?atendimentoId=${encodeURIComponent(id)}`);
         }}
       />
     </main>
