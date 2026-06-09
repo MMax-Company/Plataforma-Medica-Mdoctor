@@ -1,6 +1,6 @@
 import { buildMemedItemsFromAtendimento } from './buildClinicalPrescriptionFromAtendimento';
 import type { MemedPrescriptionItem } from './clinicalPrescription.types';
-import { sendAddItemWithDiagnostic, sendNewPrescriptionWithDiagnostic } from './memedCommandDiagnostic';
+import { sendAddItemWithDiagnostic } from './memedCommandDiagnostic';
 import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 
 export type AddMedicationsResult = {
@@ -10,7 +10,11 @@ export type AddMedicationsResult = {
   pending_reasons: string[];
 };
 
-/** Pré-carrega itens via newPrescription + addItem (somente nome/posologia/quantidade). */
+/**
+ * Adiciona itens (addItem) a uma prescrição já existente.
+ * NÃO chama newPrescription — responsabilidade do caller (prepareAndShowPrescription).
+ * Chamar newPrescription aqui resetaria o contexto e apagaria o paciente já setado.
+ */
 export async function addMedicationsFromAtendimento(
   atendimento: AtendimentoForMemed,
 ): Promise<AddMedicationsResult> {
@@ -27,12 +31,6 @@ export async function addMedicationsFromAtendimento(
       pending_medical_review,
       pending_reasons,
     };
-  }
-
-  try {
-    await sendNewPrescriptionWithDiagnostic();
-  } catch {
-    // módulo pode já estar em prescrição nova — não bloqueia
   }
 
   let added = 0;
