@@ -71,7 +71,20 @@ export function MedicalPatientSidebar({ atendimento, stepHint }: MedicalPatientS
               {receipt?.receitaId ? (
                 <div>
                   <dt className="font-semibold text-[#5B6475]">Receita digital</dt>
-                  <dd className="mt-0.5 font-mono text-[11px]">{receipt.receitaId}</dd>
+                  <dd className="mt-0.5">
+                    {receipt.pdfUrl ? (
+                      <a
+                        href={receipt.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-mono text-[11px] text-[#1557FF] underline"
+                      >
+                        {receipt.receitaId}
+                      </a>
+                    ) : (
+                      <span className="font-mono text-[11px]">{receipt.receitaId}</span>
+                    )}
+                  </dd>
                 </div>
               ) : null}
             </dl>

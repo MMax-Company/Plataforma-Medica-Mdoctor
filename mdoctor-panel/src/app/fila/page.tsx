@@ -72,14 +72,14 @@ const columns: Array<{
   },
   {
     key: 'review',
-    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION'],
+    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'],
     title: 'EM ATENDIMENTO',
     badgeClass: 'bg-[#F4B000] text-white',
     headerMark: 'bg-[#EEF4FF] text-[#1557FF]'
   },
   {
     key: 'ready',
-    statuses: ['VALIDATED', 'APROVADO', 'RECEITA_EMITIDA'],
+    statuses: ['VALIDATED', 'APROVADO'],
     title: 'RECEITAS PRONTAS',
     badgeClass: 'bg-emerald-50 text-[#0BA84F]',
     headerMark: 'bg-emerald-50 text-[#0BA84F]'
@@ -213,8 +213,8 @@ export default function FilaPage() {
     return {
       total: filteredAtendimentos.length,
       queue: filteredAtendimentos.filter((item) => ['QUEUE', 'FILA', 'TRIAGED'].includes(item.status)).length,
-      review: filteredAtendimentos.filter((item) => ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION'].includes(item.status)).length,
-      ready: filteredAtendimentos.filter((item) => ['VALIDATED', 'APROVADO', 'RECEITA_EMITIDA'].includes(item.status)).length,
+      review: filteredAtendimentos.filter((item) => ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status)).length,
+      ready: filteredAtendimentos.filter((item) => ['VALIDATED', 'APROVADO'].includes(item.status)).length,
       closed: filteredAtendimentos.filter((item) => ['REJECTED', 'RECUSADO', 'FINISHED', 'DELIVERED'].includes(item.status)).length
     };
   }, [filteredAtendimentos]);
@@ -440,7 +440,11 @@ export default function FilaPage() {
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--review-stack">
           <button
             type="button"
-            onClick={() => openProntuarioModal(item.id)}
+            onClick={() => {
+              const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
+              if (url) window.open(url, '_blank', 'noopener,noreferrer');
+              else openProntuarioModal(item.id);
+            }}
             className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
           >
             VISUALIZAR RECEITA
@@ -450,7 +454,7 @@ export default function FilaPage() {
             onClick={() => {
               void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
             }}
-            disabled={actionLoading === item.id || item.status !== 'AWAITING_VALIDATION'}
+            disabled={actionLoading === item.id || !['AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status)}
             className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
           >
             ACEITAR RECEITA
