@@ -157,8 +157,8 @@ export async function setMemedPatientWithDiagnostic(payload: Record<string, unkn
   }
 }
 
-export async function sendNewPrescriptionWithDiagnostic(): Promise<unknown> {
-  return sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'newPrescription');
+export async function sendNewPrescriptionWithDiagnostic(timeoutMs?: number): Promise<unknown> {
+  return sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'newPrescription', undefined, timeoutMs);
 }
 
 export async function sendAddItemWithDiagnostic(payload: Record<string, unknown>): Promise<unknown> {

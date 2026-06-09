@@ -4,6 +4,10 @@ import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 import { buildPatientFromAtendimento } from './buildPatientFromAtendimento';
 import type { MemedPrescriptionItem } from './clinicalPrescription.types';
 import { clearMemedDiagnosticLog, sendNewPrescriptionWithDiagnostic } from './memedCommandDiagnostic';
+import {
+  msUntilPostEmissionSettle,
+  wasMemedPrescriptionEmittedThisSession,
+} from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
 import { showPrescription } from './showPrescription';
 import type { MemedPatient } from './types';
@@ -15,8 +19,14 @@ export type PreparePrescriptionResult = {
   pending_reasons: string[];
 };
 
+// Janela de estabilização pós-emissão: patient-management reinicializa internamente após
+// prescricaoImpressa. Chamar newPrescription/setPaciente antes deste prazo causa timeout.
+const POST_EMISSION_SETTLE_MS = 15_000;
+// Para prescrições subsequentes o ciclo de reset interno do SDK leva mais tempo.
+const SUBSEQUENT_NEW_PRESCRIPTION_TIMEOUT_MS = 50_000;
+
 /**
- * Ordem corrigida: newPrescription → setPaciente → addItem → orientações → show.
+ * Ordem: newPrescription → setPaciente → addItem → orientações → show.
  *
  * Motivo: o MdHub.command.send('setPaciente') resolve quando o SDK recebe o comando,
  * mas o paciente só é registrado no contexto da prescrição depois que o sherlock-api
@@ -24,13 +34,9 @@ export type PreparePrescriptionResult = {
  * APÓS setPaciente, ele reseta o contexto enquanto o sherlock-api ainda processa —
  * o widget abre com "Digite o nome do paciente".
  *
- * Ao chamar newPrescription PRIMEIRO (contexto criado), e setPaciente DEPOIS
- * (paciente inserido no contexto estável), a race condition é eliminada.
- * addMedicationsFromAtendimento chama newPrescription novamente mas falha silenciosamente
- * (contexto já existe) e executa apenas os addItem.
- *
- * Feature toggles (forceSign, setAllowedSignatureProviders) são aplicados uma vez na
- * inicialização da sessão, não aqui, para preservar a sessão BirdID entre receitas.
+ * Para pacientes subsequentes (após primeira emissão): aguarda janela de estabilização
+ * antes de enviar comandos. patient-management entra em ciclo de reset após prescricaoImpressa;
+ * comandos enviados prematuramente ficam na fila e causam timeout de 42s em setPaciente.
  */
 export async function prepareAndShowPrescription(
   atendimento: AtendimentoForMemed,
@@ -38,11 +44,21 @@ export async function prepareAndShowPrescription(
 ): Promise<PreparePrescriptionResult> {
   clearMemedDiagnosticLog();
 
+  // Aguarda estabilização do patient-management após emissão anterior.
+  const settleMs = msUntilPostEmissionSettle(POST_EMISSION_SETTLE_MS);
+  if (settleMs > 0) {
+    await new Promise<void>((resolve) => setTimeout(resolve, settleMs));
+  }
+
   const resolvedPatient = patient || buildPatientFromAtendimento(atendimento);
 
   // 1. Criar contexto da prescrição ANTES de setar o paciente.
+  //    Timeout maior para chamadas subsequentes: ciclo de reset interno do SDK.
+  const newPrescriptionTimeout = wasMemedPrescriptionEmittedThisSession()
+    ? SUBSEQUENT_NEW_PRESCRIPTION_TIMEOUT_MS
+    : undefined;
   try {
-    await sendNewPrescriptionWithDiagnostic();
+    await sendNewPrescriptionWithDiagnostic(newPrescriptionTimeout);
   } catch {
     // contexto pode já existir de tentativa anterior — continua
   }

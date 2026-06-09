@@ -1,4 +1,5 @@
 import type { MemedModuleOptions } from './types';
+import { recordMemedPrescriptionEmission } from './memedRuntime';
 
 let callbacksBound = false;
 
@@ -9,7 +10,10 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   }
   if (callbacksBound) return;
 
-  window.MdHub.event.add('prescricaoImpressa', options.onPrescriptionPrinted);
+  window.MdHub.event.add('prescricaoImpressa', (payload) => {
+    recordMemedPrescriptionEmission();
+    options.onPrescriptionPrinted(payload);
+  });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
   }

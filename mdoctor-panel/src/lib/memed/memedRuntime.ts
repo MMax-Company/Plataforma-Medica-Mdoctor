@@ -15,6 +15,7 @@ const state = {
   moduleReady: false,
   moduleReadyWaiters: [] as Array<() => void>,
   moduleInitBound: false,
+  lastEmissionAt: 0,
 };
 
 function resolveModuleReady() {
@@ -92,5 +93,26 @@ export function resetMemedRuntimeForTestsOnly() {
   state.initPromise = null;
   state.moduleReady = false;
   state.moduleInitBound = false;
+  state.lastEmissionAt = 0;
   markMemedModuleReady(false);
+}
+
+/** Chamado quando prescricaoImpressa dispara. Usado para calcular janela de estabilização. */
+export function recordMemedPrescriptionEmission(): void {
+  state.lastEmissionAt = Date.now();
+}
+
+/** true se ao menos uma emissão ocorreu nesta sessão de browser. */
+export function wasMemedPrescriptionEmittedThisSession(): boolean {
+  return state.lastEmissionAt > 0;
+}
+
+/**
+ * Retorna quantos ms ainda faltam para a janela de estabilização pós-emissão expirar.
+ * Retorna 0 se nenhuma emissão ocorreu ou se a janela já passou.
+ */
+export function msUntilPostEmissionSettle(settleMs: number): number {
+  if (state.lastEmissionAt === 0) return 0;
+  const elapsed = Date.now() - state.lastEmissionAt;
+  return Math.max(0, settleMs - elapsed);
 }
