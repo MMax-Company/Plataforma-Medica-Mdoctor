@@ -15,20 +15,20 @@ type AtendimentoSummary = {
 };
 
 type MemedPrescriptionWorkspaceProps = {
-  atendimento: AtendimentoSummary | null;
-  containerId: string;
-  statusMessage: string;
-  loadingModule: boolean;
-  readyToOpen?: boolean;
-  isOpening?: boolean;
+  readonly atendimento: AtendimentoSummary | null;
+  readonly containerId: string;
+  readonly statusMessage: string;
+  readonly loadingModule: boolean;
+  readonly readyToOpen?: boolean;
+  readonly isOpening?: boolean;
   /** Prescrição já foi aberta automaticamente — oculta botão "Emitir Receita" para evitar reset acidental */
-  prescriptionOpenedOnce?: boolean;
-  receiptSaved: boolean;
-  saveError: string | null;
-  error: string | null;
-  onOpenPrescription: () => void | Promise<void>;
-  minWidth?: number;
-  minHeight?: number;
+  readonly prescriptionOpenedOnce?: boolean;
+  readonly receiptSaved: boolean;
+  readonly saveError: string | null;
+  readonly error: string | null;
+  readonly onOpenPrescription: () => void | Promise<void>;
+  readonly minWidth?: number;
+  readonly minHeight?: number;
 };
 
 export function MemedPrescriptionWorkspace({
@@ -61,11 +61,11 @@ export function MemedPrescriptionWorkspace({
 
   return (
     <div className="memed-native-panel rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
-      <div className="flex flex-col gap-3 border-b border-[#E5EAF2] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-b border-[#E5EAF2] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">Prescrição digital</p>
-          <h2 className="text-panel-base font-bold text-[#080D33]">Emissão integrada</h2>
-          <p className="mt-1 text-panel-xs text-[#5B6475]">{statusMessage}</p>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[#1557FF]">Prescrição digital</p>
+          <h2 className="text-panel-sm font-bold text-[#080D33]">Emissão integrada</h2>
+          <p className="mt-0.5 text-[11px] text-[#5B6475]">{statusMessage}</p>
         </div>
         {showEmitButton && (
           <div className="flex flex-wrap items-center gap-2">
@@ -96,8 +96,8 @@ export function MemedPrescriptionWorkspace({
         </div>
       ) : null}
 
-      <div className="p-3 sm:p-4">
-        <div className="mb-2 flex flex-wrap gap-3 text-panel-xs text-[#5B6475]">
+      <div className="p-2 sm:p-3">
+        <div className="mb-1.5 flex flex-wrap gap-2 text-[11px] text-[#5B6475]">
           <span>
             <strong className="text-[#080D33]">Paciente:</strong> {atendimento?.paciente_nome || '—'}
           </span>
@@ -113,16 +113,16 @@ export function MemedPrescriptionWorkspace({
           style={{
             minWidth: `min(100%, ${minWidth}px)`,
             minHeight: `${minHeight}px`,
-            height: 'clamp(420px, 62vh, 720px)',
+            height: 'clamp(240px, 44vh, 500px)',
           }}
           data-dp-memed-engine="sinapse"
         />
 
         {!receiptSaved && (
-          <p className="mt-2 text-[11px] text-[#8A95A5]">
+          <p className="mt-1.5 text-[10px] text-[#8A95A5]">
             Após assinar, clique em{' '}
             <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
-            {' '}para concluir a emissão. O envio ao paciente será feito pelo Doctor Prescreve.
+            {' '}para concluir. O envio ao paciente é feito pelo Doctor Prescreve.
           </p>
         )}
 

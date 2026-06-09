@@ -151,15 +151,12 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
       role="dialog"
       aria-modal="true"
       aria-label={`Prescrição digital — ${patientName}`}
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5"
     >
-      {/* Backdrop semitransparente — painel visível e escurecido atrás */}
-      <div className="absolute inset-0 bg-black/65" />
-
-      {/* Card modal flutuante — margins visíveis revelam o painel como contexto */}
-      <div className="absolute inset-3 flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 sm:inset-4">
+      {/* Card modal centralizado — painel visível ao fundo */}
+      <div className="relative flex h-full w-full max-h-[660px] max-w-[840px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-2">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
               Prescrição digital
@@ -177,7 +174,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
         </div>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F6F9FD] p-3 sm:p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F6F9FD] p-2 sm:p-3">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…
@@ -217,7 +214,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
               saveError={saveError}
               error={memedError}
               onOpenPrescription={openPrescription}
-              minHeight={480}
+              minHeight={300}
             />
           )}
         </div>
