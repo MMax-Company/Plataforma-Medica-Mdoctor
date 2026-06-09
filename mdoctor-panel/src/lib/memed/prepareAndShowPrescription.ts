@@ -31,7 +31,7 @@ export async function prepareAndShowPrescription(
     await addMedicationsFromAtendimento(atendimento);
   await setClinicalOrientations(atendimento);
 
-  await new Promise((r) => setTimeout(r, 80));
+  await new Promise((r) => setTimeout(r, 500));
 
   showPrescription();
   return {

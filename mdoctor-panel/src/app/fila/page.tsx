@@ -268,14 +268,20 @@ export default function FilaPage() {
         ...item,
         status: toPanelAtendimentoStatus(item.status),
       }));
+      // Somente pacientes elegíveis com dados completos são exibidos no painel.
+      const eligibleRows = rows.filter((item: Atendimento) => {
+        if (item.elegibilidade?.eligible === false) return false;
+        if (missingMemedFields(item).length > 0) return false;
+        return true;
+      });
       if (isVisualSimulationMode()) {
         const simRows = getVisualSimulationAtendimentos().map((item) => ({
           ...item,
           status: toPanelAtendimentoStatus(item.status),
         })) as Atendimento[];
-        setAtendimentos(simRows.length ? simRows : rows);
+        setAtendimentos(simRows.length ? simRows : eligibleRows);
       } else {
-        setAtendimentos(rows);
+        setAtendimentos(eligibleRows);
       }
     } catch (e: any) {
       setError(e.message || 'Erro ao buscar fila');

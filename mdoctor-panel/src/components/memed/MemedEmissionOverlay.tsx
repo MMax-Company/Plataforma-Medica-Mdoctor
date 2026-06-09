@@ -140,69 +140,75 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
       role="dialog"
       aria-modal="true"
       aria-label={`Prescrição digital — ${patientName}`}
-      className="fixed inset-0 z-50 flex flex-col bg-[#F6F9FD]"
+      className="fixed inset-0 z-50"
     >
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
-            Prescrição digital
-          </p>
-          <h2 className="truncate text-sm font-bold text-[#080D33]">{patientName}</h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#5B6475] transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
-          aria-label="Fechar prescrição"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Backdrop semitransparente — painel visível e escurecido atrás */}
+      <div className="absolute inset-0 bg-black/65" />
 
-      {/* Content */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto p-3 sm:p-4">
-        {workflow.loading ? (
-          <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
-            Carregando dados do paciente…
+      {/* Card modal flutuante — margins visíveis revelam o painel como contexto */}
+      <div className="absolute inset-3 flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 sm:inset-4">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
+              Prescrição digital
+            </p>
+            <h2 className="truncate text-sm font-bold text-[#080D33]">{patientName}</h2>
           </div>
-        ) : patientBlocked ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-4">
-            <div className="w-full max-w-md rounded-[14px] border border-amber-200 bg-amber-50 px-5 py-4">
-              <p className="text-sm font-bold text-amber-900">
-                Cadastro incompleto para emissão de receita
-              </p>
-              <p className="mt-1 text-sm text-amber-800">
-                Dados obrigatórios ausentes:{' '}
-                <strong>{missingPatientFields.join(', ')}</strong>
-              </p>
-              <p className="mt-2 text-xs text-amber-700">
-                Corrija o cadastro do paciente no chatbot antes de aprovar o atendimento.
-              </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#5B6475] transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
+            aria-label="Fechar prescrição"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-[#F6F9FD] p-3 sm:p-4">
+          {workflow.loading ? (
+            <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
+              Carregando dados do paciente…
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-sm font-bold text-[#1557FF] hover:underline"
-            >
-              Voltar ao painel
-            </button>
-          </div>
-        ) : (
-          <MemedPrescriptionWorkspace
-            atendimento={workflow.atendimento}
-            containerId={config?.containerId || 'prescricao-memed'}
-            statusMessage={statusMessage}
-            loadingModule={loadingModule || !doctorToken || !config?.enabled}
-            readyToOpen={readyToOpen}
-            isOpening={isOpening}
-            receiptSaved={receiptSaved}
-            saveError={saveError}
-            error={memedError}
-            onOpenPrescription={openPrescription}
-            minHeight={480}
-          />
-        )}
+          ) : patientBlocked ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+              <div className="w-full max-w-md rounded-[14px] border border-amber-200 bg-amber-50 px-5 py-4">
+                <p className="text-sm font-bold text-amber-900">
+                  Cadastro incompleto para emissão de receita
+                </p>
+                <p className="mt-1 text-sm text-amber-800">
+                  Dados obrigatórios ausentes:{' '}
+                  <strong>{missingPatientFields.join(', ')}</strong>
+                </p>
+                <p className="mt-2 text-xs text-amber-700">
+                  Corrija o cadastro do paciente no chatbot antes de aprovar o atendimento.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="text-sm font-bold text-[#1557FF] hover:underline"
+              >
+                Voltar ao painel
+              </button>
+            </div>
+          ) : (
+            <MemedPrescriptionWorkspace
+              atendimento={workflow.atendimento}
+              containerId={config?.containerId || 'prescricao-memed'}
+              statusMessage={statusMessage}
+              loadingModule={loadingModule || !doctorToken || !config?.enabled}
+              readyToOpen={readyToOpen}
+              isOpening={isOpening}
+              receiptSaved={receiptSaved}
+              saveError={saveError}
+              error={memedError}
+              onOpenPrescription={openPrescription}
+              minHeight={480}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
