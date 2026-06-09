@@ -150,8 +150,9 @@ export async function setMemedPatientWithDiagnostic(payload: Record<string, unkn
     return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload);
   } catch {
     // patient-management has now had time to finish loading. Retry once with full budget.
+    // Após 12s o patient-management deve estar pronto; budget reduzido para evitar total > 90s
     await new Promise<void>((resolve) => setTimeout(resolve, 300));
-    return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload, 30_000);
+    return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload, 20_000);
   }
 }
 

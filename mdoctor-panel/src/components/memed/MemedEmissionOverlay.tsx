@@ -81,7 +81,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
         void validatePrescription(atendimentoId).catch(() => undefined);
         setReceiptSaved(true);
         // Pequeno delay para o médico ver a confirmação antes de fechar.
-        window.setTimeout(() => onComplete(), 1400);
+        window.setTimeout(() => onComplete(), 800);
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
@@ -154,7 +154,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5"
     >
       {/* Card modal centralizado — painel visível ao fundo */}
-      <div className="relative flex h-full w-full max-h-[660px] max-w-[840px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
+      <div className="relative flex h-full w-full max-h-[min(90vh,800px)] max-w-[840px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-2">
           <div className="min-w-0">
@@ -214,7 +214,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
               saveError={saveError}
               error={memedError}
               onOpenPrescription={openPrescription}
-              minHeight={300}
+              minHeight={380}
             />
           )}
         </div>

@@ -39,7 +39,8 @@ export type UseMemedSinapseResult = {
   statusMessage: string;
 };
 
-const MEMED_OPEN_TIMEOUT_MS = 45_000;
+// 90s cobre o pior caso: newPrescription(15s) + setPaciente_first(12s) + retry(20s) + addItem(20s) + buffer
+const MEMED_OPEN_TIMEOUT_MS = 90_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([

@@ -113,7 +113,7 @@ export function MemedPrescriptionWorkspace({
           style={{
             minWidth: `min(100%, ${minWidth}px)`,
             minHeight: `${minHeight}px`,
-            height: 'clamp(240px, 44vh, 500px)',
+            height: 'clamp(380px, 62vh, 680px)',
           }}
           data-dp-memed-engine="sinapse"
         />
