@@ -35,14 +35,14 @@ function cleanDigits(value?: string) {
   return String(value || '').replace(/\D/g, '');
 }
 
-/** Memed espera DDD+número (10–11 dígitos), sem prefixo 55. */
-function normalizeTelefoneForMemed(value?: string): string {
+/** Memed espera DDD+número (10–11 dígitos), sem prefixo 55. Retorna undefined se inválido. */
+export function normalizeTelefoneForMemed(value?: string): string | undefined {
   let digits = cleanDigits(value);
   if (digits.startsWith('55') && digits.length >= 12) {
     digits = digits.slice(2);
   }
   if (digits.length >= 10 && digits.length <= 11) return digits;
-  return '11999999999';
+  return undefined;
 }
 
 function normalizeBirthDate(value?: string): string | undefined {

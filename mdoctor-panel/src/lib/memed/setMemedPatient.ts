@@ -20,9 +20,10 @@ export function normalizeNomeForMemedSetPaciente(nome: string): string {
 }
 
 /**
- * CPF incluído: necessário para o sherlock-api criar/localizar o paciente na base Memed.
- * Telefone SEMPRE omitido: sherlock-api rejeita números sem cadastro com 422 que resolve
- * (não rejeita) a promise, fazendo o fluxo continuar com paciente não registrado.
+ * CPF e telefone incluídos: necessários para o sherlock-api criar/localizar o paciente
+ * na base Memed e para a etapa de emissão não solicitar telefone ao médico.
+ * Telefone deve ter 10–11 dígitos (DDD + número, sem prefixo 55) — ver normalizeTelefoneForMemed.
+ * Telefone fake/inválido causa 422 silencioso no sherlock-api; só incluir se já normalizado.
  *
  * setPaciente deve ser chamado APÓS newPrescription para evitar race condition:
  * o newPrescription reseta o contexto da prescrição enquanto o sherlock-api ainda
@@ -34,6 +35,7 @@ export function buildSetPacientePayload(patient: MemedPatient): Record<string, u
     idExterno: patient.idExterno,
   };
   if (patient.cpf && /^\d{11}$/.test(patient.cpf)) payload.cpf = patient.cpf;
+  if (patient.telefone && /^\d{10,11}$/.test(patient.telefone)) payload.telefone = patient.telefone;
   if (patient.data_nascimento) payload.data_nascimento = patient.data_nascimento;
   if (patient.sexo) payload.sexo = patient.sexo;
   return payload;

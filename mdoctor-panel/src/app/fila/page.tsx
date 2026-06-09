@@ -129,7 +129,9 @@ function missingMemedFields(item: Atendimento): string[] {
   const cpf = (item.paciente_cpf || '').replace(/\D/g, '');
   if (cpf.length !== 11) missing.push('CPF');
   if (!item.dados_clinicos?.data_nascimento) missing.push('data de nascimento');
-  if (!item.paciente_telefone?.trim()) missing.push('telefone');
+  const phone = (item.paciente_telefone || '').replace(/\D/g, '');
+  const phoneNorm = phone.startsWith('55') && phone.length >= 12 ? phone.slice(2) : phone;
+  if (phoneNorm.length < 10 || phoneNorm.length > 11) missing.push('telefone válido (10–11 dígitos)');
   if (!item.dados_clinicos?.medicacao_em_uso?.trim()) missing.push('medicamento');
   return missing;
 }
