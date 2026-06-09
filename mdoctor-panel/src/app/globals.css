@@ -309,11 +309,11 @@ body {
   }
 
   .dp-btn-blue {
-    @apply bg-[#0647B8] text-white;
+    @apply bg-[#062166] text-white;
   }
 
   .dp-btn-blue:hover:not(:disabled) {
-    @apply border-transparent bg-[#003B93];
+    @apply border-transparent bg-[#041A55];
   }
 
   .dp-btn-orange {
@@ -325,11 +325,11 @@ body {
   }
 
   .dp-btn-green {
-    @apply bg-[#09A94F] text-white;
+    @apply bg-[#25D366] text-white;
   }
 
   .dp-btn-green:hover:not(:disabled) {
-    @apply border-transparent bg-[#089746];
+    @apply border-transparent bg-[#1AAF5A];
   }
 
   .dp-btn-outline {
@@ -578,7 +578,7 @@ body {
     min-width: 30px;
     height: 30px;
     min-height: 30px;
-    border-radius: 9px;
+    border-radius: 999px;
     font-size: 12px;
     font-weight: 700;
     @apply border-[#A31825]/90 bg-[#B91C2B] text-white;
@@ -864,11 +864,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 30px;
-    height: 30px;
+    width: 36px;
+    height: 36px;
     border-radius: 999px;
-    background: #eaf2ff;
-    color: #174ea6;
+    background: #0f1d38;
+    color: #ffffff;
   }
 
   .dp-patient-initials {
@@ -996,7 +996,7 @@ body {
   }
 
   .dp-patient-card--review {
-    min-height: 100px;
+    min-height: 124px;
   }
 
   .dp-patient-card--ready {
@@ -1095,11 +1095,11 @@ body {
   .dp-btn-review-stack {
     width: 100%;
     min-width: 0;
-    height: 28px;
-    min-height: 28px;
+    height: 36px;
+    min-height: 36px;
     padding-left: 8px;
     padding-right: 8px;
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 0.02em;
     border-radius: 8px;
   }
@@ -1620,10 +1620,10 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  background-color: #e8f1ff;
+  background-color: #0f1d38;
   font-size: 20px;
   font-weight: 700;
-  color: #1557ff;
+  color: #ffffff;
 }
 
 .prontuario-patient-card__name {
@@ -1878,6 +1878,8 @@ a.prontuario-patient-card__whatsapp:hover {
   height: 52px;
   width: 52px;
   font-size: 18px;
+  background-color: #0f1d38;
+  color: #ffffff;
 }
 
 .prontuario-shell--replica .prontuario-decision-bar {
@@ -2199,8 +2201,8 @@ a.prontuario-patient-card__whatsapp:hover {
   font-size: 20px;
   font-weight: 700;
   border-radius: 9999px;
-  background-color: #eff6ff;
-  color: #2563eb;
+  background-color: #0f1d38;
+  color: #ffffff;
   box-shadow: none;
 }
 
