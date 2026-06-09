@@ -100,6 +100,14 @@ export function MemedPrescriptionWorkspace({
           data-dp-memed-engine="sinapse"
         />
 
+        {!receiptSaved && (
+          <p className="mt-2 text-[11px] text-[#8A95A5]">
+            Após assinar, clique em{' '}
+            <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
+            {' '}para concluir a emissão. O envio ao paciente será feito pelo Doctor Prescreve.
+          </p>
+        )}
+
       </div>
     </div>
   );

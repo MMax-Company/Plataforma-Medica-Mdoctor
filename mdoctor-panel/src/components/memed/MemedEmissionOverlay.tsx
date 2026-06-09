@@ -42,6 +42,17 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
   const [memedError, setMemedError] = useState<string | null>(null);
   const [bootstrapped, setBootstrapped] = useState(false);
 
+  // Bloqueia o diálogo de impressão do navegador enquanto o overlay está aberto.
+  // O botão "Imprimir" da Memed dispara prescricaoImpressa (já capturado) — não queremos
+  // que o browser abra o print dialog por cima do painel.
+  useEffect(() => {
+    const original = window.print.bind(window);
+    window.print = () => {};
+    return () => {
+      window.print = original;
+    };
+  }, []);
+
   const missingPatientFields = useMemo(
     () => checkPatientReady(workflow.atendimento),
     [workflow.atendimento],
