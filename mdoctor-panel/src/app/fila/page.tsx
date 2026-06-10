@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
 import { MemedEmissionOverlay } from '@/components/memed/MemedEmissionOverlay';
-import { CheckCircle2, Clock3, User, UserRound } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Mail, UserRound } from 'lucide-react';
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -83,18 +83,18 @@ const columns: Array<{
     headerMark: 'bg-[#EEF4FF] text-[#1557FF]'
   },
   {
-    key: 'review',
-    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'],
-    title: 'EM ATENDIMENTO',
-    badgeClass: 'bg-[#F4B000] text-white',
-    headerMark: 'bg-[#EEF4FF] text-[#1557FF]'
-  },
-  {
     key: 'ready',
     statuses: ['VALIDATED', 'APROVADO'],
     title: 'RECEITAS PRONTAS',
     badgeClass: 'bg-emerald-50 text-[#0BA84F]',
     headerMark: 'bg-emerald-50 text-[#0BA84F]'
+  },
+  {
+    key: 'review',
+    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'],
+    title: 'AGUARDANDO VALIDAÇÃO',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    headerMark: 'bg-amber-50 text-amber-700'
   },
   {
     key: 'closed',
@@ -182,7 +182,7 @@ function columnCountClass() {
 
 const columnIcons: Record<'queue' | 'review' | 'ready', typeof Clock3> = {
   queue: Clock3,
-  review: User,
+  review: AlertTriangle,
   ready: CheckCircle2,
 };
 
@@ -484,29 +484,32 @@ export default function FilaPage() {
     }
 
     if (column === 'review') {
+      const canEmit = ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING'].includes(item.status);
+      const canAccept = ['AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status);
       return (
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--review-stack">
-          <button
-            type="button"
-            onClick={() => {
-              const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
-              if (url) window.open(url, '_blank', 'noopener,noreferrer');
-              else router.push(`/receita?atendimentoId=${encodeURIComponent(item.id)}`);
-            }}
-            className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
-          >
-            VISUALIZAR RECEITA
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
-            }}
-            disabled={actionLoading === item.id || !['AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status)}
-            className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
-          >
-            ACEITAR RECEITA
-          </button>
+          {canEmit && (
+            <button
+              type="button"
+              onClick={() => setMemedOverlayId(item.id)}
+              disabled={actionLoading === item.id}
+              className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
+            >
+              EMITIR RECEITA
+            </button>
+          )}
+          {canAccept && (
+            <button
+              type="button"
+              onClick={() => {
+                void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
+              }}
+              disabled={actionLoading === item.id}
+              className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
+            >
+              ACEITAR RECEITA
+            </button>
+          )}
         </div>
       );
     }
@@ -529,6 +532,17 @@ export default function FilaPage() {
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
+        <button
+          type="button"
+          onClick={() => {
+            const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
+            if (url) window.open(url, '_blank', 'noopener,noreferrer');
+            else router.push(`/receita?atendimentoId=${encodeURIComponent(item.id)}`);
+          }}
+          className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
+        >
+          VISUALIZAR RECEITA
+        </button>
         <div className="dp-patient-card__ready-secondary">
           <button
             type="button"
@@ -548,7 +562,8 @@ export default function FilaPage() {
             disabled={emailLoading || !channelTarget(item, 'email')}
             className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
           >
-            {emailLoading ? 'ENVIANDO...' : 'E-MAIL'}
+            <Mail className="h-3 w-3 shrink-0" />
+            {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
           </button>
         </div>
         <button
@@ -560,7 +575,7 @@ export default function FilaPage() {
           className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
         >
           <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
-          {whatsappLoading ? 'ENVIANDO...' : 'WHATSAPP'}
+          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
         </button>
       </div>
     );
@@ -575,9 +590,13 @@ export default function FilaPage() {
       );
     }
     if (column === 'review') {
+      const reviewLabel =
+        item.status === 'RECEITA_EMITIDA' || item.status === 'AWAITING_VALIDATION' ? 'Aguardando validação' :
+        item.status === 'MEMED_PROCESSING' ? 'Emitindo receita' :
+        'Em atendimento';
       return (
         <span className="dp-status-badge dp-status-badge-warn">
-          Aguardando validação
+          {reviewLabel}
         </span>
       );
     }
@@ -719,7 +738,9 @@ export default function FilaPage() {
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span
                       className={`dp-col-heading-icon flex shrink-0 items-center justify-center rounded-full ${
-                        column.key === 'ready' ? 'bg-[#E8F8EE] text-[#0B7F3C]' : 'bg-[#E8F1FF] text-[#1557FF]'
+                        column.key === 'ready' ? 'bg-[#E8F8EE] text-[#0B7F3C]' :
+                        column.key === 'review' ? 'bg-amber-50 text-amber-700' :
+                        'bg-[#E8F1FF] text-[#1557FF]'
                       }`}
                     >
                       <Icon className="h-[17px] w-[17px]" aria-hidden="true" />

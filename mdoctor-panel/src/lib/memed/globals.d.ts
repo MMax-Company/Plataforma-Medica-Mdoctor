@@ -13,6 +13,7 @@ declare global {
       };
       event?: {
         add: (event: string, callback: (data: unknown) => void) => void;
+        trigger?: (event: string, data?: unknown) => void;
       };
       server?: {
         unbindEvents?: () => void;
