@@ -17,3 +17,4 @@ export * from './clinicalPrescription.types';
 export * from './clinicalPrescriptionToMemedItems';
 export * from './buildClinicalPrescriptionFromAtendimento';
 export * from './memedCommandDiagnostic';
+export * from './prewarmMemed';

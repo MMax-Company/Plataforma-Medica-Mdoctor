@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MemedConfig } from '@/services/memed.service';
 import {
-  applyClinicalMemedUx,
   buildPatientFromAtendimento,
   ensureMemedScript,
   getLastMemedToken,
@@ -39,13 +38,8 @@ export type UseMemedSinapseResult = {
   statusMessage: string;
 };
 
-// 120s cobre pior caso paciente subsequente: waitModuleReady(35s) + newPrescription(15s) + setPaciente(42s) + addItem(20s) + buffer
+// 120s cobre pior caso paciente subsequente: setPaciente(42s) + addItem(20s) + show + buffer
 const MEMED_OPEN_TIMEOUT_MS = 120_000;
-
-// Garante que applyClinicalMemedUx rode UMA VEZ por sessão de browser.
-// Se chamado a cada novo overlay (per hook instance), os comandos setFeatureToggle
-// correm concorrentemente com setPaciente do segundo paciente e bloqueiam a troca.
-let clinicalUxApplied = false;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -137,12 +131,6 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
         onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,
       });
       callbackRegistered.current = true;
-      // applyClinicalMemedUx apenas na primeira vez: toggles setFeatureToggle rodando
-      // concorrentemente com setPaciente do segundo paciente bloqueiam a troca de paciente.
-      if (!clinicalUxApplied) {
-        clinicalUxApplied = true;
-        void applyClinicalMemedUx().catch(() => undefined);
-      }
     }
 
     setClinicalReady(true);

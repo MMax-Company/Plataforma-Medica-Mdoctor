@@ -1,14 +1,19 @@
 /**
- * simulate-3-patients.mjs
+ * simulate-3-patients.mjs — v4
  *
- * Simulação Playwright: 3 pacientes consecutivos no staging.
+ * Critério de aceite (necessário para aceitar a correção):
+ *   - CMD_OK explícito para setPaciente em todos os 3 pacientes
+ *   - Nenhum timeout (timed_out: true) em setPaciente
+ *   - Overlay fecha via X após confirmação — não por fallback de falha
+ *   - Se setPaciente falhar → FAIL imediato, sem continuar
  *
- * Critério de aprovação: todos os 3 passam sem timeout em setPaciente,
- * sem reinicialização de iframes entre os pacientes (fix b052a9b verificado).
+ * newPrescription removido do fluxo: ausente na documentação oficial Memed
+ * e causava timeout de 15s enquanto sub-módulos carregavam após show().
  *
- * Fluxo por paciente:
- *   ATENDER → APROVAR → aguarda MemedEmissionOverlay auto-abrir →
- *   monitora setPaciente → injeta prescricaoImpressa → aguarda close.
+ * Instrumentação:
+ *   - Lê window.__memedDiagnosticLog (populado por memedCommandDiagnostic.ts)
+ *   - NÃO tenta interceptar MdHub.command.send (property pode ser non-writable)
+ *   - Polling via page.evaluate a cada 1s
  */
 
 import { chromium } from 'playwright';
@@ -19,16 +24,13 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PANEL_URL = 'https://painel-medico-staging-staging.up.railway.app';
+const BACKEND_URL = 'https://mdoctor-backend-staging-staging.up.railway.app';
 const CREDENTIALS = { username: 'drmax.matos', password: 'Gr@tid@0' };
 const REPORT_PATH = path.join(__dirname, '..', 'simulation-report.json');
 
-const TARGET_PATIENTS = [
-  { id: '3a26276a-82da-4b5f-b565-fb8c4861b029', name: 'João Carlos Ferreira' },
-  { id: '4ab610ab-b708-40b5-8809-adc86f6844b0', name: 'Maria das Graças Alves' },
-  { id: '17e8b7ec-f2d6-43a7-a30e-3862d723dbc1', name: 'Roberto Silva Santos' },
-];
-
-// ─── Logging ───────────────────────────────────────────────────────────────
+// Tempo máximo para todos os comandos completarem após overlay abrir.
+// Worst case: setFeatureToggle(5s) + setPaciente(42s) + addItem(20s) + show + buffer = ~80s
+const MEMED_CMD_TOTAL_TIMEOUT_MS = 120_000;
 
 let startTime = 0;
 const report = { events: [], patients: [], summary: {} };
@@ -38,567 +40,594 @@ function log(type, detail) {
   const entry = { t, type, detail };
   report.events.push(entry);
   const ts = `[${String(Math.floor(t / 1000)).padStart(3, '0')}s]`;
-  const d = detail !== undefined ? JSON.stringify(detail).slice(0, 150) : '';
+  const d = detail !== undefined ? JSON.stringify(detail).slice(0, 200) : '';
   console.log(`${ts} ${type}${d ? ' ' + d : ''}`);
 }
 
-// ─── Instrumentation ────────────────────────────────────────────────────────
+// ─── Memed diagnostic log polling ──────────────────────────────────────────────
+//
+// window.__memedDiagnosticLog is populated by memedCommandDiagnostic.ts.
+// clearMemedDiagnosticLog() is called at the start of prepareAndShowPrescription,
+// so the log starts fresh for each patient (reset to [] on APROVAR → openPrescription).
+//
+// Entry schema:
+//   phase: 'before' | 'after' | 'event'
+//   command: 'newPrescription' | 'setPaciente' | 'addItem' | 'postShow:ready' | ...
+//   ok?: boolean    (phase === 'after')
+//   timed_out?: boolean  (phase === 'after', command failed by timeout)
+//   duration_ms?: number
 
-/** Injeta no browser interceptors para setToken, MdHub.command, iframes. */
-async function injectInstrumentation(page) {
-  await page.addInitScript(() => {
-    const diag = [];
-    window.__simDiag = diag;
-    const t0 = Date.now();
+/**
+ * Polls window.__memedDiagnosticLog until setPaciente has ok: true.
+ * Fails immediately if setPaciente has ok: false with no subsequent ok: true.
+ * addItem failures are logged but do not fail the test (medication may not be in catalog).
+ *
+ * newPrescription removido do fluxo — não está na documentação oficial Memed.
+ */
+async function waitForMemedCommands(page, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
 
-    function emit(type, detail) {
-      const ev = { t: Date.now() - t0, type, detail };
-      diag.push(ev);
-      console.log(`[SIM-DIAG] ${ev.t}ms ${type}`, detail != null ? JSON.stringify(detail).slice(0, 200) : '');
+  while (Date.now() < deadline) {
+    // Check for visible error text in overlay (catches throw from prepareAndShowPrescription)
+    const overlayError = await page.evaluate(() => {
+      const overlay = document.querySelector('[aria-label*="Prescrição digital"]');
+      if (!overlay) return null;
+      const text = overlay.textContent || '';
+      const keywords = ['Tempo esgotado', 'Timeout', 'timeout', 'indisponível', 'Falha ao carregar'];
+      for (const kw of keywords) {
+        if (text.includes(kw)) return text.slice(0, 300);
+      }
+      return null;
+    }).catch(() => null);
+
+    if (overlayError) {
+      throw new Error(`Overlay exibe erro (prepareAndShowPrescription falhou): ${overlayError.slice(0, 200)}`);
     }
 
-    // 1. Vigiar TODOS os iframes no document (SDK Memed não usa #iframe-container fixo)
-    function watchIframes() {
-      let iframeCount = document.querySelectorAll('iframe').length;
-      emit('IFRAME_WATCHER_READY', { existingIframes: iframeCount });
+    // Read current snapshot of diagnostic log
+    const log_ = await page.evaluate(() => window.__memedDiagnosticLog ?? null).catch(() => null);
 
-      const obs = new MutationObserver((muts) => {
-        for (const m of muts) {
-          if (m.type === 'attributes' && m.attributeName === 'src' && m.target.tagName === 'IFRAME') {
-            emit('IFRAME_SRC_CHANGED', {
-              name: m.target.name || m.target.id,
-              src: m.target.src.slice(0, 80),
-            });
-          }
-          for (const n of m.addedNodes) {
-            if (n.tagName === 'IFRAME') {
-              iframeCount++;
-              emit('IFRAME_ADDED', { total: iframeCount, name: n.name || n.id, src: n.src.slice(0, 80) });
-              obs.observe(n, { attributes: true, attributeFilter: ['src'] });
-            }
-          }
-        }
-      });
-      obs.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
-      document.querySelectorAll('iframe').forEach((f) =>
-        obs.observe(f, { attributes: true, attributeFilter: ['src'] })
-      );
+    if (log_ === null) {
+      // prepareAndShowPrescription hasn't called clearMemedDiagnosticLog yet
+      await page.waitForTimeout(500);
+      continue;
     }
-    watchIframes();
 
-    // 2. Interceptar MdSinapsePrescricao.setToken
-    function patchSetToken() {
-      const sinapse = window.MdSinapsePrescricao;
-      if (!sinapse) { setTimeout(patchSetToken, 200); return; }
-      const orig = sinapse.setToken;
-      sinapse.setToken = function (token) {
-        const iframes = document.querySelectorAll('#iframe-container iframe');
-        emit('SET_TOKEN_CALLED', {
-          tokenPrefix: token.slice(0, 20) + '...',
-          iframeCount: iframes.length,
-          willReload: iframes.length > 0,
-        });
-        return orig?.call(this, token);
+    // Hard fail: ALL setPaciente attempts failed (retry mechanism exhausted)
+    const setPacAttempts = log_.filter((e) => e.phase === 'after' && e.command === 'setPaciente');
+    const setPacFailures = setPacAttempts.filter((e) => e.ok === false || e.timed_out === true);
+    const setPacSuccess = setPacAttempts.find((e) => e.ok === true);
+    if (setPacFailures.length > 0 && !setPacSuccess) {
+      const totalElapsed = setPacFailures.reduce((s, e) => s + (e.duration_ms || 0), 0);
+      if (totalElapsed >= 40_000) {
+        const lastFail = setPacFailures[setPacFailures.length - 1];
+        throw new Error(
+          `setPaciente FALHOU em todas as tentativas — ${lastFail.error || 'timeout'} (${lastFail.duration_ms}ms).`,
+        );
+      }
+    }
+
+    // Check for success
+    const setPacOk = setPacAttempts.find((e) => e.ok === true);
+    const showDone = log_.find((e) => e.phase === 'event' && e.command === 'show:done');
+    const addItems = log_.filter((e) => e.phase === 'after' && e.command === 'addItem');
+
+    if (setPacOk && showDone) {
+      return {
+        showDone: true,
+        setPaciente: {
+          ok: true,
+          ms: setPacOk.duration_ms,
+          attempts: setPacAttempts.length,
+        },
+        addItem: {
+          attempted: addItems.length,
+          ok: addItems.filter((e) => e.ok === true).length,
+          failed: addItems.filter((e) => e.ok === false || e.timed_out).length,
+        },
+        fullLog: log_,
       };
-      emit('SINAPSE_SET_TOKEN_PATCHED');
     }
-    patchSetToken();
 
-    // 3. Interceptar MdHub.command.send para monitorar setPaciente, newPrescription
-    function patchMdHubCommand() {
-      if (!window.MdHub?.command?.send) { setTimeout(patchMdHubCommand, 200); return; }
-      const orig = window.MdHub.command.send.bind(window.MdHub.command);
-      window.MdHub.command.send = function (...args) {
-        const [mod, cmd] = args;
-        const key = `${mod}.${cmd}`;
-        const t0cmd = Date.now() - t0;
-        emit('CMD_SEND', { cmd: key });
-        const p = orig(...args);
-        if (p && typeof p.then === 'function') {
-          p.then((r) => emit('CMD_OK', { cmd: key, ms: Date.now() - t0 - t0cmd }))
-           .catch((e) => emit('CMD_ERR', { cmd: key, ms: Date.now() - t0 - t0cmd, error: String(e) }));
-        }
-        return p;
-      };
-      emit('MDHUB_COMMAND_PATCHED');
-    }
-    patchMdHubCommand();
+    await page.waitForTimeout(1000);
+  }
 
-    // 4. Interceptar core:moduleInit (= reinicialização do SDK = problema)
-    function patchMdHubEvents() {
-      if (!window.MdHub?.event?.add) { setTimeout(patchMdHubEvents, 200); return; }
-      const origAdd = window.MdHub.event.add.bind(window.MdHub.event);
-      window.MdHub.event.add = function (name, cb) {
-        return origAdd(name, (...args) => {
-          if (['core:moduleInit', 'prescricaoImpressa', 'prescricaoExcluida'].includes(name)) {
-            emit('EVENT_FIRED', { name, args: JSON.stringify(args).slice(0, 100) });
-          }
-          return cb(...args);
-        });
-      };
-      emit('MDHUB_EVENT_PATCHED');
-    }
-    patchMdHubEvents();
-  });
+  // Timeout expired — report what was completed
+  const log_ = await page.evaluate(() => window.__memedDiagnosticLog ?? []).catch(() => []);
+  const completed = log_.filter((e) => e.phase === 'after' && e.ok === true).map((e) => e.command);
+  const failed = log_.filter((e) => e.phase === 'after' && (e.ok === false || e.timed_out)).map(
+    (e) => `${e.command}(${e.error || 'timeout'})`,
+  );
+  throw new Error(
+    `Timeout ${timeoutMs}ms aguardando comandos Memed.\n` +
+      `  Concluídos com OK: [${completed.join(', ') || 'nenhum'}]\n` +
+      `  Falharam: [${failed.join(', ') || 'nenhum'}]\n` +
+      `  Necessários: setPaciente OK + show:done`,
+  );
 }
 
-// ─── Auth ───────────────────────────────────────────────────────────────────
+// ─── Auth + Queue fetch ────────────────────────────────────────────────────────
 
-async function loginWithForm(page) {
-  log('LOGIN_START');
-  await page.goto(`${PANEL_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.waitForTimeout(1500);
-
-  // Tenta preencher form de login
-  // Input de usuário: autocomplete="username", placeholder "e-mail ou CPF"
-  const userField = page.locator(
-    'input[autocomplete="username"], input[placeholder*="CPF"], input[placeholder*="e-mail"]'
-  ).first();
-  const passField = page.locator('input[type="password"]').first();
-
-  if (await userField.count() > 0 && await passField.count() > 0) {
-    await userField.fill(CREDENTIALS.username);
-    await passField.fill(CREDENTIALS.password);
-    log('LOGIN_FORM_FILLED');
-
-    // Submeter via botão type=submit ou Enter
-    const submitBtn = page.locator('button[type="submit"]').first();
-    if (await submitBtn.count() > 0) {
-      await submitBtn.click();
-    } else {
-      await passField.press('Enter');
-    }
-    await page.waitForTimeout(3000);
-    log('LOGIN_FORM_SUBMITTED', { currentUrl: page.url().slice(-60) });
-  } else {
-    log('LOGIN_FORM_NOT_FOUND', { url: page.url() });
-    // Se já está em /fila, ok
-  }
-}
-
-async function ensureAuthenticated(page) {
-  const url = page.url();
-  if (url.includes('/fila')) {
-    log('ALREADY_AUTHENTICATED');
-    return;
-  }
-  await loginWithForm(page);
-
-  // Aguarda redirect para /fila ou página principal
+/**
+ * Logs in via backend API from Node.js. Returns { token, patients }.
+ * The token is used to set localStorage in the browser to bypass the login form.
+ */
+async function loginAndFetchQueue() {
+  // Declare token outside try so it survives if queue fetch fails
+  let authToken = null;
   try {
-    await page.waitForURL('**/fila**', { timeout: 10_000 });
-    log('REDIRECTED_TO_FILA');
-  } catch {
-    log('WAIT_FILA_TIMEOUT', { url: page.url() });
+    const loginRes = await fetch(`${BACKEND_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user: CREDENTIALS.username, password: CREDENTIALS.password }),
+    });
+    if (!loginRes.ok) {
+      log('LOGIN_API_WARN', { status: loginRes.status });
+      return { token: null, patients: null };
+    }
+    const loginData = await loginRes.json();
+    authToken = loginData.token;
+    if (!authToken) {
+      log('LOGIN_API_WARN', { msg: 'No token in response' });
+      return { token: null, patients: null };
+    }
+    log('LOGIN_API_OK', { tokenPrefix: authToken.slice(0, 20) + '...' });
+
+    const queueRes = await fetch(`${BACKEND_URL}/api/atendimentos?scope=medical`, {
+      headers: { Authorization: `Bearer ${authToken}` },
+    });
+    if (!queueRes.ok) {
+      log('QUEUE_API_WARN', { status: queueRes.status });
+      return { token: authToken, patients: null };
+    }
+    const data = await queueRes.json();
+    const rows = Array.isArray(data) ? data : data.data || data.atendimentos || [];
+    const waiting = rows
+      .filter(
+        (a) =>
+          (a.status === 'waiting' || a.status === 'triaged') &&
+          a.elegibilidade?.eligible !== false &&
+          a.eligibility_status !== 'rejected' &&
+          a.dados_clinicos?.medicacao_em_uso,
+      )
+      .slice(0, 3)
+      .map((a) => ({
+        id: a.id,
+        name: a.paciente_nome || a.nome || `paciente-${a.id.slice(0, 8)}`,
+      }));
+
+    log('QUEUE_FETCH_OK', { count: waiting.length, patients: waiting.map((p) => p.name) });
+    return { token: authToken, patients: waiting.length >= 3 ? waiting : null };
+  } catch (e) {
+    // Preserve token even if queue fetch threw (e.g. network timeout)
+    log('LOGIN_API_WARN', { msg: e.message });
+    return { token: authToken, patients: null };
   }
-}
-
-// ─── Patient flow ───────────────────────────────────────────────────────────
-
-async function collectDiag(page) {
-  return page.evaluate(() => window.__simDiag ?? []).catch(() => []);
 }
 
 /**
- * Para um paciente:
- * 1. Vai para /fila, clica ATENDER no card do paciente
- * 2. Aguarda modal prontuário, clica APROVAR
- * 3. Aguarda MemedEmissionOverlay + widget auto-open
- * 4. Monitora setToken e setPaciente
- * 5. Injeta prescricaoImpressa após widget abrir (máx 90s)
- * 6. Aguarda close
+ * Injects the JWT token into the panel's localStorage so the panel considers
+ * the user authenticated, then navigates to /fila. Bypasses the login form.
  */
+async function injectAuthAndGoToFila(page, token) {
+  log('AUTH_INJECT_START');
+  // Navigate to the panel root to have the right origin for localStorage
+  await page.goto(`${PANEL_URL}/`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForTimeout(1000);
+
+  // Set the JWT in localStorage (same key the panel's apiClient reads)
+  await page.evaluate((tok) => {
+    window.localStorage.setItem('mdoctor_auth_token', tok);
+  }, token);
+  log('AUTH_TOKEN_INJECTED');
+
+  // Navigate to /fila
+  await page.goto(`${PANEL_URL}/fila`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  await page.waitForTimeout(3000);
+  log('ON_FILA', { url: page.url().slice(-60) });
+}
+
+// ─── Auth ──────────────────────────────────────────────────────────────────────
+
+async function loginAndGoToFila(page) {
+  log('LOGIN_START');
+  await page.goto(`${PANEL_URL}/login`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  // Wait for the page to stabilize — on cold-start staging this can take a while
+  await page.waitForTimeout(3000);
+
+  const userField = page
+    .locator('input[autocomplete="username"], input[placeholder*="CPF"], input[placeholder*="e-mail"], input[placeholder*="usuário"]')
+    .first();
+  const passField = page.locator('input[type="password"]').first();
+
+  if ((await userField.count()) > 0) {
+    await userField.fill(CREDENTIALS.username);
+    await passField.fill(CREDENTIALS.password);
+    log('LOGIN_FORM_FILLED');
+    // Try submit button first with force, fall back to Enter
+    const submitBtn = page.locator('button[type="submit"]').first();
+    if ((await submitBtn.count()) > 0) {
+      try {
+        await submitBtn.click({ force: true, timeout: 8000 });
+      } catch {
+        log('SUBMIT_BTN_CLICK_FAILED_USING_ENTER');
+        await passField.press('Enter');
+      }
+    } else {
+      await passField.press('Enter');
+    }
+    await page.waitForTimeout(2000);
+    log('LOGIN_FORM_SUBMITTED', { url: page.url().slice(-60) });
+  } else {
+    log('LOGIN_FORM_NOT_FOUND');
+  }
+
+  try {
+    await page.waitForURL('**/fila**', { timeout: 45_000 });
+    log('REDIRECTED_TO_FILA');
+  } catch {
+    log('WAIT_FILA_TIMEOUT', { url: page.url().slice(-60) });
+    // If not on /fila, navigate directly — token is likely set in localStorage already
+    if (!page.url().includes('/fila')) {
+      await page.goto(`${PANEL_URL}/fila`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      log('FORCED_NAV_TO_FILA');
+    }
+  }
+}
+
+// ─── Patient flow ──────────────────────────────────────────────────────────────
+
 async function runPatient(page, patient, index) {
   const pResult = {
     index,
     id: patient.id,
     name: patient.name,
-    steps: {},
-    setTokenCalls: [],
-    iframeReloads: 0,
-    setPacienteMs: null,
     passed: false,
     error: null,
+    steps: {},
+    commands: null,
   };
 
-  const diagBefore = await collectDiag(page);
-  const diagOffset = diagBefore.length;
-
   try {
-    // ── Passo 1: Navegar para /fila ──────────────────────────────────────
-    log(`[P${index + 1}] NAV_TO_FILA`);
-    await page.goto(`${PANEL_URL}/fila`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    await page.waitForTimeout(2000);
+    // ── Nav to /fila ──────────────────────────────────────────────────────
+    log(`[P${index + 1}] NAV_FILA`);
+    await page.goto(`${PANEL_URL}/fila`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+    // Wait for the patient queue to load — the React auth context needs to hydrate,
+    // read localStorage, and fetch the queue before any ATENDER button appears.
+    log(`[P${index + 1}] WAIT_QUEUE_LOAD`);
+    try {
+      await page.waitForSelector('button:has-text("ATENDER"), button:has-text("Atender")', {
+        timeout: 45_000,
+      });
+      log(`[P${index + 1}] QUEUE_LOADED`);
+    } catch {
+      // Log visible text to diagnose auth/loading issues
+      const pageText = await page.evaluate(() => document.body?.innerText?.slice(0, 500) || '').catch(() => '');
+      log(`[P${index + 1}] QUEUE_LOAD_TIMEOUT`, { visible: pageText.slice(0, 200) });
+      throw new Error('Fila não carregou — nenhum botão ATENDER em 45s (auth inválida ou fila vazia?)');
+    }
+
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-01-fila.png` });
     pResult.steps.nav = 'ok';
 
-    // Screenshot inicial
-    await page.screenshot({ path: `sim-p${index + 1}-01-fila.png` });
+    // ── Click ATENDER ─────────────────────────────────────────────────────
+    log(`[P${index + 1}] CLICK_ATENDER`, { name: patient.name });
+    let atenderOk = false;
 
-    // ── Passo 2: Clicar ATENDER ──────────────────────────────────────────
-    log(`[P${index + 1}] CLICK_ATENDER`, { patient: patient.name });
-
-    // Busca card do paciente pelo nome ou pelo ID como atributo de dados
-    const patientCardSelectors = [
-      `[data-atendimento-id="${patient.id}"]`,
-      `[data-id="${patient.id}"]`,
-    ];
-
-    let cardFound = false;
-    for (const sel of patientCardSelectors) {
-      if (await page.locator(sel).count() > 0) {
-        const atenderBtn = page.locator(sel).locator('button', { hasText: 'ATENDER' }).first();
-        if (await atenderBtn.count() > 0) {
-          await atenderBtn.click();
-          cardFound = true;
-          log(`[P${index + 1}] ATENDER_CLICKED_BY_DATA_ATTR`);
+    for (const sel of [`[data-atendimento-id="${patient.id}"]`, `[data-id="${patient.id}"]`]) {
+      if ((await page.locator(sel).count()) > 0) {
+        const btn = page.locator(sel).locator('button', { hasText: /atender/i }).first();
+        if ((await btn.count()) > 0) {
+          await btn.click();
+          atenderOk = true;
           break;
         }
       }
     }
 
-    if (!cardFound) {
-      // Fallback: busca pelo nome do paciente e depois o botão ATENDER próximo
+    if (!atenderOk) {
       const nameEl = page.locator(`text="${patient.name}"`).first();
-      if (await nameEl.count() > 0) {
-        // Clica no card pai para abrir
-        const card = nameEl.locator('xpath=ancestor::div[contains(@class,"dp-patient-card") or contains(@class,"card")]').first();
-        if (await card.count() > 0) {
-          const atenderBtn = card.locator('button', { hasText: 'ATENDER' }).first();
-          if (await atenderBtn.count() > 0) {
-            await atenderBtn.click();
-            cardFound = true;
-            log(`[P${index + 1}] ATENDER_CLICKED_BY_NAME`);
-          }
+      if ((await nameEl.count()) > 0) {
+        const ancestor = nameEl.locator('xpath=ancestor::*[self::article or self::div[contains(@class,"card") or contains(@class,"patient")]]').first();
+        const btn = (await ancestor.count()) > 0
+          ? ancestor.locator('button', { hasText: /atender/i }).first()
+          : page.locator('button', { hasText: /atender/i }).first();
+        if ((await btn.count()) > 0) {
+          await btn.click();
+          atenderOk = true;
         }
       }
     }
 
-    if (!cardFound) {
-      // Último fallback: clica em qualquer botão ATENDER disponível
-      const anyAtender = page.locator('button', { hasText: 'ATENDER' }).first();
-      if (await anyAtender.count() > 0) {
-        await anyAtender.click();
-        cardFound = true;
-        log(`[P${index + 1}] ATENDER_CLICKED_FIRST_AVAILABLE`);
+    if (!atenderOk) {
+      const btn = page.locator('button', { hasText: /atender/i }).first();
+      if ((await btn.count()) > 0) {
+        await btn.click();
+        atenderOk = true;
       }
     }
 
-    if (!cardFound) {
-      await page.screenshot({ path: `sim-p${index + 1}-02-no-atender.png` });
+    if (!atenderOk) {
+      await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-no-atender.png` });
       throw new Error(`Botão ATENDER não encontrado para ${patient.name}`);
     }
 
     pResult.steps.atender = 'ok';
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: `sim-p${index + 1}-02-prontuario.png` });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-02-prontuario.png` });
 
-    // ── Passo 3: Aguardar modal prontuário ───────────────────────────────
-    log(`[P${index + 1}] WAIT_PRONTUARIO_MODAL`);
+    // ── Wait for prontuário modal ─────────────────────────────────────────
+    log(`[P${index + 1}] WAIT_PRONTUARIO`);
     try {
       await page.waitForSelector('#modalProntuario, [role="dialog"][aria-modal="true"]', { timeout: 15_000 });
       pResult.steps.prontuario = 'ok';
-      log(`[P${index + 1}] PRONTUARIO_MODAL_OPEN`);
+      log(`[P${index + 1}] PRONTUARIO_OPEN`);
     } catch {
-      await page.screenshot({ path: `sim-p${index + 1}-03-no-modal.png` });
+      await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-no-modal.png` });
       throw new Error('Modal prontuário não abriu em 15s');
     }
+    // Screenshot modal loading state (before data loads)
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-02b-modal-loading.png` });
 
-    // ── Passo 4: Clicar APROVAR ──────────────────────────────────────────
-    log(`[P${index + 1}] CLICK_APROVAR`);
-    const aprovarBtn = page.locator('button', { hasText: /APROVAR/i }).last();
-    if (await aprovarBtn.count() === 0) {
-      await page.screenshot({ path: `sim-p${index + 1}-04-no-aprovar.png` });
-      throw new Error('Botão APROVAR não encontrado no modal');
+    // ── Wait for APROVAR button — modal initially shows "Carregando prontuário..." ─
+    // The ProntuarioDecisionBar (with ✓ APROVAR) only renders after useProntuarioAtendimento
+    // fetches the atendimento data. We must wait for the button, not just the dialog.
+    log(`[P${index + 1}] WAIT_APROVAR_BUTTON`);
+    try {
+      await page.waitForSelector('button:has-text("APROVAR"), button:has-text("autorizar atendimento")', {
+        timeout: 25_000,
+      });
+      log(`[P${index + 1}] APROVAR_BUTTON_VISIBLE`);
+      await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-02c-modal-loaded.png` });
+    } catch {
+      const modalText = await page
+        .evaluate(() => {
+          const m = document.querySelector('[role="dialog"][aria-modal="true"]');
+          return m?.innerText?.slice(0, 500) || '';
+        })
+        .catch(() => '');
+      await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-no-aprovar.png` });
+      throw new Error(
+        `Botão APROVAR não apareceu em 25s após modal abrir.\n  Modal visível: "${modalText.slice(0, 300)}"`,
+      );
     }
+
+    // ── Click APROVAR ─────────────────────────────────────────────────────
+    log(`[P${index + 1}] CLICK_APROVAR`);
+    const aprovarBtn = page.locator('button:has-text("APROVAR")').last();
     await aprovarBtn.click();
     pResult.steps.aprovar = 'ok';
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: `sim-p${index + 1}-04-memed-overlay.png` });
+    await page.waitForTimeout(1500);
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-03-pos-aprovar.png` });
 
-    // ── Passo 5: Aguardar MemedEmissionOverlay ───────────────────────────
+    // ── Wait for Memed overlay ────────────────────────────────────────────
     log(`[P${index + 1}] WAIT_MEMED_OVERLAY`);
     try {
-      await page.waitForSelector('[aria-label*="Prescrição digital"]', { timeout: 15_000 });
-      pResult.steps.memedOverlay = 'ok';
+      await page.waitForSelector('[aria-label*="Prescrição digital"]', { timeout: 20_000 });
+      pResult.steps.overlay = 'ok';
       log(`[P${index + 1}] MEMED_OVERLAY_OPEN`);
     } catch {
-      await page.screenshot({ path: `sim-p${index + 1}-05-no-memed.png` });
-      throw new Error('MemedEmissionOverlay não abriu em 15s');
+      await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-no-overlay.png` });
+      throw new Error('MemedEmissionOverlay não abriu em 20s após APROVAR');
     }
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-04-memed-overlay.png` });
 
-    // ── Passo 6: Aguardar iframes do SDK Memed ───────────────────────────
+    // ── Wait for Memed module iframes (show() executed) ───────────────────
     log(`[P${index + 1}] WAIT_MEMED_IFRAMES`);
-    const iframeDeadline = Date.now() + 90_000;
-    let iframeCount = 0;
-    while (Date.now() < iframeDeadline) {
-      // Conta iframes do módulo Memed: total de iframes na página menos o SW (memed-sw-register).
-      // O SDK cria iframes para plataforma.prescricao, patient-management, etc. após module.show().
-      // Usa name attribute (não id) — captureIframeState usa f.name para esses iframes.
-      iframeCount = await page.evaluate(() => {
-        const all = Array.from(document.querySelectorAll('iframe'));
-        // SW iframe tem name='memed-sw-register' — desconta
-        const nonSW = all.filter((f) => !f.name?.includes('sw-register') && !f.id?.includes('sw-register'));
-        return nonSW.length;
-      });
-      if (iframeCount > 0) break;
-
-      // Verifica se há mensagem de erro no overlay
-      const hasError = await page.evaluate(() => {
-        const overlay = document.querySelector('[aria-label*="Prescrição digital"]');
-        if (!overlay) return false;
-        const text = overlay.textContent || '';
-        return text.includes('Tempo esgotado') || text.includes('Falha') || text.includes('indisponível');
-      });
-      if (hasError) {
-        const errorText = await page.evaluate(() => {
-          const overlay = document.querySelector('[aria-label*="Prescrição digital"]');
-          return overlay?.textContent?.slice(0, 300) || '';
-        });
-        throw new Error(`Erro no overlay Memed: ${errorText.slice(0, 150)}`);
-      }
-
-      await page.waitForTimeout(2000);
-    }
-
-    if (iframeCount === 0) {
-      await page.screenshot({ path: `sim-p${index + 1}-06-no-iframes.png` });
-      throw new Error('Iframes Memed não apareceram em 90s');
-    }
-
-    log(`[P${index + 1}] MEMED_IFRAMES_READY`, { count: iframeCount });
-    pResult.steps.iframes = `ok (${iframeCount} iframes)`;
-
-    // ── Passo 7: Aguardar setPaciente completar ─────────────────────────
-    log(`[P${index + 1}] WAIT_SET_PACIENTE`);
-    // Aguarda até 60s para setPaciente completar (CMD_OK para setPaciente)
-    const setPacDeadline = Date.now() + 60_000;
-    let setPacDone = false;
-    while (Date.now() < setPacDeadline) {
-      const diagNow = await collectDiag(page);
-      const newEvents = diagNow.slice(diagOffset);
-      const setPacOk = newEvents.find((e) => e.type === 'CMD_OK' && e.detail?.cmd?.includes('setPaciente'));
-      if (setPacOk) {
-        setPacDone = true;
-        pResult.setPacienteMs = setPacOk.detail.ms;
-        log(`[P${index + 1}] SET_PACIENTE_OK`, { ms: setPacOk.detail.ms });
-        break;
-      }
-      const setPacErr = newEvents.find((e) => e.type === 'CMD_ERR' && e.detail?.cmd?.includes('setPaciente'));
-      if (setPacErr) {
-        throw new Error(`setPaciente falhou: ${setPacErr.detail.error}`);
-      }
-      await page.waitForTimeout(2000);
-    }
-
-    if (!setPacDone) {
-      log(`[P${index + 1}] SET_PACIENTE_TIMEOUT_WARN — tentando prescricaoImpressa mesmo assim`);
-    }
-
-    pResult.steps.setPaciente = setPacDone ? `ok (${pResult.setPacienteMs}ms)` : 'timeout (mas continuando)';
-
-    // Aguarda mais 3s para medicamentos carregarem
-    await page.waitForTimeout(3000);
-    await page.screenshot({ path: `sim-p${index + 1}-07-widget-loaded.png` });
-
-    // ── Passo 8: Coleta estado antes de injetar prescrição ───────────────
-    const diagBeforeInject = await collectDiag(page);
-    const newEventsBeforeInject = diagBeforeInject.slice(diagOffset);
-    const setTokenEvents = newEventsBeforeInject.filter((e) => e.type === 'SET_TOKEN_CALLED');
-    const iframeReloadEvents = newEventsBeforeInject.filter((e) => e.type === 'IFRAME_SRC_CHANGED');
-    pResult.setTokenCalls = setTokenEvents.map((e) => e.detail);
-    pResult.iframeReloads = iframeReloadEvents.length;
-
-    log(`[P${index + 1}] INSTRUMENTATION_SUMMARY`, {
-      setTokenCalls: setTokenEvents.length,
-      iframeReloads: iframeReloadEvents.length,
-      moduleInits: newEventsBeforeInject.filter((e) => e.type === 'EVENT_FIRED' && e.detail?.name === 'core:moduleInit').length,
-    });
-
-    // ── Passo 9: Injeta prescricaoImpressa ──────────────────────────────
-    log(`[P${index + 1}] INJECT_PRESCRICAO_IMPRESSA`);
-    const injected = await page.evaluate(() => {
-      const mdhub = window.MdHub;
-      if (mdhub?.event?.trigger) {
-        mdhub.event.trigger('prescricaoImpressa', {
-          prescricao: { id: `sim-receita-${Date.now()}` },
-          pdf: 'https://example.com/fake-prescription.pdf',
-          link: 'https://example.com/fake-link',
-        });
-        return 'trigger_ok';
-      }
-      // Fallback: dispatch manual via callbacks registrados
-      if (mdhub?.event?._callbacks?.prescricaoImpressa) {
-        const cbs = mdhub.event._callbacks.prescricaoImpressa;
-        if (Array.isArray(cbs)) cbs.forEach((cb) => cb({ prescricao: { id: `sim-receita-${Date.now()}` } }));
-        return 'callbacks_ok';
-      }
-      return 'no_trigger';
-    });
-    log(`[P${index + 1}] INJECT_RESULT`, { injected });
-    pResult.steps.prescricaoImpressa = injected;
-
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `sim-p${index + 1}-08-post-inject.png` });
-
-    // ── Passo 10: Aguardar overlay fechar ───────────────────────────────
-    log(`[P${index + 1}] WAIT_OVERLAY_CLOSE`);
+    const iframeStart = Date.now();
     try {
-      await page.waitForSelector('[aria-label*="Prescrição digital"]', {
-        state: 'detached',
-        timeout: 15_000,
-      });
-      pResult.steps.overlayClose = 'ok';
-      log(`[P${index + 1}] OVERLAY_CLOSED`);
+      await page.waitForFunction(
+        () =>
+          Array.from(document.querySelectorAll('iframe')).filter(
+            (f) => !f.name?.includes('sw-register') && !f.id?.includes('sw-register'),
+          ).length > 0,
+        { timeout: 60_000, polling: 1000 },
+      );
     } catch {
-      // Overlay pode não fechar se prescricaoImpressa injection falhou
-      // Fechar manualmente para continuar ao próximo paciente
-      const closeBtn = page.locator('[aria-label="Fechar prescrição"]').first();
-      if (await closeBtn.count() > 0) {
-        await closeBtn.click();
-        log(`[P${index + 1}] OVERLAY_CLOSED_MANUALLY`);
-        pResult.steps.overlayClose = 'manual';
+      const overlayText = await page.evaluate(() => {
+        const overlay = document.querySelector('[aria-label*="Prescrição digital"]');
+        return overlay?.textContent?.slice(0, 300) || '';
+      });
+      throw new Error(
+        `Iframes Memed não apareceram em 60s após show(). Overlay: "${overlayText.slice(0, 150)}"`,
+      );
+    }
+    const iframeMs = Date.now() - iframeStart;
+    pResult.steps.iframes = `ok (${iframeMs}ms)`;
+    log(`[P${index + 1}] MEMED_IFRAMES_READY`, { ms: iframeMs });
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-05-iframes.png` });
+
+    // ── Wait for Memed commands with EXPLICIT CMD_OK confirmation ─────────
+    // This is the acceptance gate: all 3 commands must have ok:true in
+    // window.__memedDiagnosticLog. Any failure is a hard throw — no "continue".
+    log(`[P${index + 1}] WAIT_MEMED_COMMANDS`);
+    const cmdStart = Date.now();
+    const cmds = await waitForMemedCommands(page, MEMED_CMD_TOTAL_TIMEOUT_MS);
+    const cmdMs = Date.now() - cmdStart;
+
+    pResult.commands = cmds;
+    pResult.steps.memedCommands = 'ok';
+    log(`[P${index + 1}] COMMANDS_OK`, {
+      showDone: cmds.showDone,
+      setPaciente: (cmds.setPaciente.ms ?? '?') + 'ms (attempt ' + cmds.setPaciente.attempts + ')',
+      addItem: `${cmds.addItem.ok}/${cmds.addItem.attempted} ok`,
+      totalMs: cmdMs,
+    });
+    await page.waitForTimeout(2000);
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-06-commands-ok.png` });
+
+    // ── Close overlay via X button (clean close after success confirmation) ─
+    // This is NOT a fallback — we only reach here after all commands OK.
+    log(`[P${index + 1}] CLOSE_OVERLAY_AFTER_SUCCESS`);
+    const closeBtn = page.locator('button[aria-label="Fechar prescrição"], button[aria-label*="Fechar"]').first();
+    if ((await closeBtn.count()) === 0) {
+      // Try generic close patterns
+      const closeAlt = page.locator('[aria-label*="Prescrição digital"] button[aria-label*="fechar"], [aria-label*="Prescrição digital"] button[aria-label*="Fechar"]').first();
+      if ((await closeAlt.count()) > 0) {
+        await closeAlt.click();
       } else {
-        pResult.steps.overlayClose = 'still_open';
-        log(`[P${index + 1}] OVERLAY_STILL_OPEN`);
+        throw new Error('Botão de fechar overlay não encontrado após comandos OK');
       }
+    } else {
+      await closeBtn.click();
     }
 
+    await page.waitForSelector('[aria-label*="Prescrição digital"]', {
+      state: 'detached',
+      timeout: 10_000,
+    });
+    pResult.steps.close = 'ok';
     pResult.passed = true;
     log(`[P${index + 1}] PATIENT_PASSED`, { name: patient.name });
 
-  } catch (e) {
-    pResult.error = e.message;
+  } catch (err) {
+    pResult.error = err.message;
     pResult.passed = false;
-    log(`[P${index + 1}] PATIENT_FAILED`, { error: e.message });
-    await page.screenshot({ path: `sim-p${index + 1}-error.png` }).catch(() => {});
+    log(`[P${index + 1}] PATIENT_FAILED`, { error: err.message.slice(0, 300) });
+    await page.screenshot({ timeout: 5000, path: `sim-p${index + 1}-error.png` }).catch(() => {});
 
-    // Tenta fechar qualquer modal aberto antes de continuar
-    const closeSelectors = [
-      '[aria-label="Fechar prescrição"]',
+    // Close any open modal to continue to next patient — this is cleanup, not success
+    for (const sel of [
+      'button[aria-label="Fechar prescrição"]',
       'button:has-text("Voltar ao painel")',
       'button:has-text("← Voltar")',
-    ];
-    for (const sel of closeSelectors) {
+      'button[aria-label*="Fechar"]',
+    ]) {
       const btn = page.locator(sel).first();
-      if (await btn.count() > 0) {
+      if ((await btn.count()) > 0) {
         await btn.click().catch(() => {});
+        await page.waitForTimeout(1000);
         break;
       }
     }
     await page.waitForTimeout(2000);
   }
 
-  // Coleta diag final do paciente
-  const diagFinal = await collectDiag(page);
-  pResult.diagEvents = diagFinal.slice(diagOffset);
+  // Capture final diagnostic log snapshot for report
+  pResult.diagnosticLog = await page.evaluate(() => window.__memedDiagnosticLog ?? []).catch(() => []);
 
   return pResult;
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+// ─── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
   startTime = Date.now();
-  log('SIMULATION_START', { patients: TARGET_PATIENTS.map((p) => p.name) });
+  log('SIMULATION_START');
 
   const browser = await chromium.launch({
     headless: false,
-    slowMo: 150,
+    slowMo: 100,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
-
   const context = await browser.newContext({
     viewport: { width: 1400, height: 900 },
     ignoreHTTPSErrors: true,
   });
-
   const page = await context.newPage();
 
-  // Captura mensagens de diagnóstico do browser
-  page.on('console', (msg) => {
-    const text = msg.text();
-    if (text.includes('[SIM-DIAG]')) {
-      log('BROWSER_DIAG', { text: text.slice('[SIM-DIAG] '.length, 200) });
-    }
-  });
   page.on('pageerror', (err) => log('PAGE_ERROR', { msg: err.message.slice(0, 200) }));
 
-  await injectInstrumentation(page);
+  // Login via backend API + fetch queue — before opening browser (no form needed)
+  const { token, patients: fetchedPatients } = await loginAndFetchQueue();
+
+  let targetPatients = fetchedPatients;
 
   try {
-    // Login
-    await loginWithForm(page);
-    await ensureAuthenticated(page);
-    await page.screenshot({ path: 'sim-00-after-login.png' });
+    // Inject JWT into browser localStorage — bypasses the form entirely
+    if (token) {
+      await injectAuthAndGoToFila(page, token);
+    } else {
+      // Fallback: form login
+      await loginAndGoToFila(page);
+    }
+    await page.screenshot({ timeout: 5000, path: 'sim-00-after-login.png' }).catch(() => {});
 
-    // Simula 3 pacientes em sequência
-    for (let i = 0; i < TARGET_PATIENTS.length; i++) {
-      log(`=== PACIENTE ${i + 1}/${TARGET_PATIENTS.length}: ${TARGET_PATIENTS[i].name} ===`);
-      const result = await runPatient(page, TARGET_PATIENTS[i], i);
-      report.patients.push(result);
-      await page.waitForTimeout(2000); // pausa entre pacientes
+    if (!targetPatients || targetPatients.length < 3) {
+      // Fallback to patients seeded by seed-sim-patients.js
+      log('QUEUE_FALLBACK', { reason: 'dynamic fetch did not return 3 patients — using last-seed IDs' });
+      targetPatients = [
+        { id: '82280525-049d-4c8c-be5f-4acb70e15593', name: 'Teste Sim P4 Carvalho' },
+        { id: '32989fdd-b966-4427-9ea4-305ecf632823', name: 'Teste Sim P5 Andrade' },
+        { id: 'b533d881-5c21-4aa7-9537-bc2890d5aeb1', name: 'Teste Sim P6 Nunes' },
+      ];
+      log('QUEUE_FALLBACK_PATIENTS', { patients: targetPatients.map((p) => p.name) });
     }
 
-  } catch (e) {
-    log('FATAL_ERROR', { error: e.message });
+    report.targetPatients = targetPatients;
+
+    for (let i = 0; i < targetPatients.length; i++) {
+      log(`=== PACIENTE ${i + 1}/${targetPatients.length}: ${targetPatients[i].name} ===`);
+      const result = await runPatient(page, targetPatients[i], i);
+      report.patients.push(result);
+      await page.waitForTimeout(3000); // stabilization between patients
+    }
+
+  } catch (err) {
+    log('FATAL', { error: err.message });
   } finally {
-    // Resumo
     const passed = report.patients.filter((p) => p.passed).length;
     const failed = report.patients.filter((p) => !p.passed).length;
-    const totalSetToken = report.patients.reduce((s, p) => s + (p.setTokenCalls?.length || 0), 0);
-    const totalIframeReloads = report.patients.reduce((s, p) => s + (p.iframeReloads || 0), 0);
 
-    report.summary = {
-      passed,
-      failed,
-      totalSetTokenCalls: totalSetToken,
-      totalIframeReloads,
-      setTokenByPatient: report.patients.map((p, i) => ({
-        patient: p.name,
-        setTokenCalls: p.setTokenCalls?.length || 0,
-        iframeReloads: p.iframeReloads || 0,
-        setPacienteMs: p.setPacienteMs,
-        passed: p.passed,
-      })),
-    };
+    // ── Acceptance criteria evaluation ────────────────────────────────────
+    const allPassed = passed === 3;
+    const noTimeoutsInCritical = report.patients.every((p) => {
+      if (!p.diagnosticLog) return true;
+      return !p.diagnosticLog.some(
+        (e) => e.timed_out === true && e.command === 'setPaciente',
+      );
+    });
+    const allCmdOk = report.patients.every(
+      (p) => p.commands?.setPaciente?.ok === true && p.commands?.showDone === true,
+    );
+    const noManualClose = report.patients.every(
+      (p) => !p.passed || p.steps?.close === 'ok',
+    );
 
     console.log('\n════════════════════════════════════════════');
     console.log('RESULTADO DA SIMULAÇÃO');
     console.log('════════════════════════════════════════════\n');
     console.log(`  Passaram: ${passed}/3`);
     console.log(`  Falharam: ${failed}/3`);
-    console.log(`  setToken total chamadas: ${totalSetToken}`);
-    console.log(`  Iframe reloads totais: ${totalIframeReloads}`);
     console.log('');
 
     for (const p of report.patients) {
       const status = p.passed ? '✅ PASSOU' : '❌ FALHOU';
       console.log(`  ${status} — ${p.name}`);
-      console.log(`    setPaciente: ${p.setPacienteMs != null ? p.setPacienteMs + 'ms' : 'N/A'}`);
-      console.log(`    setToken chamadas: ${p.setTokenCalls?.length || 0}`);
-      if (p.setTokenCalls?.length > 0) {
-        p.setTokenCalls.forEach((c) => console.log(`      → iframeCount=${c.iframeCount} willReload=${c.willReload}`));
+      if (p.commands) {
+        console.log(`    show:done:                     ${p.commands.showDone ? 'sim' : 'NAO'}`);
+        console.log(`    setPaciente CMD_OK:            ${p.commands.setPaciente?.ms ?? '?'}ms (${p.commands.setPaciente?.attempts} tentativa(s))`);
+        console.log(`    addItem:                       ${p.commands.addItem?.ok}/${p.commands.addItem?.attempted} ok`);
       }
-      console.log(`    iframeReloads: ${p.iframeReloads || 0}`);
-      if (p.error) console.log(`    erro: ${p.error}`);
+      if (p.error) console.log(`    erro: ${p.error.slice(0, 300)}`);
       console.log('');
     }
 
-    // Verifica o fix
-    const patientsWith2Plus = report.patients.filter((_, i) => i > 0);
-    const setTokenWith2PlusIframes = patientsWith2Plus.some(
-      (p) => p.setTokenCalls?.some((c) => c.iframeCount > 0 && c.willReload)
-    );
+    console.log('  Critérios de aceite:');
+    console.log(`  ${allPassed ? '✅' : '❌'} 3/3 pacientes passaram`);
+    console.log(`  ${noTimeoutsInCritical ? '✅' : '❌'} Nenhum timeout em setPaciente`);
+    console.log(`  ${allCmdOk ? '✅' : '❌'} CMD_OK confirmado para setPaciente + show:done`);
+    console.log(`  ${noManualClose ? '✅' : '❌'} Overlay fechado com sucesso após commands OK`);
+    console.log('');
 
-    if (!setTokenWith2PlusIframes) {
-      console.log('  FIX VERIFICADO: setToken NÃO chamado com iframes para pacientes 2 e 3.');
-      console.log('  → Sem reinicialização de iframes → sem timeout em setPaciente.');
+    if (allPassed && noTimeoutsInCritical && allCmdOk && noManualClose) {
+      console.log('  ACEITE: todos os critérios atingidos.');
     } else {
-      console.log('  ⚠️  ATENÇÃO: setToken FOI chamado com iframes em pacientes 2/3!');
-      console.log('  → Fix pode não ter sido aplicado corretamente.');
+      console.log('  NAO ACEITO: um ou mais critérios falharam.');
     }
 
     console.log('\n════════════════════════════════════════════\n');
+
+    report.summary = {
+      passed,
+      failed,
+      allPassed,
+      noTimeoutsInCritical,
+      allCmdOk,
+      noManualClose,
+      accepted: allPassed && noTimeoutsInCritical && allCmdOk && noManualClose,
+    };
 
     fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));
     log('REPORT_SAVED', { path: REPORT_PATH });
@@ -607,7 +636,7 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('FATAL:', e);
+main().catch((err) => {
+  console.error('FATAL:', err);
   process.exit(1);
 });

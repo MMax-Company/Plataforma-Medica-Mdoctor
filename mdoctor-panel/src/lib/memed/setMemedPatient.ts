@@ -25,9 +25,8 @@ export function normalizeNomeForMemedSetPaciente(nome: string): string {
  * Telefone deve ter 10–11 dígitos (DDD + número, sem prefixo 55) — ver normalizeTelefoneForMemed.
  * Telefone fake/inválido causa 422 silencioso no sherlock-api; só incluir se já normalizado.
  *
- * setPaciente deve ser chamado APÓS newPrescription para evitar race condition:
- * o newPrescription reseta o contexto da prescrição enquanto o sherlock-api ainda
- * processa o paciente assincronamente — ver prepareAndShowPrescription.ts.
+ * setPaciente deve ser chamado ANTES de show() conforme documentação oficial Memed:
+ * core:moduleInit → setPaciente → show() — ver prepareAndShowPrescription.ts.
  */
 export function buildSetPacientePayload(patient: MemedPatient): Record<string, unknown> {
   const payload: Record<string, unknown> = {
