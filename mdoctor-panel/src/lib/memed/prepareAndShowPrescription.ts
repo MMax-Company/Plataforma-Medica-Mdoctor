@@ -9,6 +9,11 @@ import {
   pushDiagnosticEvent,
   sendNewPrescriptionWithDiagnostic,
 } from './memedCommandDiagnostic';
+import {
+  markPrescriptionShownOnce,
+  resetModuleReadyAndGetWaitPromise,
+  wasPrescriptionShownBefore,
+} from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
 import { showPrescription } from './showPrescription';
 import type { MemedPatient } from './types';
@@ -21,16 +26,16 @@ export type PreparePrescriptionResult = {
 };
 
 /**
- * Ordem: newPrescription → setPaciente → addItem → orientações → show.
+ * Sequência para a PRIMEIRA prescrição da sessão:
+ *   newPrescription → setPaciente → addItem → orientações → show.
  *
- * Motivo: o MdHub.command.send('setPaciente') resolve quando o SDK recebe o comando,
- * mas o paciente só é registrado no contexto da prescrição depois que o sherlock-api
- * conclui o lookup/criação (processo assíncrono). Se newPrescription for chamado
- * APÓS setPaciente, ele reseta o contexto enquanto o sherlock-api ainda processa —
- * o widget abre com "Digite o nome do paciente".
+ * Sequência para prescrições SUBSEQUENTES (módulo foi ocultado após emissão anterior):
+ *   show → waitModuleReady(core:moduleInit) → newPrescription → setPaciente → addItem → orientações.
  *
- * Ao chamar newPrescription PRIMEIRO (contexto criado), e setPaciente DEPOIS
- * (paciente inserido no contexto estável), a race condition é eliminada.
+ * Causa raiz diagnosticada: após prescricaoImpressa + hide(), o SDK Memed remove os iframes
+ * do módulo plataforma.prescricao do DOM. Sem iframes, MdHub.command.send enfileira mensagens
+ * que nunca são processadas — causando timeout em newPrescription e setPaciente.
+ * Chamar show() ANTES dos comandos reconstrói os iframes e dispara core:moduleInit novamente.
  */
 export async function prepareAndShowPrescription(
   atendimento: AtendimentoForMemed,
@@ -39,37 +44,53 @@ export async function prepareAndShowPrescription(
   clearMemedDiagnosticLog();
 
   const resolvedPatient = patient || buildPatientFromAtendimento(atendimento);
+  const isSubsequent = wasPrescriptionShownBefore();
 
   pushDiagnosticEvent('prepareStart', {
     patientId: resolvedPatient.idExterno,
+    isSubsequent,
     iframes: captureIframeState(),
   });
 
-  // 1. Criar contexto da prescrição ANTES de setar o paciente.
-  let newPrescriptionOk = false;
-  try {
-    await sendNewPrescriptionWithDiagnostic();
-    newPrescriptionOk = true;
-  } catch {
-    // contexto pode já existir de tentativa anterior — continua
+  let alreadyShown = false;
+
+  if (isSubsequent) {
+    // Módulo foi ocultado — iframes removidos do DOM.
+    // Resetar o flag de pronto ANTES de chamar show() para não perder o core:moduleInit.
+    pushDiagnosticEvent('preShow:reactivating', { iframes: captureIframeState() });
+    const waitReady = resetModuleReadyAndGetWaitPromise(35_000);
+    showPrescription();
+    await waitReady;
+    alreadyShown = true;
+    pushDiagnosticEvent('postShow:ready', { iframes: captureIframeState() });
   }
 
-  pushDiagnosticEvent('afterNewPrescription', {
-    newPrescriptionOk,
-    iframes: captureIframeState(),
-  });
+  // 1. Criar contexto da prescrição ANTES de setar o paciente.
+  try {
+    await sendNewPrescriptionWithDiagnostic();
+  } catch (err) {
+    pushDiagnosticEvent('afterNewPrescription', { newPrescriptionOk: false, iframes: captureIframeState() });
+    // Propagar — não tentar setPaciente em contexto não criado.
+    throw err;
+  }
+
+  pushDiagnosticEvent('afterNewPrescription', { newPrescriptionOk: true, iframes: captureIframeState() });
 
   // 2. Setar paciente no contexto estável (sem risco de ser sobrescrito por newPrescription).
   await setMemedPatient(resolvedPatient);
 
-  // 3. Medicamentos + orientações (newPrescription interno falha silenciosamente — contexto já existe).
+  // 3. Medicamentos + orientações.
   const { added, memed_items_sent, pending_medical_review, pending_reasons } =
     await addMedicationsFromAtendimento(atendimento);
   await setClinicalOrientations(atendimento);
 
-  await new Promise((r) => setTimeout(r, 500));
+  // 4. Exibir widget — só se não foi exibido no pré-show acima.
+  if (!alreadyShown) {
+    markPrescriptionShownOnce();
+    await new Promise((r) => setTimeout(r, 500));
+    showPrescription();
+  }
 
-  showPrescription();
   return {
     medCount: added,
     memed_items_sent,

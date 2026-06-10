@@ -23,6 +23,7 @@ const state = {
   moduleReadyWaiters: [] as Array<() => void>,
   moduleInitBound: false,
   lastEmissionAt: 0,
+  prescriptionShownOnce: false,
 };
 
 function resolveModuleReady() {
@@ -125,7 +126,43 @@ export function resetMemedRuntimeForTestsOnly() {
   state.moduleReady = false;
   state.moduleInitBound = false;
   state.lastEmissionAt = 0;
+  state.prescriptionShownOnce = false;
   markMemedModuleReady(false);
+}
+
+/**
+ * Indica que o widget foi exibido pelo menos uma vez nesta sessão.
+ * Após o primeiro show(), hide() remove os iframes do DOM.
+ * Qualquer prescrição subsequente precisa chamar show() ANTES dos comandos MdHub.
+ */
+export function markPrescriptionShownOnce(): void {
+  state.prescriptionShownOnce = true;
+}
+
+/** true se o widget já foi exibido (e portanto ocultado) ao menos uma vez. */
+export function wasPrescriptionShownBefore(): boolean {
+  return state.prescriptionShownOnce;
+}
+
+/**
+ * Reseta o flag de pronto E retorna uma promise que resolve quando core:moduleInit
+ * disparar novamente (após show() recriar os iframes).
+ *
+ * Chamador deve chamar showPrescription() IMEDIATAMENTE após esta função para
+ * não perder o evento core:moduleInit.
+ */
+export function resetModuleReadyAndGetWaitPromise(timeoutMs: number): Promise<void> {
+  state.moduleReady = false;
+  markMemedModuleReady(false);
+  return Promise.race([
+    waitForMemedModuleReady(),
+    new Promise<void>((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`Timeout ${timeoutMs}ms aguardando reativação do módulo Memed`)),
+        timeoutMs,
+      ),
+    ),
+  ]);
 }
 
 /** Chamado quando prescricaoImpressa dispara. Usado para calcular janela de estabilização. */

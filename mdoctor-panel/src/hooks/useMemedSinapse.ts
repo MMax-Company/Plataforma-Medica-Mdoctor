@@ -39,8 +39,8 @@ export type UseMemedSinapseResult = {
   statusMessage: string;
 };
 
-// 90s cobre o pior caso: newPrescription(15s) + setPaciente_first(12s) + retry(30s) + addItem(20s) + buffer
-const MEMED_OPEN_TIMEOUT_MS = 90_000;
+// 120s cobre pior caso paciente subsequente: waitModuleReady(35s) + newPrescription(15s) + setPaciente(42s) + addItem(20s) + buffer
+const MEMED_OPEN_TIMEOUT_MS = 120_000;
 
 // Garante que applyClinicalMemedUx rode UMA VEZ por sessão de browser.
 // Se chamado a cada novo overlay (per hook instance), os comandos setFeatureToggle
