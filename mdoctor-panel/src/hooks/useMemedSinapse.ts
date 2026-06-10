@@ -7,7 +7,6 @@ import {
   buildPatientFromAtendimento,
   ensureMemedScript,
   getLastMemedToken,
-  msUntilPostEmissionSettle,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
   setupPrescriptionCallback,
@@ -40,9 +39,8 @@ export type UseMemedSinapseResult = {
   statusMessage: string;
 };
 
-// 120s cobre o pior caso para pacientes subsequentes:
-// settle(15s) + newPrescription(50s) + setPaciente_first(12s) + retry(30s) + addItem(20s) + buffer
-const MEMED_OPEN_TIMEOUT_MS = 120_000;
+// 90s cobre o pior caso: newPrescription(15s) + setPaciente_first(12s) + retry(30s) + addItem(20s) + buffer
+const MEMED_OPEN_TIMEOUT_MS = 90_000;
 
 // Garante que applyClinicalMemedUx rode UMA VEZ por sessão de browser.
 // Se chamado a cada novo overlay (per hook instance), os comandos setFeatureToggle
@@ -161,12 +159,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     openingInFlight.current = true;
     setIsOpening(true);
     try {
-      const settlePreview = msUntilPostEmissionSettle(15_000);
-      setStatusMessage(
-        settlePreview > 0
-          ? `Aguardando módulo reinicializar… (${Math.ceil(settlePreview / 1000)}s)`
-          : 'Aplicando dados clínicos e abrindo prescrição…',
-      );
+      setStatusMessage('Aplicando dados clínicos e abrindo prescrição…');
       const result = await withTimeout(
         (async () => {
           const moduleAlreadyReady = isMemedRuntimeReady();

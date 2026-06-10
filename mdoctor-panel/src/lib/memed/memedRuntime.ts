@@ -3,7 +3,13 @@
  * Não remove script, não faz logout, não limpa storage Memed.
  */
 import { createMemedScript } from './createMemedScript';
-import { markMemedModuleReady, rememberMemedScriptUrl, syncMemedScriptToken } from './memedSession';
+import {
+  getLastMemedToken,
+  markMemedModuleReady,
+  rememberMemedScriptUrl,
+  rememberMemedToken,
+  syncMemedScriptToken,
+} from './memedSession';
 import { PRESCRIPTION_MODULE } from './onLoadPrescription';
 import type { MemedScriptConfig } from './types';
 
@@ -50,12 +56,24 @@ export function ensureMemedScript(token: string, config: ScriptConfig): Promise<
   rememberMemedScriptUrl(config.scriptUrl);
 
   if (state.initPromise) {
-    syncMemedScriptToken(config.scriptId || state.scriptId, token);
+    // Só chama syncMemedScriptToken se o token mudou de fato.
+    // setToken() do SDK Memed (sinapse-prescricao.min.js) faz iframe.src = iframe.src
+    // (reload completo) quando há iframes presentes — mesmo com o mesmo token.
+    // Isso reinicializa patient-management (12-30s) e causa timeout em setPaciente
+    // para todos os pacientes sequenciais na mesma sessão.
+    if (token !== getLastMemedToken()) {
+      syncMemedScriptToken(config.scriptId || state.scriptId, token);
+    }
     return state.initPromise;
   }
 
   state.initPromise = new Promise((resolve, reject) => {
     try {
+      // Grava o token imediatamente ao injetar o script.
+      // Sem isso, getLastMemedToken() retorna '' quando o warm path é atingido
+      // no paciente 2 — forçando um syncMemedScriptToken desnecessário.
+      rememberMemedToken(token);
+
       const script = createMemedScript(token, {
         ...config,
         scriptId: config.scriptId || state.scriptId,
