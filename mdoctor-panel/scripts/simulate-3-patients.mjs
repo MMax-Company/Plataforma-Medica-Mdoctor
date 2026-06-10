@@ -57,17 +57,14 @@ async function injectInstrumentation(page) {
       console.log(`[SIM-DIAG] ${ev.t}ms ${type}`, detail != null ? JSON.stringify(detail).slice(0, 200) : '');
     }
 
-    // 1. Vigiar iframes em #iframe-container (reload = bug)
+    // 1. Vigiar TODOS os iframes no document (SDK Memed não usa #iframe-container fixo)
     function watchIframes() {
-      const container = document.getElementById('iframe-container');
-      if (!container) { setTimeout(watchIframes, 500); return; }
-
-      let iframeCount = container.querySelectorAll('iframe').length;
+      let iframeCount = document.querySelectorAll('iframe').length;
       emit('IFRAME_WATCHER_READY', { existingIframes: iframeCount });
 
       const obs = new MutationObserver((muts) => {
         for (const m of muts) {
-          if (m.type === 'attributes' && m.attributeName === 'src') {
+          if (m.type === 'attributes' && m.attributeName === 'src' && m.target.tagName === 'IFRAME') {
             emit('IFRAME_SRC_CHANGED', {
               name: m.target.name || m.target.id,
               src: m.target.src.slice(0, 80),
@@ -76,14 +73,14 @@ async function injectInstrumentation(page) {
           for (const n of m.addedNodes) {
             if (n.tagName === 'IFRAME') {
               iframeCount++;
-              emit('IFRAME_ADDED', { total: iframeCount, src: n.src.slice(0, 80) });
+              emit('IFRAME_ADDED', { total: iframeCount, name: n.name || n.id, src: n.src.slice(0, 80) });
               obs.observe(n, { attributes: true, attributeFilter: ['src'] });
             }
           }
         }
       });
-      obs.observe(container, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
-      container.querySelectorAll('iframe').forEach((f) =>
+      obs.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+      document.querySelectorAll('iframe').forEach((f) =>
         obs.observe(f, { attributes: true, attributeFilter: ['src'] })
       );
     }
@@ -334,9 +331,15 @@ async function runPatient(page, patient, index) {
     const iframeDeadline = Date.now() + 90_000;
     let iframeCount = 0;
     while (Date.now() < iframeDeadline) {
-      iframeCount = await page.evaluate(
-        () => document.querySelectorAll('#iframe-container iframe, [id*="memed"] iframe').length
-      );
+      // Conta iframes do módulo Memed: total de iframes na página menos o SW (memed-sw-register).
+      // O SDK cria iframes para plataforma.prescricao, patient-management, etc. após module.show().
+      // Usa name attribute (não id) — captureIframeState usa f.name para esses iframes.
+      iframeCount = await page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll('iframe'));
+        // SW iframe tem name='memed-sw-register' — desconta
+        const nonSW = all.filter((f) => !f.name?.includes('sw-register') && !f.id?.includes('sw-register'));
+        return nonSW.length;
+      });
       if (iframeCount > 0) break;
 
       // Verifica se há mensagem de erro no overlay
