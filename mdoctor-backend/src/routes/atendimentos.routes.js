@@ -26,6 +26,7 @@ const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.servi
 const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
 const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
+const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
 const logger = require('../config/logger');
 
 const router = express.Router();
@@ -439,6 +440,13 @@ router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
     actor: doctorId || 'backend',
     payload: { correlationId, protocolVersion: PROTOCOL_VERSION }
   });
+
+  try {
+    const existingPrescription = await getPrescriptionByAtendimento(req.params.id);
+    if (existingPrescription?.id && existingPrescription.status !== 'validated') {
+      await savePrescription({ ...existingPrescription, status: 'validated' });
+    }
+  } catch { /* atualização de prescriptions.status é best-effort */ }
 
   return res.json({ success: true, correlationId, atendimento, decisao });
 });
