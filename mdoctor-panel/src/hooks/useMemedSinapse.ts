@@ -178,6 +178,16 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     }
   }, [atendimento, patient, scriptConfig, refreshDoctorToken]);
 
+  // Reset per-patient refs/state when the patient changes.
+  // Must run before the auto-open effect (React fires effects in declaration order).
+  useEffect(() => {
+    if (!atendimento?.id) return;
+    autoOpened.current = false;
+    openingInFlight.current = false;
+    setPrescriptionOpenedOnce(false);
+    setStatusMessage('Preparando prescrição digital…');
+  }, [atendimento?.id]);
+
   useEffect(() => {
     if (!autoOpenWhenReady || !moduleReady || !clinicalReady || !atendimento || autoOpened.current) return;
     autoOpened.current = true;

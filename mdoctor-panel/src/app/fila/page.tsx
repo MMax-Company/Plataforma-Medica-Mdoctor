@@ -191,6 +191,9 @@ export default function FilaPage() {
   const searchParams = useSearchParams();
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
   const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
+  // Once true, overlay stays mounted so div#prescricao-memed is never destroyed between patients.
+  // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
+  const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -840,13 +843,15 @@ export default function FilaPage() {
         }}
         onApproved={(id) => {
           closeProntuarioModal();
+          setMemedOverlayMounted(true);
           setMemedOverlayId(id);
         }}
       />
 
-      {memedOverlayId && (
+      {memedOverlayMounted && (
         <MemedEmissionOverlay
-          atendimentoId={memedOverlayId}
+          atendimentoId={memedOverlayId ?? ''}
+          visible={memedOverlayId !== null}
           onClose={() => setMemedOverlayId(null)}
           onComplete={() => {
             setMemedOverlayId(null);

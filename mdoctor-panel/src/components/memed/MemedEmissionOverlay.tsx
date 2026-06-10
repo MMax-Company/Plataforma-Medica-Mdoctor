@@ -26,6 +26,8 @@ type Props = {
   atendimentoId: string;
   onClose: () => void;
   onComplete: () => void;
+  /** When false the overlay is hidden via CSS but stays mounted, preserving the Memed SDK container. */
+  visible?: boolean;
 };
 
 function checkPatientReady(atendimento: ReturnType<typeof useMedicalWorkflow>['atendimento']): string[] {
@@ -38,7 +40,7 @@ function checkPatientReady(atendimento: ReturnType<typeof useMedicalWorkflow>['a
   return missing;
 }
 
-export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Props) {
+export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visible = true }: Props) {
   const workflow = useMedicalWorkflow(atendimentoId);
 
   const [config, setConfig] = useState<MemedConfig | null>(null);
@@ -46,7 +48,9 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
   const [receiptSaved, setReceiptSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [memedError, setMemedError] = useState<string | null>(null);
-  const [bootstrapped, setBootstrapped] = useState(false);
+  // Tracks which atendimentoId was successfully bootstrapped.
+  // Using an ID (not boolean) prevents auto-open for P2 before its own bootstrap completes.
+  const [bootstrappedFor, setBootstrappedFor] = useState<string | null>(null);
 
   // Bloqueia o diálogo de impressão do navegador enquanto o overlay está aberto.
   // O botão "Imprimir" da Memed dispara prescricaoImpressa (já capturado) — não queremos
@@ -130,8 +134,17 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
       await notifyMemedPrescriptionCancelled(atendimentoId, payload);
       await workflow.refresh();
     },
-    autoOpenWhenReady: bootstrapped && !patientBlocked,
+    autoOpenWhenReady: bootstrappedFor === atendimentoId && !patientBlocked,
   });
+
+  // Reset per-patient state when atendimento changes so P2 starts fresh.
+  // bootstrappedFor mismatch gates auto-open until the new bootstrap completes.
+  useEffect(() => {
+    if (!atendimentoId) return;
+    setReceiptSaved(false);
+    setSaveError(null);
+    setMemedError(null);
+  }, [atendimentoId]);
 
   useEffect(() => {
     if (!atendimentoId || workflow.loading) return;
@@ -155,7 +168,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
         }
 
         setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
-        setBootstrapped(true);
+        setBootstrappedFor(atendimentoId);
       } catch (e: unknown) {
         setMemedError(e instanceof Error ? e.message : 'Erro ao iniciar prescrição digital');
       }
@@ -172,9 +185,11 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
 
   return (
     <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Prescrição digital — ${patientName}`}
+      role={visible ? 'dialog' : undefined}
+      aria-modal={visible ? 'true' : undefined}
+      aria-label={visible ? `Prescrição digital — ${patientName}` : undefined}
+      aria-hidden={visible ? undefined : true}
+      style={visible ? undefined : { display: 'none' }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5"
     >
       {/* Card modal centralizado — painel visível ao fundo */}
