@@ -494,7 +494,7 @@ export default function FilaPage() {
           {canEmit && (
             <button
               type="button"
-              onClick={() => setMemedOverlayId(item.id)}
+              onClick={() => { setMemedOverlayMounted(true); setMemedOverlayId(item.id); }}
               disabled={actionLoading === item.id}
               className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
             >
