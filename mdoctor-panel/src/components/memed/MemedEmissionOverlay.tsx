@@ -15,6 +15,12 @@ import {
 } from '@/services/memed.service';
 import { validatePrescription } from '@/services/prescriptions';
 import { hasPersistedMemedReceipt } from '@/lib/atendimento-status';
+import {
+  getMemedDiagnosticLog,
+  registerMemedDiagnosticReporter,
+  unregisterMemedDiagnosticReporter,
+} from '@/lib/memed';
+import { postMemedDiagnosticReport } from '@/services/diagnostics.service';
 
 type Props = {
   atendimentoId: string;
@@ -52,6 +58,24 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete }: Pro
       window.print = original;
     };
   }, []);
+
+  // Register automatic diagnostic reporter — fires when setPaciente exhausts all retries.
+  // Sends full log to backend /api/diagnostics/memed without any manual action from the doctor.
+  useEffect(() => {
+    const patientName = workflow.atendimento?.paciente_nome;
+    registerMemedDiagnosticReporter((error) => {
+      void postMemedDiagnosticReport({
+        atendimentoId,
+        patientName: patientName ?? undefined,
+        timestamp: new Date().toISOString(),
+        error,
+        log: getMemedDiagnosticLog(),
+      });
+    });
+    return () => {
+      unregisterMemedDiagnosticReporter();
+    };
+  }, [atendimentoId, workflow.atendimento?.paciente_nome]);
 
   const missingPatientFields = useMemo(
     () => checkPatientReady(workflow.atendimento),

@@ -168,18 +168,39 @@ export async function verifyMemedUsuario(): Promise<unknown> {
   return sendMemedCommandWithDiagnostic('plataforma.usuario', 'getUsuario');
 }
 
+// ── Diagnostic reporter ────────────────────────────────────────────────────────
+// Registered from MemedEmissionOverlay so it has access to atendimentoId/patientName.
+// Fired automatically when setPaciente exhausts all retries — no manual action needed.
+
+type DiagnosticReporterFn = (error: string) => void;
+let _diagnosticReporter: DiagnosticReporterFn | null = null;
+
+export function registerMemedDiagnosticReporter(fn: DiagnosticReporterFn): void {
+  _diagnosticReporter = fn;
+}
+
+export function unregisterMemedDiagnosticReporter(): void {
+  _diagnosticReporter = null;
+}
+
+function fireDiagnosticReport(error: string): void {
+  try { _diagnosticReporter?.(error); } catch { /* never block */ }
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export async function setMemedPatientWithDiagnostic(payload: Record<string, unknown>): Promise<unknown> {
   try {
-    // First attempt uses the 12s default. platform.patient-management typically needs
-    // ~12-15s to initialize after plataforma.prescricao fires core:moduleInit.
-    // If the first call hangs waiting for that module, it will timeout here rather than at 30s.
     return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload);
   } catch {
-    // patient-management has now had time to finish loading. Retry once with full budget.
-    // patient-management pode precisar de até ~30s em staging para estar pronto.
-    // 30s aqui + 12.3s da primeira tentativa = 42.3s total, coberto pelo MEMED_OPEN_TIMEOUT_MS de 90s.
     await new Promise<void>((resolve) => setTimeout(resolve, 300));
-    return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload, 30_000);
+    try {
+      return await sendMemedCommandWithDiagnostic(PRESCRIPTION_MODULE, 'setPaciente', payload, 30_000);
+    } catch (finalErr) {
+      // All retries exhausted — export full diagnostic log automatically.
+      const msg = finalErr instanceof Error ? finalErr.message : String(finalErr);
+      fireDiagnosticReport(msg);
+      throw finalErr;
+    }
   }
 }
 
