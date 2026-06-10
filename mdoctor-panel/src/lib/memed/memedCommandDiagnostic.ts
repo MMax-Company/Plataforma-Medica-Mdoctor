@@ -3,10 +3,10 @@ import { PRESCRIPTION_MODULE } from './onLoadPrescription';
 export type MemedCommandDiagnosticEntry = {
   id: string;
   at: string;
-  phase: 'before' | 'after';
+  phase: 'before' | 'after' | 'event';
   module: string;
   command: string;
-  method: 'MdHub.command.send';
+  method: 'MdHub.command.send' | 'event';
   payload?: unknown;
   response?: unknown;
   duration_ms?: number;
@@ -45,6 +45,32 @@ export function clearMemedDiagnosticLog() {
 export function getMemedDiagnosticLog(): MemedCommandDiagnosticEntry[] {
   if (typeof window === 'undefined') return [];
   return window.__memedDiagnosticLog ? [...window.__memedDiagnosticLog] : [];
+}
+
+/** Captura src truncado de todos os iframes no DOM — detecta reloads entre eventos. */
+export function captureIframeState(): Array<{ id: string; src: string }> {
+  if (typeof document === 'undefined') return [];
+  return Array.from(document.querySelectorAll('iframe')).map((f) => ({
+    id: f.id || f.name || '',
+    src: f.src ? f.src.slice(0, 120) : '',
+  }));
+}
+
+/**
+ * Registra evento não-comando (core:moduleInit, prescricaoImpressa, etc.)
+ * no mesmo log de diagnóstico, com timestamp e detalhe arbitrário.
+ */
+export function pushDiagnosticEvent(eventType: string, detail?: unknown): void {
+  pushEntry({
+    id: `${eventType}-${Date.now()}`,
+    at: new Date().toISOString(),
+    phase: 'event',
+    module: 'event',
+    command: eventType,
+    method: 'event',
+    payload: serializeForLog(detail),
+  });
+  console.info(`[Memed diag] EVENT ${eventType}`, detail);
 }
 
 function serializeForLog(value: unknown): unknown {

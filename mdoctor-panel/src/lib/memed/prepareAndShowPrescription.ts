@@ -3,7 +3,12 @@ import { setClinicalOrientations } from './setClinicalOrientations';
 import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 import { buildPatientFromAtendimento } from './buildPatientFromAtendimento';
 import type { MemedPrescriptionItem } from './clinicalPrescription.types';
-import { clearMemedDiagnosticLog, sendNewPrescriptionWithDiagnostic } from './memedCommandDiagnostic';
+import {
+  captureIframeState,
+  clearMemedDiagnosticLog,
+  pushDiagnosticEvent,
+  sendNewPrescriptionWithDiagnostic,
+} from './memedCommandDiagnostic';
 import { setMemedPatient } from './setMemedPatient';
 import { showPrescription } from './showPrescription';
 import type { MemedPatient } from './types';
@@ -35,12 +40,24 @@ export async function prepareAndShowPrescription(
 
   const resolvedPatient = patient || buildPatientFromAtendimento(atendimento);
 
+  pushDiagnosticEvent('prepareStart', {
+    patientId: resolvedPatient.idExterno,
+    iframes: captureIframeState(),
+  });
+
   // 1. Criar contexto da prescrição ANTES de setar o paciente.
+  let newPrescriptionOk = false;
   try {
     await sendNewPrescriptionWithDiagnostic();
+    newPrescriptionOk = true;
   } catch {
     // contexto pode já existir de tentativa anterior — continua
   }
+
+  pushDiagnosticEvent('afterNewPrescription', {
+    newPrescriptionOk,
+    iframes: captureIframeState(),
+  });
 
   // 2. Setar paciente no contexto estável (sem risco de ser sobrescrito por newPrescription).
   await setMemedPatient(resolvedPatient);

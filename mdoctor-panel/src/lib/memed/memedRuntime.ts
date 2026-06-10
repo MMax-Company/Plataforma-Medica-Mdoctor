@@ -3,6 +3,7 @@
  * Não remove script, não faz logout, não limpa storage Memed.
  */
 import { createMemedScript } from './createMemedScript';
+import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
   getLastMemedToken,
   markMemedModuleReady,
@@ -35,6 +36,14 @@ export function bindModuleInitOnce(): void {
   if (!window.MdSinapsePrescricao?.event?.add) return;
 
   window.MdSinapsePrescricao.event.add('core:moduleInit', (modulo: { name?: string }) => {
+    // Log every core:moduleInit — including repeats after newPrescription — to diagnose
+    // whether patient-management reinitializes between newPrescription and setPaciente calls.
+    pushDiagnosticEvent('core:moduleInit', {
+      moduleName: modulo?.name,
+      isPrescricao: modulo?.name === PRESCRIPTION_MODULE,
+      alreadyReady: state.moduleReady,
+      iframes: captureIframeState(),
+    });
     if (modulo?.name === PRESCRIPTION_MODULE) {
       resolveModuleReady();
     }
@@ -56,12 +65,16 @@ export function ensureMemedScript(token: string, config: ScriptConfig): Promise<
   rememberMemedScriptUrl(config.scriptUrl);
 
   if (state.initPromise) {
+    const tokenChanged = token !== getLastMemedToken();
+    pushDiagnosticEvent('ensureMemedScript:warm', {
+      tokenChanged,
+      moduleReady: state.moduleReady,
+      iframes: captureIframeState(),
+    });
     // Só chama syncMemedScriptToken se o token mudou de fato.
     // setToken() do SDK Memed (sinapse-prescricao.min.js) faz iframe.src = iframe.src
     // (reload completo) quando há iframes presentes — mesmo com o mesmo token.
-    // Isso reinicializa patient-management (12-30s) e causa timeout em setPaciente
-    // para todos os pacientes sequenciais na mesma sessão.
-    if (token !== getLastMemedToken()) {
+    if (tokenChanged) {
       syncMemedScriptToken(config.scriptId || state.scriptId, token);
     }
     return state.initPromise;
