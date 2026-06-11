@@ -18,9 +18,11 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
     hidePrescription();
-    hardResetMemedContainer();
     recordMemedPrescriptionEmission();
     options.onPrescriptionPrinted(payload);
+    // Hard reset após 1.2s: permite que a Memed conclua requisições de rede
+    // da assinatura em background antes de destruir o container DOM.
+    window.setTimeout(() => hardResetMemedContainer(), 1200);
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
