@@ -13,7 +13,6 @@ import {
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
   wasPrescriptionShownBefore,
-  waitForModuleReinit,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
 import { hidePrescription, showPrescription } from './showPrescription';
@@ -64,15 +63,14 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // Para pacientes subsequentes (P2+): documentação oficial Memed exige o ciclo
-  // hide → core:moduleHide → core:moduleInit antes de qualquer pré-configuração.
-  // O waiter é registrado ANTES de hide() para não perder o evento core:moduleInit.
+  // Para pacientes subsequentes (P2+): fecha a UI anterior e aguarda yield mínimo.
+  // O SDK permanece inicializado na memória — core:moduleInit NÃO redispara após
+  // hide() neste ambiente, então não há await de reinicialização (evita timeout 35s).
   if (wasPrescriptionShownBefore()) {
-    pushDiagnosticEvent('reinit:start', { iframes: captureIframeState() });
-    const reinitWait = waitForModuleReinit(35_000);
+    pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
     hidePrescription();
-    await reinitWait;
-    pushDiagnosticEvent('reinit:done', { iframes: captureIframeState() });
+    await new Promise<void>((r) => setTimeout(r, 200));
+    pushDiagnosticEvent('hide:done', { iframes: captureIframeState() });
   }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
