@@ -26,12 +26,7 @@ export type PreparePrescriptionResult = {
   pending_reasons: string[];
 };
 
-// Garante que setFeatureToggle rode UMA VEZ por sessão de browser.
-let clinicalUxApplied = false;
-
 async function applyFeatureToggleOnce(): Promise<void> {
-  if (clinicalUxApplied) return;
-  clinicalUxApplied = true;
   try {
     await applyClinicalMemedUx();
   } catch {

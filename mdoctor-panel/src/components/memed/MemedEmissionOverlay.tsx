@@ -108,8 +108,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         });
         void validatePrescription(atendimentoId).catch(() => undefined);
         setReceiptSaved(true);
-        // Pequeno delay para o médico ver a confirmação antes de fechar.
-        window.setTimeout(() => onComplete(), 800);
+        onComplete();
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
