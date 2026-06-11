@@ -10,9 +10,12 @@ import {
   pushDiagnosticEvent,
 } from './memedCommandDiagnostic';
 import {
+  clearLastCycleEmitted,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
   wasPrescriptionShownBefore,
+  waitForModuleReinit,
+  wasLastCycleEmitted,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
 import { hidePrescription, showPrescription } from './showPrescription';
@@ -63,14 +66,32 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // Para pacientes subsequentes (P2+): fecha a UI anterior e aguarda yield mínimo.
-  // O SDK permanece inicializado na memória — core:moduleInit NÃO redispara após
-  // hide() neste ambiente, então não há await de reinicialização (evita timeout 35s).
+  // Para pacientes subsequentes (P2+): dois caminhos dependendo do ciclo anterior.
   if (wasPrescriptionShownBefore()) {
-    pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
-    hidePrescription();
-    await new Promise<void>((r) => setTimeout(r, 200));
-    pushDiagnosticEvent('hide:done', { iframes: captureIframeState() });
+    const emitted = wasLastCycleEmitted();
+    clearLastCycleEmitted(); // consome o flag antes de qualquer await
+
+    if (emitted) {
+      // Ciclo anterior terminou com emissão real: o iframe mostra "Documento emitido".
+      // O SDK reinicializa após hide() nesse caso — aguarda core:moduleInit (máx 12s).
+      // Se timeout, prossegue mesmo assim em vez de bloquear indefinidamente.
+      pushDiagnosticEvent('reinit:start', { reason: 'post-emission', iframes: captureIframeState() });
+      const reinitWait = waitForModuleReinit(12_000);
+      hidePrescription();
+      try {
+        await reinitWait;
+        pushDiagnosticEvent('reinit:done', { iframes: captureIframeState() });
+      } catch {
+        pushDiagnosticEvent('reinit:timeout', { iframes: captureIframeState() });
+        // SDK pode ainda aceitar comandos — segue sem bloquear
+      }
+    } else {
+      // Ciclo anterior fechado sem emissão: SDK vivo na memória, sem reinit necessário.
+      pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
+      hidePrescription();
+      await new Promise<void>((r) => setTimeout(r, 200));
+      pushDiagnosticEvent('hide:done', { iframes: captureIframeState() });
+    }
   }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.

@@ -23,6 +23,8 @@ const state = {
   moduleHideBound: false,
   lastEmissionAt: 0,
   prescriptionShownOnce: false,
+  /** true se prescricaoImpressa disparou no ciclo atual — limpo ao iniciar o próximo paciente. */
+  lastCycleHadEmission: false,
 };
 
 function resolveModuleReady() {
@@ -190,6 +192,17 @@ export function resetModuleReadyAndGetWaitPromise(timeoutMs: number): Promise<vo
 /** Chamado quando prescricaoImpressa dispara. Usado para calcular janela de estabilização. */
 export function recordMemedPrescriptionEmission(): void {
   state.lastEmissionAt = Date.now();
+  state.lastCycleHadEmission = true;
+}
+
+/** true se o ciclo atual terminou com emissão real (prescricaoImpressa). */
+export function wasLastCycleEmitted(): boolean {
+  return state.lastCycleHadEmission;
+}
+
+/** Consome o flag — chamar no início de cada novo ciclo de prepareAndShowPrescription. */
+export function clearLastCycleEmitted(): void {
+  state.lastCycleHadEmission = false;
 }
 
 /** true se ao menos uma emissão ocorreu nesta sessão de browser. */
