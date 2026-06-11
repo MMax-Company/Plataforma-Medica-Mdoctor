@@ -29,6 +29,9 @@ export async function applyClinicalMemedUx(): Promise<void> {
     showProtocol: false,
     enableAlerts: true,
     setPatientAllergy: true,
+    disablePrintAll: true,
+    hideBeacons: true,
+    showSuccessModal: false,
   });
 
   const providerVariants: Array<string[]> = [

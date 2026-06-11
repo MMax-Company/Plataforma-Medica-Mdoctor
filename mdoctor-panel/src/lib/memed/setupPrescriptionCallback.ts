@@ -1,6 +1,7 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import { recordMemedPrescriptionEmission } from './memedRuntime';
+import { hidePrescription } from './showPrescription';
 
 let callbacksBound = false;
 
@@ -16,6 +17,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
+    hidePrescription();
     recordMemedPrescriptionEmission();
     options.onPrescriptionPrinted(payload);
   });

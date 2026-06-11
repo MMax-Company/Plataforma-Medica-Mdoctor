@@ -10,12 +10,9 @@ import {
   pushDiagnosticEvent,
 } from './memedCommandDiagnostic';
 import {
-  clearLastCycleEmitted,
-  hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
   wasPrescriptionShownBefore,
-  wasLastCycleEmitted,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
 import { hidePrescription, showPrescription } from './showPrescription';
@@ -66,28 +63,10 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // Para pacientes subsequentes (P2+): dois caminhos dependendo do ciclo anterior.
+  // P2+: hide seco — prescricaoImpressa já fechou o módulo no momento da emissão.
   if (wasPrescriptionShownBefore()) {
-    const emitted = wasLastCycleEmitted();
-    clearLastCycleEmitted(); // consome o flag antes de qualquer await
-
-    if (emitted) {
-      // Ciclo anterior terminou com emissão real: iframe mostra "Documento emitido".
-      // Hard reset DOM: remove todos os filhos do container Memed — sem rastro da receita.
-      // Em seguida, hide() reseta o flag interno "shown" do SDK para que show() seja ativo.
-      // Não aguarda eventos — opera diretamente no DOM, sem depender de core:moduleInit.
-      pushDiagnosticEvent('hardReset:start', { iframes: captureIframeState() });
-      hardResetMemedContainer();
-      hidePrescription();
-      await new Promise<void>((r) => setTimeout(r, 300));
-      pushDiagnosticEvent('hardReset:ready', { iframes: captureIframeState() });
-    } else {
-      // Ciclo anterior fechado sem emissão: SDK vivo na memória, sem reinit necessário.
-      pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
-      hidePrescription();
-      await new Promise<void>((r) => setTimeout(r, 200));
-      pushDiagnosticEvent('hide:done', { iframes: captureIframeState() });
-    }
+    pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
+    hidePrescription();
   }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
