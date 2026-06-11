@@ -231,6 +231,26 @@ export function resetModuleReadyAndGetWaitPromise(timeoutMs: number): Promise<vo
   return waitForModuleReinit(timeoutMs);
 }
 
+// ID do setTimeout de hardReset pendente — cancelado se P2+ iniciar antes do prazo.
+let pendingHardResetId: ReturnType<typeof setTimeout> | null = null;
+
+/** Agenda hardResetMemedContainer após delayMs, cancelando qualquer reset pendente. */
+export function scheduleHardReset(delayMs: number): void {
+  if (pendingHardResetId !== null) clearTimeout(pendingHardResetId);
+  pendingHardResetId = setTimeout(() => {
+    pendingHardResetId = null;
+    hardResetMemedContainer();
+  }, delayMs);
+}
+
+/** Cancela o hardReset agendado — chamado no início do fluxo P2+ para não destruir o novo iframe. */
+export function cancelPendingHardReset(): void {
+  if (pendingHardResetId !== null) {
+    clearTimeout(pendingHardResetId);
+    pendingHardResetId = null;
+  }
+}
+
 /** Chamado quando prescricaoImpressa dispara. Usado para calcular janela de estabilização. */
 export function recordMemedPrescriptionEmission(): void {
   state.lastEmissionAt = Date.now();

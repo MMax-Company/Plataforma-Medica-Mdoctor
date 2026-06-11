@@ -10,6 +10,7 @@ import {
   pushDiagnosticEvent,
 } from './memedCommandDiagnostic';
 import {
+  cancelPendingHardReset,
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
@@ -65,9 +66,10 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: limpa container DOM (elimina iframe com recibo anterior) e fecha SDK.
-  // prescricaoImpressa já chamou hidePrescription() — este hide é fallback/no-op.
+  // P2+: cancela timer de hardReset pendente do P1 para não destruir o novo iframe.
+  // Depois limpa container DOM e fecha SDK.
   if (wasPrescriptionShownBefore()) {
+    cancelPendingHardReset();
     hardResetMemedContainer();
     hidePrescription();
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });

@@ -1,6 +1,6 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
-import { forceHideMemedContainer, hardResetMemedContainer, recordMemedPrescriptionEmission } from './memedRuntime';
+import { forceHideMemedContainer, recordMemedPrescriptionEmission, scheduleHardReset } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
 let callbacksBound = false;
@@ -21,9 +21,10 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     options.onPrescriptionPrinted(payload);
-    // Hard reset após 1.5s: janela segura (1200-1800ms) para a Memed concluir
-    // requisições de rede da assinatura antes de destruir o container DOM.
-    window.setTimeout(() => hardResetMemedContainer(), 1500);
+    // Hard reset após 1.5s — janela segura para a Memed concluir requisições de rede.
+    // scheduleHardReset cancela timer anterior e é cancelável por cancelPendingHardReset()
+    // caso P2+ inicie antes de 1.5s expirarem.
+    scheduleHardReset(1500);
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
