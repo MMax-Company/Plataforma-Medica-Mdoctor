@@ -48,6 +48,8 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   const [receiptSaved, setReceiptSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [memedError, setMemedError] = useState<string | null>(null);
+  // Esconde o overlay inteiro imediatamente após prescricaoImpressa — sem esperar o save.
+  const [closing, setClosing] = useState(false);
   // Tracks which atendimentoId was successfully bootstrapped.
   // Using an ID (not boolean) prevents auto-open for P2 before its own bootstrap completes.
   const [bootstrappedFor, setBootstrappedFor] = useState<string | null>(null);
@@ -96,6 +98,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         return;
       }
       setSaveError(null);
+      setClosing(true);
       try {
         await saveMemedReceipt({
           atendimentoId,
@@ -142,6 +145,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   // bootstrappedFor mismatch gates auto-open until the new bootstrap completes.
   useEffect(() => {
     if (!atendimentoId) return;
+    setClosing(false);
     setReceiptSaved(false);
     setSaveError(null);
     setMemedError(null);
@@ -190,7 +194,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       aria-modal={visible ? 'true' : undefined}
       aria-label={visible ? `Prescrição digital — ${patientName}` : undefined}
       aria-hidden={visible ? undefined : true}
-      style={visible ? undefined : { display: 'none' }}
+      style={visible && !closing ? undefined : { display: 'none' }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5"
     >
       {/* Card modal centralizado — painel visível ao fundo */}
