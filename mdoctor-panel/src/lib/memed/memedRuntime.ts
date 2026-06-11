@@ -2,6 +2,7 @@
  * Runtime global MdHub — uma instância por aba do painel (padrão memed-react, sem MemedProvider).
  * Não remove script, não faz logout, não limpa storage Memed.
  */
+import { applyClinicalMemedUx } from './applyClinicalUx';
 import { createMemedScript } from './createMemedScript';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
@@ -32,6 +33,9 @@ function resolveModuleReady() {
   state.moduleReady = true;
   markMemedModuleReady(true);
   state.moduleReadyWaiters.splice(0).forEach((fn) => fn());
+  // Re-aplica toggles (disablePrintAll, showSuccessModal:false, etc.) toda vez que
+  // o módulo inicializa — cobre P1 e P2+ após hardResetMemedContainer.
+  void applyClinicalMemedUx().catch(() => {});
 }
 
 export function bindModuleInitOnce(): void {

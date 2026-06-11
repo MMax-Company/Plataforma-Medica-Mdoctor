@@ -26,7 +26,13 @@ export type PreparePrescriptionResult = {
   pending_reasons: string[];
 };
 
+// Guard para não enviar setFeatureToggle duplo na P1 (resolveModuleReady já enviou).
+// P2+ são cobertos pelo callback core:moduleInit em memedRuntime.ts.
+let clinicalUxApplied = false;
+
 async function applyFeatureToggleOnce(): Promise<void> {
+  if (clinicalUxApplied) return;
+  clinicalUxApplied = true;
   try {
     await applyClinicalMemedUx();
   } catch {
