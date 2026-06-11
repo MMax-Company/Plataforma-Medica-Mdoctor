@@ -9,9 +9,14 @@ import {
   clearMemedDiagnosticLog,
   pushDiagnosticEvent,
 } from './memedCommandDiagnostic';
-import { isMemedRuntimeReady, markPrescriptionShownOnce } from './memedRuntime';
+import {
+  isMemedRuntimeReady,
+  markPrescriptionShownOnce,
+  wasPrescriptionShownBefore,
+  waitForModuleReinit,
+} from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
-import { showPrescription } from './showPrescription';
+import { hidePrescription, showPrescription } from './showPrescription';
 import type { MemedPatient } from './types';
 
 export type PreparePrescriptionResult = {
@@ -58,6 +63,17 @@ export async function prepareAndShowPrescription(
     moduleReadyBefore: isMemedRuntimeReady(),
     iframes: captureIframeState(),
   });
+
+  // Para pacientes subsequentes (P2+): documentação oficial Memed exige o ciclo
+  // hide → core:moduleHide → core:moduleInit antes de qualquer pré-configuração.
+  // O waiter é registrado ANTES de hide() para não perder o evento core:moduleInit.
+  if (wasPrescriptionShownBefore()) {
+    pushDiagnosticEvent('reinit:start', { iframes: captureIframeState() });
+    const reinitWait = waitForModuleReinit(35_000);
+    hidePrescription();
+    await reinitWait;
+    pushDiagnosticEvent('reinit:done', { iframes: captureIframeState() });
+  }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
   //    Rodado apenas na primeira prescrição da sessão.

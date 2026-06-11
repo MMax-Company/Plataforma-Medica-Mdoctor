@@ -145,24 +145,32 @@ export function wasPrescriptionShownBefore(): boolean {
 }
 
 /**
- * Reseta o flag de pronto E retorna uma promise que resolve quando core:moduleInit
- * disparar novamente (após show() recriar os iframes).
+ * Para pacientes subsequentes (P2+): reseta o estado de pronto e aguarda o próximo
+ * core:moduleInit, que dispara após hide() destruir e reinicializar o módulo.
  *
- * Chamador deve chamar showPrescription() IMEDIATAMENTE após esta função para
- * não perder o evento core:moduleInit.
+ * Fluxo oficial Memed multi-paciente:
+ *   waitForModuleReinit() → hidePrescription() → core:moduleHide → core:moduleInit → resolve
+ *
+ * DEVE ser chamado ANTES de hidePrescription() para que o waiter esteja registrado
+ * quando o evento core:moduleInit disparar.
  */
-export function resetModuleReadyAndGetWaitPromise(timeoutMs: number): Promise<void> {
+export function waitForModuleReinit(timeoutMs: number): Promise<void> {
   state.moduleReady = false;
   markMemedModuleReady(false);
   return Promise.race([
     waitForMemedModuleReady(),
     new Promise<void>((_, reject) =>
       setTimeout(
-        () => reject(new Error(`Timeout ${timeoutMs}ms aguardando reativação do módulo Memed`)),
+        () => reject(new Error(`Timeout ${timeoutMs}ms aguardando reinicialização do módulo Memed após hide`)),
         timeoutMs,
       ),
     ),
   ]);
+}
+
+/** @deprecated Use waitForModuleReinit. */
+export function resetModuleReadyAndGetWaitPromise(timeoutMs: number): Promise<void> {
+  return waitForModuleReinit(timeoutMs);
 }
 
 /** Chamado quando prescricaoImpressa dispara. Usado para calcular janela de estabilização. */

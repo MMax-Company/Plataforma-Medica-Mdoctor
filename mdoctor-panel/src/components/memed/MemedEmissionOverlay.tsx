@@ -19,7 +19,6 @@ import {
   getMemedDiagnosticLog,
   registerMemedDiagnosticReporter,
   unregisterMemedDiagnosticReporter,
-  softHideMemed,
 } from '@/lib/memed';
 import { postMemedDiagnosticReport } from '@/services/diagnostics.service';
 
@@ -52,13 +51,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   // Tracks which atendimentoId was successfully bootstrapped.
   // Using an ID (not boolean) prevents auto-open for P2 before its own bootstrap completes.
   const [bootstrappedFor, setBootstrappedFor] = useState<string | null>(null);
-
-  // Quando o overlay se torna invisível, transiciona o SDK para "hidden" enquanto o
-  // container div#prescricao-memed ainda está no DOM. Isso garante que o próximo
-  // paciente receba um ciclo hide→show limpo, forçando o iframe a re-renderizar.
-  useEffect(() => {
-    if (!visible) softHideMemed();
-  }, [visible]);
 
   // Bloqueia o diálogo de impressão do navegador enquanto o overlay está aberto.
   // O botão "Imprimir" da Memed dispara prescricaoImpressa (já capturado) — não queremos
