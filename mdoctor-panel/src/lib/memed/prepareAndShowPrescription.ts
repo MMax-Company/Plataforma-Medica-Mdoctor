@@ -11,10 +11,10 @@ import {
 } from './memedCommandDiagnostic';
 import {
   clearLastCycleEmitted,
+  hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
   wasPrescriptionShownBefore,
-  waitForModuleReinit,
   wasLastCycleEmitted,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
@@ -72,19 +72,15 @@ export async function prepareAndShowPrescription(
     clearLastCycleEmitted(); // consome o flag antes de qualquer await
 
     if (emitted) {
-      // Ciclo anterior terminou com emissão real: o iframe mostra "Documento emitido".
-      // O SDK reinicializa após hide() nesse caso — aguarda core:moduleInit (máx 12s).
-      // Se timeout, prossegue mesmo assim em vez de bloquear indefinidamente.
-      pushDiagnosticEvent('reinit:start', { reason: 'post-emission', iframes: captureIframeState() });
-      const reinitWait = waitForModuleReinit(12_000);
+      // Ciclo anterior terminou com emissão real: iframe mostra "Documento emitido".
+      // Hard reset DOM: remove todos os filhos do container Memed — sem rastro da receita.
+      // Em seguida, hide() reseta o flag interno "shown" do SDK para que show() seja ativo.
+      // Não aguarda eventos — opera diretamente no DOM, sem depender de core:moduleInit.
+      pushDiagnosticEvent('hardReset:start', { iframes: captureIframeState() });
+      hardResetMemedContainer();
       hidePrescription();
-      try {
-        await reinitWait;
-        pushDiagnosticEvent('reinit:done', { iframes: captureIframeState() });
-      } catch {
-        pushDiagnosticEvent('reinit:timeout', { iframes: captureIframeState() });
-        // SDK pode ainda aceitar comandos — segue sem bloquear
-      }
+      await new Promise<void>((r) => setTimeout(r, 300));
+      pushDiagnosticEvent('hardReset:ready', { iframes: captureIframeState() });
     } else {
       // Ciclo anterior fechado sem emissão: SDK vivo na memória, sem reinit necessário.
       pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });

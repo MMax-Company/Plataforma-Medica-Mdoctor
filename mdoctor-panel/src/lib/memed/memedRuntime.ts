@@ -16,6 +16,7 @@ type ScriptConfig = Pick<MemedScriptConfig, 'scriptUrl' | 'scriptId' | 'primaryC
 
 const state = {
   scriptId: 'memedScript',
+  containerId: 'prescricao-memed',
   initPromise: null as Promise<void> | null,
   moduleReady: false,
   moduleReadyWaiters: [] as Array<() => void>,
@@ -81,11 +82,29 @@ export function waitForMemedModuleReady(): Promise<void> {
   });
 }
 
+/**
+ * Hard reset do container Memed: remove todos os iframes/filhos injetados pelo SDK.
+ * Usado após emissão real (prescricaoImpressa) para garantir que o próximo paciente
+ * encontre o widget completamente em branco — sem imagem de receita anterior.
+ * Não depende de eventos do SDK; opera diretamente no DOM.
+ */
+export function hardResetMemedContainer(): void {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(state.containerId);
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  pushDiagnosticEvent('hardReset:containerCleared', {
+    containerId: state.containerId,
+    iframes: captureIframeState(),
+  });
+}
+
 /** Carrega script uma vez; atualiza token sem reinjetar. */
 export function ensureMemedScript(token: string, config: ScriptConfig): Promise<void> {
   if (!token) return Promise.reject(new Error('Token Memed ausente'));
 
   rememberMemedScriptUrl(config.scriptUrl);
+  if (config.containerId) state.containerId = config.containerId;
 
   if (state.initPromise) {
     pushDiagnosticEvent('ensureMemedScript:warm', {
