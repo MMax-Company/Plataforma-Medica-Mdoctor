@@ -96,6 +96,9 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         return;
       }
       setSaveError(null);
+      // Fecha o overlay no mesmo tick — médico não vê nenhuma tela de ação.
+      // O save continua em background; erros são silenciosos pois a UI já sumiu.
+      onComplete();
       try {
         await saveMemedReceipt({
           atendimentoId,
@@ -108,7 +111,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         });
         void validatePrescription(atendimentoId).catch(() => undefined);
         setReceiptSaved(true);
-        onComplete();
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
