@@ -10,6 +10,7 @@ import {
   pushDiagnosticEvent,
 } from './memedCommandDiagnostic';
 import {
+  hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
   wasPrescriptionShownBefore,
@@ -63,10 +64,12 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: hide seco — prescricaoImpressa já fechou o módulo no momento da emissão.
+  // P2+: limpa container DOM (elimina iframe com recibo anterior) e fecha SDK.
+  // prescricaoImpressa já chamou hidePrescription() — este hide é fallback/no-op.
   if (wasPrescriptionShownBefore()) {
-    pushDiagnosticEvent('hide:before-next', { iframes: captureIframeState() });
+    hardResetMemedContainer();
     hidePrescription();
+    pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
   }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
