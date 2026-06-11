@@ -1,6 +1,6 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
-import { hardResetMemedContainer, recordMemedPrescriptionEmission } from './memedRuntime';
+import { forceHideMemedContainer, hardResetMemedContainer, recordMemedPrescriptionEmission } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
 let callbacksBound = false;
@@ -18,6 +18,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
     hidePrescription();
+    forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     options.onPrescriptionPrinted(payload);
     // Hard reset após 1.5s: janela segura (1200-1800ms) para a Memed concluir

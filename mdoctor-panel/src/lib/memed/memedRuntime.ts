@@ -88,10 +88,29 @@ export function waitForMemedModuleReady(): Promise<void> {
  * encontre o widget completamente em branco — sem imagem de receita anterior.
  * Não depende de eventos do SDK; opera diretamente no DOM.
  */
+/**
+ * Força ocultamento visual imediato do container Memed via CSS inline.
+ * Chamado no tick síncrono de prescricaoImpressa, antes de qualquer re-render
+ * React, para garantir que a tela de sucesso do SDK nunca seja visível.
+ * O CSS é removido por hardResetMemedContainer() antes do próximo show().
+ */
+export function forceHideMemedContainer(): void {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(state.containerId);
+  if (!el) return;
+  el.style.setProperty('display', 'none', 'important');
+  el.style.setProperty('opacity', '0', 'important');
+  el.style.setProperty('visibility', 'hidden', 'important');
+}
+
 export function hardResetMemedContainer(): void {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(state.containerId);
   if (!el) return;
+  // Remove CSS de force-hide para não bloquear o próximo show().
+  el.style.removeProperty('display');
+  el.style.removeProperty('opacity');
+  el.style.removeProperty('visibility');
   while (el.firstChild) el.removeChild(el.firstChild);
   pushDiagnosticEvent('hardReset:containerCleared', {
     containerId: state.containerId,
