@@ -5,11 +5,9 @@
 import { createMemedScript } from './createMemedScript';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
-  getLastMemedToken,
   markMemedModuleReady,
   rememberMemedScriptUrl,
   rememberMemedToken,
-  syncMemedScriptToken,
 } from './memedSession';
 import { PRESCRIPTION_MODULE } from './onLoadPrescription';
 import type { MemedScriptConfig } from './types';
@@ -22,6 +20,7 @@ const state = {
   moduleReady: false,
   moduleReadyWaiters: [] as Array<() => void>,
   moduleInitBound: false,
+  moduleHideBound: false,
   lastEmissionAt: 0,
   prescriptionShownOnce: false,
 };
@@ -37,8 +36,6 @@ export function bindModuleInitOnce(): void {
   if (!window.MdSinapsePrescricao?.event?.add) return;
 
   window.MdSinapsePrescricao.event.add('core:moduleInit', (modulo: { name?: string }) => {
-    // Log every core:moduleInit — including repeats after newPrescription — to diagnose
-    // whether patient-management reinitializes between newPrescription and setPaciente calls.
     pushDiagnosticEvent('core:moduleInit', {
       moduleName: modulo?.name,
       isPrescricao: modulo?.name === PRESCRIPTION_MODULE,
@@ -50,6 +47,29 @@ export function bindModuleInitOnce(): void {
     }
   });
   state.moduleInitBound = true;
+}
+
+/**
+ * Diretriz oficial Memed: addCoreModuleHideCallback deve validar module.moduleName
+ * (não module.name). Quando o módulo é destruído (após hide()), reseta o estado de pronto
+ * para que waitForModuleReinit() espere o próximo core:moduleInit antes de prosseguir.
+ */
+export function bindModuleHideOnce(): void {
+  if (state.moduleHideBound || typeof window === 'undefined') return;
+  if (!window.MdSinapsePrescricao?.event?.add) return;
+
+  window.MdSinapsePrescricao.event.add('core:moduleHide', (modulo) => {
+    pushDiagnosticEvent('core:moduleHide', {
+      moduleName: modulo?.moduleName,
+      isPrescricao: modulo?.moduleName === PRESCRIPTION_MODULE,
+      iframes: captureIframeState(),
+    });
+    if (modulo?.moduleName === PRESCRIPTION_MODULE) {
+      state.moduleReady = false;
+      markMemedModuleReady(false);
+    }
+  });
+  state.moduleHideBound = true;
 }
 
 export function waitForMemedModuleReady(): Promise<void> {
@@ -66,26 +86,18 @@ export function ensureMemedScript(token: string, config: ScriptConfig): Promise<
   rememberMemedScriptUrl(config.scriptUrl);
 
   if (state.initPromise) {
-    const tokenChanged = token !== getLastMemedToken();
     pushDiagnosticEvent('ensureMemedScript:warm', {
-      tokenChanged,
       moduleReady: state.moduleReady,
       iframes: captureIframeState(),
     });
-    // Só chama syncMemedScriptToken se o token mudou de fato.
-    // setToken() do SDK Memed (sinapse-prescricao.min.js) faz iframe.src = iframe.src
-    // (reload completo) quando há iframes presentes — mesmo com o mesmo token.
-    if (tokenChanged) {
-      syncMemedScriptToken(config.scriptId || state.scriptId, token);
-    }
+    // Script inicializado uma única vez por sessão — não recarregar nem sincronizar token
+    // (setToken() causa iframe.src = iframe.src, disparando core:moduleInit extra que
+    // interfere no ciclo hide → reinit do multi-paciente).
     return state.initPromise;
   }
 
   state.initPromise = new Promise((resolve, reject) => {
     try {
-      // Grava o token imediatamente ao injetar o script.
-      // Sem isso, getLastMemedToken() retorna '' quando o warm path é atingido
-      // no paciente 2 — forçando um syncMemedScriptToken desnecessário.
       rememberMemedToken(token);
 
       const script = createMemedScript(token, {
@@ -95,6 +107,7 @@ export function ensureMemedScript(token: string, config: ScriptConfig): Promise<
 
       const onReady = () => {
         bindModuleInitOnce();
+        bindModuleHideOnce();
         if (state.moduleReady) {
           resolve();
           return;
@@ -105,6 +118,7 @@ export function ensureMemedScript(token: string, config: ScriptConfig): Promise<
       script.addEventListener('load', onReady);
       if (script.getAttribute('data-loaded') === 'true') {
         bindModuleInitOnce();
+        bindModuleHideOnce();
         if (state.moduleReady) resolve();
         else waitForMemedModuleReady().then(resolve);
       }

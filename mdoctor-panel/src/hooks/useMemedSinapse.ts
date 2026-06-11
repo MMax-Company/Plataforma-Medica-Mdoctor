@@ -5,13 +5,10 @@ import type { MemedConfig } from '@/services/memed.service';
 import {
   buildPatientFromAtendimento,
   ensureMemedScript,
-  getLastMemedToken,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
   setupPrescriptionCallback,
   softHideMemed,
-  syncMemedScriptToken,
-  getMemedScriptId,
   isMemedRuntimeReady,
   type AtendimentoForMemed,
   type MemedPatient,
@@ -152,9 +149,6 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
         (async () => {
           const moduleAlreadyReady = isMemedRuntimeReady();
           const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
-          if (freshToken !== getLastMemedToken() && freshToken !== tokenRef.current) {
-            syncMemedScriptToken(getMemedScriptId(), freshToken);
-          }
           await ensureMemedScript(freshToken, scriptConfig);
           return prepareAndShowPrescription(atendimento, patient);
         })(),

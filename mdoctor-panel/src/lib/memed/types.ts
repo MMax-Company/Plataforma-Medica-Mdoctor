@@ -28,4 +28,5 @@ export interface MemedScriptConfig {
   primaryColor: string;
 }
 
-export type MemedModuleInitPayload = { name?: string };
+// core:moduleInit sends { name }, core:moduleHide sends { moduleName } — both fields optional
+export type MemedModuleInitPayload = { name?: string; moduleName?: string };
