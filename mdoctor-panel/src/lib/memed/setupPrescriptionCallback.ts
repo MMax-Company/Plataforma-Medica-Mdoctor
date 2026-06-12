@@ -20,6 +20,33 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   }
   if (callbacksBound) return;
 
+  // prescricaoGerada: dispara ANTES de window.print() — abordagem oficial para interceptar antes do diálogo.
+  // Tenta nos dois namespaces do SDK (MdSinapsePrescricao e MdHub) para cobertura máxima.
+  const geradaHandler = async (payload: unknown) => {
+    console.log('[Memed] prescricaoGerada disparado (antes da impressão). Payload:', payload);
+    if (emissionHandledThisCycle) {
+      pushDiagnosticEvent('prescricaoGerada:duplicado-ignorado', { iframes: captureIframeState() });
+      return;
+    }
+    emissionHandledThisCycle = true;
+    pushDiagnosticEvent('prescricaoGerada', {
+      iframes: captureIframeState(),
+      payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
+    });
+    hidePrescription();
+    forceHideMemedContainer();
+    recordMemedPrescriptionEmission();
+    scheduleHardReset(1500);
+    console.log('[Memed] módulo escondido imediatamente');
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
+    if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
+    console.log('[Memed] Fluxo finalizado silenciosamente.');
+  };
+
+  try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
+  try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
+
+  // prescricaoImpressa: fallback caso prescricaoGerada não exista nesta versão do SDK.
   window.MdHub.event.add('prescricaoImpressa', async (payload) => {
     console.log('[Memed] prescricaoImpressa disparado, payload:', payload);
     if (emissionHandledThisCycle) {
@@ -31,13 +58,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
-    // Aguarda 500ms para tela de impressão aparecer e dispara ESC para fechá-la
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-    setTimeout(() => {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-    }, 200);
-
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
@@ -45,7 +65,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     console.log('[Memed] módulo escondido');
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     console.log('[Memed] aguardou 2s');
-    options.onPrescriptionPrinted(payload);
+    if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
     console.log('[Memed] Fluxo concluído');
   });
   if (options.onPrescriptionDeleted) {

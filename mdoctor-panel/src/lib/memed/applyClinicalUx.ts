@@ -30,6 +30,8 @@ export async function applyClinicalMemedUx(): Promise<void> {
     enableAlerts: true,
     setPatientAllergy: true,
     disablePrintAll: true,
+    autoPrint: false,
+    hidePrintDialog: true,
     hideBeacons: true,
     showSuccessModal: false,
   });

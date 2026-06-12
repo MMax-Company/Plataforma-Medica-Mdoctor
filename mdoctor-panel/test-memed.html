@@ -9,15 +9,15 @@
     button { margin: 8px 4px; padding: 10px 18px; background: #1557FF; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
     button:hover { background: #1246d4; }
     #log { margin-top: 20px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-height: 120px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
-    #memed-container { margin-top: 16px; border: 2px dashed #9AA5B5; border-radius: 8px; min-height: 200px; display: flex; align-items: center; justify-content: center; color: #9AA5B5; font-size: 14px; }
+    #memed-container { margin-top: 16px; border: 2px dashed #9AA5B5; border-radius: 8px; min-height: 80px; display: flex; align-items: center; justify-content: center; color: #9AA5B5; font-size: 14px; }
   </style>
 </head>
 <body>
   <h1>Teste Memed Local — sem pacientes reais</h1>
-  <button onclick="simularPrescricaoImpressa()">Simular prescricaoImpressa</button>
-  <button onclick="simularPrimeiroPaciente()">Simular P1 (primeiro paciente)</button>
-  <button onclick="simularSegundoPaciente()">Simular P2 (segundo paciente)</button>
-  <button onclick="simularESC()">Disparar ESC</button>
+  <button onclick="firedGerada()">Disparar prescricaoGerada (via MdSinapsePrescricao)</button>
+  <button onclick="firedImpressa()">Disparar prescricaoImpressa (fallback)</button>
+  <button onclick="simularPrimeiroPaciente()">Simular P1 (openPrescription cold)</button>
+  <button onclick="simularSegundoPaciente()">Simular P2 (openPrescription reuse)</button>
   <button onclick="limparLog()">Limpar log</button>
 
   <div id="memed-container">Container Memed (simulado)</div>
@@ -32,38 +32,43 @@
     }
     function limparLog() { logEl.textContent = ''; }
 
-    // Intercepta console.log para mostrar no painel
     const origLog = console.log.bind(console);
     console.log = function(...args) { origLog(...args); log(args.join(' ')); };
 
-    // Captura eventos de teclado para confirmar que ESC/Enter chegam
-    document.addEventListener('keydown', function(e) {
-      log('keydown capturado: key=' + e.key + ' keyCode=' + e.keyCode + ' bubbles=' + e.bubbles);
-    });
-
-    // Captura beforeprint
     window.addEventListener('beforeprint', function(e) {
       e.preventDefault();
       log('beforeprint interceptado e cancelado');
     }, true);
 
-    function simularESC() {
-      log('Disparando ESC...');
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-      setTimeout(() => {
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
-      }, 200);
+    // Mock mínimo do SDK para testar localmente
+    window.MdHub = window.MdHub || {
+      module: {
+        hide: function(m) { log('[MdHub] module.hide(' + m + ')'); },
+        show: function(m) { log('[MdHub] module.show(' + m + ')'); }
+      },
+      event: {
+        add: function(evt, fn) { log('[MdHub] event.add registrado: ' + evt); this._handlers = this._handlers || {}; this._handlers[evt] = fn; },
+        fire: function(evt, payload) { log('[MdHub] event.fire: ' + evt); if (this._handlers && this._handlers[evt]) this._handlers[evt](payload); }
+      }
+    };
+
+    window.MdSinapsePrescricao = window.MdSinapsePrescricao || {
+      event: {
+        add: function(evt, fn) { log('[MdSinapse] event.add registrado: ' + evt); this._handlers = this._handlers || {}; this._handlers[evt] = fn; },
+        fire: function(evt, payload) { log('[MdSinapse] event.fire: ' + evt); if (this._handlers && this._handlers[evt]) this._handlers[evt](payload); }
+      }
+    };
+
+    function firedGerada() {
+      const payload = { pdfUrl: 'https://mock.pdf', patientId: '123', prescriptionId: 'rx-001' };
+      log('--- Disparando prescricaoGerada ---');
+      window.MdSinapsePrescricao.event.fire('prescricaoGerada', payload);
     }
 
-    async function simularPrescricaoImpressa() {
-      log('[Memed] prescricaoImpressa disparado (simulado)');
-      await new Promise(r => setTimeout(r, 500));
-      simularESC();
-      log('[Memed] módulo escondido (simulado)');
-      await new Promise(r => setTimeout(r, 2000));
-      log('[Memed] aguardou 2s');
-      log('[Memed] onPrescriptionPrinted chamado (simulado)');
-      log('[Memed] Fluxo concluído');
+    function firedImpressa() {
+      const payload = { pdfUrl: 'https://mock.pdf', patientId: '123', prescriptionId: 'rx-001' };
+      log('--- Disparando prescricaoImpressa ---');
+      window.MdHub.event.fire('prescricaoImpressa', payload);
     }
 
     function simularPrimeiroPaciente() {
