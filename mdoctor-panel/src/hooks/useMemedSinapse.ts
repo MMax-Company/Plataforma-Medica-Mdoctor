@@ -145,15 +145,22 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     setIsOpening(true);
     try {
       setStatusMessage('Aplicando dados clínicos e abrindo prescrição…');
+      console.log('[Memed] openPrescription chamado para:', atendimento?.paciente_nome);
       const result = await withTimeout(
         (async () => {
           if ('MdHub' in window) {
-            return prepareAndShowPrescription(atendimento, patient);
+            console.log('[Memed] MdHub existe, reutilizando');
+            const r = await prepareAndShowPrescription(atendimento, patient);
+            console.log('[Memed] prepareAndShowPrescription concluído');
+            return r;
           }
+          console.log('[Memed] MdHub não existe, criando do zero');
           const moduleAlreadyReady = isMemedRuntimeReady();
           const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
           await ensureMemedScript(freshToken, scriptConfig);
-          return prepareAndShowPrescription(atendimento, patient);
+          const r = await prepareAndShowPrescription(atendimento, patient);
+          console.log('[Memed] prepareAndShowPrescription concluído');
+          return r;
         })(),
         MEMED_OPEN_TIMEOUT_MS,
         'Tempo esgotado ao abrir a prescrição Memed. Verifique token/script/API alinhados e tente novamente.',
