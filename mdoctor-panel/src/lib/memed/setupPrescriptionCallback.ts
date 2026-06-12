@@ -43,9 +43,8 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
   try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
 
-  // prescricaoImpressa: ciclo oficial SDK — hide() → core:moduleHide → core:moduleInit (P2+ pronto).
-  // NÃO destrói DOM: o SDK reusa iframes no próximo paciente.
-  window.MdHub.event.add('prescricaoImpressa', (payload) => {
+  // prescricaoImpressa: hide → aguarda SDK reinicializar (1.8s) → sinaliza React para próximo paciente.
+  window.MdHub.event.add('prescricaoImpressa', async (payload) => {
     console.log('[Memed] prescricaoImpressa disparado');
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
@@ -60,8 +59,10 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
+    console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
+    await new Promise<void>(resolve => setTimeout(resolve, 1800));
+    console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
-    console.log('[Memed] Overlay fechado. SDK reinicializará via core:moduleInit.');
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
