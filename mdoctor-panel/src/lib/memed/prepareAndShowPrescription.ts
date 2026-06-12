@@ -64,6 +64,7 @@ export async function prepareAndShowPrescription(
 
   const resolvedPatient = patient || buildPatientFromAtendimento(atendimento);
 
+  console.log('[Memed DEBUG] Passo 1: prepareAndShowPrescription iniciado', { patient: resolvedPatient.idExterno, shownBefore: wasPrescriptionShownBefore(), moduleReady: isMemedRuntimeReady() });
   pushDiagnosticEvent('prepareStart', {
     patientId: resolvedPatient.idExterno,
     moduleReadyBefore: isMemedRuntimeReady(),
@@ -74,27 +75,37 @@ export async function prepareAndShowPrescription(
   // Remove o CSS de force-hide e prossegue diretamente para os comandos SDK.
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
-    hardResetMemedContainer(); // remove force-hide CSS (DOM intacto)
+    hardResetMemedContainer();
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
+    console.log('[Memed DEBUG] Passo 2: container reset feito (P2+), MdHub disponível:', 'MdHub' in window);
+  } else {
+    console.log('[Memed DEBUG] Passo 2: primeira prescrição (P1)');
   }
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
   //    Rodado apenas na primeira prescrição da sessão.
+  console.log('[Memed DEBUG] Passo 3: antes do applyFeatureToggleOnce');
   pushDiagnosticEvent('setFeatureToggle:start', { iframes: captureIframeState() });
   await applyFeatureToggleOnce();
   pushDiagnosticEvent('setFeatureToggle:done', { iframes: captureIframeState() });
+  console.log('[Memed DEBUG] Passo 4: applyFeatureToggleOnce concluído');
 
   // 2. setPaciente — obrigatório antes de show(); falha aborta o fluxo.
+  console.log('[Memed DEBUG] Passo 5: antes do setMemedPatient', { idExterno: resolvedPatient.idExterno });
   pushDiagnosticEvent('setPaciente:start', { iframes: captureIframeState() });
   await setMemedPatient(resolvedPatient);
   pushDiagnosticEvent('setPaciente:done', { iframes: captureIframeState() });
+  console.log('[Memed DEBUG] Passo 6: setMemedPatient concluído');
 
   // 3. addItem + orientações clínicas — antes de show(); falha por item não bloqueia abertura.
+  console.log('[Memed DEBUG] Passo 7: antes do addMedicationsFromAtendimento');
   pushDiagnosticEvent('addMeds:start', { iframes: captureIframeState() });
   const { added, memed_items_sent, pending_medical_review, pending_reasons } =
     await addMedicationsFromAtendimento(atendimento);
+  console.log('[Memed DEBUG] Passo 8: addMedications concluído, antes do setClinicalOrientations');
   await setClinicalOrientations(atendimento);
   pushDiagnosticEvent('addMeds:done', { added, iframes: captureIframeState() });
+  console.log('[Memed DEBUG] Passo 9: setClinicalOrientations concluído');
 
   // Tentativa de desabilitar print automático
   const printConfigs = [
@@ -104,15 +115,17 @@ export async function prepareAndShowPrescription(
     { cmd: 'setPrintOptions', params: { disablePrint: true } },
     { cmd: 'setPrintConfig', params: { print: false } },
   ];
+  console.log('[Memed DEBUG] Passo 10: antes do printConfigs loop');
   for (const config of printConfigs) {
     try {
       await window.MdHub.command.send('plataforma.prescricao', config.cmd, config.params);
-      console.log('[Memed] Print config OK:', config.cmd, config.params);
+      console.log('[Memed DEBUG] Print config OK:', config.cmd);
       break;
     } catch (e) {
-      console.log('[Memed] Print config falhou:', config.cmd, (e as Error).message);
+      console.log('[Memed DEBUG] Print config falhou:', config.cmd, (e as Error).message);
     }
   }
+  console.log('[Memed DEBUG] Passo 11: printConfigs loop concluído');
 
   // 4. show() por último — após todos os comandos de pré-configuração.
   pushDiagnosticEvent('show:start', { iframes: captureIframeState() });
