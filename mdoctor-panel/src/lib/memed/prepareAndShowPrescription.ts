@@ -14,7 +14,6 @@ import {
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
-  waitForMemedModuleReady,
   wasPrescriptionShownBefore,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
@@ -71,11 +70,10 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: aguarda o SDK reinicializar (moduleInit do ciclo anterior) ANTES de revelar
-  // o container. Assim o iframe mostra conteúdo fresco de P2, não tela residual de P1.
+  // P2+: MdHub já está carregado — não espera core:moduleInit (não redispara no segundo paciente).
+  // Remove o CSS de force-hide e prossegue diretamente para os comandos SDK.
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
-    await waitForMemedModuleReady(); // espera SDK reinit — resolve imediato se já pronto
     hardResetMemedContainer(); // remove force-hide CSS (DOM intacto)
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
   }
@@ -118,7 +116,9 @@ export async function prepareAndShowPrescription(
 
   // 4. show() por último — após todos os comandos de pré-configuração.
   pushDiagnosticEvent('show:start', { iframes: captureIframeState() });
+  console.log('[Memed] antes do show()');
   showPrescription();
+  console.log('[Memed] show() chamado');
   pushDiagnosticEvent('show:done', { iframes: captureIframeState() });
 
   markPrescriptionShownOnce();
