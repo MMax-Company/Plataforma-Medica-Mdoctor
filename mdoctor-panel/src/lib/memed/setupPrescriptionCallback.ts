@@ -21,9 +21,8 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   if (callbacksBound) return;
 
   window.MdHub.event.add('prescricaoImpressa', async (payload) => {
+    console.log('[Memed] prescricaoImpressa disparado, payload:', payload);
     if (emissionHandledThisCycle) {
-      // Memed SDK pode disparar prescricaoImpressa mais de uma vez (retry interno).
-      // Segunda chamada causaria hidePrescription() duplo → "frame inexistente".
       pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
       return;
     }
@@ -36,8 +35,11 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
+    console.log('[Memed] módulo escondido');
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
+    console.log('[Memed] aguardou 2s');
     options.onPrescriptionPrinted(payload);
+    console.log('[Memed] onPrescriptionPrinted chamado');
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
