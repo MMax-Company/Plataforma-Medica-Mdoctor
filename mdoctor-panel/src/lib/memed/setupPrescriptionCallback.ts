@@ -20,10 +20,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   }
   if (callbacksBound) return;
 
-  // prescricaoGerada: dispara ANTES de window.print() — abordagem oficial para interceptar antes do diálogo.
-  // Tenta nos dois namespaces do SDK (MdSinapsePrescricao e MdHub) para cobertura máxima.
-  const geradaHandler = async (payload: unknown) => {
-    console.log('[Memed] prescricaoGerada disparado (antes da impressão). Payload:', payload);
+  // prescricaoGerada: dispara antes de window.print() — cobertura antecipada caso o SDK não emita prescricaoImpressa.
+  const geradaHandler = (payload: unknown) => {
+    console.log('[Memed] prescricaoGerada disparado. Payload:', payload);
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoGerada:duplicado-ignorado', { iframes: captureIframeState() });
       return;
@@ -37,18 +36,17 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
-    console.log('[Memed] módulo escondido imediatamente');
-    await new Promise<void>(resolve => setTimeout(resolve, 500));
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
-    console.log('[Memed] Fluxo finalizado silenciosamente.');
+    console.log('[Memed] prescricaoGerada: overlay fechado, React sinalizado.');
   };
 
   try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
   try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
 
-  // prescricaoImpressa: colapso imediato do alvo — faz o browser abortar o print dialog nativo.
-  window.MdHub.event.add('prescricaoImpressa', async (payload) => {
-    console.log('[Memed] prescricaoImpressa detectado. Forçando colapso imediato do alvo...');
+  // prescricaoImpressa: ciclo oficial SDK — hide() → core:moduleHide → core:moduleInit (P2+ pronto).
+  // NÃO destrói DOM: o SDK reusa iframes no próximo paciente.
+  window.MdHub.event.add('prescricaoImpressa', (payload) => {
+    console.log('[Memed] prescricaoImpressa disparado');
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
       return;
@@ -58,21 +56,12 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
-
-    // AÇÃO NUCLEAR IMEDIATA (0ms): destrói o conteúdo do container para o browser perder o alvo da impressão
-    document.querySelectorAll<HTMLElement>('iframe[src*="memed"], div[id*="memed"], .memed-container').forEach(el => {
-      el.style.display = 'none';
-      el.innerHTML = '';
-    });
+    hidePrescription();
     forceHideMemedContainer();
-    window.blur();
-
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
-
-    await new Promise<void>(resolve => setTimeout(resolve, 300));
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
-    console.log('[Memed] Fluxo avançado com sucesso após colapso do modal.');
+    console.log('[Memed] Overlay fechado. SDK reinicializará via core:moduleInit.');
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
