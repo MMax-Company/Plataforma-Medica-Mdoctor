@@ -98,6 +98,24 @@ export async function prepareAndShowPrescription(
   await setClinicalOrientations(atendimento);
   pushDiagnosticEvent('addMeds:done', { added, iframes: captureIframeState() });
 
+  // Tentativa de desabilitar print automático
+  const printConfigs = [
+    { cmd: 'setPrintConfig', params: { simple: { all: { print: false } } } },
+    { cmd: 'setPrintConfig', params: { autoPrint: false } },
+    { cmd: 'setPrintOptions', params: { autoPrint: false, showPrintDialog: false } },
+    { cmd: 'setPrintOptions', params: { disablePrint: true } },
+    { cmd: 'setPrintConfig', params: { print: false } },
+  ];
+  for (const config of printConfigs) {
+    try {
+      await window.MdHub.command.send('plataforma.prescricao', config.cmd, config.params);
+      console.log('[Memed] Print config OK:', config.cmd, config.params);
+      break;
+    } catch (e) {
+      console.log('[Memed] Print config falhou:', config.cmd, (e as Error).message);
+    }
+  }
+
   // 4. show() por último — após todos os comandos de pré-configuração.
   pushDiagnosticEvent('show:start', { iframes: captureIframeState() });
   showPrescription();
