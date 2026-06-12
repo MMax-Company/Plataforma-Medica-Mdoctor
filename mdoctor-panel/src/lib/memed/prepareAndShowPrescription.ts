@@ -116,13 +116,16 @@ export async function prepareAndShowPrescription(
     { cmd: 'setPrintConfig', params: { print: false } },
   ];
   console.log('[Memed DEBUG] Passo 10: antes do printConfigs loop');
-  for (const config of printConfigs) {
-    try {
-      await window.MdHub.command.send('plataforma.prescricao', config.cmd, config.params);
-      console.log('[Memed DEBUG] Print config OK:', config.cmd);
-      break;
-    } catch (e) {
-      console.log('[Memed DEBUG] Print config falhou:', config.cmd, (e as Error).message);
+  const mdHub = window.MdHub;
+  if (mdHub?.command?.send) {
+    for (const config of printConfigs) {
+      try {
+        await mdHub.command.send('plataforma.prescricao', config.cmd, config.params);
+        console.log('[Memed DEBUG] Print config OK:', config.cmd);
+        break;
+      } catch (e) {
+        console.log('[Memed DEBUG] Print config falhou:', config.cmd, (e as Error).message);
+      }
     }
   }
   console.log('[Memed DEBUG] Passo 11: printConfigs loop concluído');
