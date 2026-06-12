@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste Memed Local</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f0f4f8; }
+    h1 { color: #1557FF; }
+    button { margin: 8px 4px; padding: 10px 18px; background: #1557FF; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #1246d4; }
+    #log { margin-top: 20px; background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 12px; min-height: 120px; font-family: monospace; font-size: 12px; white-space: pre-wrap; }
+    #memed-container { margin-top: 16px; border: 2px dashed #9AA5B5; border-radius: 8px; min-height: 200px; display: flex; align-items: center; justify-content: center; color: #9AA5B5; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h1>Teste Memed Local — sem pacientes reais</h1>
+  <button onclick="simularPrescricaoImpressa()">Simular prescricaoImpressa</button>
+  <button onclick="simularPrimeiroPaciente()">Simular P1 (primeiro paciente)</button>
+  <button onclick="simularSegundoPaciente()">Simular P2 (segundo paciente)</button>
+  <button onclick="simularESC()">Disparar ESC</button>
+  <button onclick="limparLog()">Limpar log</button>
+
+  <div id="memed-container">Container Memed (simulado)</div>
+  <div id="log">Logs aparecerão aqui…</div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    function log(msg) {
+      const ts = new Date().toISOString().slice(11, 23);
+      logEl.textContent += '[' + ts + '] ' + msg + '\n';
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function limparLog() { logEl.textContent = ''; }
+
+    // Intercepta console.log para mostrar no painel
+    const origLog = console.log.bind(console);
+    console.log = function(...args) { origLog(...args); log(args.join(' ')); };
+
+    // Captura eventos de teclado para confirmar que ESC/Enter chegam
+    document.addEventListener('keydown', function(e) {
+      log('keydown capturado: key=' + e.key + ' keyCode=' + e.keyCode + ' bubbles=' + e.bubbles);
+    });
+
+    // Captura beforeprint
+    window.addEventListener('beforeprint', function(e) {
+      e.preventDefault();
+      log('beforeprint interceptado e cancelado');
+    }, true);
+
+    function simularESC() {
+      log('Disparando ESC...');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+      setTimeout(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+      }, 200);
+    }
+
+    async function simularPrescricaoImpressa() {
+      log('[Memed] prescricaoImpressa disparado (simulado)');
+      await new Promise(r => setTimeout(r, 500));
+      simularESC();
+      log('[Memed] módulo escondido (simulado)');
+      await new Promise(r => setTimeout(r, 2000));
+      log('[Memed] aguardou 2s');
+      log('[Memed] onPrescriptionPrinted chamado (simulado)');
+      log('[Memed] Fluxo concluído');
+    }
+
+    function simularPrimeiroPaciente() {
+      log('[Memed] openPrescription chamado para: João Carlos Ferreira');
+      log('[Memed] MdHub não existe, criando do zero (P1)');
+      setTimeout(() => log('[Memed] prepareAndShowPrescription concluído (P1)'), 800);
+    }
+
+    function simularSegundoPaciente() {
+      log('[Memed] openPrescription chamado para: Maria das Graças Alves');
+      log('[Memed] MdHub existe, reutilizando (P2)');
+      setTimeout(() => log('[Memed] prepareAndShowPrescription concluído (P2)'), 400);
+    }
+  </script>
+</body>
+</html>

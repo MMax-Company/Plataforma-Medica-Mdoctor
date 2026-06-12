@@ -31,6 +31,13 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
+    // Aguarda 500ms para tela de impressão aparecer e dispara ESC para fechá-la
+    await new Promise<void>(resolve => setTimeout(resolve, 500));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+    setTimeout(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }));
+    }, 200);
+
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
@@ -39,7 +46,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     await new Promise<void>(resolve => setTimeout(resolve, 2000));
     console.log('[Memed] aguardou 2s');
     options.onPrescriptionPrinted(payload);
-    console.log('[Memed] onPrescriptionPrinted chamado');
+    console.log('[Memed] Fluxo concluído');
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
