@@ -46,9 +46,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
   try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
 
-  // prescricaoImpressa: fallback caso prescricaoGerada não exista nesta versão do SDK.
+  // prescricaoImpressa: colapso imediato do alvo — faz o browser abortar o print dialog nativo.
   window.MdHub.event.add('prescricaoImpressa', async (payload) => {
-    console.log('[Memed] prescricaoImpressa disparado, payload:', payload);
+    console.log('[Memed] prescricaoImpressa detectado. Forçando colapso imediato do alvo...');
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
       return;
@@ -58,15 +58,21 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
-    hidePrescription();
+
+    // AÇÃO NUCLEAR IMEDIATA (0ms): destrói o conteúdo do container para o browser perder o alvo da impressão
+    document.querySelectorAll<HTMLElement>('iframe[src*="memed"], div[id*="memed"], .memed-container').forEach(el => {
+      el.style.display = 'none';
+      el.innerHTML = '';
+    });
     forceHideMemedContainer();
+    window.blur();
+
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
-    console.log('[Memed] módulo escondido');
-    await new Promise<void>(resolve => setTimeout(resolve, 2000));
-    console.log('[Memed] aguardou 2s');
+
+    await new Promise<void>(resolve => setTimeout(resolve, 300));
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
-    console.log('[Memed] Fluxo concluído');
+    console.log('[Memed] Fluxo avançado com sucesso após colapso do modal.');
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
