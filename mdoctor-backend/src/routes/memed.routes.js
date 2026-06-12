@@ -495,4 +495,171 @@ router.post('/verify', requireAuth, (req, res) => {
   res.status(result.valid ? 200 : 400).json(result);
 });
 
+/**
+ * POST /api/memed/emitir-silencioso
+ * Cria prescrição diretamente via API REST Memed — sem widget, sem window.print().
+ * Rota adicional (não interfere no fluxo atual do widget Sinapse).
+ */
+router.post('/emitir-silencioso', requireAuth, async (req, res) => {
+  const correlationId = req.get('X-Correlation-Id') || `memed-silent-${Date.now()}`;
+  const { atendimentoId, medicamentos = [], paciente = {}, observacoes } = req.body || {};
+
+  if (!atendimentoId) {
+    return res.status(400).json({ success: false, error: 'atendimentoId obrigatório', correlationId });
+  }
+  if (!medicamentos.length) {
+    return res.status(400).json({ success: false, error: 'medicamentos[] obrigatório', correlationId });
+  }
+
+  const previous = await getAtendimento(atendimentoId);
+  if (!previous) {
+    return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+  }
+
+  let token;
+  try {
+    const auth = await memed.authenticatePrescriber(memed.buildDoctorFromEnv());
+    token = auth.token;
+    if (!token) throw new Error('Token Memed vazio');
+  } catch (err) {
+    return res.status(502).json({ success: false, error: 'Falha ao obter token Memed', details: err.message, correlationId });
+  }
+
+  // Monta payload conforme spec Memed Sinapse REST
+  const prescritorExternalId = process.env.MEMED_PRESCRITOR_EXTERNAL_ID || process.env.MEDICO_EXTERNAL_ID || '';
+  const prescricaoBody = {
+    data: {
+      type: 'prescricoes',
+      attributes: {
+        observacoes: observacoes || '',
+        paciente: {
+          nome: paciente.nome || previous.paciente_nome || '',
+          cpf: (paciente.cpf || previous.paciente_cpf || '').replace(/\D/g, ''),
+          data_nascimento: paciente.data_nascimento || previous.dados_clinicos?.data_nascimento || '',
+          telefone: (paciente.telefone || previous.paciente_telefone || '').replace(/\D/g, ''),
+          sexo: paciente.sexo || previous.dados_clinicos?.sexo || 'M',
+          endereco: paciente.endereco || '',
+          cidade: paciente.cidade || '',
+          cep: paciente.cep || ''
+        },
+        itens: medicamentos.map((med, i) => ({
+          sequencial: i + 1,
+          medicamento: { nome: med.nome || med.name || '' },
+          quantidade: med.quantidade || 1,
+          posologia: med.posologia || med.frequencia || med.dose || '',
+          via_administracao: med.via || 'oral'
+        }))
+      }
+    }
+  };
+
+  let prescricaoId = null;
+  let pdfUrl = null;
+  let digitalLink = null;
+  let unlockCode = null;
+
+  try {
+    const axios = require('axios');
+    const apiBase = memed.baseUrl;
+    const createRes = await axios.post(
+      `${apiBase}/sinapse-prescricao/usuarios/${encodeURIComponent(prescritorExternalId)}/prescricoes`,
+      prescricaoBody,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.api+json',
+          'Content-Type': 'application/vnd.api+json'
+        },
+        params: { 'api-key': process.env.MEMED_API_KEY, 'secret-key': process.env.MEMED_SECRET_KEY },
+        validateStatus: (s) => s < 500
+      }
+    );
+
+    if (createRes.status >= 400) {
+      return res.status(502).json({
+        success: false,
+        error: 'Memed rejeitou a prescrição',
+        memedStatus: createRes.status,
+        memedBody: createRes.data,
+        correlationId
+      });
+    }
+
+    const created = createRes.data;
+    prescricaoId =
+      created.data?.id ||
+      created.data?.attributes?.id ||
+      created.id ||
+      null;
+
+    const attrs = created.data?.attributes || created.attributes || created;
+    pdfUrl = attrs.pdf_url || attrs.url_document || attrs.document_url || null;
+    digitalLink = attrs.link || attrs.digital_link || null;
+    unlockCode = attrs.codigo_desbloqueio || attrs.unlock_code || null;
+
+    // Enriquece artefatos se necessário
+    if (prescricaoId && (!pdfUrl || !digitalLink)) {
+      try {
+        const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
+        const artifacts = await fetchPrescriptionArtifacts(prescricaoId);
+        if (!pdfUrl && artifacts.pdfUrl) pdfUrl = artifacts.pdfUrl;
+        if (!digitalLink && artifacts.digitalLink) digitalLink = artifacts.digitalLink;
+        if (!unlockCode && artifacts.unlockCode) unlockCode = artifacts.unlockCode;
+      } catch { /* enriquecimento é best-effort */ }
+    }
+  } catch (err) {
+    return res.status(502).json({ success: false, error: 'Erro ao chamar API Memed', details: err.message, correlationId });
+  }
+
+  const medicoId = resolveDoctorId(req);
+  const issuedAt = new Date().toISOString();
+
+  const receitaLog = await createReceitaLog({
+    atendimentoId,
+    receitaId: prescricaoId,
+    receitaUrl: digitalLink || pdfUrl,
+    pdfUrl,
+    status: STATUS.RECEITA_EMITIDA,
+    payload: { prescricaoId, pdfUrl, digitalLink, unlockCode, via: 'emitir-silencioso', correlationId },
+    medicoId
+  });
+
+  const atendimento = await updateAtendimentoStatus(atendimentoId, STATUS.RECEITA_EMITIDA, {
+    motivo: 'Receita emitida via API silenciosa (sem widget)',
+    medicoId,
+    dados_clinicos: {
+      ...(previous.dados_clinicos || {}),
+      memed_receita: {
+        receitaId: prescricaoId,
+        memed_id: prescricaoId,
+        pdfUrl,
+        digital_link: digitalLink,
+        unlock_code: unlockCode,
+        issued_at: issuedAt,
+        via: 'emitir-silencioso',
+        logId: receitaLog.id
+      }
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: atendimentoId,
+    action: 'memed_emissao_silenciosa',
+    actor: medicoId || 'backend',
+    payload: { correlationId, prescricaoId, has_pdf: Boolean(pdfUrl) }
+  });
+
+  return res.json({
+    success: true,
+    correlationId,
+    prescricaoId,
+    pdfUrl,
+    digitalLink,
+    unlockCode,
+    atendimento,
+    receitaLog
+  });
+});
+
 module.exports = router;
