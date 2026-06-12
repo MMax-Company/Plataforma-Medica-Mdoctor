@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className="staging-audit-body min-h-screen">
+        <script dangerouslySetInnerHTML={{ __html: 'if(typeof window!=="undefined"){window.print=function(){return false;}}' }} />
         <AuthSessionBootstrap />
         <StagingBuildMarker />
         {children}

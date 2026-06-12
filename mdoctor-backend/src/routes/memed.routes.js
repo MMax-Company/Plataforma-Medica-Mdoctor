@@ -300,6 +300,13 @@ router.post('/receita', requireAuth, async (req, res) => {
     });
   }
 
+  // Idempotência: mesma prescrição recebida novamente → 200 sem re-inserir
+  const earlyPrescription = await getPrescriptionByAtendimento(atendimentoId);
+  if (earlyPrescription?.provider_prescription_id && memedId &&
+      String(earlyPrescription.provider_prescription_id) === String(memedId)) {
+    return res.status(200).json({ success: true, alreadyExists: true, id: earlyPrescription.id, correlationId });
+  }
+
   const issuedAt = new Date().toISOString();
   const prescriber = buildPrescriberSnapshot();
   const medicoId = resolveDoctorId(req);

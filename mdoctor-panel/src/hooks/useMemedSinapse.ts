@@ -147,6 +147,9 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
       setStatusMessage('Aplicando dados clínicos e abrindo prescrição…');
       const result = await withTimeout(
         (async () => {
+          if ('MdHub' in window) {
+            return prepareAndShowPrescription(atendimento, patient);
+          }
           const moduleAlreadyReady = isMemedRuntimeReady();
           const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
           await ensureMemedScript(freshToken, scriptConfig);

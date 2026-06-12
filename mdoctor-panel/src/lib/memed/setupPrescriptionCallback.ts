@@ -4,6 +4,14 @@ import { forceHideMemedContainer, recordMemedPrescriptionEmission, scheduleHardR
 import { hidePrescription } from './showPrescription';
 
 let callbacksBound = false;
+// Guard de idempotência: garante que prescricaoImpressa seja processado uma única vez
+// por ciclo de paciente. Reset via resetEmissionGuard() no início de cada prepareAndShowPrescription.
+let emissionHandledThisCycle = false;
+
+/** Reseta o guard para o próximo paciente — chamado no início de prepareAndShowPrescription. */
+export function resetEmissionGuard(): void {
+  emissionHandledThisCycle = false;
+}
 
 /** Eventos prescricaoImpressa / prescricaoExcluida — emissão real no widget. */
 export function setupPrescriptionCallback(options: MemedModuleOptions): void {
@@ -12,7 +20,14 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   }
   if (callbacksBound) return;
 
-  window.MdHub.event.add('prescricaoImpressa', (payload) => {
+  window.MdHub.event.add('prescricaoImpressa', async (payload) => {
+    if (emissionHandledThisCycle) {
+      // Memed SDK pode disparar prescricaoImpressa mais de uma vez (retry interno).
+      // Segunda chamada causaria hidePrescription() duplo → "frame inexistente".
+      pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
+      return;
+    }
+    emissionHandledThisCycle = true;
     pushDiagnosticEvent('prescricaoImpressa', {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
@@ -20,11 +35,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
-    options.onPrescriptionPrinted(payload);
-    // Hard reset após 1.5s — janela segura para a Memed concluir requisições de rede.
-    // scheduleHardReset cancela timer anterior e é cancelável por cancelPendingHardReset()
-    // caso P2+ inicie antes de 1.5s expirarem.
     scheduleHardReset(1500);
+    await new Promise<void>(resolve => setTimeout(resolve, 2000));
+    options.onPrescriptionPrinted(payload);
   });
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);

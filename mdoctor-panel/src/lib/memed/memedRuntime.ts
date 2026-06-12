@@ -111,15 +111,12 @@ export function hardResetMemedContainer(): void {
   if (typeof document === 'undefined') return;
   const el = document.getElementById(state.containerId);
   if (!el) return;
-  // Remove CSS de force-hide para não bloquear o próximo show().
+  // Remove apenas o CSS de force-hide — não toca nos filhos do container.
+  // O SDK Memed gerencia o próprio DOM; destruir iframes entre pacientes causa
+  // "Cannot read properties of null" quando o SDK tenta acessar elementos removidos.
   el.style.removeProperty('display');
   el.style.removeProperty('opacity');
   el.style.removeProperty('visibility');
-  while (el.firstChild) el.removeChild(el.firstChild);
-  pushDiagnosticEvent('hardReset:containerCleared', {
-    containerId: state.containerId,
-    iframes: captureIframeState(),
-  });
 }
 
 /** Carrega script uma vez; atualiza token sem reinjetar. */

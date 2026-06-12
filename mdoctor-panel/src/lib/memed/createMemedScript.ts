@@ -1,52 +1,91 @@
 import type { MemedScriptConfig } from './types';
 import { rememberMemedScriptUrl, shouldInjectNewScript, syncMemedScriptToken } from './memedSession';
 
-/** Bloqueia window.print e qualquer iframe criado pela Memed antes do script carregar. */
+/** Bloqueia window.print no frame pai e nos iframes da Memed antes do script carregar. */
 function installPrintBlocker(): void {
   if (typeof window === 'undefined') return;
 
-  // 1. Bloqueia window.print no frame principal.
-  window.print = () => {
-    console.warn('[MEMED PRINT BLOCKED] window.print interceptado');
-  };
+  // 1. Bloqueia window.print e globalThis.print do frame pai.
+  //    Getter sempre retorna noop; setter é no-op — impede restauração mesmo em strict mode,
+  //    inclusive pelo cleanup do useEffect em MemedEmissionOverlay.
+  const parentNoop = () => { console.warn('[PRINT BLOCKED parent] window.print interceptado'); };
+  try {
+    Object.defineProperty(window, 'print', {
+      get: () => parentNoop,
+      set: () => { /* prevent any code from restoring native print */ },
+      configurable: false,
+      enumerable: true,
+    });
+  } catch {
+    window.print = parentNoop;
+  }
+  try { (globalThis as any).print = parentNoop; } catch {} // eslint-disable-line @typescript-eslint/no-explicit-any
 
-  // 2. Helper: tenta sobrescrever print dentro do iframe (falha silenciosa para cross-origin).
-  function blockIframePrint(iframe: HTMLIFrameElement): void {
+  // 2. Patch HTMLIFrameElement.prototype.contentWindow getter para interceptar print
+  //    antes de qualquer acesso (cobre iframes same-origin que podem mudar de origin).
+  try {
+    const desc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
+    if (desc?.get) {
+      Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
+        get() {
+          const cw = desc.get!.call(this);
+          if (cw) {
+            try {
+              (cw as any).print = () => { console.warn('[PRINT BLOCKED iframe] contentWindow.print interceptado'); }; // eslint-disable-line @typescript-eslint/no-explicit-any
+            } catch {}
+          }
+          return cw;
+        },
+        configurable: true,
+      });
+    }
+  } catch {}
+
+  // 3. Aplica sandbox sem allow-modals nos iframes da Memed via MutationObserver.
+  //    Sem allow-modals, window.print() dentro do iframe cross-origin é bloqueado pelo
+  //    browser antes mesmo de tentar — única solução efetiva para iframes cross-origin.
+  function patchIframe(iframe: HTMLIFrameElement): void {
+    const memedContainer = document.getElementById('prescricao-memed');
+    const src = iframe.getAttribute('src') ?? '';
+    const isMemedRelated =
+      (memedContainer != null && memedContainer.contains(iframe)) ||
+      src.includes('memed') ||
+      src.includes('sinapse') ||
+      src.includes('birdid');
+    if (!isMemedRelated) return;
+
+    if (!iframe.hasAttribute('sandbox')) {
+      iframe.setAttribute(
+        'sandbox',
+        'allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-popups-to-escape-sandbox allow-pointer-lock',
+      );
+    }
     const apply = () => {
       try {
         if (iframe.contentWindow) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (iframe.contentWindow as any).print = () => {
-            console.warn('[MEMED PRINT BLOCKED] iframe.contentWindow.print interceptado');
+          (iframe.contentWindow as any).print = () => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            console.warn('[PRINT BLOCKED iframe] iframe.contentWindow.print interceptado');
           };
         }
-      } catch {
-        // Cross-origin: não é possível — ignorar.
-      }
+      } catch {}
     };
-    // Tenta imediatamente e novamente no load (se ainda não carregou).
     apply();
     iframe.addEventListener('load', apply);
   }
 
-  // 3. Bloqueia iframes já presentes (caso raro) e todos os futuros via MutationObserver.
-  document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(blockIframePrint);
+  document.querySelectorAll<HTMLIFrameElement>('iframe').forEach(patchIframe);
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
-        if (node instanceof HTMLIFrameElement) {
-          blockIframePrint(node);
-        }
-        // Iframes aninhados dentro de outros elementos adicionados.
-        if (node instanceof Element) {
-          node.querySelectorAll<HTMLIFrameElement>('iframe').forEach(blockIframePrint);
-        }
+        if (node instanceof HTMLIFrameElement) patchIframe(node);
+        if (node instanceof Element) node.querySelectorAll<HTMLIFrameElement>('iframe').forEach(patchIframe);
       }
     }
   });
-
   observer.observe(document.body, { childList: true, subtree: true });
+
+  console.log('[PRINT BLOCKER INSTALLED]');
 }
 
 /** Injeta script Sinapse uma única vez; atualiza data-token sem remover o script (preserva sessão BirdID). */

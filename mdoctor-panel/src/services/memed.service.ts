@@ -88,5 +88,8 @@ export async function saveMemedReceipt(data: MemedReceiptPayload) {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(data)
   });
+  if (response.status === 409) {
+    try { return await response.json(); } catch { return undefined; }
+  }
   return readJson(response);
 }

@@ -14,10 +14,12 @@ import {
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
+  waitForMemedModuleReady,
   wasPrescriptionShownBefore,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
-import { hidePrescription, showPrescription } from './showPrescription';
+import { showPrescription } from './showPrescription';
+import { resetEmissionGuard } from './setupPrescriptionCallback';
 import type { MemedPatient } from './types';
 
 export type PreparePrescriptionResult = {
@@ -57,6 +59,9 @@ export async function prepareAndShowPrescription(
   patient?: MemedPatient | null,
 ): Promise<PreparePrescriptionResult> {
   clearMemedDiagnosticLog();
+  // Reseta guard de idempotência: garante que o próximo prescricaoImpressa deste
+  // paciente seja processado normalmente (não ignorado como duplicata do anterior).
+  resetEmissionGuard();
 
   const resolvedPatient = patient || buildPatientFromAtendimento(atendimento);
 
@@ -66,12 +71,12 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: cancela timer de hardReset pendente do P1 para não destruir o novo iframe.
-  // Depois limpa container DOM e fecha SDK.
+  // P2+: aguarda o SDK reinicializar (moduleInit do ciclo anterior) ANTES de revelar
+  // o container. Assim o iframe mostra conteúdo fresco de P2, não tela residual de P1.
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
-    hardResetMemedContainer();
-    hidePrescription();
+    await waitForMemedModuleReady(); // espera SDK reinit — resolve imediato se já pronto
+    hardResetMemedContainer(); // remove force-hide CSS (DOM intacto)
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
   }
 
