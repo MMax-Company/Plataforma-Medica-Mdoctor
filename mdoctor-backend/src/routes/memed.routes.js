@@ -153,11 +153,12 @@ router.post('/iniciar-emissao', requireAuth, async (req, res) => {
   }
 
   if (hasPersistedReceipt(previous)) {
-    return res.status(409).json({
-      success: false,
-      error: 'Receita já vinculada — use validação ou visualização.',
-      code: 'MEMED_RECEIPT_ALREADY_EXISTS',
-      correlationId
+    return res.status(200).json({
+      success: true,
+      alreadyExists: true,
+      correlationId,
+      atendimento: previous,
+      status: previous.status
     });
   }
 

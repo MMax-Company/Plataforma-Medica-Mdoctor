@@ -78,6 +78,9 @@ export async function startMemedEmission(atendimentoId: string) {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ atendimentoId })
   });
+  if (response.status === 409) {
+    try { return await response.json(); } catch { return undefined; }
+  }
   return readJson(response);
 }
 
