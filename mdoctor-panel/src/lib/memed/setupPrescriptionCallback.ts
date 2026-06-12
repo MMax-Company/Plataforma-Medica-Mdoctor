@@ -18,8 +18,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   if (!window.MdHub?.event?.add) {
     throw new Error('MdHub.event indisponível');
   }
-  if (callbacksBound) return;
-
   // prescricaoGerada: dispara antes de window.print() — cobertura antecipada caso o SDK não emita prescricaoImpressa.
   const geradaHandler = (payload: unknown) => {
     console.log('[Memed] prescricaoGerada disparado. Payload:', payload);

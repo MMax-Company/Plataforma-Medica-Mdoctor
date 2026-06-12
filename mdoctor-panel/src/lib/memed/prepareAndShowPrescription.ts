@@ -76,6 +76,21 @@ export async function prepareAndShowPrescription(
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
     hardResetMemedContainer();
+    // Fix 3: reaplica feature toggle para cada paciente P2+
+    clinicalUxApplied = false;
+    // Fix 2: limpa contexto da receita anterior antes de setPaciente
+    const mdHubForNew = window.MdHub;
+    if (mdHubForNew?.command?.send) {
+      try {
+        await Promise.race([
+          mdHubForNew.command.send('plataforma.prescricao', 'newPrescription'),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+        ]);
+        console.log('[Memed DEBUG] newPrescription OK (P2+)');
+      } catch (e) {
+        console.warn('[Memed] newPrescription falhou ou timeout — continuando:', (e as Error).message);
+      }
+    }
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
     console.log('[Memed DEBUG] Passo 2: container reset feito (P2+), MdHub disponível:', 'MdHub' in window);
   } else {

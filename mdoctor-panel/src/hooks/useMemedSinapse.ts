@@ -188,6 +188,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     if (!atendimento?.id) return;
     autoOpened.current = false;
     openingInFlight.current = false;
+    callbackRegistered.current = false;
     setPrescriptionOpenedOnce(false);
     setStatusMessage('Preparando prescrição digital…');
   }, [atendimento?.id]);
