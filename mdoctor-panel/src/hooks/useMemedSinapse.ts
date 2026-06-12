@@ -7,6 +7,7 @@ import {
   ensureMemedScript,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
+  resetPrescriptionCallbacksFlag,
   setupPrescriptionCallback,
   softHideMemed,
   isMemedRuntimeReady,
@@ -123,6 +124,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     if (!moduleReady || !patient || !atendimento) return;
 
     if (!callbackRegistered.current) {
+      resetPrescriptionCallbacksFlag();
       setupPrescriptionCallback({
         onPrescriptionPrinted: (payload) => onPrintedRef.current(payload),
         onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,

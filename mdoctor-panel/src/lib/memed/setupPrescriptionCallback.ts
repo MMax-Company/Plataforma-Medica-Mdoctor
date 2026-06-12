@@ -3,7 +3,6 @@ import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnosti
 import { forceHideMemedContainer, recordMemedPrescriptionEmission, scheduleHardReset } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
-let callbacksBound = false;
 // Guard de idempotência: garante que prescricaoImpressa seja processado uma única vez
 // por ciclo de paciente. Reset via resetEmissionGuard() no início de cada prepareAndShowPrescription.
 let emissionHandledThisCycle = false;
@@ -65,9 +64,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   if (options.onPrescriptionDeleted) {
     window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
   }
-  callbacksBound = true;
 }
 
+/** Reseta o guard de idempotência — chamar antes de setupPrescriptionCallback() para cada novo paciente. */
 export function resetPrescriptionCallbacksFlag(): void {
-  callbacksBound = false;
+  emissionHandledThisCycle = false;
 }
