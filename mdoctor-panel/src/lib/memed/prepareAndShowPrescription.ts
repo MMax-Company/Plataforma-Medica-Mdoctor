@@ -130,18 +130,27 @@ export async function prepareAndShowPrescription(
     { cmd: 'setPrintOptions', params: { disablePrint: true } },
     { cmd: 'setPrintConfig', params: { print: false } },
   ];
+  // printConfigs são best-effort: comandos não-oficiais que o SDK pode ignorar ou nunca resolver.
+  // Envolvemos o bloco inteiro num timeout de 3s para nunca bloquear o show().
   console.log('[Memed DEBUG] Passo 10: antes do printConfigs loop');
   const mdHub = window.MdHub;
-  if (mdHub?.command?.send) {
-    for (const config of printConfigs) {
-      try {
-        await mdHub.command.send('plataforma.prescricao', config.cmd, config.params);
-        console.log('[Memed DEBUG] Print config OK:', config.cmd);
-        break;
-      } catch (e) {
-        console.log('[Memed DEBUG] Print config falhou:', config.cmd, (e as Error).message);
+  const mdHubCmd = mdHub?.command;
+  if (mdHubCmd?.send) {
+    const printLoop = (async () => {
+      for (const config of printConfigs) {
+        try {
+          await mdHubCmd.send('plataforma.prescricao', config.cmd, config.params);
+          console.log('[Memed DEBUG] Print config OK:', config.cmd);
+          break;
+        } catch (e) {
+          console.log('[Memed DEBUG] Print config falhou:', config.cmd, (e as Error).message);
+        }
       }
-    }
+    })();
+    await Promise.race([
+      printLoop,
+      new Promise<void>((r) => setTimeout(r, 3000)),
+    ]);
   }
   console.log('[Memed DEBUG] Passo 11: printConfigs loop concluído');
 

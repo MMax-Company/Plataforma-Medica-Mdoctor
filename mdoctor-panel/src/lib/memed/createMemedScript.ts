@@ -1,6 +1,24 @@
 import type { MemedScriptConfig } from './types';
 import { rememberMemedScriptUrl, shouldInjectNewScript, syncMemedScriptToken } from './memedSession';
 
+/** Intercepta window.fetch para unleash-proxy — devolve { toggles: [] } sem rede, impedindo hang do SDK. */
+function installUnleashBypass(): void {
+  if (typeof window === 'undefined' || (window as any).__unleashBypassed) return; // eslint-disable-line @typescript-eslint/no-explicit-any
+  (window as any).__unleashBypassed = true; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const orig = window.fetch.bind(window);
+  window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+    if (url.includes('unleash-proxy')) {
+      return Promise.resolve(new Response(JSON.stringify({ toggles: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+    return orig(input, init);
+  };
+  console.log('[UNLEASH BYPASS INSTALLED]');
+}
+
 /** Bloqueia window.print no frame pai e nos iframes da Memed antes do script carregar. */
 function installPrintBlocker(): void {
   if (typeof window === 'undefined') return;
@@ -93,6 +111,7 @@ export function createMemedScript(
   doctorToken: string,
   config: Pick<MemedScriptConfig, 'scriptUrl' | 'scriptId' | 'primaryColor' | 'containerId'>,
 ): HTMLScriptElement {
+  installUnleashBypass();
   installPrintBlocker();
   rememberMemedScriptUrl(config.scriptUrl);
 

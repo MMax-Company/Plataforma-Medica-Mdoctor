@@ -57,7 +57,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
     console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
-    await new Promise<void>(resolve => setTimeout(resolve, 1800));
+    await new Promise<void>(resolve => setTimeout(resolve, 1000));
     console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
   });
