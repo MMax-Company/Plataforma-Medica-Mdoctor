@@ -10,6 +10,7 @@ const {
   markUploadSessionCompleted,
   resolveTokenRecord
 } = require('./prescription-upload-token.service');
+const { analyzeImageQualitySafe } = require('./prescription-image-validator.service');
 
 function mimeFromFilename(name = '') {
   const ext = String(name).split('.').pop()?.toLowerCase();
@@ -24,11 +25,7 @@ function mimeFromFilename(name = '') {
 
 async function completeExternalPrescriptionUpload({ token, buffer, mimeType, filename, correlationId = null }) {
   const record = await resolveTokenRecord(token);
-  try {
-    assertTokenActive(record);
-  } catch (error) {
-    throw error;
-  }
+  assertTokenActive(record);
 
   const resolvedMime = String(mimeType || mimeFromFilename(filename) || '').toLowerCase();
   let prescriptionMeta;
@@ -50,7 +47,11 @@ async function completeExternalPrescriptionUpload({ token, buffer, mimeType, fil
     throw error;
   }
 
-  const atendimento = await getAtendimento(record.atendimentoId);
+  const [atendimento, imageQuality] = await Promise.all([
+    getAtendimento(record.atendimentoId),
+    analyzeImageQualitySafe(buffer, resolvedMime)
+  ]);
+
   const clinical = applyPrescriptionMetadataToClinical(atendimento?.dados_clinicos || {}, prescriptionMeta);
 
   await markUploadSessionCompleted({
@@ -59,7 +60,8 @@ async function completeExternalPrescriptionUpload({ token, buffer, mimeType, fil
     correlationId,
     clinicalPatch: {
       ...clinical,
-      prescription_ingest: { ok: true, storage_path: prescriptionMeta.previous_prescription_storage_path }
+      prescription_ingest: { ok: true, storage_path: prescriptionMeta.previous_prescription_storage_path },
+      prescription_image_quality: imageQuality
     }
   });
 

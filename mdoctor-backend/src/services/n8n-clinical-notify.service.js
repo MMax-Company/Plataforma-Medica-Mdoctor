@@ -1,7 +1,15 @@
 const axios = require('axios');
 
-const DEFAULT_REJECT_MESSAGE =
-  'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.';
+const DEFAULT_REJECT_MESSAGE = [
+  'Infelizmente, neste momento não foi possível realizar a renovação da sua receita pelo Doctor Prescreve.',
+  '',
+  'Recomendamos que procure atendimento médico presencial para uma avaliação adequada.',
+  '',
+  'Caso tenha dúvidas, você pode falar com nosso suporte.',
+  '',
+  '*1* - Encerrar atendimento',
+  '*2* - Falar com o suporte'
+].join('\n');
 
 function resolveWebhookUrl() {
   return String(

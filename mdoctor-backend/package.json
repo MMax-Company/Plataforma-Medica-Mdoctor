@@ -108,6 +108,7 @@
     "send": "^1.2.1",
     "serve-static": "^2.2.1",
     "setprototypeof": "^1.2.0",
+    "sharp": "^0.35.1",
     "side-channel": "^1.1.0",
     "side-channel-list": "^1.0.1",
     "side-channel-map": "^1.0.1",

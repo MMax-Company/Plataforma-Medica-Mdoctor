@@ -259,14 +259,40 @@ export function ProntuarioOperacionalModal({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={headerBtnCompactClass}
-                  onClick={() => void viewAttachedPrescription()}
-                  disabled={!hasAttachedPrescription}
-                >
-                  📄 Receita Anexada
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    className={headerBtnCompactClass}
+                    onClick={() => void viewAttachedPrescription()}
+                    disabled={!hasAttachedPrescription}
+                  >
+                    📄 Receita Anexada
+                  </button>
+                  {hasAttachedPrescription && (() => {
+                    const q = atendimento.dados_clinicos?.prescription_image_quality;
+                    if (!q || q.grade === 'not_analyzed') return null;
+                    const map = {
+                      adequate: { dot: 'bg-green-500', text: 'text-green-700', label: 'Legível' },
+                      marginal: { dot: 'bg-yellow-400', text: 'text-yellow-700', label: 'Verificar' },
+                      inadequate: { dot: 'bg-red-500', text: 'text-red-700', label: 'Ilegível' },
+                    } as const;
+                    const style = map[q.grade as keyof typeof map];
+                    if (!style) return null;
+                    const issues = q.details?.issues ?? [];
+                    const tip = issues.length
+                      ? issues.map(i => i.replace(/_/g, ' ')).join(', ')
+                      : 'Imagem adequada para leitura';
+                    return (
+                      <span
+                        className={`flex items-center gap-0.5 rounded-full border border-current px-1.5 py-0.5 text-[8px] font-bold uppercase ${style.text}`}
+                        title={tip}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                        {style.label}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <button
                   type="button"
                   className={headerBtnClass}

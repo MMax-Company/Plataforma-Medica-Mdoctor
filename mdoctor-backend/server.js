@@ -229,6 +229,8 @@ app.use((err, req, res, _next) => {
 
 setInterval(cleanupRateLimitBuckets, 60 * 1000).unref();
 setInterval(cleanupWebhookIdempotencyCache, 60 * 1000).unref();
+const { closeInactiveSessions } = require('./src/services/whatsapp-support.service');
+setInterval(() => closeInactiveSessions().catch((e) => logger.warn('support_inactivity_close_tick_failed', { error: e.message })), 5 * 60 * 1000).unref();
 
 app.listen(PORT,()=>{
   logger.info('server_started', {

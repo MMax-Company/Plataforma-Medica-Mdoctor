@@ -21,7 +21,8 @@ const {
 } = require('../services/prescription-upload-token.service');
 const {
   createWhatsAppSupportEntry,
-  closeWhatsAppSupportEntry
+  closeWhatsAppSupportEntry,
+  processIncomingMessage
 } = require('../services/whatsapp-support.service');
 const {
   applyPrescriptionMetadataToClinical,
@@ -233,6 +234,25 @@ router.post('/support/close', async (req, res) => {
       correlationId,
       error: error.message
     });
+  }
+});
+
+router.post('/process-message', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
+
+  const { phone, from, text } = req.body || {};
+  const resolvedPhone = phone || from;
+  if (!resolvedPhone || !text) {
+    return res.status(400).json({ success: false, error: 'phone e text obrigatórios' });
+  }
+
+  try {
+    const result = await processIncomingMessage({ phone: resolvedPhone, text });
+    return res.json({ success: true, reply: result.reply });
+  } catch (error) {
+    logger.warn('process_message_failed', { error: error.message });
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 

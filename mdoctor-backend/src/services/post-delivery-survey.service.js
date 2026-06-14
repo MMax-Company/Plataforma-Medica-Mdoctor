@@ -3,6 +3,9 @@ const evolutionProvider = require('./providers/evolution.provider');
 const { isDryRunMode } = require('../delivery/delivery.service');
 const {
   SURVEY_VERSION,
+  PRESCRIPTION_SENT_MESSAGE,
+  SURVEY_OPT_IN_MESSAGE,
+  SURVEY_OPT_IN_DECLINED_MESSAGE,
   Q1_MESSAGE,
   Q2_MESSAGE,
   Q3_MESSAGE,
@@ -109,14 +112,21 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     patientId: patientId || outcome.patient_id || null,
     outcomeId: outcome.id,
     attendanceId,
-    step: 'q1'
+    step: 'opt_in'
   });
 
+  // Send messages sequentially — ordering matters (closing first, then opt-in offer)
+  await sendSurveyWhatsApp({
+    phone: digits,
+    text: PRESCRIPTION_SENT_MESSAGE,
+    correlationId,
+    idempotencyKey: `survey-closing:${attendanceId}:${outcome.id}`
+  });
   const sendResult = await sendSurveyWhatsApp({
     phone: digits,
-    text: Q1_MESSAGE,
+    text: SURVEY_OPT_IN_MESSAGE,
     correlationId,
-    idempotencyKey: `survey-q1:${attendanceId}:${outcome.id}`
+    idempotencyKey: `survey-opt-in:${attendanceId}:${outcome.id}`
   });
 
   await createAuditLog({
@@ -169,7 +179,32 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
   let reply = null;
   let patch = {};
 
-  if (step === 'q1') {
+  if (step === 'opt_in') {
+    const answer = parseYesNoAnswer(rawText);
+    if (answer === 'nao') {
+      await clearSurveySession(digits);
+      await sendSurveyWhatsApp({
+        phone: digits,
+        text: SURVEY_OPT_IN_DECLINED_MESSAGE,
+        correlationId,
+        idempotencyKey: `survey-declined:${outcome.id}:${Date.now()}`
+      });
+      await createAuditLog({
+        entity_type: 'patient_outcome_survey',
+        entity_id: outcome.id,
+        action: 'survey_declined',
+        actor: 'patient',
+        payload: { correlationId, attendance_id: outcome.attendance_id }
+      });
+      return { handled: true, step: 'declined', completed: false, outcome, reply: SURVEY_OPT_IN_DECLINED_MESSAGE };
+    }
+    if (answer === 'sim') {
+      nextStep = 'q1';
+      reply = Q1_MESSAGE;
+    } else {
+      reply = SURVEY_OPT_IN_MESSAGE;
+    }
+  } else if (step === 'q1') {
     const answer = parseQ1Answer(rawText);
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q1_MESSAGE}`;

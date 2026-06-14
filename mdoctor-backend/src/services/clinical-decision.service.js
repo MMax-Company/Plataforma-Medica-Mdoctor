@@ -299,6 +299,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
 
   const mergedClinical = mergeClinicalPayload(previous, body);
   mergedClinical.memed_bloqueado = true;
+  mergedClinical.rejection_sub_status = 'awaiting_response';
   mergedClinical.motivo_rejeicao = {
     code: reasonCode,
     label: reasonMeta.label,

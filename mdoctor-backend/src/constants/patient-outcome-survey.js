@@ -25,9 +25,22 @@ const Q2_Q3_OPTIONS = {
   no: 'nao'
 };
 
-const Q1_MESSAGE = [
-  'Obrigado por utilizar o *Doctor Prescreve*! Sua opinião nos ajuda a melhorar.',
+const PRESCRIPTION_SENT_MESSAGE = [
+  'Sua receita foi enviada com sucesso.',
   '',
+  'Obrigado por utilizar o *Doctor Prescreve*.'
+].join('\n');
+
+const SURVEY_OPT_IN_MESSAGE = [
+  'Antes de encerrar, você pode nos ajudar respondendo 3 perguntas rápidas? É opcional.',
+  '',
+  '*1* - Sim, claro!',
+  '*2* - Não, obrigado'
+].join('\n');
+
+const SURVEY_OPT_IN_DECLINED_MESSAGE = 'Tudo bem! Qualquer dúvida, estamos aqui. Até a próxima!';
+
+const Q1_MESSAGE = [
   '*Pergunta 1 de 3*',
   'Sem o Doctor Prescreve, como você obteria sua renovação terapêutica?',
   '',
@@ -83,6 +96,9 @@ function parseYesNoAnswer(raw = '') {
 
 module.exports = {
   SURVEY_VERSION,
+  PRESCRIPTION_SENT_MESSAGE,
+  SURVEY_OPT_IN_MESSAGE,
+  SURVEY_OPT_IN_DECLINED_MESSAGE,
   Q1_MESSAGE,
   Q2_MESSAGE,
   Q3_MESSAGE,

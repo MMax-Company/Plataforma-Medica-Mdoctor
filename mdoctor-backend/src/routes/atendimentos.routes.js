@@ -22,7 +22,7 @@ const { approveAtendimento, rejectAtendimento } = require('../services/clinical-
 const { listRejectReasons } = require('../constants/clinical-reject-reasons');
 const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
-const { listWhatsAppSupportQueue } = require('../services/whatsapp-support.service');
+const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
 const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
 const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
@@ -113,6 +113,24 @@ router.get('/support-queue', requireAuth, async (_req, res) => {
   res.json({ success: true, atendimentos, total: atendimentos.length });
 });
 
+router.post('/:id/support/start', requireAuth, async (req, res) => {
+  try {
+    const atendimento = await startSupportAttendance(req.params.id);
+    return res.json({ success: true, atendimento });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:id/support/finalize', requireAuth, async (req, res) => {
+  try {
+    const result = await finalizeSupportAttendance(req.params.id);
+    return res.json({ success: true, messageText: result.messageText });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
 router.get('/queue', requireAuth, async (_req, res) => {
   const atendimentos = await listAtendimentos();
   const terminal = new Set([STATUS.DELIVERED, STATUS.REJECTED, 'cancelado']);
@@ -200,6 +218,74 @@ router.post('/', requireIngressOrAuth, async (req, res) => {
 
 router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
   return res.json({ success: true, reasons: listRejectReasons() });
+});
+
+router.get('/search', requireAuth, async (req, res) => {
+  const { cpf, phone, name, birth_date } = req.query;
+  const hasCpf = Boolean(String(cpf || '').replace(/\D/g, ''));
+  const hasPhone = Boolean(String(phone || '').replace(/\D/g, ''));
+  const hasNameDob = Boolean(String(name || '').trim()) && Boolean(String(birth_date || '').trim());
+
+  if (!hasCpf && !hasPhone && !hasNameDob) {
+    return res.status(400).json({
+      success: false,
+      error: 'Informe CPF, telefone, ou nome completo + data de nascimento'
+    });
+  }
+
+  function normDigits(v) { return String(v || '').replace(/\D/g, ''); }
+  function normText(v) {
+    return String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  }
+  function normDate(v) {
+    const s = String(v || '').trim();
+    // Accept YYYY-MM-DD or DD/MM/YYYY → normalize to YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const match = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+    return s;
+  }
+
+  const cpfDigits = hasCpf ? normDigits(cpf) : null;
+  const phoneDigits = hasPhone ? normDigits(phone) : null;
+  const nameLower = hasNameDob ? normText(name) : null;
+  const birthNorm = hasNameDob ? normDate(birth_date) : null;
+
+  const rows = await listAtendimentos();
+
+  const matched = rows.filter((item) => {
+    if (cpfDigits) {
+      const c = normDigits(item.paciente_cpf);
+      return c.length > 0 && c === cpfDigits;
+    }
+    if (phoneDigits) {
+      const p = normDigits(item.paciente_telefone);
+      if (!p) return false;
+      return p === phoneDigits || p.endsWith(phoneDigits) || phoneDigits.endsWith(p);
+    }
+    if (nameLower && birthNorm) {
+      const nameMatch = normText(item.paciente_nome).includes(nameLower);
+      if (!nameMatch) return false;
+      const dob = normDate(item.dados_clinicos?.data_nascimento || item.dados_clinicos?.birth_date || '');
+      return dob === birthNorm;
+    }
+    return false;
+  });
+
+  matched.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+
+  const results = matched.map((item) => ({
+    id: item.id,
+    paciente_nome: item.paciente_nome || '',
+    paciente_cpf: item.paciente_cpf || '',
+    paciente_telefone: item.paciente_telefone || '',
+    data_nascimento: item.dados_clinicos?.data_nascimento || item.dados_clinicos?.birth_date || '',
+    criado_em: item.criado_em || '',
+    status: item.status || '',
+    condicao: item.condicao || ''
+  }));
+
+  return res.json({ success: true, results, total: results.length });
 });
 
 router.get('/:id', requireAuth, async (req, res) => {
@@ -453,7 +539,7 @@ router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
 
 router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
-  const { channel = 'whatsapp', doctorId, medicoId } = req.body || {};
+  const { channel = 'whatsapp', doctorId, medicoId, contingency = false, contingency_text = '' } = req.body || {};
   const authenticatedDoctorId = req.user?.sub || medicoId || doctorId || null;
   const allowedChannels = new Set(['whatsapp', 'email', 'sms']);
   if (!allowedChannels.has(channel)) {
@@ -473,11 +559,13 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
     });
   }
 
+  const isContingency = Boolean(contingency) && channel === 'whatsapp';
   const receipt = previous.dados_clinicos?.memed_receita || {};
   const receiptUrl =
     receipt.pdfUrl ||
     receipt.receitaUrl ||
-    (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '');
+    (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '') ||
+    (isContingency ? 'contingency' : '');
   if (!receiptUrl) {
     return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega', correlationId });
   }
@@ -505,7 +593,26 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
 
   let delivery;
   try {
-    if (isDeliveryMockEnabled() && !(channel === 'whatsapp' && isDryRunMode())) {
+    if (isContingency) {
+      const evo = require('../services/providers/evolution.provider');
+      if (!evo.isConfigured()) throw Object.assign(new Error('WhatsApp não configurado'), { code: 'PROVIDER_NOT_CONFIGURED' });
+      const sendResult = await evo.sendTextMessage({
+        to: target,
+        text: String(contingency_text || '').trim() || 'Receita médica enviada pelo Doctor Prescreve.',
+        correlationId,
+        idempotencyKey: `${req.params.id}:contingency:${correlationId}`
+      });
+      delivery = {
+        id: randomUUID(),
+        channel,
+        targetMasked: target.replace(/\d(?=\d{4})/g, '*'),
+        receiptUrl: 'contingency',
+        provider: 'evolution',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        providerMessageId: sendResult?.key?.id || null
+      };
+    } else if (isDeliveryMockEnabled() && !(channel === 'whatsapp' && isDryRunMode())) {
       delivery = {
         id: randomUUID(),
         channel,

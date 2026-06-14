@@ -45,6 +45,21 @@ export type ProntuarioAtendimento = {
     previous_prescription_storage_path?: string;
     previous_prescription_url?: string;
     previous_prescription_file?: string;
+    prescription_image_quality?: {
+      grade: 'adequate' | 'marginal' | 'inadequate' | 'not_analyzed';
+      score: number | null;
+      analyzed_at: string;
+      reason?: string;
+      details?: {
+        width: number;
+        height: number;
+        pixels: number;
+        brightness: number;
+        contrast: number;
+        sharpness_variance: number;
+        issues: string[];
+      };
+    };
   };
 };
 

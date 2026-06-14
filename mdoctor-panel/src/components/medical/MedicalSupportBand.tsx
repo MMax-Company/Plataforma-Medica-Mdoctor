@@ -7,6 +7,8 @@ export type SupportQueueItem = {
   paciente_nome: string;
   paciente_telefone?: string;
   criado_em?: string;
+  status?: string;
+  support_sub_status?: string;
 };
 
 function whatsappUrl(phone?: string) {
@@ -17,7 +19,7 @@ function whatsappUrl(phone?: string) {
   return `https://wa.me/${withCountry}`;
 }
 
-function minutesUntilNext(items: SupportQueueItem[]) {
+function minutesWaiting(items: SupportQueueItem[]) {
   if (!items.length) return '—';
   const oldest = items
     .map((item) => (item.criado_em ? new Date(item.criado_em).getTime() : Date.now()))
@@ -27,13 +29,72 @@ function minutesUntilNext(items: SupportQueueItem[]) {
   return `${String(minutes).padStart(2, '0')} min`;
 }
 
-interface MedicalSupportBandProps {
-  patients: SupportQueueItem[];
+function getApiBase() {
+  return (
+    (typeof window !== 'undefined' && (window as any).__NEXT_PUBLIC_API_URL__) ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    'http://localhost:3004'
+  );
 }
 
-export function MedicalSupportBand({ patients }: MedicalSupportBandProps) {
-  const visible = patients.slice(0, 6);
-  const extra = Math.max(0, patients.length - 6);
+function authHeaders(): Record<string, string> {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('mdoctor_auth_token') : null;
+  return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+}
+
+function subStatusLabel(sub?: string): string {
+  switch (sub) {
+    case 'em_atendimento': return 'Em atendimento';
+    case 'awaiting_patient_decision': return 'Aguardando decisão';
+    default: return 'Aguardando';
+  }
+}
+
+interface MedicalSupportBandProps {
+  patients: SupportQueueItem[];
+  onQueueRefresh?: () => void;
+}
+
+export function MedicalSupportBand({ patients, onQueueRefresh }: MedicalSupportBandProps) {
+  const visible = patients.slice(0, 10);
+  const extra = Math.max(0, patients.length - 10);
+
+  async function handleAttend(patient: SupportQueueItem) {
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/support/start`, {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Erro ao iniciar atendimento');
+        return;
+      }
+    } catch {
+      // best-effort
+    }
+    onQueueRefresh?.();
+    const url = whatsappUrl(patient.paciente_telefone);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  async function handleFinalize(patient: SupportQueueItem) {
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/support/finalize`, {
+        method: 'POST',
+        headers: authHeaders()
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Erro ao finalizar atendimento');
+        return;
+      }
+    } catch {
+      // best-effort
+    }
+    onQueueRefresh?.();
+  }
 
   return (
     <section className="panel-support-band flex shrink-0 items-center border border-[#D9E6FF] bg-[#EEF4FF]">
@@ -59,8 +120,8 @@ export function MedicalSupportBand({ patients }: MedicalSupportBandProps) {
           </p>
           <p className="dp-text-muted flex items-center gap-1.5 text-[11px]">
             <Clock className="h-3.5 w-3.5 shrink-0 text-[#1A3F8F]" aria-hidden="true" />
-            Próximo atendimento em{' '}
-            <span className="text-[15px] font-bold text-[#1A3F8F]">{minutesUntilNext(patients)}</span>
+            Esperando há{' '}
+            <span className="text-[15px] font-bold text-[#1A3F8F]">{minutesWaiting(patients)}</span>
           </p>
         </div>
 
@@ -70,32 +131,43 @@ export function MedicalSupportBand({ patients }: MedicalSupportBandProps) {
               <span className="dp-text-subtle text-[11px] font-medium">Nenhum paciente na fila de suporte</span>
             ) : (
               visible.map((patient, index) => {
-                const url = whatsappUrl(patient.paciente_telefone);
-                const chip = (
+                const sub = patient.support_sub_status;
+                const isActive = sub === 'em_atendimento';
+                const isDecision = sub === 'awaiting_patient_decision';
+
+                return (
                   <span
-                    className={`inline-flex h-7 min-w-7 cursor-pointer items-center justify-center rounded-[8px] border px-1.5 text-[12px] font-bold transition-all duration-200 ${
-                      index === 0
-                        ? 'border-[#1557FF] bg-[#1557FF] text-white shadow-[0_2px_8px_rgba(21,87,255,0.18)]'
-                        : 'border-[#C5D8F5] bg-white text-[#1A3F8F] hover:border-[#1557FF] hover:shadow-[0_2px_8px_rgba(21,87,255,0.1)]'
-                    }`}
-                  >
-                    {index + 1}
-                  </span>
-                );
-                return url ? (
-                  <a
                     key={patient.id}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={patient.paciente_nome}
-                    aria-label={`Abrir WhatsApp de ${patient.paciente_nome}`}
+                    className="inline-flex items-center gap-0.5 rounded-[8px] border border-[#C5D8F5] bg-white px-1 py-0.5"
+                    title={`${patient.paciente_nome} — ${subStatusLabel(sub)}`}
                   >
-                    {chip}
-                  </a>
-                ) : (
-                  <span key={patient.id} title={patient.paciente_nome}>
-                    {chip}
+                    <button
+                      type="button"
+                      onClick={() => handleAttend(patient)}
+                      className={`inline-flex h-7 min-w-7 cursor-pointer items-center justify-center rounded-[6px] px-1.5 text-[12px] font-bold transition-all duration-200 ${
+                        isDecision
+                          ? 'bg-amber-100 text-amber-700'
+                          : isActive
+                            ? 'bg-green-100 text-green-700'
+                            : index === 0
+                              ? 'bg-[#1557FF] text-white shadow-[0_2px_8px_rgba(21,87,255,0.18)]'
+                              : 'bg-[#EEF4FF] text-[#1A3F8F] hover:bg-[#1557FF] hover:text-white'
+                      }`}
+                      aria-label={`Atender ${patient.paciente_nome} via WhatsApp`}
+                    >
+                      {index + 1}
+                    </button>
+                    {(isActive || isDecision) && (
+                      <button
+                        type="button"
+                        onClick={() => handleFinalize(patient)}
+                        className="inline-flex h-5 cursor-pointer items-center justify-center rounded-[4px] bg-red-50 px-1 text-[9px] font-bold text-red-600 hover:bg-red-100"
+                        aria-label={`Finalizar atendimento de ${patient.paciente_nome}`}
+                        title="Finalizar atendimento"
+                      >
+                        ✓
+                      </button>
+                    )}
                   </span>
                 );
               })
@@ -109,7 +181,7 @@ export function MedicalSupportBand({ patients }: MedicalSupportBandProps) {
               </span>
             ) : null}
           </div>
-          <p className="dp-text-subtle mt-1 text-[10px]">Clique no número para abrir a conversa no WhatsApp</p>
+          <p className="dp-text-subtle mt-1 text-[10px]">Clique no número para abrir WhatsApp · ✓ para finalizar</p>
         </div>
       </div>
     </section>

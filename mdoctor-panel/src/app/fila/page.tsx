@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
+import { PatientSearchModal } from '@/components/medical-record/PatientSearchModal';
+import { ContingencyPrescriptionModal, type ContingencyFormData } from '@/components/medical-record/ContingencyPrescriptionModal';
 import { MemedEmissionOverlay } from '@/components/memed/MemedEmissionOverlay';
 import { AlertTriangle, CheckCircle2, Clock3, Mail, UserRound } from 'lucide-react';
 
@@ -176,6 +178,37 @@ function channelLabel(channel: DeliveryChannel) {
   return 'SMS';
 }
 
+function hasMemedPrescription(item: Atendimento) {
+  const r = item.dados_clinicos?.memed_receita;
+  return Boolean(r?.pdfUrl || r?.receitaUrl);
+}
+
+function cpfMask(v = '') {
+  const d = v.replace(/\D/g, '');
+  if (d.length !== 11) return v;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function buildContingencyText(item: Atendimento, data: ContingencyFormData): string {
+  const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return [
+    '*Receita Médica — Doctor Prescreve*',
+    `Data: ${date}`,
+    '',
+    `Paciente: ${item.paciente_nome}`,
+    item.paciente_cpf ? `CPF: ${cpfMask(item.paciente_cpf)}` : '',
+    item.condicao ? `Condição: ${item.condicao}` : '',
+    '',
+    '*Medicações:*',
+    data.medications,
+    '',
+    '*Orientações:*',
+    data.orientations || '—',
+    '',
+    '— Doctor Prescreve'
+  ].filter(Boolean).join('\n');
+}
+
 function columnCountClass() {
   return 'dp-col-count dp-col-count-alert';
 }
@@ -191,6 +224,8 @@ export default function FilaPage() {
   const searchParams = useSearchParams();
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
   const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [contingencyItem, setContingencyItem] = useState<Atendimento | null>(null);
   // Once true, overlay stays mounted so div#prescricao-memed is never destroyed between patients.
   // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
   const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
@@ -307,6 +342,8 @@ export default function FilaPage() {
           paciente_nome: item.paciente_nome,
           paciente_telefone: item.paciente_telefone,
           criado_em: item.criado_em,
+          status: item.status,
+          support_sub_status: (item as any).dados_clinicos?.support_sub_status,
         })),
       );
     } catch {
@@ -403,15 +440,17 @@ export default function FilaPage() {
     }
   }
 
-  async function deliverPrescription(item: Atendimento, channel: DeliveryChannel) {
+  async function deliverPrescription(item: Atendimento, channel: DeliveryChannel, contingencyText?: string) {
     setActionLoading(`${item.id}-${channel}`);
     setError(null);
     setToast(null);
     try {
+      const body: Record<string, unknown> = { channel };
+      if (contingencyText !== undefined) { body.contingency = true; body.contingency_text = contingencyText; }
       const res = await fetch(`${getApiBase()}/api/atendimentos/${item.id}/deliver`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({ channel })
+        body: JSON.stringify(body)
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao entregar receita');
@@ -569,17 +608,28 @@ export default function FilaPage() {
             {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void deliverPrescription(item, 'whatsapp');
-          }}
-          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-          className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
-        >
-          <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
-          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
-        </button>
+        {!hasMemedPrescription(item) && channelTarget(item, 'whatsapp') && (
+          <button
+            type="button"
+            onClick={() => setContingencyItem(item)}
+            disabled={whatsappLoading}
+            className="dp-btn dp-btn-ready-wa"
+            style={{ background: '#92400e', color: '#fff' }}
+          >
+            ⚡ Gerar receita de contingência
+          </button>
+        )}
+        {hasMemedPrescription(item) && (
+          <button
+            type="button"
+            onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
+            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+            className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
+          >
+            <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
+            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
+          </button>
+        )}
       </div>
     );
   }
@@ -634,14 +684,11 @@ export default function FilaPage() {
       <MedicalPanelHeader
         operational
         onLogout={handleLogout}
-        onOpenMedicalRecord={() => {
-          const first = medicalAtendimentos[0];
-          if (first) openProntuarioModal(first.id);
-        }}
+        onOpenMedicalRecord={() => setPatientSearchOpen(true)}
       />
 
       <div className="panel-page-body">
-        <MedicalSupportBand patients={supportPatients} />
+        <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
 
         <div className="sr-only" aria-hidden>
           <button type="button" onClick={() => { fetchAtendimentos(); fetchSupportQueue(); }}>
@@ -833,6 +880,27 @@ export default function FilaPage() {
           direitos reservados.
         </span>
       </footer>
+
+      <PatientSearchModal
+        open={patientSearchOpen}
+        onClose={() => setPatientSearchOpen(false)}
+        onSelectAtendimento={(id) => { setPatientSearchOpen(false); openProntuarioModal(id); }}
+      />
+
+      <ContingencyPrescriptionModal
+        open={contingencyItem !== null}
+        patientName={contingencyItem?.paciente_nome ?? ''}
+        patientCpf={contingencyItem?.paciente_cpf}
+        condition={contingencyItem?.condicao}
+        loading={contingencyItem ? actionLoading === `${contingencyItem.id}-whatsapp` : false}
+        onConfirm={(data) => {
+          if (!contingencyItem) return;
+          const text = buildContingencyText(contingencyItem, data);
+          void deliverPrescription(contingencyItem, 'whatsapp', text);
+          setContingencyItem(null);
+        }}
+        onClose={() => setContingencyItem(null)}
+      />
 
       <ProntuarioOperacionalModal
         atendimentoId={prontuarioId}
