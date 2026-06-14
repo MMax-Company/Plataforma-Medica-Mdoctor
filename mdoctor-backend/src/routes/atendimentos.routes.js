@@ -549,17 +549,19 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
   const previous = await getAtendimento(req.params.id);
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
 
-  const deliverGuard = assertCanDeliverPrescription(previous);
-  if (!deliverGuard.ok) {
-    return res.status(deliverGuard.statusCode || 422).json({
-      success: false,
-      error: deliverGuard.error,
-      code: 'DELIVERY_NOT_ALLOWED',
-      correlationId
-    });
-  }
-
   const isContingency = Boolean(contingency) && channel === 'whatsapp';
+
+  if (!isContingency) {
+    const deliverGuard = assertCanDeliverPrescription(previous);
+    if (!deliverGuard.ok) {
+      return res.status(deliverGuard.statusCode || 422).json({
+        success: false,
+        error: deliverGuard.error,
+        code: 'DELIVERY_NOT_ALLOWED',
+        correlationId
+      });
+    }
+  }
   const receipt = previous.dados_clinicos?.memed_receita || {};
   const receiptUrl =
     receipt.pdfUrl ||
