@@ -37,8 +37,18 @@ function allowsDefaultMedicalPassword() {
   return process.env.ALLOW_DEFAULT_MEDICO_PASS === 'true';
 }
 
+function hasEvolutionProvider() {
+  return (
+    hasValue('EVOLUTION_API_URL') &&
+    hasValue('EVOLUTION_API_KEY') &&
+    hasValue('EVOLUTION_INSTANCE') &&
+    process.env.WHATSAPP_ENABLED === 'true' &&
+    process.env.WHATSAPP_PROVIDER === 'evolution'
+  );
+}
+
 function hasDeliveryProvider() {
-  return hasTwilioFor('whatsapp') || hasTwilioFor('sms') || hasEmailProvider();
+  return hasTwilioFor('whatsapp') || hasTwilioFor('sms') || hasEmailProvider() || hasEvolutionProvider();
 }
 
 function allowsProductionDeliveryMock() {
