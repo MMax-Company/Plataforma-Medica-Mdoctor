@@ -360,8 +360,11 @@ async function sendTextMessage({ to, text, correlationId, idempotencyKey }) {
     throw error;
   }
 
+  const rawDigits = String(to || '').replace(/\D/g, '');
+  const normalizedNumber = rawDigits.startsWith('55') ? rawDigits : `55${rawDigits}`;
+
   const body = {
-    number: String(to || '').replace(/\D/g, ''),
+    number: normalizedNumber,
     text: String(text || ''),
     options: {
       delay: 1200,
