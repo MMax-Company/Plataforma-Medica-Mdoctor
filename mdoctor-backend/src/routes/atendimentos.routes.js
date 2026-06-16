@@ -2,7 +2,7 @@ const { randomUUID } = require('crypto');
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
 const { sendPrescription, isDryRunMode } = require('../delivery/delivery.service');
-const { requireAuth } = require('../auth/auth.middleware');
+const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const { createAuditLog } = require('../store/audit.store');
 const {
@@ -344,7 +344,7 @@ router.get('/:id/decisoes', requireAuth, async (req, res) => {
   return res.json({ success: true, decisoes });
 });
 
-router.patch('/:id/clinical', requireAuth, async (req, res) => {
+router.patch('/:id/clinical', requireRole('admin', 'doctor'), async (req, res) => {
   const authenticatedDoctorId = req.user?.sub || null;
   const previous = await getAtendimento(req.params.id);
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
@@ -400,7 +400,7 @@ router.patch('/:id/clinical', requireAuth, async (req, res) => {
   return res.json({ success: true, atendimento, decisao });
 });
 
-router.post('/:id/clinical/approve', requireAuth, async (req, res) => {
+router.post('/:id/clinical/approve', requireRole('admin', 'doctor'), async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `approve-${Date.now()}`;
   const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
   const result = await approveAtendimento(req.params.id, req.body || {}, { doctorId, correlationId });
@@ -418,7 +418,7 @@ router.post('/:id/clinical/approve', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/:id/clinical/reject', requireAuth, async (req, res) => {
+router.post('/:id/clinical/reject', requireRole('admin', 'doctor'), async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `reject-${Date.now()}`;
   const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
   const result = await rejectAtendimento(req.params.id, req.body || {}, { doctorId, correlationId });
@@ -438,7 +438,7 @@ router.post('/:id/clinical/reject', requireAuth, async (req, res) => {
   });
 });
 
-router.post('/:id/clinical/validate', requireAuth, async (req, res) => {
+router.post('/:id/clinical/validate', requireRole('admin', 'doctor'), async (req, res) => {
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || `validate-${Date.now()}`;
   const doctorId = req.user?.sub || req.body?.medicoId || req.body?.doctorId || null;
   const previous = await getAtendimento(req.params.id);

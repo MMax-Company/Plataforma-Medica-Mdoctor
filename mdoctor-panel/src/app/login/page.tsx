@@ -13,6 +13,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { clearSession, login, validateSession } from '@/services/auth.service';
+import { defaultRedirectForRole } from '@/hooks/useRequireRole';
 
 const LOGO_SRC = '/doctor-prescreve-logo-transparent.png';
 
@@ -54,7 +55,7 @@ export default function LoginPage() {
   useEffect(() => {
     let cancelled = false;
     validateSession().then((user) => {
-      if (!cancelled && user) router.replace('/fila');
+      if (!cancelled && user) router.replace(defaultRedirectForRole(user.role));
     });
     return () => {
       cancelled = true;
@@ -74,13 +75,13 @@ export default function LoginPage() {
 
     try {
       clearSession();
-      await login(identifier.trim(), password);
+      const session = await login(identifier.trim(), password);
       if (remember) {
         window.localStorage.setItem('mdoctor_login_remember', identifier.trim());
       } else {
         window.localStorage.removeItem('mdoctor_login_remember');
       }
-      router.replace('/fila');
+      router.replace(defaultRedirectForRole(session.user.role));
     } catch (loginError) {
       if (loginError instanceof Error) {
         setError(loginError.message);

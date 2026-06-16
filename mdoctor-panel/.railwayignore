@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+.cache/
+.npm/
+.eslintcache
+.DS_Store
+Thumbs.db
+.idea/
+*.log
+logs/
