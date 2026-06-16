@@ -1,8 +1,6 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { logout, requireSession } from '@/services/auth.service';
 import {
@@ -96,7 +94,7 @@ function maskPhone(p?: string) {
   return p;
 }
 
-export default function AdminPacientesPage() {
+function PacientesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialFilter = searchParams.get('filter') || 'all';
@@ -280,5 +278,19 @@ export default function AdminPacientesPage() {
         )}
       </div>
     </AppShell>
+  );
+}
+
+const loadingFallback = (
+  <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-sm text-[#5B6475]">
+    Carregando pacientes...
+  </main>
+);
+
+export default function AdminPacientesPage() {
+  return (
+    <Suspense fallback={loadingFallback}>
+      <PacientesContent />
+    </Suspense>
   );
 }
