@@ -91,8 +91,12 @@ export async function saveMemedReceipt(data: MemedReceiptPayload) {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(data)
   });
-  if (response.status === 409) {
-    try { return await response.json(); } catch { return undefined; }
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+    // alreadyExists = resposta idempotente do backend — não é erro fatal
+    if (body?.alreadyExists) return body;
+    if (response.status === 409) return body || undefined;
+    throw new Error(String(body?.details ?? body?.error ?? `HTTP ${response.status}`));
   }
   return readJson(response);
 }

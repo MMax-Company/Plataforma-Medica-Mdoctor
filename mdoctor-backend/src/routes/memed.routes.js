@@ -271,6 +271,11 @@ router.post('/receita', requireAuth, async (req, res) => {
     });
   }
 
+  // Idempotência: mesmo memedId + mesmo atendimentoId → sucesso sem re-persistir
+  if (priorReceipt.receitaId && memedId && String(priorReceipt.receitaId) === String(memedId)) {
+    return res.status(200).json({ success: true, alreadyExists: true, correlationId });
+  }
+
   if (priorReceipt.receitaId && priorReceipt.validated_at) {
     return res.status(409).json({
       success: false,

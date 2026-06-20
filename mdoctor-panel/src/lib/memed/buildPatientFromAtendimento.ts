@@ -55,7 +55,7 @@ function normalizeBirthDate(value?: string): string | undefined {
 }
 
 /** Mapeia atendimento Doctor Prescreve → paciente Memed (setPaciente). */
-export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed): MemedPatient {
+export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed, emissionTimestamp?: number): MemedPatient {
   const clinical = atendimento.dados_clinicos || {};
   const triagemPaciente = clinical.triagem_nested?.paciente || {};
 
@@ -84,7 +84,7 @@ export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed): M
   else if (rawSexo === 'F' || rawSexo === 'FEMININO') sexo = 'F';
 
   return {
-    idExterno: atendimento.id,
+    idExterno: emissionTimestamp != null ? `${atendimento.id}_memed_${emissionTimestamp}` : atendimento.id,
     nome,
     ...(telefone ? { telefone } : {}),
     ...(email ? { email } : {}),

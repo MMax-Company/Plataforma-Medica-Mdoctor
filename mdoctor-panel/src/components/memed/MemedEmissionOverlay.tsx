@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { MemedPrescriptionWorkspace } from '@/components/memed/MemedPrescriptionWorkspace';
 import { useMedicalWorkflow } from '@/hooks/useMedicalWorkflow';
@@ -21,6 +21,8 @@ import {
   unregisterMemedDiagnosticReporter,
 } from '@/lib/memed';
 import { postMemedDiagnosticReport } from '@/services/diagnostics.service';
+import { getApiBase } from '@/config/api';
+import { authHeaders } from '@/services/auth.service';
 
 type Props = {
   atendimentoId: string;
@@ -53,6 +55,8 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   // Tracks which atendimentoId was successfully bootstrapped.
   // Using an ID (not boolean) prevents auto-open for P2 before its own bootstrap completes.
   const [bootstrappedFor, setBootstrappedFor] = useState<string | null>(null);
+  const receiptSavedRef = useRef(false);
+  const emissionStartedRef = useRef(false);
 
   // Bloqueia o diálogo de impressão do navegador enquanto o overlay está aberto.
   // O botão "Imprimir" da Memed dispara prescricaoImpressa (já capturado) — não queremos
@@ -89,6 +93,17 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   );
   const patientBlocked = missingPatientFields.length > 0;
 
+  const markPending = useCallback(async () => {
+    if (receiptSavedRef.current || !emissionStartedRef.current) return;
+    try {
+      await fetch(`${getApiBase()}/api/atendimentos/${atendimentoId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({ status: 'memed_processing', notes: 'Emissão Memed não concluída' }),
+      });
+    } catch { /* best-effort — não bloquear fechamento */ }
+  }, [atendimentoId]);
+
   const handlePrescriptionPrinted = useCallback(
     async (payload: unknown) => {
       if (!atendimentoId) return;
@@ -111,14 +126,16 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         });
         void validatePrescription(atendimentoId).catch(() => undefined);
         setReceiptSaved(true);
+        receiptSavedRef.current = true;
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
+      await markPending();
       // Fecha overlay APÓS o save — fetchAtendimentos() roda com status correto no banco,
       // evitando sumir com todos os pacientes da fila prematuramente.
       onComplete();
     },
-    [atendimentoId, onComplete],
+    [atendimentoId, markPending, onComplete],
   );
 
   const refreshDoctorToken = useCallback(async (options?: { force?: boolean }) => {
@@ -147,6 +164,8 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
     if (!atendimentoId) return;
     setClosing(false);
     setReceiptSaved(false);
+    receiptSavedRef.current = false;
+    emissionStartedRef.current = false;
     setSaveError(null);
     setMemedError(null);
   }, [atendimentoId]);
@@ -167,12 +186,23 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         }
 
         const currentStatus = String(workflow.atendimento?.status || '').toLowerCase();
+        const allowedEmissionStatuses = ['approved', 'receita_em_edicao', 'memed_processing'];
+        if (!allowedEmissionStatuses.includes(currentStatus)) {
+          setMemedError('Emissão bloqueada — aprove o prontuário antes de emitir receita.');
+          return;
+        }
         if (['approved', 'receita_em_edicao'].includes(currentStatus)) {
-          await startMemedEmission(atendimentoId);
+          const emissionResult = await startMemedEmission(atendimentoId) as { success?: boolean } | undefined;
+          // 409 retorna { success: false } — status não mudou, não marcamos emissão como iniciada
+          if (emissionResult?.success !== false) {
+            emissionStartedRef.current = true;
+          }
           await workflow.refresh();
         }
 
-        setReceiptSaved(hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos));
+        const hasReceipt = hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos);
+        setReceiptSaved(hasReceipt);
+        if (hasReceipt) receiptSavedRef.current = true;
         setBootstrappedFor(atendimentoId);
       } catch (e: unknown) {
         setMemedError(e instanceof Error ? e.message : 'Erro ao iniciar prescrição digital');
@@ -209,7 +239,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { void markPending().then(onClose); }}
             className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#5B6475] transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
             aria-label="Fechar prescrição"
           >

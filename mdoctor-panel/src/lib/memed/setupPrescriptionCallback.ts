@@ -3,13 +3,17 @@ import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnosti
 import { forceHideMemedContainer, recordMemedPrescriptionEmission, scheduleHardReset } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
-// Guard de idempotência: garante que prescricaoImpressa seja processado uma única vez
-// por ciclo de paciente. Reset via resetEmissionGuard() no início de cada prepareAndShowPrescription.
+// Guards de idempotência: listeners acumulam no MdHub entre emissões sucessivas.
+// Estes flags garantem que prescricaoImpressa e prescricaoExcluida sejam processados
+// uma única vez por ciclo de paciente, mesmo com múltiplos handlers registrados.
+// Reset via resetEmissionGuard() no início de cada prepareAndShowPrescription.
 let emissionHandledThisCycle = false;
+let deletionHandledThisCycle = false;
 
-/** Reseta o guard para o próximo paciente — chamado no início de prepareAndShowPrescription. */
+/** Reseta os guards para o próximo paciente — chamado no início de prepareAndShowPrescription. */
 export function resetEmissionGuard(): void {
   emissionHandledThisCycle = false;
+  deletionHandledThisCycle = false;
 }
 
 /** Eventos prescricaoImpressa / prescricaoExcluida — emissão real no widget. */
@@ -62,11 +66,17 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
   });
   if (options.onPrescriptionDeleted) {
-    window.MdHub.event.add('prescricaoExcluida', options.onPrescriptionDeleted);
+    const deletedHandler = (payload: unknown) => {
+      if (deletionHandledThisCycle) return;
+      deletionHandledThisCycle = true;
+      options.onPrescriptionDeleted!(payload);
+    };
+    window.MdHub.event.add('prescricaoExcluida', deletedHandler);
   }
 }
 
-/** Reseta o guard de idempotência — chamar antes de setupPrescriptionCallback() para cada novo paciente. */
+/** Reseta os guards de idempotência — chamar antes de setupPrescriptionCallback() para cada novo paciente. */
 export function resetPrescriptionCallbacksFlag(): void {
   emissionHandledThisCycle = false;
+  deletionHandledThisCycle = false;
 }

@@ -148,11 +148,13 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     try {
       setStatusMessage('Aplicando dados clínicos e abrindo prescrição…');
       console.log('[Memed] openPrescription chamado para:', atendimento?.paciente_nome);
+      const emissionTs = Date.now();
+      const emissionPatient = buildPatientFromAtendimento(atendimento, emissionTs);
       const result = await withTimeout(
         (async () => {
           if ('MdHub' in window) {
             console.log('[Memed] MdHub existe, reutilizando');
-            const r = await prepareAndShowPrescription(atendimento, patient);
+            const r = await prepareAndShowPrescription(atendimento, emissionPatient);
             console.log('[Memed] prepareAndShowPrescription concluído');
             return r;
           }
@@ -160,7 +162,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
           const moduleAlreadyReady = isMemedRuntimeReady();
           const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
           await ensureMemedScript(freshToken, scriptConfig);
-          const r = await prepareAndShowPrescription(atendimento, patient);
+          const r = await prepareAndShowPrescription(atendimento, emissionPatient);
           console.log('[Memed] prepareAndShowPrescription concluído');
           return r;
         })(),
@@ -185,12 +187,14 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
   }, [atendimento, patient, scriptConfig, refreshDoctorToken]);
 
   // Reset per-patient refs/state when the patient changes.
-  // Must run before the auto-open effect (React fires effects in declaration order).
+  // callbackRegistered is intentionally NOT reset here: MdHub has no event.remove,
+  // so callbacks are registered once per component mount. onPrintedRef/onDeletedRef
+  // always point to the current patient's handlers; resetEmissionGuard() in
+  // prepareAndShowPrescription resets per-emission guards before each new emission.
   useEffect(() => {
     if (!atendimento?.id) return;
     autoOpened.current = false;
     openingInFlight.current = false;
-    callbackRegistered.current = false;
     setPrescriptionOpenedOnce(false);
     setStatusMessage('Preparando prescrição digital…');
   }, [atendimento?.id]);

@@ -40,6 +40,7 @@ function ReceitaWorkflowContent() {
   const [receiptSaved, setReceiptSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [memedError, setMemedError] = useState<string | null>(null);
+  const [statusBlocked, setStatusBlocked] = useState(true);
 
   const missingPatientFields = useMemo(
     () => checkPatientReady(workflow.atendimento),
@@ -95,7 +96,7 @@ function ReceitaWorkflowContent() {
       await workflow.refresh();
     },
     // Bloquear auto-abertura se dados cadastrais insuficientes para emissão segura.
-    autoOpenWhenReady: autoEmit && !patientBlocked,
+    autoOpenWhenReady: autoEmit && !patientBlocked && !statusBlocked,
   });
 
   useEffect(() => {
@@ -114,6 +115,12 @@ function ReceitaWorkflowContent() {
         }
 
         const currentStatus = String(workflow.atendimento?.status || '').toLowerCase();
+        const allowedEmissionStatuses = ['approved', 'receita_em_edicao', 'memed_processing'];
+        if (!allowedEmissionStatuses.includes(currentStatus)) {
+          setMemedError('Acesso negado — status não autorizado para emissão. Retorne à fila.');
+          return;
+        }
+        setStatusBlocked(false);
         if (['approved', 'receita_em_edicao'].includes(currentStatus)) {
           await startMemedEmission(atendimentoId);
           await workflow.refresh();

@@ -86,15 +86,15 @@ const columns: Array<{
   },
   {
     key: 'ready',
-    statuses: ['VALIDATED', 'APROVADO'],
+    statuses: ['VALIDATED', 'APROVADO', 'RECEITA_EMITIDA'],
     title: 'RECEITAS PRONTAS',
     badgeClass: 'bg-emerald-50 text-[#0BA84F]',
     headerMark: 'bg-emerald-50 text-[#0BA84F]'
   },
   {
     key: 'review',
-    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'],
-    title: 'AGUARDANDO VALIDAÇÃO',
+    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION'],
+    title: 'PENDÊNCIAS / REEMISSÃO',
     badgeClass: 'bg-amber-100 text-amber-800',
     headerMark: 'bg-amber-50 text-amber-700'
   },
@@ -537,7 +537,7 @@ export default function FilaPage() {
               disabled={actionLoading === item.id}
               className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
             >
-              EMITIR RECEITA
+              {item.status === 'MEMED_PROCESSING' ? 'REEMITIR RECEITA' : 'EMITIR RECEITA'}
             </button>
           )}
           {canAccept && (
@@ -645,7 +645,7 @@ export default function FilaPage() {
     if (column === 'review') {
       const reviewLabel =
         item.status === 'RECEITA_EMITIDA' || item.status === 'AWAITING_VALIDATION' ? 'Aguardando validação' :
-        item.status === 'MEMED_PROCESSING' ? 'Emitindo receita' :
+        item.status === 'MEMED_PROCESSING' ? 'Pendência de emissão' :
         'Em atendimento';
       return (
         <span className="dp-status-badge dp-status-badge-warn">
@@ -656,7 +656,7 @@ export default function FilaPage() {
     if (column === 'ready') {
       return (
         <span className="dp-status-badge dp-status-badge-success">
-          Receita validada
+          {item.status === 'RECEITA_EMITIDA' ? 'Receita emitida' : 'Receita validada'}
         </span>
       );
     }

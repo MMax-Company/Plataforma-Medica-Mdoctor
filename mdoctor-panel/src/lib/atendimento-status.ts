@@ -18,15 +18,15 @@ export type PanelAtendimentoStatus =
   | 'RECUSADO'
   | 'RECEITA_EMITIDA';
 
-export function toPanelAtendimentoStatus(status?: string | null): PanelAtendimentoStatus {
+export function toPanelAtendimentoStatus(status?: string | null): PanelAtendimentoStatus | null {
   const s = String(status || 'waiting').trim().toLowerCase();
   if (['waiting', 'queue', 'fila', 'triaged', 'triagem', 'aguardando_pagamento'].includes(s)) return 'QUEUE';
   if (['em_atendimento', 'under_review', 'approved', 'pronto_para_decisao'].includes(s)) return 'EM_ATENDIMENTO';
-  if (['receita_em_edicao', 'memed_processing'].includes(s)) return 'MEMED_PROCESSING';
+  if (['memed_processing'].includes(s)) return 'MEMED_PROCESSING';
   if (['receita_emitida', 'awaiting_validation'].includes(s)) return 'RECEITA_EMITIDA';
   if (['ready', 'validated', 'aprovado'].includes(s)) return 'VALIDATED';
   if (['rejected', 'recusado', 'inelegivel', 'cancelado'].includes(s)) return 'REJECTED';
-  if (['delivered', 'finished', 'finalized'].includes(s)) return 'DELIVERED';
+  if (['receita_em_edicao', 'delivered', 'finished', 'finalized'].includes(s)) return null;
   const upper = String(status || '').toUpperCase() as PanelAtendimentoStatus;
   const known: PanelAtendimentoStatus[] = [
     'QUEUE',
@@ -35,10 +35,9 @@ export function toPanelAtendimentoStatus(status?: string | null): PanelAtendimen
     'RECEITA_EMITIDA',
     'VALIDATED',
     'REJECTED',
-    'DELIVERED',
   ];
   if (known.includes(upper)) return upper;
-  return 'QUEUE';
+  return null;
 }
 
 export function hasPersistedMemedReceipt(dados_clinicos?: {
