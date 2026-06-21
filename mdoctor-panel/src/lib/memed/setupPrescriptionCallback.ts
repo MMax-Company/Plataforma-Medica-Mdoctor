@@ -65,6 +65,12 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     });
     hidePrescription();
     forceHideMemedContainer();
+    // Destrói iframes ANTES de waitForModuleReinit: container fica vazio enquanto o SDK
+    // processa o ciclo core:moduleHide → reinit → core:moduleInit. Durante o reinit o SDK
+    // injeta iframes novos no container vazio. Quando waitForModuleReinit resolver, os iframes
+    // frescos já existem no DOM e setPaciente do próximo paciente os encontrará prontos.
+    destroyMemedContainerChildren();
+    console.log('[MEMED_CYCLE] stale_iframes_destroyed_pre_reinit');
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
     console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
@@ -73,10 +79,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       console.warn('[MEMED_PHASE1] module_ready_timeout — continuando mesmo sem confirmação de reinit');
     });
     console.log('[MEMED_PHASE1] module_ready_after_print');
-    // Destrói iframes residuais após core:moduleInit — SDK já reconstruiu estado interno,
-    // iframes antigos são órfãos. show() do próximo paciente criará iframes novos e limpos.
-    destroyMemedContainerChildren();
-    console.log('[MEMED_CYCLE] stale_iframes_cleared');
     console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     resetPrescriptionShownOnce();
     console.log('[MEMED_PHASE1] prescription_cycle_reset');
