@@ -1,7 +1,6 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
-  destroyMemedContainerChildren,
   forceHideMemedContainer,
   recordMemedPrescriptionEmission,
   resetPrescriptionShownOnce,
@@ -65,12 +64,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     });
     hidePrescription();
     forceHideMemedContainer();
-    // Destrói iframes ANTES de waitForModuleReinit: container fica vazio enquanto o SDK
-    // processa o ciclo core:moduleHide → reinit → core:moduleInit. Durante o reinit o SDK
-    // injeta iframes novos no container vazio. Quando waitForModuleReinit resolver, os iframes
-    // frescos já existem no DOM e setPaciente do próximo paciente os encontrará prontos.
-    destroyMemedContainerChildren();
-    console.log('[MEMED_CYCLE] stale_iframes_destroyed_pre_reinit');
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
     console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
@@ -79,6 +72,21 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       console.warn('[MEMED_PHASE1] module_ready_timeout — continuando mesmo sem confirmação de reinit');
     });
     console.log('[MEMED_PHASE1] module_ready_after_print');
+    // core:moduleInit confirmado — SDK pronto, iframes intactos.
+    // Chama newPrescription aqui para navegar o iframe para tela em branco ANTES de
+    // liberar o próximo paciente. Assim o Doctor nunca vê "Documento emitido e enviado"
+    // do paciente anterior; o iframe já está em branco quando setPaciente de P2 chega.
+    if (window.MdHub?.command?.send) {
+      try {
+        await Promise.race([
+          window.MdHub.command.send('plataforma.prescricao', 'newPrescription'),
+          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+        ]);
+        console.log('[MEMED_CYCLE] new_prescription_pre_cleared');
+      } catch {
+        console.warn('[MEMED_CYCLE] new_prescription_pre_clear_timeout — continuando');
+      }
+    }
     console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     resetPrescriptionShownOnce();
     console.log('[MEMED_PHASE1] prescription_cycle_reset');
