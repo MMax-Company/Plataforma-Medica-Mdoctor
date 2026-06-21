@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MemedConfig } from '@/services/memed.service';
 import {
   buildPatientFromAtendimento,
+  destroyMemedContainerChildren,
   ensureMemedScript,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
@@ -33,6 +34,8 @@ export type UseMemedSinapseResult = {
   /** true após openPrescription() concluir com sucesso pela primeira vez — oculta botão redundante */
   prescriptionOpenedOnce: boolean;
   openPrescription: () => Promise<void>;
+  /** Escape valve: limpa iframes residuais e reabre a prescrição para o paciente atual. */
+  resetAndReopen: () => Promise<void>;
   statusMessage: string;
 };
 
@@ -241,6 +244,17 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     void openPrescription();
   }, [autoOpenWhenReady, moduleReady, clinicalReady, atendimento, openPrescription]);
 
+  const resetAndReopen = useCallback(async () => {
+    console.log('[MEMED_CYCLE] manual_reset_requested');
+    if (cycleLockTimeoutRef.current !== null) {
+      clearTimeout(cycleLockTimeoutRef.current);
+      cycleLockTimeoutRef.current = null;
+    }
+    cycleInProgressRef.current = false;
+    destroyMemedContainerChildren();
+    await openPrescription();
+  }, [openPrescription]);
+
   const loadingModule = !moduleReady || !clinicalReady;
   const readyToOpen = moduleReady && clinicalReady;
 
@@ -250,6 +264,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     isOpening,
     prescriptionOpenedOnce,
     openPrescription,
+    resetAndReopen,
     statusMessage,
   };
 }

@@ -27,6 +27,8 @@ type MemedPrescriptionWorkspaceProps = {
   readonly saveError: string | null;
   readonly error: string | null;
   readonly onOpenPrescription: () => void | Promise<void>;
+  /** Escape valve: destrói iframes residuais e reabre para o paciente atual. */
+  readonly onResetMemed?: () => void;
   readonly minWidth?: number;
   readonly minHeight?: number;
 };
@@ -43,6 +45,7 @@ export function MemedPrescriptionWorkspace({
   saveError,
   error,
   onOpenPrescription,
+  onResetMemed,
   minWidth = 720,
   minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
@@ -123,6 +126,15 @@ export function MemedPrescriptionWorkspace({
             <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
             {' '}para concluir. O envio ao paciente é feito pelo Doctor Prescreve.
           </p>
+        )}
+        {prescriptionOpenedOnce && !receiptSaved && !isOpening && onResetMemed && (
+          <button
+            type="button"
+            onClick={onResetMemed}
+            className="mt-1 shrink-0 text-left text-[10px] text-[#8A95A5] hover:text-[#1557FF] hover:underline"
+          >
+            Tela travada? → Reiniciar módulo Memed
+          </button>
         )}
 
       </div>

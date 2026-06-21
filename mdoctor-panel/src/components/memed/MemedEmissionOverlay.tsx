@@ -144,7 +144,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
     return auth.token;
   }, []);
 
-  const { loadingModule, readyToOpen, isOpening, prescriptionOpenedOnce, openPrescription, statusMessage } = useMemedSinapse({
+  const { loadingModule, readyToOpen, isOpening, prescriptionOpenedOnce, openPrescription, resetAndReopen, statusMessage } = useMemedSinapse({
     config,
     doctorToken,
     atendimento: workflow.atendimento,
@@ -289,6 +289,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
               saveError={saveError}
               error={memedError}
               onOpenPrescription={openPrescription}
+              onResetMemed={() => void resetAndReopen()}
               minHeight={380}
             />
             </div>

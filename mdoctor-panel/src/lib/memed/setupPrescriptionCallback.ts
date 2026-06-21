@@ -1,6 +1,7 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
+  destroyMemedContainerChildren,
   forceHideMemedContainer,
   recordMemedPrescriptionEmission,
   resetPrescriptionShownOnce,
@@ -71,8 +72,12 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     await waitForModuleReinit(5000).catch(() => {
       console.warn('[MEMED_PHASE1] module_ready_timeout — continuando mesmo sem confirmação de reinit');
     });
-    console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     console.log('[MEMED_PHASE1] module_ready_after_print');
+    // Destrói iframes residuais após core:moduleInit — SDK já reconstruiu estado interno,
+    // iframes antigos são órfãos. show() do próximo paciente criará iframes novos e limpos.
+    destroyMemedContainerChildren();
+    console.log('[MEMED_CYCLE] stale_iframes_cleared');
+    console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     resetPrescriptionShownOnce();
     console.log('[MEMED_PHASE1] prescription_cycle_reset');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);

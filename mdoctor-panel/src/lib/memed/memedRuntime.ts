@@ -117,11 +117,36 @@ export function hardResetMemedContainer(): void {
   const el = document.getElementById(state.containerId);
   if (!el) return;
   // Remove apenas o CSS de force-hide — não toca nos filhos do container.
-  // O SDK Memed gerencia o próprio DOM; destruir iframes entre pacientes causa
-  // "Cannot read properties of null" quando o SDK tenta acessar elementos removidos.
+  // Usar destroyMemedContainerChildren() para limpar iframes após core:moduleInit.
   el.style.removeProperty('display');
   el.style.removeProperty('opacity');
   el.style.removeProperty('visibility');
+}
+
+/**
+ * Destroi todos os filhos (iframes) do container Memed após core:moduleInit.
+ * Deve ser chamado APENAS depois que core:moduleInit disparou, pois nesse ponto
+ * o SDK já reconstruiu seu estado interno e não mantém mais referências aos iframes
+ * anteriores. Limpar aqui força show() a criar iframes novos e em branco, eliminando
+ * a tela residual "Documento emitido e enviado" que persiste entre pacientes.
+ *
+ * Seguro porque:
+ * - core:moduleInit confirma que o SDK completou o ciclo hide→reinit
+ * - iframe.src = 'about:blank' aborta qualquer JS pendente antes da remoção
+ */
+export function destroyMemedContainerChildren(): void {
+  if (typeof document === 'undefined') return;
+  const el = document.getElementById(state.containerId);
+  if (!el) return;
+  const iframes = Array.from(el.querySelectorAll('iframe'));
+  for (const iframe of iframes) {
+    try { iframe.src = 'about:blank'; } catch { /* best-effort */ }
+  }
+  while (el.firstChild) el.removeChild(el.firstChild);
+  el.style.removeProperty('display');
+  el.style.removeProperty('opacity');
+  el.style.removeProperty('visibility');
+  console.log('[MEMED_CYCLE] container_children_destroyed', { iframesCleared: iframes.length });
 }
 
 /** Carrega script uma vez; atualiza token sem reinjetar. */
