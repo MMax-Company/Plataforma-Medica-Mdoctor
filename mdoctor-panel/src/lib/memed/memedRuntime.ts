@@ -66,14 +66,19 @@ export function bindModuleHideOnce(): void {
   if (!window.MdSinapsePrescricao?.event?.add) return;
 
   window.MdSinapsePrescricao.event.add('core:moduleHide', (modulo) => {
+    const hiddenModule = modulo?.moduleName ?? modulo?.name ?? '(unknown)';
+    const isPrescricao = hiddenModule === PRESCRIPTION_MODULE;
     pushDiagnosticEvent('core:moduleHide', {
-      moduleName: modulo?.moduleName,
-      isPrescricao: modulo?.moduleName === PRESCRIPTION_MODULE,
+      moduleName: hiddenModule,
+      isPrescricao,
       iframes: captureIframeState(),
     });
-    if (modulo?.moduleName === PRESCRIPTION_MODULE) {
+    if (isPrescricao) {
       state.moduleReady = false;
       markMemedModuleReady(false);
+      console.log('[MEMED_PHASE_FIX] module_hide_prescription_ready_false', { module: hiddenModule });
+    } else {
+      console.log('[MEMED_PHASE_FIX] module_hide_auxiliary_ignored', { module: hiddenModule });
     }
   });
   state.moduleHideBound = true;
@@ -197,6 +202,11 @@ export function markPrescriptionShownOnce(): void {
 /** true se o widget já foi exibido (e portanto ocultado) ao menos uma vez. */
 export function wasPrescriptionShownBefore(): boolean {
   return state.prescriptionShownOnce;
+}
+
+/** Reseta o flag de ciclo visual — chamado no pós-emissão antes de liberar o próximo paciente. */
+export function resetPrescriptionShownOnce(): void {
+  state.prescriptionShownOnce = false;
 }
 
 /**

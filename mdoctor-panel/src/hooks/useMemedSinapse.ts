@@ -69,6 +69,8 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
   const callbackRegistered = useRef(false);
   const autoOpened = useRef(false);
   const openingInFlight = useRef(false);
+  const cycleInProgressRef = useRef(false);
+  const cycleLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpening, setIsOpening] = useState(false);
   const tokenRef = useRef(doctorToken);
   tokenRef.current = doctorToken;
@@ -126,7 +128,15 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     if (!callbackRegistered.current) {
       resetPrescriptionCallbacksFlag();
       setupPrescriptionCallback({
-        onPrescriptionPrinted: (payload) => onPrintedRef.current(payload),
+        onPrescriptionPrinted: (payload) => {
+          if (cycleLockTimeoutRef.current !== null) {
+            clearTimeout(cycleLockTimeoutRef.current);
+            cycleLockTimeoutRef.current = null;
+          }
+          cycleInProgressRef.current = false;
+          console.log('[MEMED_PHASE3] cycle_lock_released');
+          onPrintedRef.current(payload);
+        },
         onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,
       });
       callbackRegistered.current = true;
@@ -141,8 +151,22 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
       setStatusMessage('Atendimento ou configuração de prescrição incompletos.');
       return;
     }
-    if (openingInFlight.current) return;
 
+    if (cycleInProgressRef.current) {
+      console.log('[MEMED_PHASE3] cycle_already_running');
+      return;
+    }
+
+    cycleInProgressRef.current = true;
+    console.log('[MEMED_PHASE3] cycle_lock_acquired');
+    if (cycleLockTimeoutRef.current !== null) clearTimeout(cycleLockTimeoutRef.current);
+    cycleLockTimeoutRef.current = setTimeout(() => {
+      console.warn('[MEMED_PHASE3] cycle_lock_timeout_release');
+      cycleInProgressRef.current = false;
+      cycleLockTimeoutRef.current = null;
+    }, 60_000);
+
+    if (openingInFlight.current) return;
     openingInFlight.current = true;
     setIsOpening(true);
     try {
@@ -179,10 +203,17 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
           : `Prescrição aberta com paciente vinculado. Revise medicamentos e assine digitalmente.${pendingNote}`,
       );
     } catch (error) {
+      if (cycleLockTimeoutRef.current !== null) {
+        clearTimeout(cycleLockTimeoutRef.current);
+        cycleLockTimeoutRef.current = null;
+      }
+      cycleInProgressRef.current = false;
       setStatusMessage(error instanceof Error ? error.message : 'Não foi possível abrir a prescrição');
     } finally {
       openingInFlight.current = false;
       setIsOpening(false);
+      // cycleInProgressRef is intentionally NOT reset here — released only by
+      // prescricaoImpressa (FASE 1) or the 60-second safety timeout above.
     }
   }, [atendimento, patient, scriptConfig, refreshDoctorToken]);
 
@@ -195,6 +226,11 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     if (!atendimento?.id) return;
     autoOpened.current = false;
     openingInFlight.current = false;
+    if (cycleLockTimeoutRef.current !== null) {
+      clearTimeout(cycleLockTimeoutRef.current);
+      cycleLockTimeoutRef.current = null;
+    }
+    cycleInProgressRef.current = false;
     setPrescriptionOpenedOnce(false);
     setStatusMessage('Preparando prescrição digital…');
   }, [atendimento?.id]);

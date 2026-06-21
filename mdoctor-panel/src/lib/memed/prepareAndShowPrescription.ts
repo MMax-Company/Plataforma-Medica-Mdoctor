@@ -14,6 +14,7 @@ import {
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
+  waitForMemedModuleReady,
   wasPrescriptionShownBefore,
 } from './memedRuntime';
 import { setMemedPatient } from './setMemedPatient';
@@ -87,8 +88,9 @@ export async function prepareAndShowPrescription(
           new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
         ]);
         console.log('[Memed DEBUG] newPrescription OK (P2+)');
-      } catch (e) {
-        console.warn('[Memed] newPrescription falhou ou timeout — continuando:', (e as Error).message);
+      } catch (err) {
+        console.warn('[MEMED_PHASE3] newPrescription timeout — aguardando recuperação do SDK', err);
+        await waitForMemedModuleReady();
       }
     }
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
@@ -124,9 +126,22 @@ export async function prepareAndShowPrescription(
 
   // 4. show() por último — após todos os comandos de pré-configuração.
   pushDiagnosticEvent('show:start', { iframes: captureIframeState() });
+  console.log('[MEMED_PHASE2] waiting_module_ready_before_show');
+  try {
+    await Promise.race([
+      waitForMemedModuleReady(),
+      new Promise<void>((_, reject) =>
+        setTimeout(() => reject(new Error('moduleReady timeout before show')), 10000),
+      ),
+    ]);
+    console.log('[MEMED_PHASE2] module_ready_before_show');
+  } catch (err) {
+    console.warn('[MEMED_PHASE2] module_ready_timeout_before_show', err);
+  }
   console.log('[Memed] antes do show()');
   showPrescription();
   console.log('[Memed] show() chamado');
+  console.log('[MEMED_PHASE2] show_allowed');
   pushDiagnosticEvent('show:done', { iframes: captureIframeState() });
 
   markPrescriptionShownOnce();

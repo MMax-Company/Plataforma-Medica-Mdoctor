@@ -1,6 +1,12 @@
 import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
-import { forceHideMemedContainer, recordMemedPrescriptionEmission, scheduleHardReset } from './memedRuntime';
+import {
+  forceHideMemedContainer,
+  recordMemedPrescriptionEmission,
+  resetPrescriptionShownOnce,
+  scheduleHardReset,
+  waitForModuleReinit,
+} from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
 // Guards de idempotência: listeners acumulam no MdHub entre emissões sucessivas.
@@ -61,9 +67,16 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     recordMemedPrescriptionEmission();
     scheduleHardReset(1500);
     console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
-    await new Promise<void>(resolve => setTimeout(resolve, 1000));
+    console.log('[MEMED_PHASE1] waiting_module_ready_after_print');
+    await waitForModuleReinit(5000).catch(() => {
+      console.warn('[MEMED_PHASE1] module_ready_timeout — continuando mesmo sem confirmação de reinit');
+    });
     console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
+    console.log('[MEMED_PHASE1] module_ready_after_print');
+    resetPrescriptionShownOnce();
+    console.log('[MEMED_PHASE1] prescription_cycle_reset');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
+    console.log('[MEMED_PHASE1] next_patient_released');
   });
   if (options.onPrescriptionDeleted) {
     const deletedHandler = (payload: unknown) => {
