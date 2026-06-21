@@ -229,6 +229,19 @@ export function wasPrescriptionShownBefore(): boolean {
   return state.prescriptionShownOnce;
 }
 
+/**
+ * Restaura state.moduleReady = true e resolve todos os waiters pendentes,
+ * usando o mesmo mecanismo interno de resolveModuleReady().
+ *
+ * Usar apenas quando há evidência externa de que o SDK está pronto
+ * (ex: newPrescription() respondeu com sucesso), pois core:moduleInit
+ * de plataforma.prescricao não redispara após hide — ocorre apenas
+ * na carga inicial do SDK.
+ */
+export function forceMarkModuleReady(): void {
+  resolveModuleReady();
+}
+
 /** Reseta o flag de ciclo visual — chamado no pós-emissão antes de liberar o próximo paciente. */
 export function resetPrescriptionShownOnce(): void {
   state.prescriptionShownOnce = false;

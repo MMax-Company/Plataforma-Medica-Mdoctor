@@ -2,6 +2,7 @@ import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
   forceHideMemedContainer,
+  forceMarkModuleReady,
   recordMemedPrescriptionEmission,
   resetPrescriptionShownOnce,
   scheduleHardReset,
@@ -83,6 +84,11 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
           new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
         ]);
         console.log('[MEMED_CYCLE] new_prescription_pre_cleared');
+        // core:moduleInit de plataforma.prescricao não redispara após hide (ocorre apenas
+        // na carga inicial do SDK). newPrescription com sucesso é a única confirmação
+        // de que o módulo está pronto — restaura moduleReady para desbloquear P2.
+        forceMarkModuleReady();
+        console.log('[MEMED_CYCLE] module_ready_force_restored');
       } catch {
         console.warn('[MEMED_CYCLE] new_prescription_pre_clear_timeout — continuando');
       }
