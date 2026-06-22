@@ -4,7 +4,6 @@ import {
   forceHideMemedContainer,
   forceMarkModuleReady,
   recordMemedPrescriptionEmission,
-  resetPrescriptionShownOnce,
   scheduleHardReset,
   waitForModuleReinit,
 } from './memedRuntime';
@@ -93,9 +92,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
         console.warn('[MEMED_CYCLE] new_prescription_pre_clear_timeout — continuando');
       }
     }
+    // prescriptionShownOnce mantido em true: P2 toma o caminho P2+ em prepareAndShowPrescription,
+    // que chama newPrescription internamente antes de show() — garante limpeza do iframe residual.
     console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
-    resetPrescriptionShownOnce();
-    console.log('[MEMED_PHASE1] prescription_cycle_reset');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
     console.log('[MEMED_PHASE1] next_patient_released');
   });
