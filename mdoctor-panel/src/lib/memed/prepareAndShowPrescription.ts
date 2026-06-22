@@ -11,6 +11,7 @@ import {
 } from './memedCommandDiagnostic';
 import {
   cancelPendingHardReset,
+  forceMarkModuleReady,
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
@@ -72,16 +73,22 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: MdHub já está carregado — não espera core:moduleInit (não redispara no segundo paciente).
-  // Remove o CSS de force-hide e prossegue diretamente para os comandos SDK.
+  // P2+: aguarda core:moduleInit ANTES de newPrescription.
+  // Após hide(), o SDK reinicializa assincronamente e só aceita newPrescription depois que
+  // core:moduleInit dispara. Chamar newPrescription antes disso causa timeout e deixa a
+  // sessão HTTP com gateway.memed.com.br inválida → ERR_CONNECTION_CLOSED em setPaciente.
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
     hardResetMemedContainer();
-    // Fix 3: reaplica feature toggle para cada paciente P2+
     clinicalUxApplied = false;
-    // Fix 2: limpa contexto da receita anterior antes de setPaciente
     const mdHubForNew = window.MdHub;
     if (mdHubForNew?.command?.send) {
+      // 1. Espera SDK reinicializar (core:moduleInit) antes de enviar qualquer comando.
+      await Promise.race([
+        waitForMemedModuleReady(),
+        new Promise<void>((r) => setTimeout(r, 8000)),
+      ]);
+      // 2. Abre nova sessão de prescrição — obrigatório para setPaciente ter sessão HTTP válida.
       try {
         await Promise.race([
           mdHubForNew.command.send('plataforma.prescricao', 'newPrescription'),
@@ -89,13 +96,8 @@ export async function prepareAndShowPrescription(
         ]);
         console.log('[Memed DEBUG] newPrescription OK (P2+)');
       } catch (err) {
-        console.warn('[MEMED_PHASE3] newPrescription timeout — aguardando recuperação do SDK', err);
-        // Safety: se core:moduleInit demorar mais de 8s ou não disparar, prossegue mesmo assim.
-        // setFeatureToggle tem timeout próprio (4s); setPaciente tem timeout em sendMemedCommandWithDiagnostic.
-        await Promise.race([
-          waitForMemedModuleReady(),
-          new Promise<void>((r) => setTimeout(r, 8000)),
-        ]);
+        console.warn('[MEMED_PHASE3] newPrescription falhou após aguardar core:moduleInit', err);
+        forceMarkModuleReady();
       }
     }
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
