@@ -1,23 +1,26 @@
 /**
  * DIAGNÓSTICO CONTROLADO — NÃO afeta o fluxo médico.
- * Só ativo quando localStorage.getItem('MEMED_DIAG') === '1'.
  *
- * Habilitar: localStorage.setItem('MEMED_DIAG', '1'); location.reload();
- * Desabilitar: localStorage.removeItem('MEMED_DIAG'); location.reload();
+ * O valor de MEMED_DIAG determina qual cenário roda AUTOMATICAMENTE após prescricaoImpressa:
+ *   '1' → S1: setPaciente direto, sem hide()
+ *   '2' → S2: hide() sem show() + setPaciente
+ *   '3' → S3: hide() → show() → aguarda core:moduleInit → setPaciente
  *
- * Após P1 emitir prescricaoImpressa, no console:
- *   window.__memedDiag.runScenario(1)   // S1: sem hide()
- *   window.__memedDiag.runScenario(2)   // S2: hide() sem show()
- *   window.__memedDiag.runScenario(3)   // S3: hide() → show() → observar core:moduleInit
+ * Configurar UMA VEZ antes do teste (ex. S3):
+ *   localStorage.setItem('MEMED_DIAG', '3'); location.reload();
  *
- *   // Com paciente real (idExterno do próximo paciente da fila):
- *   window.__memedDiag.runScenario(1, { nome: 'NOME', idExterno: 'uuid_memed_xxx' })
+ * Após isso, fazer P1 normalmente pela interface.
+ * Quando prescricaoImpressa disparar, o cenário roda sozinho — nenhum comando manual.
+ *
+ * Desligar após o teste:
+ *   localStorage.removeItem('MEMED_DIAG'); location.reload();
  */
 
 const PRESCRIPTION_MODULE = 'plataforma.prescricao';
 const SET_PACIENTE_TIMEOUT_MS = 30_000;
-const EVENT_TIMEOUT_MS = 10_000;
 const MODULE_HIDE_TIMEOUT_MS = 3_000;
+const MODULE_INIT_TIMEOUT_MS = 10_000;
+const AUTO_RUN_DELAY_MS = 2_000; // aguarda handlers médicos finalizarem após prescricaoImpressa
 
 type DiagPatient = { nome: string; idExterno: string };
 
@@ -48,8 +51,8 @@ function captureVisual(s: number | string): void {
 }
 
 /**
- * Aguarda core:moduleInit ou core:moduleHide especificamente para plataforma.prescricao.
- * Rejeita se o timeout expirar sem receber o evento do módulo correto.
+ * Aguarda core:moduleInit ou core:moduleHide para plataforma.prescricao especificamente.
+ * Rejeita se o timeout expirar antes do evento correto.
  */
 function waitForModuleEvent(eventName: string, timeoutMs: number): Promise<{ ms: number }> {
   return new Promise((resolve, reject) => {
@@ -114,7 +117,6 @@ async function runS2(patient: DiagPatient): Promise<void> {
   log(2, '══ INICIO ══ hide() sem show()');
 
   const hidePromise = waitForModuleEvent('core:moduleHide', MODULE_HIDE_TIMEOUT_MS);
-
   log(2, 'hide:chamado');
   window.MdHub?.module?.hide?.(PRESCRIPTION_MODULE);
 
@@ -135,9 +137,8 @@ async function runS2(patient: DiagPatient): Promise<void> {
 async function runS3(patient: DiagPatient): Promise<void> {
   log(3, '══ INICIO ══ hide() → show() → observar core:moduleInit');
 
-  // Registra listener para moduleHide antes de chamar hide()
+  // Listener para moduleHide registrado ANTES de hide()
   const hidePromise = waitForModuleEvent('core:moduleHide', MODULE_HIDE_TIMEOUT_MS);
-
   log(3, 'hide:chamado');
   window.MdHub?.module?.hide?.(PRESCRIPTION_MODULE);
 
@@ -150,9 +151,8 @@ async function runS3(patient: DiagPatient): Promise<void> {
 
   captureVisual(3);
 
-  // Registra listener para moduleInit ANTES de chamar show()
-  // (core:moduleInit dispara de forma assíncrona no iframe, mas o listener precisa estar pronto)
-  const initPromise = waitForModuleEvent('core:moduleInit', EVENT_TIMEOUT_MS);
+  // Listener para moduleInit registrado ANTES de show()
+  const initPromise = waitForModuleEvent('core:moduleInit', MODULE_INIT_TIMEOUT_MS);
 
   log(3, 'show:chamando');
   let showThrew = false;
@@ -168,11 +168,7 @@ async function runS3(patient: DiagPatient): Promise<void> {
   try {
     const r = await initPromise;
     if (showThrew) {
-      log(
-        3,
-        '🔑 PROVA: show() lançou MAS core:moduleInit disparou → try/catch É seguro',
-        r,
-      );
+      log(3, '🔑 PROVA: show() lançou MAS core:moduleInit disparou → try/catch É seguro', r);
     } else {
       log(3, 'core:moduleInit:recebido (show() não lançou)', r);
     }
@@ -190,32 +186,54 @@ async function runS3(patient: DiagPatient): Promise<void> {
   log(3, '══ FIM S3 ══');
 }
 
-// ─── Mount ───────────────────────────────────────────────────────────────────
+function runScenario(n: number, patient: DiagPatient): void {
+  if (!window.MdHub) {
+    console.warn('[DIAG] MdHub não disponível.');
+    return;
+  }
+  switch (n) {
+    case 1: void runS1(patient); break;
+    case 2: void runS2(patient); break;
+    case 3: void runS3(patient); break;
+    default: console.warn('[DIAG] Cenário inválido. Use 1, 2 ou 3.');
+  }
+}
+
 export function mountDiagnostic(): void {
   if (typeof window === 'undefined') return;
-  if (localStorage.getItem('MEMED_DIAG') !== '1') return;
 
-  (window as unknown as Record<string, unknown>).__memedDiag = {
-    runScenario: (n: number, patient?: DiagPatient) => {
-      if (!window.MdHub) {
-        console.warn('[DIAG] MdHub não disponível. Aguarde o SDK carregar e tente após P1 emitir.');
-        return;
-      }
-      const p = patient ?? DEFAULT_PATIENT;
-      switch (n) {
-        case 1: return runS1(p);
-        case 2: return runS2(p);
-        case 3: return runS3(p);
-        default: console.warn('[DIAG] Cenário inválido. Use 1, 2 ou 3.');
-      }
-    },
-  };
+  const scenarioStr = localStorage.getItem('MEMED_DIAG') ?? '';
+  const scenario = parseInt(scenarioStr, 10);
+  if (![1, 2, 3].includes(scenario)) return;
 
-  console.log('%c[DIAG] Diagnóstico Memed ativo', 'color:#1557FF;font-weight:bold;font-size:14px');
-  console.log('[DIAG] Após P1 emitir prescricaoImpressa, execute no console:');
-  console.log('[DIAG]   window.__memedDiag.runScenario(1)   // S1: sem hide');
-  console.log('[DIAG]   window.__memedDiag.runScenario(2)   // S2: hide sem show');
-  console.log('[DIAG]   window.__memedDiag.runScenario(3)   // S3: hide → show → core:moduleInit');
-  console.log('[DIAG] Opcional — paciente real para resultado mais preciso:');
-  console.log('[DIAG]   window.__memedDiag.runScenario(1, { nome: "NOME", idExterno: "uuid_memed_xxx" })');
+  console.log(
+    `%c[DIAG] Auto-diagnóstico S${scenario} ativo`,
+    'color:#1557FF;font-weight:bold;font-size:14px',
+  );
+  console.log(`[DIAG] Faça P1 normalmente. S${scenario} roda automaticamente após prescricaoImpressa.`);
+
+  let diagFired = false;
+
+  // Polling até MdHub estar disponível, depois registra listener para prescricaoImpressa
+  const interval = setInterval(() => {
+    if (!window.MdHub?.event?.add) return;
+    clearInterval(interval);
+
+    window.MdHub.event.add('prescricaoImpressa', () => {
+      if (diagFired) return; // apenas P1 — ignora emissões subsequentes
+      diagFired = true;
+      console.log(
+        `[DIAG] prescricaoImpressa detectado → S${scenario} inicia em ${AUTO_RUN_DELAY_MS}ms`,
+      );
+      setTimeout(() => runScenario(scenario, DEFAULT_PATIENT), AUTO_RUN_DELAY_MS);
+    });
+
+    console.log('[DIAG] Aguardando prescricaoImpressa de P1...');
+
+    // Expõe para uso manual opcional (fallback)
+    (window as unknown as Record<string, unknown>).__memedDiag = {
+      runScenario: (n: number, patient?: DiagPatient) =>
+        runScenario(n, patient ?? DEFAULT_PATIENT),
+    };
+  }, 500);
 }

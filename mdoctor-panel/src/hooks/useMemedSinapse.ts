@@ -259,7 +259,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
 
   // Diagnóstico controlado — só monta se MEMED_DIAG=1 no localStorage. Não afeta fluxo médico.
   useEffect(() => {
-    if (globalThis.localStorage?.getItem('MEMED_DIAG') === '1') {
+    if (globalThis.localStorage?.getItem('MEMED_DIAG')) {
       void import('@/lib/memed/memedDiagnosticTest').then((m) => m.mountDiagnostic());
     }
   }, []);
