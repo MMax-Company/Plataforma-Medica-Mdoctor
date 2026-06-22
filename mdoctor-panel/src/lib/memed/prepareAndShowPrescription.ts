@@ -83,11 +83,12 @@ export async function prepareAndShowPrescription(
     hardResetMemedContainer();
     clinicalUxApplied = false;
 
-    // 1. show() primeiro — módulo deve estar ativo para newPrescription funcionar (doc Memed).
-    showPrescription();
-    console.log('[Memed DEBUG] Passo 2 P2+: show() chamado antes de newPrescription');
+    // O módulo permanece shown desde P1 (hidePrescription() não é chamado em prescricaoImpressa).
+    // show() NÃO é chamado aqui: o SDK destrói referências DOM do platform.sms-modal após
+    // prescricaoImpressa e chamar show() novamente lança "Cannot read properties of null (reading 'style')".
 
-    // 2. newPrescription() com módulo ativo — dispara core:moduleInit, que habilita setPaciente.
+    // newPrescription() reseta o formulário para P2 — o botão pode estar null (SDK pós-prescrição),
+    // mas o reset do formulário ocorre mesmo quando o SDK lança; o catch absorve o erro.
     if (window.MdHub?.command?.send) {
       try {
         await Promise.race([
@@ -137,24 +138,29 @@ export async function prepareAndShowPrescription(
   pushDiagnosticEvent('addMeds:done', { added, iframes: captureIframeState() });
   console.log('[Memed DEBUG] Passo 9: setClinicalOrientations concluído');
 
-  // 4. show() por último — após todos os comandos de pré-configuração.
+  // 4. show() — apenas P1. P2+ o módulo já está shown desde a primeira prescrição;
+  // chamar show() novamente lança null (SDK destroi referências DOM após prescricaoImpressa).
   pushDiagnosticEvent('show:start', { iframes: captureIframeState() });
-  console.log('[MEMED_PHASE2] waiting_module_ready_before_show');
-  try {
-    await Promise.race([
-      waitForMemedModuleReady(),
-      new Promise<void>((_, reject) =>
-        setTimeout(() => reject(new Error('moduleReady timeout before show')), 10000),
-      ),
-    ]);
-    console.log('[MEMED_PHASE2] module_ready_before_show');
-  } catch (err) {
-    console.warn('[MEMED_PHASE2] module_ready_timeout_before_show', err);
+  if (!wasPrescriptionShownBefore()) {
+    console.log('[MEMED_PHASE2] waiting_module_ready_before_show');
+    try {
+      await Promise.race([
+        waitForMemedModuleReady(),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error('moduleReady timeout before show')), 10000),
+        ),
+      ]);
+      console.log('[MEMED_PHASE2] module_ready_before_show');
+    } catch (err) {
+      console.warn('[MEMED_PHASE2] module_ready_timeout_before_show', err);
+    }
+    console.log('[Memed] antes do show()');
+    showPrescription();
+    console.log('[Memed] show() chamado');
+    console.log('[MEMED_PHASE2] show_allowed');
+  } else {
+    console.log('[Memed DEBUG] show() ignorado P2+ — módulo já shown');
   }
-  console.log('[Memed] antes do show()');
-  showPrescription();
-  console.log('[Memed] show() chamado');
-  console.log('[MEMED_PHASE2] show_allowed');
   pushDiagnosticEvent('show:done', { iframes: captureIframeState() });
 
   markPrescriptionShownOnce();
