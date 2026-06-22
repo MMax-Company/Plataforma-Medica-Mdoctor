@@ -130,7 +130,7 @@ export function MemedPrescriptionWorkspace({
         <div style={{ display: prescriptionOpenedOnce ? undefined : 'none' }} className="flex min-h-0 flex-1">
           <div
             id={containerId}
-            className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            className="memed-embedded-host relative min-h-0 flex-1 overflow-y-auto rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
             style={{
               minWidth: `min(100%, ${minWidth}px)`,
               minHeight: `${minHeight}px`,

@@ -52,9 +52,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   const [memedError, setMemedError] = useState<string | null>(null);
   // Esconde o overlay inteiro imediatamente após prescricaoImpressa — sem esperar o save.
   const [closing, setClosing] = useState(false);
-  // Tracks which atendimentoId was successfully bootstrapped.
-  // Using an ID (not boolean) prevents auto-open for P2 before its own bootstrap completes.
-  const [bootstrappedFor, setBootstrappedFor] = useState<string | null>(null);
   const receiptSavedRef = useRef(false);
   const emissionStartedRef = useRef(false);
 
@@ -159,7 +156,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   });
 
   // Reset per-patient state when atendimento changes so P2 starts fresh.
-  // bootstrappedFor mismatch gates auto-open until the new bootstrap completes.
   useEffect(() => {
     if (!atendimentoId) return;
     setClosing(false);
@@ -203,7 +199,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         const hasReceipt = hasPersistedMemedReceipt(workflow.atendimento?.dados_clinicos);
         setReceiptSaved(hasReceipt);
         if (hasReceipt) receiptSavedRef.current = true;
-        setBootstrappedFor(atendimentoId);
       } catch (e: unknown) {
         setMemedError(e instanceof Error ? e.message : 'Erro ao iniciar prescrição digital');
       }
@@ -248,7 +243,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         </div>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F6F9FD] p-2 sm:p-3">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#F6F9FD] p-2 sm:p-3">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…
@@ -290,7 +285,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
               error={memedError}
               onOpenPrescription={openPrescription}
               onResetMemed={() => void resetAndReopen()}
-              minHeight={380}
+              minHeight={520}
             />
             </div>
           )}
