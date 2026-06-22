@@ -257,6 +257,13 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     setStatusMessage('Preparando prescrição digital…');
   }, [atendimento?.id]);
 
+  // Diagnóstico controlado — só monta se MEMED_DIAG=1 no localStorage. Não afeta fluxo médico.
+  useEffect(() => {
+    if (globalThis.localStorage?.getItem('MEMED_DIAG') === '1') {
+      void import('@/lib/memed/memedDiagnosticTest').then((m) => m.mountDiagnostic());
+    }
+  }, []);
+
   useEffect(() => {
     if (!autoOpenWhenReady || !moduleReady || !clinicalReady || !atendimento || autoOpened.current) return;
     autoOpened.current = true;
