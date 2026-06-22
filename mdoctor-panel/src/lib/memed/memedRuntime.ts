@@ -38,6 +38,7 @@ let newPrescriptionPreCleared = false;
 
 /** Marca que newPrescription foi chamado com sucesso pelo handler pós-emissão. */
 export function markNewPrescriptionPreCleared(): void {
+  console.log('[MEMED_FLAG] markNewPrescriptionPreCleared — flag = true (era:', newPrescriptionPreCleared, ')');
   newPrescriptionPreCleared = true;
 }
 
@@ -48,6 +49,7 @@ export function markNewPrescriptionPreCleared(): void {
 export function consumeNewPrescriptionPreCleared(): boolean {
   const v = newPrescriptionPreCleared;
   newPrescriptionPreCleared = false;
+  console.log('[MEMED_FLAG] consumeNewPrescriptionPreCleared — lido:', v, '— flag resetado para false');
   return v;
 }
 

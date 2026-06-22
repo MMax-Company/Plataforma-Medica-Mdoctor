@@ -85,6 +85,7 @@ export async function prepareAndShowPrescription(
     // Verifica se setupPrescriptionCallback já chamou newPrescription com sucesso
     // neste ciclo (pré-clear pós-emissão). Se sim, pular — duas chamadas consecutivas
     // ao gateway causam ERR_CONNECTION_CLOSED e falha em cadeia no setPaciente.
+    console.log('[MEMED_FLAG] prepareAndShowPrescription P2+ — prestes a consumir flag');
     const wasPreCleared = consumeNewPrescriptionPreCleared();
     if (wasPreCleared) {
       console.log('[Memed DEBUG] Passo 2: newPrescription skipped — pré-limpo pelo handler pós-emissão');
