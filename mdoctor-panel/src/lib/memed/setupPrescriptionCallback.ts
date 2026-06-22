@@ -3,6 +3,7 @@ import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnosti
 import {
   forceHideMemedContainer,
   forceMarkModuleReady,
+  markNewPrescriptionPreCleared,
   recordMemedPrescriptionEmission,
   waitForModuleReinit,
 } from './memedRuntime';
@@ -86,6 +87,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
           new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
         ]);
         console.log('[MEMED_CYCLE] new_prescription_pre_cleared');
+        // Sinaliza que newPrescription já foi executado neste ciclo — evita dupla
+        // chamada ao gateway em prepareAndShowPrescription (causa ERR_CONNECTION_CLOSED).
+        markNewPrescriptionPreCleared();
         // core:moduleInit de plataforma.prescricao não redispara após hide (ocorre apenas
         // na carga inicial do SDK). newPrescription com sucesso é a única confirmação
         // de que o módulo está pronto — restaura moduleReady para desbloquear P2.

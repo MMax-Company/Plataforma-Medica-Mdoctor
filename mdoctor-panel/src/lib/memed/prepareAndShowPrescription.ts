@@ -11,6 +11,7 @@ import {
 } from './memedCommandDiagnostic';
 import {
   cancelPendingHardReset,
+  consumeNewPrescriptionPreCleared,
   forceMarkModuleReady,
   hardResetMemedContainer,
   isMemedRuntimeReady,
@@ -81,23 +82,31 @@ export async function prepareAndShowPrescription(
     cancelPendingHardReset();
     hardResetMemedContainer();
     clinicalUxApplied = false;
-    const mdHubForNew = window.MdHub;
-    if (mdHubForNew?.command?.send) {
-      // 1. Espera SDK reinicializar (core:moduleInit) antes de enviar qualquer comando.
-      await Promise.race([
-        waitForMemedModuleReady(),
-        new Promise<void>((r) => setTimeout(r, 8000)),
-      ]);
-      // 2. Abre nova sessão de prescrição — obrigatório para setPaciente ter sessão HTTP válida.
-      try {
+    // Verifica se setupPrescriptionCallback já chamou newPrescription com sucesso
+    // neste ciclo (pré-clear pós-emissão). Se sim, pular — duas chamadas consecutivas
+    // ao gateway causam ERR_CONNECTION_CLOSED e falha em cadeia no setPaciente.
+    const wasPreCleared = consumeNewPrescriptionPreCleared();
+    if (wasPreCleared) {
+      console.log('[Memed DEBUG] Passo 2: newPrescription skipped — pré-limpo pelo handler pós-emissão');
+    } else {
+      const mdHubForNew = window.MdHub;
+      if (mdHubForNew?.command?.send) {
+        // 1. Espera SDK reinicializar (core:moduleInit) antes de enviar qualquer comando.
         await Promise.race([
-          mdHubForNew.command.send('plataforma.prescricao', 'newPrescription'),
-          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+          waitForMemedModuleReady(),
+          new Promise<void>((r) => setTimeout(r, 8000)),
         ]);
-        console.log('[Memed DEBUG] newPrescription OK (P2+)');
-      } catch (err) {
-        console.warn('[MEMED_PHASE3] newPrescription falhou após aguardar core:moduleInit', err);
-        forceMarkModuleReady();
+        // 2. Abre nova sessão de prescrição — obrigatório para setPaciente ter sessão HTTP válida.
+        try {
+          await Promise.race([
+            mdHubForNew.command.send('plataforma.prescricao', 'newPrescription'),
+            new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+          ]);
+          console.log('[Memed DEBUG] newPrescription OK (P2+)');
+        } catch (err) {
+          console.warn('[MEMED_PHASE3] newPrescription falhou após aguardar core:moduleInit', err);
+          forceMarkModuleReady();
+        }
       }
     }
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });

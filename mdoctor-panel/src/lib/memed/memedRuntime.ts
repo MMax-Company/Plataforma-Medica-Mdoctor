@@ -29,6 +29,28 @@ const state = {
   lastCycleHadEmission: false,
 };
 
+/**
+ * Flag de pré-clear: indica que setupPrescriptionCallback já chamou newPrescription
+ * com sucesso após prescricaoImpressa. prepareAndShowPrescription consome este flag
+ * para evitar uma segunda chamada consecutiva ao gateway — que causa ERR_CONNECTION_CLOSED.
+ */
+let newPrescriptionPreCleared = false;
+
+/** Marca que newPrescription foi chamado com sucesso pelo handler pós-emissão. */
+export function markNewPrescriptionPreCleared(): void {
+  newPrescriptionPreCleared = true;
+}
+
+/**
+ * Retorna true (e reseta o flag) se newPrescription já foi executado pelo handler
+ * pós-emissão neste ciclo. Chamar uma única vez no início do fluxo P2+.
+ */
+export function consumeNewPrescriptionPreCleared(): boolean {
+  const v = newPrescriptionPreCleared;
+  newPrescriptionPreCleared = false;
+  return v;
+}
+
 function resolveModuleReady() {
   state.moduleReady = true;
   markMemedModuleReady(true);
