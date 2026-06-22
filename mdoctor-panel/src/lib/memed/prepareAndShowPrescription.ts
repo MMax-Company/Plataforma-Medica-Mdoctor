@@ -110,6 +110,12 @@ export async function prepareAndShowPrescription(
         }
       }
     }
+    // Early show() para P2+: ativa a sessão HTTP no gateway.memed.com.br antes de
+    // setFeatureToggle e setPaciente. newPrescription() (pré-cleared ou recém-chamado)
+    // só cria a sessão no gateway quando o módulo está visível — chamar show() aqui
+    // garante que gateway ative a sessão antes de setPaciente tentar usá-la.
+    showPrescription();
+    await new Promise<void>((r) => setTimeout(r, 200));
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
     console.log('[Memed DEBUG] Passo 2: container reset feito (P2+), MdHub disponível:', 'MdHub' in window);
   } else {
