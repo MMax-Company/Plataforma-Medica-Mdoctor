@@ -11,8 +11,6 @@ import {
 } from './memedCommandDiagnostic';
 import {
   cancelPendingHardReset,
-  consumeNewPrescriptionPreCleared,
-  forceMarkModuleReady,
   hardResetMemedContainer,
   isMemedRuntimeReady,
   markPrescriptionShownOnce,
@@ -74,50 +72,42 @@ export async function prepareAndShowPrescription(
     iframes: captureIframeState(),
   });
 
-  // P2+: aguarda core:moduleInit ANTES de newPrescription.
-  // Após hide(), o SDK reinicializa assincronamente e só aceita newPrescription depois que
-  // core:moduleInit dispara. Chamar newPrescription antes disso causa timeout e deixa a
-  // sessão HTTP com gateway.memed.com.br inválida → ERR_CONNECTION_CLOSED em setPaciente.
+  // P2+: sequência oficial Memed — show() → newPrescription() → core:moduleInit → setPaciente().
+  // Referência doc Memed:
+  //   - newPrescription = "mesma ação do botão Nova Prescrição na plataforma" → módulo deve estar shown.
+  //   - setPaciente deve ser chamado dentro/após core:moduleInit (exemplo oficial: event.add('core:moduleInit', ...)).
+  // Erro anterior: newPrescription() era chamado enquanto módulo oculto (em prescricaoImpressa),
+  // causando "Cannot read properties of null (reading 'style')" no SDK e impedindo core:moduleInit.
   if (wasPrescriptionShownBefore()) {
     cancelPendingHardReset();
     hardResetMemedContainer();
     clinicalUxApplied = false;
-    // Verifica se setupPrescriptionCallback já chamou newPrescription com sucesso
-    // neste ciclo (pré-clear pós-emissão). Se sim, pular — duas chamadas consecutivas
-    // ao gateway causam ERR_CONNECTION_CLOSED e falha em cadeia no setPaciente.
-    console.log('[MEMED_FLAG] prepareAndShowPrescription P2+ — prestes a consumir flag');
-    const wasPreCleared = consumeNewPrescriptionPreCleared();
-    if (wasPreCleared) {
-      console.log('[Memed DEBUG] Passo 2: newPrescription skipped — pré-limpo pelo handler pós-emissão');
-    } else {
-      const mdHubForNew = window.MdHub;
-      if (mdHubForNew?.command?.send) {
-        // 1. Espera SDK reinicializar (core:moduleInit) antes de enviar qualquer comando.
+
+    // 1. show() primeiro — módulo deve estar ativo para newPrescription funcionar (doc Memed).
+    showPrescription();
+    console.log('[Memed DEBUG] Passo 2 P2+: show() chamado antes de newPrescription');
+
+    // 2. newPrescription() com módulo ativo — dispara core:moduleInit, que habilita setPaciente.
+    if (window.MdHub?.command?.send) {
+      try {
         await Promise.race([
-          waitForMemedModuleReady(),
-          new Promise<void>((r) => setTimeout(r, 8000)),
+          window.MdHub.command.send('plataforma.prescricao', 'newPrescription') as Promise<void>,
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
         ]);
-        // 2. Abre nova sessão de prescrição — obrigatório para setPaciente ter sessão HTTP válida.
-        try {
-          await Promise.race([
-            mdHubForNew.command.send('plataforma.prescricao', 'newPrescription'),
-            new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
-          ]);
-          console.log('[Memed DEBUG] newPrescription OK (P2+)');
-        } catch (err) {
-          console.warn('[MEMED_PHASE3] newPrescription falhou após aguardar core:moduleInit', err);
-          forceMarkModuleReady();
-        }
+        console.log('[Memed DEBUG] Passo 2 P2+: newPrescription OK');
+      } catch (err) {
+        console.warn('[Memed DEBUG] Passo 2 P2+: newPrescription timeout', err);
       }
     }
-    // Early show() para P2+: ativa a sessão HTTP no gateway.memed.com.br antes de
-    // setFeatureToggle e setPaciente. newPrescription() (pré-cleared ou recém-chamado)
-    // só cria a sessão no gateway quando o módulo está visível — chamar show() aqui
-    // garante que gateway ative a sessão antes de setPaciente tentar usá-la.
-    showPrescription();
-    await new Promise<void>((r) => setTimeout(r, 200));
+
+    // 3. Aguarda core:moduleInit disparado por newPrescription — cria sessão HTTP no gateway.
+    await Promise.race([
+      waitForMemedModuleReady(),
+      new Promise<void>((r) => setTimeout(r, 10000)),
+    ]);
+
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
-    console.log('[Memed DEBUG] Passo 2: container reset feito (P2+), MdHub disponível:', 'MdHub' in window);
+    console.log('[Memed DEBUG] Passo 2 P2+: moduleReady, MdHub disponível:', 'MdHub' in window);
   } else {
     console.log('[Memed DEBUG] Passo 2: primeira prescrição (P1)');
   }

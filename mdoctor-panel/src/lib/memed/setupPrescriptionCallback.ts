@@ -2,10 +2,7 @@ import type { MemedModuleOptions } from './types';
 import { captureIframeState, pushDiagnosticEvent } from './memedCommandDiagnostic';
 import {
   forceHideMemedContainer,
-  forceMarkModuleReady,
-  markNewPrescriptionPreCleared,
   recordMemedPrescriptionEmission,
-  waitForModuleReinit,
 } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
 
@@ -52,8 +49,12 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
   try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
 
-  // prescricaoImpressa: hide → aguarda SDK reinicializar (1.8s) → sinaliza React para próximo paciente.
-  window.MdHub.event.add('prescricaoImpressa', async (payload) => {
+  // prescricaoImpressa: hide → sinaliza React para próximo paciente.
+  // newPrescription NÃO é chamado aqui — o módulo está oculto e o botão "Nova Prescrição"
+  // não existe no DOM nesse estado (docs Memed: newPrescription = clique no botão da UI).
+  // newPrescription é chamado em prepareAndShowPrescription APÓS show(), quando o módulo
+  // está ativo e o botão existe — disparando core:moduleInit antes de setPaciente.
+  window.MdHub.event.add('prescricaoImpressa', (payload) => {
     console.log('[Memed] prescricaoImpressa disparado');
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoImpressa:duplicado-ignorado', { iframes: captureIframeState() });
@@ -67,43 +68,7 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
-    // scheduleHardReset removido: o CSS hide deve permanecer até que openPrescription (P2+)
-    // chame hardResetMemedContainer() explicitamente — evita "Documento emitido e enviado"
-    // aparecer se o médico abrir P2 mais de 1,5s após a emissão de P1.
-    console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
-    console.log('[MEMED_PHASE1] waiting_module_ready_after_print');
-    await waitForModuleReinit(5000).catch(() => {
-      console.warn('[MEMED_PHASE1] module_ready_timeout — continuando mesmo sem confirmação de reinit');
-    });
-    console.log('[MEMED_PHASE1] module_ready_after_print');
-    // core:moduleInit confirmado — SDK pronto, iframes intactos.
-    // Chama newPrescription aqui para navegar o iframe para tela em branco ANTES de
-    // liberar o próximo paciente. Assim o Doctor nunca vê "Documento emitido e enviado"
-    // do paciente anterior; o iframe já está em branco quando setPaciente de P2 chega.
-    if (window.MdHub?.command?.send) {
-      try {
-        await Promise.race([
-          window.MdHub.command.send('plataforma.prescricao', 'newPrescription'),
-          new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-        ]);
-        console.log('[MEMED_CYCLE] new_prescription_pre_cleared');
-        // Sinaliza que newPrescription já foi executado neste ciclo — evita dupla
-        // chamada ao gateway em prepareAndShowPrescription (causa ERR_CONNECTION_CLOSED).
-        markNewPrescriptionPreCleared();
-        // core:moduleInit de plataforma.prescricao não redispara após hide (ocorre apenas
-        // na carga inicial do SDK). newPrescription com sucesso é a única confirmação
-        // de que o módulo está pronto — restaura moduleReady para desbloquear P2.
-        forceMarkModuleReady();
-        console.log('[MEMED_CYCLE] module_ready_force_restored');
-      } catch {
-        console.warn('[MEMED_CYCLE] new_prescription_pre_clear_timeout — continuando');
-      }
-    }
-    // prescriptionShownOnce mantido em true: P2 toma o caminho P2+ em prepareAndShowPrescription,
-    // que chama newPrescription internamente antes de show() — garante limpeza do iframe residual.
-    console.log('[Memed] SDK pronto — sinalizando React para carregar próximo paciente.');
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
-    console.log('[MEMED_PHASE1] next_patient_released');
   });
   if (options.onPrescriptionDeleted) {
     const deletedHandler = (payload: unknown) => {
