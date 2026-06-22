@@ -1,8 +1,17 @@
 import { PRESCRIPTION_MODULE } from './onLoadPrescription';
 
+// 4s por chamada: SDK pode estar em reinit após hide() e demorar para aceitar setFeatureToggle.
+// É best-effort — timeout não bloqueia setPaciente nem show().
+const TOGGLE_TIMEOUT_MS = 4000;
+
 async function sendToggle(payload: Record<string, unknown>): Promise<void> {
   if (!window.MdHub?.command?.send) return;
-  await window.MdHub.command.send(PRESCRIPTION_MODULE, 'setFeatureToggle', payload);
+  await Promise.race([
+    window.MdHub.command.send(PRESCRIPTION_MODULE, 'setFeatureToggle', payload) as Promise<unknown>,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('setFeatureToggle timeout')), TOGGLE_TIMEOUT_MS)
+    ),
+  ]);
 }
 
 /**

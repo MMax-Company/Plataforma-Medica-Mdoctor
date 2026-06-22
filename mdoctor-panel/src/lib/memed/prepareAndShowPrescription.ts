@@ -90,7 +90,12 @@ export async function prepareAndShowPrescription(
         console.log('[Memed DEBUG] newPrescription OK (P2+)');
       } catch (err) {
         console.warn('[MEMED_PHASE3] newPrescription timeout — aguardando recuperação do SDK', err);
-        await waitForMemedModuleReady();
+        // Safety: se core:moduleInit demorar mais de 8s ou não disparar, prossegue mesmo assim.
+        // setFeatureToggle tem timeout próprio (4s); setPaciente tem timeout em sendMemedCommandWithDiagnostic.
+        await Promise.race([
+          waitForMemedModuleReady(),
+          new Promise<void>((r) => setTimeout(r, 8000)),
+        ]);
       }
     }
     pushDiagnosticEvent('container:reset', { iframes: captureIframeState() });
