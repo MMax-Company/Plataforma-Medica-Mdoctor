@@ -21,7 +21,7 @@ type MemedPrescriptionWorkspaceProps = {
   readonly loadingModule: boolean;
   readonly readyToOpen?: boolean;
   readonly isOpening?: boolean;
-  /** Prescrição já foi aberta automaticamente — oculta botão "Emitir Receita" para evitar reset acidental */
+  /** true após openPrescription() concluir — oculta botão e revela o container Memed */
   readonly prescriptionOpenedOnce?: boolean;
   readonly receiptSaved: boolean;
   readonly saveError: string | null;
@@ -50,7 +50,7 @@ export function MemedPrescriptionWorkspace({
   minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
   // Rótulos calculados fora do JSX para evitar ternários aninhados
-  let buttonLabel = 'Emitir Receita';
+  let buttonLabel = 'Gerar nova prescrição';
   if (receiptSaved) buttonLabel = 'Receita emitida';
   else if (isOpening) buttonLabel = 'Abrindo…';
 
@@ -58,8 +58,7 @@ export function MemedPrescriptionWorkspace({
   if (loadingModule) pillLabel = 'Preparando…';
   else if (readyToOpen) pillLabel = 'Pronto para emitir';
 
-  // Após a prescrição abrir automaticamente, o botão some para não resetar o fluxo.
-  // Só reexibe em caso de erro (fallback manual).
+  // Botão visível até a prescrição ser aberta; reexibe em caso de erro (fallback manual).
   const showEmitButton = !prescriptionOpenedOnce || !!error;
 
   return (
@@ -110,17 +109,37 @@ export function MemedPrescriptionWorkspace({
           </span>
         </div>
 
-        <div
-          id={containerId}
-          className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
-          style={{
-            minWidth: `min(100%, ${minWidth}px)`,
-            minHeight: `${minHeight}px`,
-          }}
-          data-dp-memed-engine="sinapse"
-        />
+        {/* Placeholder visível antes do clique — container Memed fica em DOM mas oculto */}
+        {!prescriptionOpenedOnce && (
+          <div
+            className="flex min-h-0 flex-1 items-center justify-center rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            style={{ minHeight: `${minHeight}px` }}
+          >
+            <p className="text-sm text-[#8A95A5]">
+              Clique em <strong className="text-[#5B6475]">&ldquo;Gerar nova prescrição&rdquo;</strong> para iniciar.
+            </p>
+          </div>
+        )}
 
-        {!receiptSaved && (
+        {/*
+          Container do SDK Memed — mantido no DOM para que o SDK possa injetar iframes.
+          Oculto via wrapper enquanto !prescriptionOpenedOnce para evitar resíduo visual
+          ("Documento emitido e enviado") do paciente anterior.
+          O SDK manipula o container interno; React controla apenas o wrapper externo.
+        */}
+        <div style={{ display: prescriptionOpenedOnce ? undefined : 'none' }} className="flex min-h-0 flex-1">
+          <div
+            id={containerId}
+            className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            style={{
+              minWidth: `min(100%, ${minWidth}px)`,
+              minHeight: `${minHeight}px`,
+            }}
+            data-dp-memed-engine="sinapse"
+          />
+        </div>
+
+        {prescriptionOpenedOnce && !receiptSaved && (
           <p className="mt-1.5 shrink-0 text-[10px] text-[#8A95A5]">
             Após assinar, clique em{' '}
             <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
@@ -136,7 +155,6 @@ export function MemedPrescriptionWorkspace({
             Tela travada? → Reiniciar módulo Memed
           </button>
         )}
-
       </div>
     </div>
   );

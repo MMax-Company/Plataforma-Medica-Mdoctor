@@ -155,7 +155,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       await notifyMemedPrescriptionCancelled(atendimentoId, payload);
       await workflow.refresh();
     },
-    autoOpenWhenReady: bootstrappedFor === atendimentoId && !patientBlocked,
+    autoOpenWhenReady: false,
   });
 
   // Reset per-patient state when atendimento changes so P2 starts fresh.
