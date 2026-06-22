@@ -8,10 +8,12 @@ import {
   ensureMemedScript,
   parsePrescriptionPayload,
   prepareAndShowPrescription,
+  reinitMemedSdk,
   resetPrescriptionCallbacksFlag,
   setupPrescriptionCallback,
   softHideMemed,
   isMemedRuntimeReady,
+  wasPrescriptionShownBefore,
   type AtendimentoForMemed,
   type MemedPatient,
 } from '@/lib/memed';
@@ -130,29 +132,33 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     };
   }, [doctorToken, scriptConfig?.scriptUrl, scriptConfig?.containerId, scriptConfig?.primaryColor]);
 
+  const registerClinicalCallbacks = useCallback(() => {
+    resetPrescriptionCallbacksFlag();
+    setupPrescriptionCallback({
+      onPrescriptionPrinted: (payload) => {
+        if (cycleLockTimeoutRef.current !== null) {
+          clearTimeout(cycleLockTimeoutRef.current);
+          cycleLockTimeoutRef.current = null;
+        }
+        cycleInProgressRef.current = false;
+        console.log('[MEMED_PHASE3] cycle_lock_released');
+        onPrintedRef.current(payload);
+      },
+      onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,
+    });
+    callbackRegistered.current = true;
+  }, []); // all values accessed via refs — stable, no reactive deps
+
   useEffect(() => {
     if (!moduleReady || !patient || !atendimento) return;
 
     if (!callbackRegistered.current) {
-      resetPrescriptionCallbacksFlag();
-      setupPrescriptionCallback({
-        onPrescriptionPrinted: (payload) => {
-          if (cycleLockTimeoutRef.current !== null) {
-            clearTimeout(cycleLockTimeoutRef.current);
-            cycleLockTimeoutRef.current = null;
-          }
-          cycleInProgressRef.current = false;
-          console.log('[MEMED_PHASE3] cycle_lock_released');
-          onPrintedRef.current(payload);
-        },
-        onPrescriptionDeleted: onDeletedRef.current ? (p) => onDeletedRef.current?.(p) : undefined,
-      });
-      callbackRegistered.current = true;
+      registerClinicalCallbacks();
     }
 
     setClinicalReady(true);
     setStatusMessage('Pronto para emitir. Assinatura digital ativa na sessão do turno.');
-  }, [moduleReady, patient, atendimento?.id]);
+  }, [moduleReady, patient, atendimento?.id, registerClinicalCallbacks]);
 
   /**
    * BOTÃO 2 — "Carregar prescrição"
@@ -196,16 +202,24 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
       const emissionPatient = buildPatientFromAtendimento(atendimento, emissionTs);
       const result = await withTimeout(
         (async () => {
-          if ('MdHub' in window) {
-            console.log('[Memed] MdHub existe, reutilizando');
-            const r = await prepareAndShowPrescription(atendimento, emissionPatient);
-            console.log('[Memed] prepareAndShowPrescription concluído');
-            return r;
+          if ('MdHub' in window && wasPrescriptionShownBefore()) {
+            // P2+: reinit completo do SDK — prescricaoImpressa encerra a sessão gateway;
+            // show() lança null e newPrescription() trava. Unica solução confiável:
+            // recarregar o script e criar sessão fresh, exatamente como P1.
+            console.log('[Memed] P2+: reinit completo do SDK');
+            reinitMemedSdk();
+            callbackRegistered.current = false;
+            const freshToken = await refreshDoctorToken({ force: true });
+            await ensureMemedScript(freshToken, scriptConfig);
+            registerClinicalCallbacks();
+          } else if (!('MdHub' in window)) {
+            console.log('[Memed] MdHub não existe, criando do zero');
+            const moduleAlreadyReady = isMemedRuntimeReady();
+            const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
+            await ensureMemedScript(freshToken, scriptConfig);
+          } else {
+            console.log('[Memed] MdHub existe, P1 reutilizando');
           }
-          console.log('[Memed] MdHub não existe, criando do zero');
-          const moduleAlreadyReady = isMemedRuntimeReady();
-          const freshToken = await refreshDoctorToken({ force: !moduleAlreadyReady });
-          await ensureMemedScript(freshToken, scriptConfig);
           const r = await prepareAndShowPrescription(atendimento, emissionPatient);
           console.log('[Memed] prepareAndShowPrescription concluído');
           return r;
@@ -235,7 +249,7 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
       // cycleInProgressRef is intentionally NOT reset here — released only by
       // prescricaoImpressa (FASE 1) or the 60-second safety timeout above.
     }
-  }, [atendimento, patient, scriptConfig, refreshDoctorToken]);
+  }, [atendimento, patient, scriptConfig, refreshDoctorToken, registerClinicalCallbacks]);
 
   // Reset per-patient refs/state when the patient changes OR when atendimento becomes null
   // (loading phase between patients). Guard removido para que prescriptionOpenedOnce seja

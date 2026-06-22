@@ -216,6 +216,45 @@ export function resetMemedRuntimeForTestsOnly() {
 }
 
 /**
+ * Reinicializa o SDK Memed completamente para P2+.
+ * Remove o script do DOM, apaga window.MdHub e window.MdSinapsePrescricao,
+ * destroi os iframes do container e reseta todo o estado interno.
+ * Após este call, ensureMemedScript() pode ser chamado exatamente como em P1.
+ */
+export function reinitMemedSdk(): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  state.initPromise = null;
+  state.moduleReady = false;
+  state.moduleReadyWaiters = [];
+  state.moduleInitBound = false;
+  state.moduleHideBound = false;
+  state.prescriptionShownOnce = false;
+  state.lastCycleHadEmission = false;
+
+  const scriptEl = document.getElementById(state.scriptId);
+  if (scriptEl) scriptEl.parentNode?.removeChild(scriptEl);
+
+  try { delete (window as unknown as Record<string, unknown>).MdHub; } catch { /* noop */ }
+  try { delete (window as unknown as Record<string, unknown>).MdSinapsePrescricao; } catch { /* noop */ }
+
+  const container = document.getElementById(state.containerId);
+  if (container) {
+    const iframes = Array.from(container.querySelectorAll('iframe'));
+    for (const iframe of iframes) {
+      try { iframe.src = 'about:blank'; } catch { /* best-effort */ }
+    }
+    while (container.firstChild) container.removeChild(container.firstChild);
+    container.style.removeProperty('display');
+    container.style.removeProperty('opacity');
+    container.style.removeProperty('visibility');
+  }
+
+  markMemedModuleReady(false);
+  console.log('[MEMED_REINIT] sdk_reset_complete');
+}
+
+/**
  * Indica que o widget foi exibido pelo menos uma vez nesta sessão.
  * Após o primeiro show(), hide() remove os iframes do DOM.
  * Qualquer prescrição subsequente precisa chamar show() ANTES dos comandos MdHub.
