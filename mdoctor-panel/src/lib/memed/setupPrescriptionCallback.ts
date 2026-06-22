@@ -49,11 +49,11 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
   try { window.MdSinapsePrescricao?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
   try { window.MdHub?.event?.add?.('prescricaoGerada', geradaHandler); } catch {}
 
-  // prescricaoImpressa: hide → sinaliza React para próximo paciente.
-  // newPrescription NÃO é chamado aqui — o módulo está oculto e o botão "Nova Prescrição"
-  // não existe no DOM nesse estado (docs Memed: newPrescription = clique no botão da UI).
-  // newPrescription é chamado em prepareAndShowPrescription APÓS show(), quando o módulo
-  // está ativo e o botão existe — disparando core:moduleInit antes de setPaciente.
+  // prescricaoImpressa: CSS hide → sinaliza React para próximo paciente.
+  // MdHub.module.hide() NÃO é chamado aqui — destroi referências DOM dos sub-módulos
+  // (platform.sms-modal etc.), causando "Cannot read properties of null (reading 'style')"
+  // quando prepareAndShowPrescription chama show() no P2+. O módulo permanece ativo
+  // internamente; forceHideMemedContainer() garante ocultamento visual via CSS.
   window.MdHub.event.add('prescricaoImpressa', (payload) => {
     console.log('[Memed] prescricaoImpressa disparado');
     if (emissionHandledThisCycle) {
@@ -65,7 +65,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
       iframes: captureIframeState(),
       payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
     });
-    hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
