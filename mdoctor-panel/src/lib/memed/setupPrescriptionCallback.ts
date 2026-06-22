@@ -4,7 +4,6 @@ import {
   forceHideMemedContainer,
   forceMarkModuleReady,
   recordMemedPrescriptionEmission,
-  scheduleHardReset,
   waitForModuleReinit,
 } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
@@ -42,7 +41,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
-    scheduleHardReset(1500);
+    // scheduleHardReset removido: o CSS hide deve permanecer até que openPrescription (P2+)
+    // chame hardResetMemedContainer() explicitamente — evita "Documento emitido e enviado"
+    // aparecer se o médico abrir P2 mais de 1,5s após a emissão de P1.
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
     console.log('[Memed] prescricaoGerada: overlay fechado, React sinalizado.');
   };
@@ -65,7 +66,9 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
-    scheduleHardReset(1500);
+    // scheduleHardReset removido: o CSS hide deve permanecer até que openPrescription (P2+)
+    // chame hardResetMemedContainer() explicitamente — evita "Documento emitido e enviado"
+    // aparecer se o médico abrir P2 mais de 1,5s após a emissão de P1.
     console.log('[Memed] Aguardando SDK reinicializar antes do próximo paciente...');
     console.log('[MEMED_PHASE1] waiting_module_ready_after_print');
     await waitForModuleReinit(5000).catch(() => {

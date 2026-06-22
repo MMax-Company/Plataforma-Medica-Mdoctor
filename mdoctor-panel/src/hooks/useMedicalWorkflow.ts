@@ -66,6 +66,10 @@ export function useMedicalWorkflow(atendimentoId: string) {
 
   useEffect(() => {
     let cancelled = false;
+    // Limpa dados do paciente anterior imediatamente para que os consumidores (ex. useMemedSinapse)
+    // detectem a mudança de atendimento e resetem prescriptionOpenedOnce antes do fetch completar.
+    setAtendimento(null);
+    setLoading(true);
     (async () => {
       try {
         const sessionUser = await requireSession();

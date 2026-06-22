@@ -68,10 +68,15 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
   const [moduleReady, setModuleReady] = useState(false);
   const [clinicalReady, setClinicalReady] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Preparando prescrição digital…');
+  // BOTÃO 2 — "Carregar prescrição": quando true, o botão é OCULTADO no Workspace,
+  // impedindo que o médico recarregue/limpe acidentalmente uma prescrição já em edição.
+  // Resetado apenas ao trocar de paciente (atendimento.id muda).
   const [prescriptionOpenedOnce, setPrescriptionOpenedOnce] = useState(false);
   const callbackRegistered = useRef(false);
   const autoOpened = useRef(false);
   const openingInFlight = useRef(false);
+  // Guard de ciclo: impede dois openPrescription() concorrentes (ex. duplo-clique).
+  // Liberado SOMENTE por prescricaoImpressa (BOTÃO 4) ou timeout de 60 s.
   const cycleInProgressRef = useRef(false);
   const cycleLockTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isOpening, setIsOpening] = useState(false);
@@ -149,6 +154,18 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     setStatusMessage('Pronto para emitir. Assinatura digital ativa na sessão do turno.');
   }, [moduleReady, patient, atendimento?.id]);
 
+  /**
+   * BOTÃO 2 — "Carregar prescrição"
+   *
+   * Prepara uma sessão limpa da Memed para o paciente atual:
+   *   1. Garante que não há resíduo visual do paciente anterior.
+   *   2. Carrega paciente e medicação do atendimento atual.
+   *   3. Exibe o widget Memed via show().
+   *
+   * NÃO emite receita. NÃO assina. NÃO salva. NÃO chama botão nativo da Memed.
+   * NÃO deve ser chamado enquanto o médico edita — após concluir, prescriptionOpenedOnce
+   * é true e o botão some da UI (ver showEmitButton no Workspace).
+   */
   const openPrescription = useCallback(async () => {
     if (!atendimento || !patient || !scriptConfig) {
       setStatusMessage('Atendimento ou configuração de prescrição incompletos.');
@@ -220,13 +237,15 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     }
   }, [atendimento, patient, scriptConfig, refreshDoctorToken]);
 
-  // Reset per-patient refs/state when the patient changes.
+  // Reset per-patient refs/state when the patient changes OR when atendimento becomes null
+  // (loading phase between patients). Guard removido para que prescriptionOpenedOnce seja
+  // resetado imediatamente quando useMedicalWorkflow limpa atendimento ao trocar de paciente,
+  // evitando que o container Memed com "Documento emitido e enviado" apareça enquanto P2 carrega.
   // callbackRegistered is intentionally NOT reset here: MdHub has no event.remove,
   // so callbacks are registered once per component mount. onPrintedRef/onDeletedRef
   // always point to the current patient's handlers; resetEmissionGuard() in
   // prepareAndShowPrescription resets per-emission guards before each new emission.
   useEffect(() => {
-    if (!atendimento?.id) return;
     autoOpened.current = false;
     openingInFlight.current = false;
     if (cycleLockTimeoutRef.current !== null) {
@@ -244,6 +263,16 @@ export function useMemedSinapse(options: UseMemedSinapseOptions): UseMemedSinaps
     void openPrescription();
   }, [autoOpenWhenReady, moduleReady, clinicalReady, atendimento, openPrescription]);
 
+  /**
+   * VÁLVULA DE ESCAPE — "Tela travada? → Reiniciar módulo Memed"
+   *
+   * Ação de RECUPERAÇÃO manual: destrói iframes residuais e recarrega a prescrição do
+   * paciente atual do zero. Não é um botão principal — o médico só chega aqui se a
+   * tela da Memed travar. Requer clique explícito no link de recuperação no Workspace.
+   *
+   * NÃO deve ser confundido com o botão "Carregar prescrição" (BOTÃO 2):
+   * este apaga o container Memed (destroyMemedContainerChildren) e reabre tudo.
+   */
   const resetAndReopen = useCallback(async () => {
     console.log('[MEMED_CYCLE] manual_reset_requested');
     if (cycleLockTimeoutRef.current !== null) {

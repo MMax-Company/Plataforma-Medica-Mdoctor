@@ -577,9 +577,14 @@ export default function FilaPage() {
         <button
           type="button"
           onClick={() => {
+            // Abre somente a URL da receita já emitida — não chama Memed, não abre prontuário.
             const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
-            if (url) window.open(url, '_blank', 'noopener,noreferrer');
-            else router.push(`/receita?atendimentoId=${encodeURIComponent(item.id)}`);
+            if (url) {
+              window.open(url, '_blank', 'noopener,noreferrer');
+            } else {
+              setToast('Receita digital não disponível para este atendimento.');
+              window.setTimeout(() => setToast(null), 3000);
+            }
           }}
           className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
         >

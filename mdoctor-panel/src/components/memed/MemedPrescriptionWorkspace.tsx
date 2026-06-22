@@ -50,7 +50,9 @@ export function MemedPrescriptionWorkspace({
   minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
   // Rótulos calculados fora do JSX para evitar ternários aninhados
-  let buttonLabel = 'Gerar nova prescrição';
+  // BOTÃO 2 — "Carregar prescrição": prepara sessão Memed limpa para o paciente atual.
+  // Não emite, não assina, não salva. Some da UI após prescriptionOpenedOnce = true.
+  let buttonLabel = 'Carregar prescrição';
   if (receiptSaved) buttonLabel = 'Receita emitida';
   else if (isOpening) buttonLabel = 'Abrindo…';
 
@@ -58,7 +60,10 @@ export function MemedPrescriptionWorkspace({
   if (loadingModule) pillLabel = 'Preparando…';
   else if (readyToOpen) pillLabel = 'Pronto para emitir';
 
-  // Botão visível até a prescrição ser aberta; reexibe em caso de erro (fallback manual).
+  // PROTEÇÃO DE EDIÇÃO: o botão "Carregar prescrição" só aparece enquanto o médico
+  // ainda não iniciou a sessão (prescriptionOpenedOnce = false). Após o primeiro load
+  // bem-sucedido o botão some — recarregar apagaria o que o médico já editou.
+  // Reexibe apenas em erro (fallback manual, paciente não perdeu trabalho funcional).
   const showEmitButton = !prescriptionOpenedOnce || !!error;
 
   return (
@@ -116,7 +121,7 @@ export function MemedPrescriptionWorkspace({
             style={{ minHeight: `${minHeight}px` }}
           >
             <p className="text-sm text-[#8A95A5]">
-              Clique em <strong className="text-[#5B6475]">&ldquo;Gerar nova prescrição&rdquo;</strong> para iniciar.
+              Clique em <strong className="text-[#5B6475]">&ldquo;Carregar prescrição&rdquo;</strong> para iniciar.
             </p>
           </div>
         )}
@@ -126,6 +131,13 @@ export function MemedPrescriptionWorkspace({
           Oculto via wrapper enquanto !prescriptionOpenedOnce para evitar resíduo visual
           ("Documento emitido e enviado") do paciente anterior.
           O SDK manipula o container interno; React controla apenas o wrapper externo.
+
+          Botões nativos da Memed (BOTÃO 3 e 4) vivem dentro deste container e são
+          gerenciados exclusivamente pelo SDK — não devem ser substituídos nem invocados
+          pelo código React:
+            BOTÃO 3 — "Gerar prescrição": transforma itens carregados em documento pronto.
+            BOTÃO 4 — "Emitir / Assinar / Enviar": assina digitalmente e dispara
+              prescricaoImpressa (capturado por setupPrescriptionCallback).
         */}
         <div style={{ display: prescriptionOpenedOnce ? undefined : 'none' }} className="flex min-h-0 flex-1">
           <div
