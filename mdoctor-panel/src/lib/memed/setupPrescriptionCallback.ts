@@ -5,6 +5,7 @@ import {
   recordMemedPrescriptionEmission,
 } from './memedRuntime';
 import { hidePrescription } from './showPrescription';
+import { parsePrescriptionPayload } from './parsePrescriptionPayload';
 
 // Guards de idempotência: listeners acumulam no MdHub entre emissões sucessivas.
 // Estes flags garantem que prescricaoImpressa e prescricaoExcluida sejam processados
@@ -25,12 +26,30 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     throw new Error('MdHub.event indisponível');
   }
   // prescricaoGerada: dispara antes de window.print() — cobertura antecipada caso o SDK não emita prescricaoImpressa.
+  // Se o payload estiver vazio (sem receitaId/pdfUrl/receitaUrl), NÃO consome o guard:
+  // prescricaoImpressa chegará logo em seguida com o payload completo e processará a emissão.
+  // Consumir o guard com payload vazio causava travamento: handlePrescriptionPrinted retornava
+  // sem chamar onComplete(), e prescricaoImpressa era bloqueado pelo guard já consumido.
   const geradaHandler = (payload: unknown) => {
     console.log('[Memed] prescricaoGerada disparado. Payload:', payload);
     if (emissionHandledThisCycle) {
       pushDiagnosticEvent('prescricaoGerada:duplicado-ignorado', { iframes: captureIframeState() });
       return;
     }
+
+    const parsed = parsePrescriptionPayload(payload);
+    const hasValidPayload = !!(parsed.receitaId || parsed.pdfUrl || parsed.receitaUrl);
+
+    if (!hasValidPayload) {
+      // Oculta o widget visualmente, mas não consome o guard nem chama onPrescriptionPrinted.
+      // prescricaoImpressa processará a emissão com o payload completo.
+      pushDiagnosticEvent('prescricaoGerada:payload-vazio-aguarda-impressa', { iframes: captureIframeState() });
+      hidePrescription();
+      forceHideMemedContainer();
+      recordMemedPrescriptionEmission();
+      return;
+    }
+
     emissionHandledThisCycle = true;
     pushDiagnosticEvent('prescricaoGerada', {
       iframes: captureIframeState(),
@@ -39,9 +58,6 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     hidePrescription();
     forceHideMemedContainer();
     recordMemedPrescriptionEmission();
-    // scheduleHardReset removido: o CSS hide deve permanecer até que openPrescription (P2+)
-    // chame hardResetMemedContainer() explicitamente — evita "Documento emitido e enviado"
-    // aparecer se o médico abrir P2 mais de 1,5s após a emissão de P1.
     if (options.onPrescriptionPrinted) options.onPrescriptionPrinted(payload);
     console.log('[Memed] prescricaoGerada: overlay fechado, React sinalizado.');
   };

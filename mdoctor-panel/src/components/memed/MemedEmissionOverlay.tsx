@@ -54,6 +54,11 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   const [closing, setClosing] = useState(false);
   const receiptSavedRef = useRef(false);
   const emissionStartedRef = useRef(false);
+  // Guard: impede que bootstrap() execute mais de uma vez por atendimentoId.
+  // Sem este guard, a mudança de status approved→receita_em_edicao causada por
+  // startMemedEmission() + workflow.refresh() re-disparava o efeito e chamava
+  // startMemedEmission() duas vezes, gerando race conditions.
+  const bootstrapRanRef = useRef(false);
 
   // Bloqueia o diálogo de impressão do navegador enquanto o overlay está aberto.
   // O botão "Imprimir" da Memed dispara prescricaoImpressa (já capturado) — não queremos
@@ -106,7 +111,11 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       if (!atendimentoId) return;
       const parsed = parsePrescriptionPayload(payload);
       if (!parsed.receitaId && !parsed.pdfUrl && !parsed.receitaUrl) {
-        setSaveError('Confirme a emissão na prescrição digital antes de continuar.');
+        // Payload inválido: não há dado para salvar. Marca como memed_processing e fecha
+        // o overlay para não travar — médico pode reemitir pelo painel.
+        setSaveError('Receita não pôde ser salva automaticamente. Tente novamente pelo painel.');
+        await markPending();
+        onComplete();
         return;
       }
       setSaveError(null);
@@ -158,6 +167,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
   // Reset per-patient state when atendimento changes so P2 starts fresh.
   useEffect(() => {
     if (!atendimentoId) return;
+    bootstrapRanRef.current = false;
     setClosing(false);
     setReceiptSaved(false);
     receiptSavedRef.current = false;
@@ -168,6 +178,10 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
 
   useEffect(() => {
     if (!atendimentoId || workflow.loading) return;
+    // Guard: executa apenas uma vez por atendimentoId, mesmo que workflow.atendimento?.status
+    // mude (ex: approved→receita_em_edicao após startMemedEmission+workflow.refresh()).
+    if (bootstrapRanRef.current) return;
+    bootstrapRanRef.current = true;
 
     async function bootstrap() {
       setMemedError(null);
