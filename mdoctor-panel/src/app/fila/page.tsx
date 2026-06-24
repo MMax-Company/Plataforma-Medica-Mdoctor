@@ -409,7 +409,6 @@ export default function FilaPage() {
   function renderActions(item: Atendimento, column: ColumnKey) {
 
     if (column === 'queue') {
-      const waUrl = whatsappContactUrl(item.paciente_telefone);
       const missing = missingMemedFields(item);
       const blocked = missing.length > 0;
       return (
@@ -448,14 +447,16 @@ export default function FilaPage() {
       return (
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--review-stack">
           {canEmit && (
-            <button
-              type="button"
-              onClick={() => { setMemedOverlayMounted(true); setMemedOverlayId(item.id); }}
-              disabled={actionLoading === item.id}
-              className="dp-btn dp-btn-card-primary dp-btn-orange"
-            >
-              {item.status === 'MEMED_PROCESSING' ? 'REEMITIR RECEITA' : 'EMITIR RECEITA'}
-            </button>
+            <div className="dp-action-slot">
+              <button
+                type="button"
+                onClick={() => { setMemedOverlayMounted(true); setMemedOverlayId(item.id); }}
+                disabled={actionLoading === item.id}
+                className="dp-btn dp-btn-card-primary dp-btn-orange"
+              >
+                {item.status === 'MEMED_PROCESSING' ? 'REEMITIR RECEITA' : 'EMITIR RECEITA'}
+              </button>
+            </div>
           )}
         </div>
       );
@@ -478,14 +479,16 @@ export default function FilaPage() {
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
-        <button
-          type="button"
-          onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
-          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-          className="dp-btn dp-btn-card-primary dp-btn-green"
-        >
-          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
-        </button>
+        <div className="dp-action-slot">
+          <button
+            type="button"
+            onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
+            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+            className="dp-btn dp-btn-card-primary dp-btn-green"
+          >
+            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
+          </button>
+        </div>
         <div className="dp-patient-card__ready-secondary">
           <button
             type="button"

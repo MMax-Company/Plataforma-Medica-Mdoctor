@@ -1173,7 +1173,9 @@ body {
 
   /* Fila operacional — cards e CTAs mais densos */
   .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-card-primary,
-  .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-secondary-compact {
+  .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-secondary-compact,
+  .fila-page-dense .dp-patient-card__actions-slot--review-stack .dp-btn-card-primary,
+  .fila-page-dense .dp-patient-card__actions-slot--ready-stack .dp-btn-card-primary {
     height: 30px;
     min-height: 30px;
     font-size: 9.5px;
