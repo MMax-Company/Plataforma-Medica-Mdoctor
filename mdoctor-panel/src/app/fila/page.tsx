@@ -479,40 +479,42 @@ export default function FilaPage() {
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
-        <div className="dp-patient-card__ready-secondary">
+        <div className="dp-action-slot flex flex-col gap-1">
+          <div className="dp-patient-card__ready-secondary">
+            <button
+              type="button"
+              onClick={() => {
+                const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
+                if (url) {
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                } else {
+                  setToast('Receita digital não disponível para este atendimento.');
+                  window.setTimeout(() => setToast(null), 3000);
+                }
+              }}
+              className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
+            >
+              VISUALIZAR RECEITA
+            </button>
+            <button
+              type="button"
+              onClick={() => { void deliverPrescription(item, 'email'); }}
+              disabled={emailLoading || !channelTarget(item, 'email')}
+              className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
+            >
+              <Mail className="h-3 w-3 shrink-0" />
+              {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => {
-              const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
-              if (url) {
-                window.open(url, '_blank', 'noopener,noreferrer');
-              } else {
-                setToast('Receita digital não disponível para este atendimento.');
-                window.setTimeout(() => setToast(null), 3000);
-              }
-            }}
-            className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
+            onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
+            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+            className="dp-btn dp-btn-card-primary dp-btn-green"
           >
-            VISUALIZAR RECEITA
-          </button>
-          <button
-            type="button"
-            onClick={() => { void deliverPrescription(item, 'email'); }}
-            disabled={emailLoading || !channelTarget(item, 'email')}
-            className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
-          >
-            <Mail className="h-3 w-3 shrink-0" />
-            {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
+            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
           </button>
         </div>
-        <button
-          type="button"
-          onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
-          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-          className="dp-btn dp-btn-card-primary dp-btn-green"
-        >
-          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
-        </button>
       </div>
     );
   }
