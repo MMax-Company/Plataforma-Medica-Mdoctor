@@ -156,36 +156,18 @@ export function ProntuarioOperacionalModal({
   } = prontuario;
 
   const eligible = atendimento?.elegibilidade?.eligible !== false;
-  const whatsappUrl = atendimento ? whatsappContactUrl(atendimento.paciente_telefone || '') : null;
+
+  const phone = (atendimento?.paciente_telefone ?? '').replace(/\D/g, '');
+  const whatsappUrl = phone.length >= 10 ? `https://wa.me/55${phone}` : null;
 
   async function handleApprove() {
-    if (!atendimentoId) return;
-
-    const currentStatus = String(atendimento?.status || '').toLowerCase();
-    const postApproveStatuses = ['approved', 'receita_em_edicao', 'receita_emitida', 'memed_processing', 'ready', 'delivered'];
-    if (postApproveStatuses.includes(currentStatus)) {
-      onClose();
-      onApproved?.(atendimentoId);
-      return;
-    }
-
-    if (editing && editForm) {
-      const saved = await saveClinicalEdit();
-      if (!saved) return;
-    }
     const ok = await approveAttendance();
-    if (ok) {
-      onClose();
-      onApproved?.(atendimentoId);
-    }
+    if (ok) { onApproved?.(atendimentoId ?? ''); onClose(); }
   }
 
   async function handleReject() {
     const ok = await rejectAttendance();
-    if (ok) {
-      onCompleted?.();
-      onClose();
-    }
+    if (ok) { onCompleted?.(); onClose(); }
   }
 
   const patientRows = atendimento

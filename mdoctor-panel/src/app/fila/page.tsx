@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
 import { PatientSearchModal } from '@/components/medical-record/PatientSearchModal';
-import { ContingencyPrescriptionModal, type ContingencyFormData } from '@/components/medical-record/ContingencyPrescriptionModal';
 import { MemedEmissionOverlay } from '@/components/memed/MemedEmissionOverlay';
-import { AlertTriangle, CheckCircle2, Clock3, Mail, UserRound } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Mail } from 'lucide-react';
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -79,24 +78,24 @@ const columns: Array<{
 }> = [
   {
     key: 'queue',
-    statuses: ['QUEUE', 'FILA', 'TRIAGED'],
+    statuses: ['QUEUE'],
     title: 'FILA DE ESPERA',
     badgeClass: 'bg-[#FADADA] text-[#1E1E1E]',
     headerMark: 'bg-[#EEF4FF] text-[#1557FF]'
   },
   {
-    key: 'ready',
-    statuses: ['VALIDATED', 'APROVADO', 'RECEITA_EMITIDA'],
-    title: 'RECEITAS PRONTAS',
-    badgeClass: 'bg-emerald-50 text-[#0BA84F]',
-    headerMark: 'bg-emerald-50 text-[#0BA84F]'
-  },
-  {
     key: 'review',
-    statuses: ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION'],
+    statuses: ['EM_ATENDIMENTO', 'MEMED_PROCESSING'],
     title: 'PENDÊNCIAS / REEMISSÃO',
     badgeClass: 'bg-amber-100 text-amber-800',
     headerMark: 'bg-amber-50 text-amber-700'
+  },
+  {
+    key: 'ready',
+    statuses: ['VALIDATED', 'RECEITA_EMITIDA'],
+    title: 'RECEITAS PRONTAS',
+    badgeClass: 'bg-emerald-50 text-[#0BA84F]',
+    headerMark: 'bg-emerald-50 text-[#0BA84F]'
   },
   {
     key: 'closed',
@@ -107,15 +106,6 @@ const columns: Array<{
   }
 ];
 
-function formatDate(value?: string) {
-  if (!value) return 'Sem data';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
-}
 
 function waitingTime(value?: string) {
   if (!value) return 'Agora';
@@ -154,13 +144,12 @@ function formatAttendanceId(id: string) {
 
 function statusLabel(status: AtendimentoStatus, column: ColumnKey) {
   if (column === 'queue') return 'Aguardando atendimento';
-  if (status === 'AWAITING_VALIDATION') return 'Aguardando validação';
   if (status === 'MEMED_PROCESSING') return 'Memed em processamento';
   if (column === 'ready') return 'Receita validada';
   if (status === 'REJECTED' || status === 'RECUSADO') return 'Recusado';
   if (status === 'DELIVERED') return 'Entregue';
   if (column === 'closed') return 'Finalizado';
-  return 'Em revisao medica';
+  return 'Em atendimento';
 }
 
 function latestDelivery(item: Atendimento) {
@@ -178,36 +167,7 @@ function channelLabel(channel: DeliveryChannel) {
   return 'SMS';
 }
 
-function hasMemedPrescription(item: Atendimento) {
-  const r = item.dados_clinicos?.memed_receita;
-  return Boolean(r?.pdfUrl || r?.receitaUrl);
-}
 
-function cpfMask(v = '') {
-  const d = v.replace(/\D/g, '');
-  if (d.length !== 11) return v;
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-}
-
-function buildContingencyText(item: Atendimento, data: ContingencyFormData): string {
-  const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  return [
-    '*Receita Médica — Doctor Prescreve*',
-    `Data: ${date}`,
-    '',
-    `Paciente: ${item.paciente_nome}`,
-    item.paciente_cpf ? `CPF: ${cpfMask(item.paciente_cpf)}` : '',
-    item.condicao ? `Condição: ${item.condicao}` : '',
-    '',
-    '*Medicações:*',
-    data.medications,
-    '',
-    '*Orientações:*',
-    data.orientations || '—',
-    '',
-    '— Doctor Prescreve'
-  ].filter(Boolean).join('\n');
-}
 
 function columnCountClass() {
   return 'dp-col-count dp-col-count-alert';
@@ -225,7 +185,6 @@ export default function FilaPage() {
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
   const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
-  const [contingencyItem, setContingencyItem] = useState<Atendimento | null>(null);
   // Once true, overlay stays mounted so div#prescricao-memed is never destroyed between patients.
   // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
   const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
@@ -273,15 +232,6 @@ export default function FilaPage() {
     return { statuses, risks, payments };
   }, [atendimentos]);
 
-  const operationalMetrics = useMemo(() => {
-    return {
-      total: filteredAtendimentos.length,
-      queue: filteredAtendimentos.filter((item) => ['QUEUE', 'FILA', 'TRIAGED'].includes(item.status)).length,
-      review: filteredAtendimentos.filter((item) => ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING', 'AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status)).length,
-      ready: filteredAtendimentos.filter((item) => ['VALIDATED', 'APROVADO'].includes(item.status)).length,
-      closed: filteredAtendimentos.filter((item) => ['REJECTED', 'RECUSADO', 'FINISHED', 'DELIVERED'].includes(item.status)).length
-    };
-  }, [filteredAtendimentos]);
 
   const medicalAtendimentos = useMemo(
     () => filteredAtendimentos.filter((item) => !isSupportItem(item)),
@@ -298,9 +248,6 @@ export default function FilaPage() {
   async function fetchAtendimentos() {
     setError(null);
     try {
-      const { isVisualSimulationMode, getVisualSimulationAtendimentos } = await import(
-        '@/lib/visual-simulation-fila'
-      );
       const res = await fetch(`${getApiBase()}/api/atendimentos/queue`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Erro ao buscar atendimentos');
@@ -308,21 +255,12 @@ export default function FilaPage() {
         ...item,
         status: toPanelAtendimentoStatus(item.status),
       }));
-      // Somente pacientes elegíveis com dados completos são exibidos no painel.
       const eligibleRows = rows.filter((item: Atendimento) => {
         if (item.elegibilidade?.eligible === false) return false;
         if (missingMemedFields(item).length > 0) return false;
         return true;
       });
-      if (isVisualSimulationMode()) {
-        const simRows = getVisualSimulationAtendimentos().map((item) => ({
-          ...item,
-          status: toPanelAtendimentoStatus(item.status),
-        })) as Atendimento[];
-        setAtendimentos(simRows.length ? simRows : eligibleRows);
-      } else {
-        setAtendimentos(eligibleRows);
-      }
+      setAtendimentos(eligibleRows);
     } catch (e: any) {
       setError(e.message || 'Erro ao buscar fila');
     } finally {
@@ -440,13 +378,12 @@ export default function FilaPage() {
     }
   }
 
-  async function deliverPrescription(item: Atendimento, channel: DeliveryChannel, contingencyText?: string) {
+  async function deliverPrescription(item: Atendimento, channel: DeliveryChannel) {
     setActionLoading(`${item.id}-${channel}`);
     setError(null);
     setToast(null);
     try {
       const body: Record<string, unknown> = { channel };
-      if (contingencyText !== undefined) { body.contingency = true; body.contingency_text = contingencyText; }
       const res = await fetch(`${getApiBase()}/api/atendimentos/${item.id}/deliver`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -477,23 +414,6 @@ export default function FilaPage() {
       const blocked = missing.length > 0;
       return (
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--queue-row">
-          {waUrl ? (
-            <a
-              href={waUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="dp-btn dp-btn-secondary dp-btn-secondary-compact dp-btn-outline-soft inline-flex gap-1.5"
-              aria-label={`Contato paciente — ${item.paciente_nome}`}
-            >
-              <WhatsAppIcon className="h-3 w-3 shrink-0 text-[#25D366]" />
-              Contato paciente
-            </a>
-          ) : (
-            <span className="dp-btn dp-btn-secondary dp-btn-secondary-compact dp-btn-outline-soft inline-flex cursor-default gap-1.5 opacity-70">
-              <WhatsAppIcon className="h-3 w-3 shrink-0 text-[#25D366]" />
-              Contato paciente
-            </span>
-          )}
           {blocked ? (
             <div className="dp-action-slot flex flex-col items-end gap-1">
               <span className="rounded-[6px] bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
@@ -504,21 +424,30 @@ export default function FilaPage() {
                 disabled
                 className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5 cursor-not-allowed opacity-40"
               >
-                <UserRound className="h-4 w-4" aria-hidden="true" />
                 ATENDER
               </button>
             </div>
           ) : (
-            <div className="dp-action-slot">
+            <div className="dp-action-slot flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => { void openAtendimento(item); }}
                 disabled={actionLoading === item.id}
-                className="dp-btn dp-btn-card-primary dp-btn-blue gap-1.5"
+                className="dp-btn dp-btn-card-primary dp-btn-blue"
               >
-                <UserRound className="h-4 w-4" aria-hidden="true" />
                 ATENDER
               </button>
+              {waUrl ? (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E5EAF2] bg-white text-[#25D366] transition hover:bg-[#F0FFF4]"
+                  aria-label={`WhatsApp — ${item.paciente_nome}`}
+                >
+                  <WhatsAppIcon className="h-4 w-4" />
+                </a>
+              ) : null}
             </div>
           )}
         </div>
@@ -526,8 +455,7 @@ export default function FilaPage() {
     }
 
     if (column === 'review') {
-      const canEmit = ['EM_ATENDIMENTO', 'UNDER_REVIEW', 'MEMED_PROCESSING'].includes(item.status);
-      const canAccept = ['AWAITING_VALIDATION', 'RECEITA_EMITIDA'].includes(item.status);
+      const canEmit = ['EM_ATENDIMENTO', 'MEMED_PROCESSING'].includes(item.status);
       return (
         <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--review-stack">
           {canEmit && (
@@ -538,18 +466,6 @@ export default function FilaPage() {
               className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
             >
               {item.status === 'MEMED_PROCESSING' ? 'REEMITIR RECEITA' : 'EMITIR RECEITA'}
-            </button>
-          )}
-          {canAccept && (
-            <button
-              type="button"
-              onClick={() => {
-                void updateStatus(item.id, 'VALIDATED', 'Receita aceita pelo painel medico');
-              }}
-              disabled={actionLoading === item.id}
-              className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
-            >
-              ACEITAR RECEITA
             </button>
           )}
         </div>
@@ -570,42 +486,37 @@ export default function FilaPage() {
 
     const whatsappLoading = actionLoading === `${item.id}-whatsapp`;
     const emailLoading = actionLoading === `${item.id}-email`;
-    const smsLoading = actionLoading === `${item.id}-sms`;
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
         <button
           type="button"
-          onClick={() => {
-            // Abre somente a URL da receita já emitida — não chama Memed, não abre prontuário.
-            const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
-            if (url) {
-              window.open(url, '_blank', 'noopener,noreferrer');
-            } else {
-              setToast('Receita digital não disponível para este atendimento.');
-              window.setTimeout(() => setToast(null), 3000);
-            }
-          }}
-          className="dp-btn dp-btn-secondary dp-btn-review-stack dp-btn-outline-soft"
+          onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
+          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+          className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
         >
-          VISUALIZAR RECEITA
+          <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
+          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
         </button>
         <div className="dp-patient-card__ready-secondary">
           <button
             type="button"
             onClick={() => {
-              void deliverPrescription(item, 'sms');
+              const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
+              if (url) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              } else {
+                setToast('Receita digital não disponível para este atendimento.');
+                window.setTimeout(() => setToast(null), 3000);
+              }
             }}
-            disabled={smsLoading || !channelTarget(item, 'sms')}
             className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
           >
-            {smsLoading ? 'ENVIANDO...' : 'SMS'}
+            VISUALIZAR RECEITA
           </button>
           <button
             type="button"
-            onClick={() => {
-              void deliverPrescription(item, 'email');
-            }}
+            onClick={() => { void deliverPrescription(item, 'email'); }}
             disabled={emailLoading || !channelTarget(item, 'email')}
             className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
           >
@@ -613,28 +524,6 @@ export default function FilaPage() {
             {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
           </button>
         </div>
-        {!hasMemedPrescription(item) && channelTarget(item, 'whatsapp') && (
-          <button
-            type="button"
-            onClick={() => setContingencyItem(item)}
-            disabled={whatsappLoading}
-            className="dp-btn dp-btn-ready-wa"
-            style={{ background: '#92400e', color: '#fff' }}
-          >
-            ⚡ Gerar receita de contingência
-          </button>
-        )}
-        {hasMemedPrescription(item) && (
-          <button
-            type="button"
-            onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
-            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-            className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
-          >
-            <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
-            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR POR WHATSAPP'}
-          </button>
-        )}
       </div>
     );
   }
@@ -648,10 +537,7 @@ export default function FilaPage() {
       );
     }
     if (column === 'review') {
-      const reviewLabel =
-        item.status === 'RECEITA_EMITIDA' || item.status === 'AWAITING_VALIDATION' ? 'Aguardando validação' :
-        item.status === 'MEMED_PROCESSING' ? 'Pendência de emissão' :
-        'Em atendimento';
+      const reviewLabel = item.status === 'MEMED_PROCESSING' ? 'Pendência de emissão' : 'Em atendimento';
       return (
         <span className="dp-status-badge dp-status-badge-warn">
           {reviewLabel}
@@ -890,21 +776,6 @@ export default function FilaPage() {
         open={patientSearchOpen}
         onClose={() => setPatientSearchOpen(false)}
         onSelectAtendimento={(id) => { setPatientSearchOpen(false); openProntuarioModal(id); }}
-      />
-
-      <ContingencyPrescriptionModal
-        open={contingencyItem !== null}
-        patientName={contingencyItem?.paciente_nome ?? ''}
-        patientCpf={contingencyItem?.paciente_cpf}
-        condition={contingencyItem?.condicao}
-        loading={contingencyItem ? actionLoading === `${contingencyItem.id}-whatsapp` : false}
-        onConfirm={(data) => {
-          if (!contingencyItem) return;
-          const text = buildContingencyText(contingencyItem, data);
-          void deliverPrescription(contingencyItem, 'whatsapp', text);
-          setContingencyItem(null);
-        }}
-        onClose={() => setContingencyItem(null)}
       />
 
       <ProntuarioOperacionalModal

@@ -111,23 +111,6 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
     setError(null);
     setLoading(true);
     try {
-      const { isVisualSimulationPatient, getVisualSimulationAtendimentos } = await import(
-        '@/lib/visual-simulation-fila'
-      );
-      if (isVisualSimulationPatient(atendimentoId)) {
-        const sim = getVisualSimulationAtendimentos().find((row) => row.id === atendimentoId);
-        if (!sim) throw new Error('Paciente de simulação não encontrado');
-        setAtendimento({
-          ...sim,
-          paciente_cpf: sim.dados_clinicos.paciente_cpf,
-          elegibilidade: {
-            eligible: true,
-            reason: 'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.',
-          },
-        } as ProntuarioAtendimento);
-        return;
-      }
-
       const res = await fetch(`${getApiBase()}/api/atendimentos/${atendimentoId}`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || 'Atendimento não encontrado');
@@ -300,9 +283,6 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
 
   async function approveAttendance() {
     if (!atendimentoId) return false;
-    const { isVisualSimulationPatient } = await import('@/lib/visual-simulation-fila');
-    if (isVisualSimulationPatient(atendimentoId)) return true;
-
     setActionLoading('approve');
     setError(null);
     try {
@@ -323,9 +303,6 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
 
   async function rejectAttendance() {
     if (!atendimentoId) return false;
-    const { isVisualSimulationPatient } = await import('@/lib/visual-simulation-fila');
-    if (isVisualSimulationPatient(atendimentoId)) return true;
-
     setActionLoading('reject');
     setError(null);
     try {
