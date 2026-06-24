@@ -181,6 +181,12 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
     // Guard: executa apenas uma vez por atendimentoId, mesmo que workflow.atendimento?.status
     // mude (ex: approved→receita_em_edicao após startMemedEmission+workflow.refresh()).
     if (bootstrapRanRef.current) return;
+
+    // Aguarda atendimento ser populado — na transição entre pacientes (P1→P2),
+    // loading já voltou a false mas atendimento ainda é null. Sem este guard,
+    // currentStatus ficaria '' e "Emissão bloqueada" aparecia para todos os P2+.
+    if (!workflow.atendimento) return;
+
     bootstrapRanRef.current = true;
 
     async function bootstrap() {
@@ -195,10 +201,10 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
           return;
         }
 
-        const currentStatus = String(workflow.atendimento?.status || '').toLowerCase();
+        const currentStatus = workflow.atendimento!.status.toLowerCase();
         const allowedEmissionStatuses = ['approved', 'receita_em_edicao', 'memed_processing'];
         if (!allowedEmissionStatuses.includes(currentStatus)) {
-          setMemedError('Emissão bloqueada — aprove o prontuário antes de emitir receita.');
+          setMemedError(`Emissão bloqueada — status "${currentStatus}" não autoriza emissão. Aprove o prontuário antes.`);
           return;
         }
         if (['approved', 'receita_em_edicao'].includes(currentStatus)) {
