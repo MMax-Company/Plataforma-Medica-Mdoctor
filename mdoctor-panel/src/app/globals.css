@@ -1079,15 +1079,16 @@ body {
   }
 
   .dp-patient-card__actions-slot--queue-row {
-    display: grid;
+    display: flex;
+    justify-content: flex-end;
     align-items: stretch;
     gap: 6px;
-    grid-template-columns: minmax(0, 1fr) minmax(108px, 42%);
   }
 
   .dp-patient-card__actions-slot--review-stack {
     display: flex;
     flex-direction: column;
+    align-items: flex-end;
     gap: 4px;
     width: 100%;
   }
@@ -1208,11 +1209,11 @@ body {
   }
 
   .fila-page-dense .dp-patient-card {
-    padding: 8px 9px;
+    padding: 6px 8px;
   }
 
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 5px;
+    margin-top: 4px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {

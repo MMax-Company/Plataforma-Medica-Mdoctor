@@ -479,16 +479,6 @@ export default function FilaPage() {
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
-        <div className="dp-action-slot">
-          <button
-            type="button"
-            onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
-            disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-            className="dp-btn dp-btn-card-primary dp-btn-green"
-          >
-            {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
-          </button>
-        </div>
         <div className="dp-patient-card__ready-secondary">
           <button
             type="button"
@@ -515,6 +505,14 @@ export default function FilaPage() {
             {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
+          disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
+          className="dp-btn dp-btn-card-primary dp-btn-green"
+        >
+          {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
+        </button>
       </div>
     );
   }
@@ -662,7 +660,7 @@ export default function FilaPage() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-3">
+        <div className="grid min-h-0 flex-1 grid-cols-[2fr_2fr_1fr] items-stretch gap-3">
           {visibleColumns.map((column) => {
             const Icon = columnIcons[column.key as 'queue' | 'review' | 'ready'];
             return (
