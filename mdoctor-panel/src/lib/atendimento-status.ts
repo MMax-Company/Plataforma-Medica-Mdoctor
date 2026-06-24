@@ -20,13 +20,14 @@ export type PanelAtendimentoStatus =
 
 export function toPanelAtendimentoStatus(status?: string | null): PanelAtendimentoStatus | null {
   const s = String(status || 'waiting').trim().toLowerCase();
-  if (['waiting', 'queue', 'fila', 'triaged', 'triagem', 'aguardando_pagamento'].includes(s)) return 'QUEUE';
-  if (['em_atendimento', 'under_review', 'approved', 'pronto_para_decisao'].includes(s)) return 'EM_ATENDIMENTO';
-  if (['memed_processing'].includes(s)) return 'MEMED_PROCESSING';
+  if (['waiting', 'queue', 'fila', 'triaged', 'triagem', 'aguardando_pagamento', 'em_atendimento'].includes(s)) return 'QUEUE';
+  if (['under_review', 'approved', 'pronto_para_decisao', 'receita_em_edicao'].includes(s)) return 'EM_ATENDIMENTO';
+  if (['memed_processing', 'awaiting_reemissao', 'error_memed'].includes(s)) return 'MEMED_PROCESSING';
   if (['receita_emitida', 'awaiting_validation'].includes(s)) return 'RECEITA_EMITIDA';
   if (['ready', 'validated', 'aprovado'].includes(s)) return 'VALIDATED';
   if (['rejected', 'recusado', 'inelegivel', 'cancelado'].includes(s)) return 'REJECTED';
-  if (['receita_em_edicao', 'delivered', 'finished', 'finalized'].includes(s)) return null;
+  if (['delivered'].includes(s)) return 'DELIVERED';
+  if (['finished', 'finalized'].includes(s)) return 'FINISHED';
   const upper = String(status || '').toUpperCase() as PanelAtendimentoStatus;
   const known: PanelAtendimentoStatus[] = [
     'QUEUE',

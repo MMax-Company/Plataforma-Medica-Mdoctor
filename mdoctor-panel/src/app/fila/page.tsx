@@ -84,6 +84,13 @@ const columns: Array<{
     headerMark: 'bg-[#EEF4FF] text-[#1557FF]'
   },
   {
+    key: 'ready',
+    statuses: ['RECEITA_EMITIDA', 'VALIDATED', 'DELIVERED', 'FINISHED'],
+    title: 'RECEITAS PRONTAS',
+    badgeClass: 'bg-emerald-50 text-[#0BA84F]',
+    headerMark: 'bg-emerald-50 text-[#0BA84F]'
+  },
+  {
     key: 'review',
     statuses: ['EM_ATENDIMENTO', 'MEMED_PROCESSING'],
     title: 'PENDÊNCIAS / REEMISSÃO',
@@ -91,15 +98,8 @@ const columns: Array<{
     headerMark: 'bg-amber-50 text-amber-700'
   },
   {
-    key: 'ready',
-    statuses: ['VALIDATED', 'RECEITA_EMITIDA'],
-    title: 'RECEITAS PRONTAS',
-    badgeClass: 'bg-emerald-50 text-[#0BA84F]',
-    headerMark: 'bg-emerald-50 text-[#0BA84F]'
-  },
-  {
     key: 'closed',
-    statuses: ['REJECTED', 'RECUSADO', 'FINISHED', 'DELIVERED'],
+    statuses: ['REJECTED', 'RECUSADO'],
     title: 'FINALIZADOS',
     badgeClass: 'bg-slate-100 text-[#5B6475]',
     headerMark: 'bg-slate-100 text-[#5B6475]'
@@ -545,9 +545,13 @@ export default function FilaPage() {
       );
     }
     if (column === 'ready') {
+      const readyLabel =
+        item.status === 'DELIVERED' ? 'Entregue' :
+        item.status === 'FINISHED' ? 'Finalizado' :
+        item.status === 'RECEITA_EMITIDA' ? 'Receita emitida' : 'Receita validada';
       return (
         <span className="dp-status-badge dp-status-badge-success">
-          {item.status === 'RECEITA_EMITIDA' ? 'Receita emitida' : 'Receita validada'}
+          {readyLabel}
         </span>
       );
     }
