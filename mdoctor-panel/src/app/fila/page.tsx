@@ -428,7 +428,7 @@ export default function FilaPage() {
               </button>
             </div>
           ) : (
-            <div className="dp-action-slot flex items-center gap-2">
+            <div className="dp-action-slot">
               <button
                 type="button"
                 onClick={() => { void openAtendimento(item); }}
@@ -437,17 +437,6 @@ export default function FilaPage() {
               >
                 ATENDER
               </button>
-              {waUrl ? (
-                <a
-                  href={waUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E5EAF2] bg-white text-[#25D366] transition hover:bg-[#F0FFF4]"
-                  aria-label={`WhatsApp — ${item.paciente_nome}`}
-                >
-                  <WhatsAppIcon className="h-4 w-4" />
-                </a>
-              ) : null}
             </div>
           )}
         </div>
@@ -463,7 +452,7 @@ export default function FilaPage() {
               type="button"
               onClick={() => { setMemedOverlayMounted(true); setMemedOverlayId(item.id); }}
               disabled={actionLoading === item.id}
-              className="dp-btn dp-btn-card-primary dp-btn-review-stack dp-btn-orange"
+              className="dp-btn dp-btn-card-primary dp-btn-orange"
             >
               {item.status === 'MEMED_PROCESSING' ? 'REEMITIR RECEITA' : 'EMITIR RECEITA'}
             </button>
@@ -493,9 +482,8 @@ export default function FilaPage() {
           type="button"
           onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
           disabled={whatsappLoading || !channelTarget(item, 'whatsapp')}
-          className="dp-btn dp-btn-card-primary dp-btn-ready-wa dp-btn-green"
+          className="dp-btn dp-btn-card-primary dp-btn-green"
         >
-          <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
           {whatsappLoading ? 'ENVIANDO...' : 'ENVIAR WHATSAPP'}
         </button>
         <div className="dp-patient-card__ready-secondary">
@@ -714,23 +702,33 @@ export default function FilaPage() {
                             <div className="dp-patient-card__main">
                               <div className="dp-patient-card__head">
                                 <div className="min-w-0">
-                                  <h3
-                                    className={`dp-patient-card-label truncate ${
-                                      patientLabel.length > 5 ? 'dp-patient-card-label--compact' : ''
-                                    }`}
-                                    title={item.paciente_nome}
-                                  >
-                                    {patientLabel}
-                                  </h3>
+                                  <div className="flex items-center gap-1.5">
+                                    <h3
+                                      className={`dp-patient-card-label truncate ${
+                                        patientLabel.length > 5 ? 'dp-patient-card-label--compact' : ''
+                                      }`}
+                                      title={item.paciente_nome}
+                                    >
+                                      {patientLabel}
+                                    </h3>
+                                    {column.key === 'queue' && whatsappContactUrl(item.paciente_telefone) ? (
+                                      <a
+                                        href={whatsappContactUrl(item.paciente_telefone)!}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex shrink-0 items-center text-[#25D366] hover:opacity-75"
+                                        aria-label={`WhatsApp — ${item.paciente_nome}`}
+                                      >
+                                        <WhatsAppIcon className="h-3.5 w-3.5" />
+                                      </a>
+                                    ) : null}
+                                  </div>
                                   <p className="dp-patient-id">#{formatAttendanceId(item.id)}</p>
                                 </div>
                                 {renderStatusBadge(item, column.key)}
                               </div>
 
                               <div className="dp-patient-card__meta">
-                                {column.key === 'review' && item.elegibilidade?.reason ? (
-                                  <p className="dp-text-muted line-clamp-2 text-[11px] leading-4">{item.elegibilidade.reason}</p>
-                                ) : null}
                                 {column.key === 'ready' && latestDelivery(item) ? (
                                   <p className="dp-text-muted line-clamp-2 text-[11px] leading-4">
                                     Última entrega: {latestDelivery(item)?.status}
