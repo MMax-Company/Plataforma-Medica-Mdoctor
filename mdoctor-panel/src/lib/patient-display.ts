@@ -2,6 +2,28 @@ import type { DeliveryChannel, Patient } from '@/types/panel';
 
 const NAME_CONNECTORS = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
 
+/**
+ * Validação matemática de CPF (algoritmo oficial Receita Federal).
+ * Rejeita CPFs vazios, com menos/mais de 11 dígitos, todos iguais e com dígitos verificadores errados.
+ */
+export function isValidCpf(value: string): boolean {
+  const cpf = value.replace(/\D/g, '');
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+
+  let sum = 0;
+  for (let i = 0; i < 9; i++) sum += parseInt(cpf[i]!) * (10 - i);
+  let r = (sum * 10) % 11;
+  if (r >= 10) r = 0;
+  if (r !== parseInt(cpf[9]!)) return false;
+
+  sum = 0;
+  for (let i = 0; i < 10; i++) sum += parseInt(cpf[i]!) * (11 - i);
+  r = (sum * 10) % 11;
+  if (r >= 10) r = 0;
+  return r === parseInt(cpf[10]!);
+}
+
 const STARTS_WITH_LETTER = /^[A-Za-zÀ-ÖØ-öø-ÿ]/;
 
 function nameTokens(name: string): string[] {

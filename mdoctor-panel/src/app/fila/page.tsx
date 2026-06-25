@@ -18,7 +18,7 @@ import { getApiBase } from '@/services/api';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
-import { avatarInitials, formatQueuePatientId, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
+import { avatarInitials, formatQueuePatientId, isValidCpf, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
 import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
 
 type AtendimentoStatus = PanelAtendimentoStatus;
@@ -118,8 +118,7 @@ function waitingTime(value?: string) {
 function missingMemedFields(item: Atendimento): string[] {
   const missing: string[] = [];
   if (!item.paciente_nome?.trim()) missing.push('nome');
-  const cpf = (item.paciente_cpf || '').replace(/\D/g, '');
-  if (cpf.length !== 11) missing.push('CPF');
+  if (!isValidCpf(item.paciente_cpf || '')) missing.push('CPF inválido');
   if (!item.dados_clinicos?.data_nascimento) missing.push('data de nascimento');
   const phone = (item.paciente_telefone || '').replace(/\D/g, '');
   const phoneNorm = phone.startsWith('55') && phone.length >= 12 ? phone.slice(2) : phone;

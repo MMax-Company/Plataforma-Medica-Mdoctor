@@ -20,6 +20,7 @@ import {
   registerMemedDiagnosticReporter,
   unregisterMemedDiagnosticReporter,
 } from '@/lib/memed';
+import { isValidCpf } from '@/lib/patient-display';
 import { postMemedDiagnosticReport } from '@/services/diagnostics.service';
 import { getApiBase } from '@/config/api';
 import { authHeaders } from '@/services/auth.service';
@@ -36,8 +37,7 @@ function checkPatientReady(atendimento: ReturnType<typeof useMedicalWorkflow>['a
   if (!atendimento) return [];
   const missing: string[] = [];
   if (!atendimento.paciente_nome?.trim()) missing.push('nome');
-  const cpf = (atendimento.paciente_cpf || '').replace(/\D/g, '');
-  if (cpf.length !== 11) missing.push('CPF válido (11 dígitos)');
+  if (!isValidCpf(atendimento.paciente_cpf || '')) missing.push('CPF inválido — paciente não pode ser emitido');
   if (!atendimento.paciente_telefone?.trim()) missing.push('telefone');
   return missing;
 }
