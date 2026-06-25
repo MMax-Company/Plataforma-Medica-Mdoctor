@@ -716,7 +716,14 @@ export default function FilaPage() {
                                   </div>
                                   <p className="dp-patient-id">#{formatAttendanceId(item.id)}</p>
                                 </div>
-                                {renderStatusBadge(item, column.key)}
+                                {column.key === 'queue' ? (
+                                  <div className="flex shrink-0 flex-col items-end gap-1">
+                                    {renderStatusBadge(item, column.key)}
+                                    {renderActions(item, column.key)}
+                                  </div>
+                                ) : (
+                                  renderStatusBadge(item, column.key)
+                                )}
                               </div>
 
                               <div className="dp-patient-card__meta">
@@ -727,7 +734,9 @@ export default function FilaPage() {
                                 ) : null}
                               </div>
 
-                              <div className="dp-patient-card__actions">{renderActions(item, column.key)}</div>
+                              {column.key !== 'queue' && (
+                                <div className="dp-patient-card__actions">{renderActions(item, column.key)}</div>
+                              )}
                             </div>
                           </div>
                         </article>
