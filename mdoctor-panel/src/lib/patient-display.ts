@@ -2,25 +2,40 @@ import type { DeliveryChannel, Patient } from '@/types/panel';
 
 const NAME_CONNECTORS = new Set(['da', 'de', 'do', 'dos', 'das', 'e']);
 
-/** Iniciais institucionais: letra de cada nome real, separadas por ponto (ex.: Jose Maria da Silva → J.M.S). */
-export function patientInitials(name: string): string {
-  const parts = name
+const STARTS_WITH_LETTER = /^[A-Za-zÀ-ÖØ-öø-ÿ]/;
+
+function nameTokens(name: string): string[] {
+  return name
     .trim()
     .split(/\s+/)
     .map((part) => part.replace(/\./g, '').trim())
     .filter(Boolean)
-    .filter((part) => !NAME_CONNECTORS.has(part.toLowerCase()));
+    .filter((part) => !NAME_CONNECTORS.has(part.toLowerCase()))
+    .filter((part) => STARTS_WITH_LETTER.test(part));
+}
 
-  if (parts.length === 0) return '—';
+/** Avatar: apenas as 2 primeiras iniciais reais (ex.: Fernando Henrique Pereira → FH). */
+export function avatarInitials(name: string): string {
+  const tokens = nameTokens(name);
+  if (tokens.length === 0) return '—';
+  const a = tokens[0]?.[0]?.toUpperCase() ?? '';
+  const b = tokens[1]?.[0]?.toUpperCase() ?? '';
+  return a + b;
+}
 
-  const letters = parts
+/** Iniciais institucionais: todas as letras separadas por ponto com ponto final (ex.: Jose Maria da Silva → J.M.S.). */
+export function patientInitials(name: string): string {
+  const tokens = nameTokens(name);
+  if (tokens.length === 0) return '—';
+
+  const letters = tokens
     .map((part) => {
       const first = [...part][0];
       return first ? first.toUpperCase() : '';
     })
     .filter(Boolean);
 
-  return letters.join('.');
+  return letters.join('.') + '.';
 }
 
 export function formatQueuePatientId(id: string): string {

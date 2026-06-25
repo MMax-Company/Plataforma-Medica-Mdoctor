@@ -18,7 +18,7 @@ import { getApiBase } from '@/services/api';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
-import { formatQueuePatientId, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
+import { avatarInitials, formatQueuePatientId, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
 import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
 
 type AtendimentoStatus = PanelAtendimentoStatus;
@@ -678,17 +678,16 @@ export default function FilaPage() {
                   {grouped[column.key].length ? (
                     grouped[column.key].map((item) => {
                       const patientLabel = patientInitials(item.paciente_nome);
+                      const patientAvatar = avatarInitials(item.paciente_nome);
                       return (
                         <article key={item.id} className={`dp-patient-card dp-patient-card--${column.key}`}>
                           <div className="dp-patient-card__inner">
                             <div
-                              className={`dp-patient-avatar dp-patient-initials shrink-0 ${
-                                patientLabel.length > 5 ? 'dp-patient-initials--compact' : ''
-                              }`}
+                              className="dp-patient-avatar dp-patient-initials shrink-0"
                               title={item.paciente_nome}
                               aria-hidden="true"
                             >
-                              {patientLabel}
+                              {patientAvatar}
                             </div>
                             <div className="dp-patient-card__main">
                               <div className="dp-patient-card__head">
