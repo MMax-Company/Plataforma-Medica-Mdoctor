@@ -1174,39 +1174,28 @@ body {
     margin-left: 0;
   }
 
-  /* Fila operacional — cards e CTAs mais densos */
-  .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-card-primary,
-  .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-secondary-compact,
-  .fila-page-dense .dp-patient-card__actions-slot--review-stack .dp-btn-card-primary,
-  .fila-page-dense .dp-patient-card__actions-slot--ready-stack .dp-btn-card-primary {
-    height: 24px;
-    min-height: 24px;
-    font-size: 8.5px;
-    padding-left: 7px;
-    padding-right: 7px;
-    border-radius: 7px;
-  }
-
-  /* Botão secundário VISUALIZAR RECEITA na coluna ready */
-  .fila-page-dense .dp-patient-card__actions-slot--ready-stack .dp-btn-secondary {
-    height: 20px;
-    min-height: 20px;
-    font-size: 8px;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-radius: 6px;
-    letter-spacing: 0;
-  }
-
-  /* Coluna Pendências: slot mais estreito para o laranja não dominar */
-  .dp-patient-card__actions-slot--review-stack .dp-action-slot {
-    width: 112px;
-  }
-
   .staging-audit-footer {
     display: none !important;
   }
 
+  /* ═══════════════════════════════════════════════════════════════
+     SISTEMA DENSE UNIFICADO — Doctor Prescreve Painel Médico
+     Todos os tokens abaixo se aplicam igualmente às três colunas.
+     Não adicionar overrides por coluna sem alterar este bloco.
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* — Layout da página — */
+  .fila-page-dense .panel-support-band {
+    height: 52px;
+    min-height: 52px;
+  }
+
+  .fila-page-dense .panel-page-body {
+    gap: 6px;
+    padding-top: 6px;
+  }
+
+  /* — Coluna — */
   .fila-page-dense .dp-fila-column {
     border-radius: 14px;
   }
@@ -1219,15 +1208,15 @@ body {
 
   .fila-page-dense .dp-fila-column__scroll {
     padding: 6px;
-    gap: 0;
   }
 
   .fila-page-dense .dp-fila-column__scroll.space-y-2 > * + * {
-    margin-top: 6px;
+    margin-top: 5px;
   }
 
+  /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 6px 8px;
+    padding: 7px 9px;
   }
 
   .fila-page-dense .dp-patient-card--queue,
@@ -1236,31 +1225,84 @@ body {
     min-height: auto;
   }
 
-  .fila-page-dense .dp-patient-card__actions {
-    margin-top: 3px;
+  .fila-page-dense .dp-patient-card__inner {
+    gap: 7px;
   }
 
+  .fila-page-dense .dp-patient-card__head {
+    gap: 6px;
+  }
+
+  /* — Avatar — */
+  .fila-page-dense .dp-patient-avatar {
+    width: 30px;
+    height: 30px;
+  }
+
+  .fila-page-dense .dp-patient-initials {
+    font-size: 8.5px;
+  }
+
+  /* — Texto do paciente — */
+  .fila-page-dense .dp-patient-card-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .fila-page-dense .dp-patient-card-label--compact {
+    font-size: 9.5px;
+  }
+
+  .fila-page-dense .dp-patient-id {
+    font-size: 9.5px;
+  }
+
+  /* — Badge: tokens idênticos para todos os tipos — */
   .fila-page-dense .dp-status-badge {
     height: 18px;
     min-width: 18px;
     font-size: 9px;
+    font-weight: 600;
     padding-left: 6px;
     padding-right: 6px;
     border-radius: 5px;
+  }
+
+  /* — Área de ações — */
+  .fila-page-dense .dp-patient-card__actions {
+    margin-top: 4px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {
     justify-content: flex-start;
   }
 
-  .fila-page-dense .panel-support-band {
-    height: 52px;
-    min-height: 52px;
+  /* — Slot de ação: largura única para todas as colunas — */
+  .fila-page-dense .dp-action-slot {
+    width: 128px;
   }
 
-  .fila-page-dense .panel-page-body {
-    gap: 6px;
-    padding-top: 6px;
+  /* — Botão principal: tokens idênticos para ATENDER / ENVIAR WA / EMITIR RECEITA — */
+  .fila-page-dense .dp-patient-card__actions-slot .dp-btn-card-primary {
+    height: 24px;
+    min-height: 24px;
+    font-size: 8.5px;
+    letter-spacing: 0.03em;
+    padding-left: 7px;
+    padding-right: 7px;
+    border-radius: 6px;
+  }
+
+  /* — Botão secundário: VISUALIZAR RECEITA — */
+  .fila-page-dense .dp-patient-card__actions-slot .dp-btn-secondary {
+    height: 19px;
+    min-height: 19px;
+    font-size: 7.5px;
+    letter-spacing: 0.02em;
+    padding-left: 6px;
+    padding-right: 6px;
+    border-radius: 5px;
   }
 }
 
