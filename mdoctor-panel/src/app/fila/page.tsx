@@ -650,7 +650,7 @@ export default function FilaPage() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-[2fr_2fr_1fr] items-stretch gap-3">
+        <div className="grid min-h-0 flex-1 grid-cols-[7fr_7fr_6fr] items-stretch gap-3">
           {visibleColumns.map((column) => {
             const Icon = columnIcons[column.key as 'queue' | 'review' | 'ready'];
             return (

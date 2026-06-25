@@ -1235,12 +1235,22 @@ body {
 
   /* — Avatar — */
   .fila-page-dense .dp-patient-avatar {
-    width: 30px;
-    height: 30px;
+    width: 40px;
+    height: 40px;
+    background: #F0F4FA;
+    border: 1.5px solid #B8CBE4;
+    color: #071B3A;
   }
 
   .fila-page-dense .dp-patient-initials {
-    font-size: 8.5px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 0 3px;
+  }
+
+  .fila-page-dense .dp-patient-initials--compact {
+    font-size: 9.5px;
   }
 
   /* — Texto do paciente — */
