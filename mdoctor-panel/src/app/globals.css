@@ -1114,13 +1114,6 @@ body {
     border-radius: 8px;
   }
 
-  .dp-patient-card__actions-slot--ready-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
-  }
-
   .dp-patient-card__ready-secondary {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1186,12 +1179,28 @@ body {
   .fila-page-dense .dp-patient-card__actions-slot--queue-row .dp-btn-secondary-compact,
   .fila-page-dense .dp-patient-card__actions-slot--review-stack .dp-btn-card-primary,
   .fila-page-dense .dp-patient-card__actions-slot--ready-stack .dp-btn-card-primary {
-    height: 30px;
-    min-height: 30px;
-    font-size: 9.5px;
-    padding-left: 8px;
-    padding-right: 8px;
-    border-radius: 8px;
+    height: 24px;
+    min-height: 24px;
+    font-size: 8.5px;
+    padding-left: 7px;
+    padding-right: 7px;
+    border-radius: 7px;
+  }
+
+  /* Botão secundário VISUALIZAR RECEITA na coluna ready */
+  .fila-page-dense .dp-patient-card__actions-slot--ready-stack .dp-btn-secondary {
+    height: 20px;
+    min-height: 20px;
+    font-size: 8px;
+    padding-left: 6px;
+    padding-right: 6px;
+    border-radius: 6px;
+    letter-spacing: 0;
+  }
+
+  /* Coluna Pendências: slot mais estreito para o laranja não dominar */
+  .dp-patient-card__actions-slot--review-stack .dp-action-slot {
+    width: 112px;
   }
 
   .staging-audit-footer {
@@ -1228,7 +1237,16 @@ body {
   }
 
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 4px;
+    margin-top: 3px;
+  }
+
+  .fila-page-dense .dp-status-badge {
+    height: 18px;
+    min-width: 18px;
+    font-size: 9px;
+    padding-left: 6px;
+    padding-right: 6px;
+    border-radius: 5px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {

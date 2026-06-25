@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ProntuarioOperacionalModal } from '@/components/medical-record/ProntuarioOperacionalModal';
 import { PatientSearchModal } from '@/components/medical-record/PatientSearchModal';
 import { MemedEmissionOverlay } from '@/components/memed/MemedEmissionOverlay';
-import { AlertTriangle, CheckCircle2, Clock3, Mail } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3 } from 'lucide-react';
 
 function WhatsAppIcon({ className }: { className?: string }) {
   return (
@@ -475,37 +475,25 @@ export default function FilaPage() {
     }
 
     const whatsappLoading = actionLoading === `${item.id}-whatsapp`;
-    const emailLoading = actionLoading === `${item.id}-email`;
 
     return (
       <div className="dp-patient-card__actions-slot dp-patient-card__actions-slot--ready-stack">
         <div className="dp-action-slot flex flex-col gap-1">
-          <div className="dp-patient-card__ready-secondary">
-            <button
-              type="button"
-              onClick={() => {
-                const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
-                if (url) {
-                  window.open(url, '_blank', 'noopener,noreferrer');
-                } else {
-                  setToast('Receita digital não disponível para este atendimento.');
-                  window.setTimeout(() => setToast(null), 3000);
-                }
-              }}
-              className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
-            >
-              VISUALIZAR RECEITA
-            </button>
-            <button
-              type="button"
-              onClick={() => { void deliverPrescription(item, 'email'); }}
-              disabled={emailLoading || !channelTarget(item, 'email')}
-              className="dp-btn dp-btn-secondary dp-btn-ready-mini dp-btn-outline-soft"
-            >
-              <Mail className="h-3 w-3 shrink-0" />
-              {emailLoading ? 'ENVIANDO...' : 'ENVIAR POR E-MAIL'}
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const url = item.dados_clinicos?.memed_receita?.pdfUrl || item.dados_clinicos?.memed_receita?.receitaUrl;
+              if (url) {
+                window.open(url, '_blank', 'noopener,noreferrer');
+              } else {
+                setToast('Receita digital não disponível para este atendimento.');
+                window.setTimeout(() => setToast(null), 3000);
+              }
+            }}
+            className="dp-btn dp-btn-secondary dp-btn-outline-soft"
+          >
+            VISUALIZAR RECEITA
+          </button>
           <button
             type="button"
             onClick={() => { void deliverPrescription(item, 'whatsapp'); }}
