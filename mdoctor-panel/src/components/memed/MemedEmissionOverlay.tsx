@@ -13,7 +13,7 @@ import {
   startMemedEmission,
   type MemedConfig,
 } from '@/services/memed.service';
-import { validatePrescription } from '@/services/prescriptions';
+import { validatePrescription, sendPrescriptionWhatsApp } from '@/services/prescriptions';
 import { hasPersistedMemedReceipt } from '@/lib/atendimento-status';
 import {
   getMemedDiagnosticLog,
@@ -133,6 +133,12 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         void validatePrescription(atendimentoId).catch(() => undefined);
         setReceiptSaved(true);
         receiptSavedRef.current = true;
+        // Envio automático WhatsApp após receita salva — não bloqueia fechamento do overlay.
+        // Erro explícito exposto no saveError para que o médico possa reenviar pela fila.
+        const whatsappResult = await sendPrescriptionWhatsApp(atendimentoId);
+        if (!whatsappResult.data?.sent) {
+          setSaveError(`Receita salva. Falha no envio WhatsApp: ${whatsappResult.error ?? 'Tente pelo botão na fila.'}`);
+        }
       } catch (e: unknown) {
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
