@@ -3,44 +3,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, LogOut } from 'lucide-react';
 import { getAuthUser, type AuthUser } from '@/services/auth.service';
-import { isMemedRuntimeReady } from '@/lib/memed';
+import { getMemedConfig } from '@/services/memed.service';
 
 const LOGO_SRC = '/doctor-prescreve-logo-transparent.png';
 
 type MemedStatus = 'connecting' | 'connected' | 'error';
 
 const MEMED_STATUS_CONFIG: Record<MemedStatus, { color: string; label: string }> = {
-  connected:  { color: '#0BA84F', label: 'Memed conectada' },
+  connected:  { color: '#0BA84F', label: 'Conectada' },
   connecting: { color: '#F59E0B', label: 'Conectando...' },
   error:      { color: '#EF4444', label: 'Desconectada' },
 };
 
+/**
+ * Verifica conectividade real com o backend Memed.
+ * isMemedRuntimeReady() reflete o SDK widget (só ativo durante consultas) — não serve
+ * como indicador geral. getMemedConfig() testa se o backend responde corretamente.
+ */
 function useMemedStatus(): MemedStatus {
   const [status, setStatus] = useState<MemedStatus>('connecting');
 
   useEffect(() => {
-    if (isMemedRuntimeReady()) {
-      setStatus('connected');
-      return;
-    }
-
-    let attempts = 0;
-    const MAX_ATTEMPTS = 15; // 30 s
-
-    const id = setInterval(() => {
-      if (isMemedRuntimeReady()) {
-        setStatus('connected');
-        clearInterval(id);
-        return;
-      }
-      attempts++;
-      if (attempts >= MAX_ATTEMPTS) {
-        setStatus('error');
-        clearInterval(id);
-      }
-    }, 2000);
-
-    return () => clearInterval(id);
+    let cancelled = false;
+    getMemedConfig()
+      .then(() => { if (!cancelled) setStatus('connected'); })
+      .catch(() => { if (!cancelled) setStatus('error'); });
+    return () => { cancelled = true; };
   }, []);
 
   return status;

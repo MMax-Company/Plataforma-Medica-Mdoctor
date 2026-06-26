@@ -647,8 +647,8 @@ body {
   }
 
   .panel-header--operational .panel-header__memed {
-    min-height: 28px;
-    padding: 3px 8px;
+    height: 36px;
+    padding: 0 10px;
     font-size: 9.5px;
   }
 
@@ -803,11 +803,10 @@ body {
 
   .panel-header__memed {
     @apply inline-flex shrink-0 items-center gap-1.5 rounded-[10px] border border-[#D9E2F2] bg-white font-semibold text-[#1A2333];
-    min-height: 36px;
-    padding: 4px 10px;
+    padding: 0 12px;
+    height: 44px;
     font-size: 10.5px;
     box-shadow: none;
-    overflow: hidden;
     white-space: nowrap;
   }
 
