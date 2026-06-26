@@ -20,7 +20,6 @@ import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
 import { avatarInitials, formatQueuePatientId, isValidCpf, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
 import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
-import { sendPrescriptionWhatsApp } from '@/services/prescriptions';
 
 type AtendimentoStatus = PanelAtendimentoStatus;
 
@@ -798,22 +797,9 @@ export default function FilaPage() {
           atendimentoId={memedOverlayId ?? ''}
           visible={memedOverlayId !== null}
           onClose={() => setMemedOverlayId(null)}
-          onComplete={async () => {
-            const deliveredId = memedOverlayId;
+          onComplete={() => {
             setMemedOverlayId(null);
-            if (!deliveredId) { void fetchAtendimentos(); return; }
-            console.log('[chain] sendPrescriptionWhatsApp:start', { deliveredId });
-            const wResult = await sendPrescriptionWhatsApp(deliveredId);
-            if (wResult.data?.sent) {
-              console.log('[chain] sendPrescriptionWhatsApp:done', { deliveredId });
-              setAtendimentos((prev) => prev.filter((a) => a.id !== deliveredId));
-              setToast('Receita emitida e enviada ao paciente por WhatsApp!');
-              window.setTimeout(() => setToast(null), 4000);
-            } else {
-              console.warn('[chain] sendPrescriptionWhatsApp:error', { deliveredId, error: wResult.error });
-              void fetchAtendimentos();
-              setError(`Receita salva. Falha no envio WhatsApp: ${wResult.error ?? 'Use o botão ENVIAR WHATSAPP na coluna Receitas Prontas.'}`);
-            }
+            void fetchAtendimentos();
           }}
         />
       )}

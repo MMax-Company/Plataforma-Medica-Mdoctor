@@ -145,7 +145,6 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       }
       await markPending();
       console.log('[chain] onComplete:start');
-      // Fecha overlay — fila.page.tsx é responsável pelo envio WhatsApp e gerenciamento de estado.
       onComplete();
       console.log('[chain] onComplete:done');
     },
