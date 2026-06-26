@@ -35,11 +35,16 @@ async function tryGet(path, headers = {}) {
     validateStatus: (status) => status < 500,
     maxRedirects: 0
   });
-  if (response.status >= 400) return null;
-  // Memed redireciona (302) para o PDF/link — captura o Location em vez de seguir
+  const shortPath = path.split('/').slice(-3).join('/');
+  if (response.status >= 400) {
+    console.warn('[memed-api] tryGet', response.status, shortPath);
+    return null;
+  }
   if (response.status >= 300 && response.headers?.location) {
+    console.info('[memed-api] tryGet redirect', response.status, shortPath, '->', response.headers.location.substring(0, 80));
     return { url: response.headers.location };
   }
+  console.info('[memed-api] tryGet ok', response.status, shortPath, JSON.stringify(response.data)?.substring(0, 120));
   return response.data;
 }
 
