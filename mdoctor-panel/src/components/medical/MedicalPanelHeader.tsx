@@ -94,53 +94,54 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
           <h1 className="panel-header__title">Painel Médico</h1>
         </div>
 
-        {/* Direita — PRONTUÁRIO → Memed → perfil → SAIR */}
+        {/* Direita — PRONTUÁRIO isolado | gap | bloco ops (Memed · Perfil · SAIR) */}
         <div className="panel-header__col panel-header__col--ops">
-          <div className="panel-header__ops">
+          <div className="panel-header__right-group">
 
             {onOpenMedicalRecord ? (
-              <>
-                <button
-                  type="button"
-                  onClick={onOpenMedicalRecord}
-                  className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
-                >
-                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                  PRONTUÁRIO
-                </button>
-                <span className="panel-header__divider" aria-hidden="true" />
-              </>
+              <button
+                type="button"
+                onClick={onOpenMedicalRecord}
+                className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
+              >
+                <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                PRONTUÁRIO
+              </button>
             ) : null}
 
-            <div className="panel-header__memed">
-              <span
-                className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ backgroundColor: memedCfg.color }}
-                aria-hidden="true"
-              />
-              <span className="whitespace-nowrap">{memedCfg.label}</span>
-            </div>
+            <div className="panel-header__ops">
 
-            <span className="panel-header__divider" aria-hidden="true" />
-
-            <div className="panel-header__profile">
-              <div className="panel-header__avatar">{initials}</div>
-              <div className="panel-header__profile-text min-w-0">
-                <p className="panel-header__name truncate">{doctorName}</p>
-                <p className="panel-header__role truncate">{doctorRole}</p>
+              <div className="panel-header__memed">
+                <span
+                  className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: memedCfg.color }}
+                  aria-hidden="true"
+                />
+                <span className="whitespace-nowrap">{memedCfg.label}</span>
               </div>
+
+              <span className="panel-header__divider" aria-hidden="true" />
+
+              <div className="panel-header__profile">
+                <div className="panel-header__avatar">{initials}</div>
+                <div className="panel-header__profile-text min-w-0">
+                  <p className="panel-header__name truncate">{doctorName}</p>
+                  <p className="panel-header__role truncate">{doctorRole}</p>
+                </div>
+              </div>
+
+              <span className="panel-header__divider" aria-hidden="true" />
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="panel-header__logout dp-btn dp-btn-red shrink-0"
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                SAIR
+              </button>
+
             </div>
-
-            <span className="panel-header__divider" aria-hidden="true" />
-
-            <button
-              type="button"
-              onClick={onLogout}
-              className="panel-header__logout dp-btn dp-btn-red shrink-0"
-            >
-              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-              SAIR
-            </button>
           </div>
         </div>
 
