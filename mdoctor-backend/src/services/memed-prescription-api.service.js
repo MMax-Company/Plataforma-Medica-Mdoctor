@@ -32,9 +32,14 @@ async function tryGet(path, headers = {}) {
       ...headers
     },
     params: apiParams(),
-    validateStatus: (status) => status < 500
+    validateStatus: (status) => status < 500,
+    maxRedirects: 0
   });
   if (response.status >= 400) return null;
+  // Memed redireciona (302) para o PDF/link — captura o Location em vez de seguir
+  if (response.status >= 300 && response.headers?.location) {
+    return { url: response.headers.location };
+  }
   return response.data;
 }
 
