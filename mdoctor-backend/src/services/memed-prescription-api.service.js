@@ -1,55 +1,45 @@
 /**
  * Enriquecimento de receita Memed via API oficial (sem mock).
- * Usa credenciais api-key/secret-key + prescritor MEMED_PRESCRITOR_EXTERNAL_ID.
+ * Endpoints documentados:
+ *   GET /prescricoes/{id}/url-document/full?token={prescriber_token}
+ *   GET /prescricoes/{id}/get-digital-prescription-link?token={prescriber_token}
+ * Autenticação: ?token= (query param), conforme doc.memed.com.br/docs/backend/prescricao.
  */
 const axios = require('axios');
 const memed = require('../integrations/memed.service');
-
-function prescriberExternalId() {
-  return (
-    process.env.MEMED_PRESCRITOR_EXTERNAL_ID ||
-    process.env.MEDICO_EXTERNAL_ID ||
-    ''
-  ).trim();
-}
-
-function apiParams() {
-  return {
-    'api-key': process.env.MEMED_API_KEY,
-    'secret-key': process.env.MEMED_SECRET_KEY
-  };
-}
 
 function baseUrl() {
   return memed.baseUrl;
 }
 
-async function tryGet(path, headers = {}) {
+async function tryGet(path, params = {}) {
   const response = await axios.get(`${baseUrl()}${path}`, {
     headers: {
       Accept: 'application/vnd.api+json',
-      'Content-Type': 'application/json',
-      ...headers
+      'Content-Type': 'application/json'
     },
-    params: apiParams(),
+    params,
     validateStatus: (status) => status < 500,
     maxRedirects: 0
   });
-  const shortPath = path.split('/').slice(-3).join('/');
   if (response.status >= 400) {
-    console.warn('[memed-api] tryGet', response.status, shortPath);
+    console.warn('[memed-api] tryGet', response.status, path.split('/').slice(-3).join('/'));
     return null;
   }
   if (response.status >= 300 && response.headers?.location) {
-    console.info('[memed-api] tryGet redirect', response.status, shortPath, '->', response.headers.location.substring(0, 80));
     return { url: response.headers.location };
   }
-  console.info('[memed-api] tryGet ok', response.status, shortPath, JSON.stringify(response.data)?.substring(0, 120));
   return response.data;
 }
 
 function pickUrl(data) {
   if (!data) return null;
+  // Formato documentado: {"data":[{"attributes":{"link":"..."}}]}
+  if (Array.isArray(data.data)) {
+    const link = data.data[0]?.attributes?.link;
+    if (link) return link;
+  }
+  // Formatos alternativos / legados
   const attrs = data.data?.attributes || data.attributes || data;
   return (
     attrs.pdf_url ||
@@ -66,6 +56,17 @@ function pickUrl(data) {
 
 function pickDigital(data) {
   if (!data) return { link: null, unlockCode: null };
+  // Formato documentado: {"data":[{"attributes":{"link":"...","digits":"XXXX"}}]}
+  if (Array.isArray(data.data)) {
+    const item = data.data[0]?.attributes;
+    if (item?.link) {
+      return {
+        link: item.link,
+        unlockCode: item.digits || item.codigo_desbloqueio || item.unlock_code || null
+      };
+    }
+  }
+  // Formatos alternativos / legados
   const attrs = data.data?.attributes || data.attributes || data;
   return {
     link: attrs.link || attrs.digital_link || attrs.url || data.link || null,
@@ -81,6 +82,7 @@ function pickDigital(data) {
 
 /**
  * Busca PDF, link digital e código de desbloqueio para prescription_id Memed.
+ * Usa autenticação via ?token= conforme documentação oficial.
  */
 async function fetchPrescriptionArtifacts(prescriptionId) {
   const id = String(prescriptionId || '').trim();
@@ -88,88 +90,48 @@ async function fetchPrescriptionArtifacts(prescriptionId) {
     return { pdfUrl: null, digitalLink: null, unlockCode: null, source: null };
   }
 
-  let authHeader = {};
+  let prescriberToken = '';
   try {
     const auth = await memed.authenticatePrescriber(memed.buildDoctorFromEnv());
-    if (auth?.token) authHeader = { Authorization: `Bearer ${auth.token}` };
+    prescriberToken = auth?.token || '';
   } catch {
-    /* prossegue sem token — api-key/secret-key podem ser suficientes */
+    return { pdfUrl: null, digitalLink: null, unlockCode: null, source: null };
   }
 
-  const externalId = prescriberExternalId();
-  const paths = {
-    digital: [
-      `/sinapse-prescricao/usuarios/${encodeURIComponent(externalId)}/prescricoes/${encodeURIComponent(id)}/get-digital-prescription-link`,
-      `/sinapse-prescricao/prescricoes/${encodeURIComponent(id)}/get-digital-prescription-link`,
-      `/prescricoes/${encodeURIComponent(id)}/get-digital-prescription-link`
-    ],
-    pdf: [
-      `/sinapse-prescricao/usuarios/${encodeURIComponent(externalId)}/prescricoes/${encodeURIComponent(id)}/url-document/full`,
-      `/sinapse-prescricao/prescricoes/${encodeURIComponent(id)}/url-document/full`,
-      `/prescricoes/${encodeURIComponent(id)}/url-document/full`
-    ],
-    detail: [
-      `/sinapse-prescricao/prescricoes/${encodeURIComponent(id)}`,
-      `/prescricoes/${encodeURIComponent(id)}`
-    ]
-  };
+  if (!prescriberToken) {
+    return { pdfUrl: null, digitalLink: null, unlockCode: null, source: null };
+  }
 
+  const tokenParam = { token: prescriberToken };
+  let pdfUrl = null;
   let digitalLink = null;
   let unlockCode = null;
-  let pdfUrl = null;
   let source = null;
 
-  for (const path of paths.digital) {
-    try {
-      const data = await tryGet(path, authHeader);
-      const picked = pickDigital(data);
-      if (picked.link) {
-        digitalLink = picked.link;
-        unlockCode = picked.unlockCode || unlockCode;
-        source = 'digital-link';
-        break;
-      }
-    } catch {
-      /* próximo path */
+  // GET /prescricoes/{id}/url-document/full?token={token}
+  try {
+    const data = await tryGet(`/prescricoes/${encodeURIComponent(id)}/url-document/full`, tokenParam);
+    const url = pickUrl(data);
+    if (url) {
+      pdfUrl = url;
+      source = 'pdf-url';
     }
-  }
+  } catch { /* best-effort */ }
 
-  for (const path of paths.pdf) {
-    try {
-      const data = await tryGet(path, authHeader);
-      const url = pickUrl(data);
-      if (url) {
-        pdfUrl = url;
-        source = source || 'pdf-url';
-        break;
-      }
-    } catch {
-      /* próximo path */
+  // GET /prescricoes/{id}/get-digital-prescription-link?token={token}
+  try {
+    const data = await tryGet(`/prescricoes/${encodeURIComponent(id)}/get-digital-prescription-link`, tokenParam);
+    const picked = pickDigital(data);
+    if (picked.link) {
+      digitalLink = picked.link;
+      unlockCode = picked.unlockCode || unlockCode;
+      source = source || 'digital-link';
     }
-  }
-
-  if (!pdfUrl || !digitalLink) {
-    for (const path of paths.detail) {
-      try {
-        const data = await tryGet(path, authHeader);
-        if (!pdfUrl) pdfUrl = pickUrl(data);
-        const picked = pickDigital(data);
-        if (!digitalLink) digitalLink = picked.link;
-        if (!unlockCode) unlockCode = picked.unlockCode;
-        if (pdfUrl || digitalLink) {
-          source = source || 'prescription-detail';
-          break;
-        }
-      } catch {
-        /* próximo path */
-      }
-    }
-  }
+  } catch { /* best-effort */ }
 
   return { pdfUrl, digitalLink, unlockCode, source };
 }
 
 module.exports = {
-  fetchPrescriptionArtifacts,
-  prescriberExternalId
+  fetchPrescriptionArtifacts
 };

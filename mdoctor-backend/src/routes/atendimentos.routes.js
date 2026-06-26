@@ -574,9 +574,9 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
 
   // Tenta recuperar a URL on-demand se não foi persistida mas o memed_id existe
   if (!resolvedReceiptUrl && !isContingency) {
-    const memedId = receipt.payload?.prescricao?.prescriptionUuid
+    const memedId = receipt.receitaId
       || receipt.memed_id
-      || receipt.receitaId;
+      || receipt.payload?.prescricao?.prescriptionUuid;
     if (memedId) {
       try {
         const artifacts = await fetchPrescriptionArtifacts(memedId);
