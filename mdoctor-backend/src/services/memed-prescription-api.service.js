@@ -77,6 +77,14 @@ async function fetchPrescriptionArtifacts(prescriptionId) {
     return { pdfUrl: null, digitalLink: null, unlockCode: null, source: null };
   }
 
+  let authHeader = {};
+  try {
+    const auth = await memed.authenticatePrescriber(memed.buildDoctorFromEnv());
+    if (auth?.token) authHeader = { Authorization: `Bearer ${auth.token}` };
+  } catch {
+    /* prossegue sem token — api-key/secret-key podem ser suficientes */
+  }
+
   const externalId = prescriberExternalId();
   const paths = {
     digital: [
@@ -102,7 +110,7 @@ async function fetchPrescriptionArtifacts(prescriptionId) {
 
   for (const path of paths.digital) {
     try {
-      const data = await tryGet(path);
+      const data = await tryGet(path, authHeader);
       const picked = pickDigital(data);
       if (picked.link) {
         digitalLink = picked.link;
@@ -117,7 +125,7 @@ async function fetchPrescriptionArtifacts(prescriptionId) {
 
   for (const path of paths.pdf) {
     try {
-      const data = await tryGet(path);
+      const data = await tryGet(path, authHeader);
       const url = pickUrl(data);
       if (url) {
         pdfUrl = url;
@@ -132,7 +140,7 @@ async function fetchPrescriptionArtifacts(prescriptionId) {
   if (!pdfUrl || !digitalLink) {
     for (const path of paths.detail) {
       try {
-        const data = await tryGet(path);
+        const data = await tryGet(path, authHeader);
         if (!pdfUrl) pdfUrl = pickUrl(data);
         const picked = pickDigital(data);
         if (!digitalLink) digitalLink = picked.link;

@@ -38,12 +38,15 @@ export function setupPrescriptionCallback(options: MemedModuleOptions): void {
     }
 
     const parsed = parsePrescriptionPayload(payload);
-    const hasValidPayload = !!(parsed.receitaId || parsed.pdfUrl || parsed.receitaUrl);
+    // Requer pelo menos uma URL — receitaId sozinho não é suficiente.
+    // Certificado digital: prescricaoGerada dispara com id mas sem pdfUrl/receitaUrl;
+    // prescricaoImpressa chega logo em seguida com o payload completo.
+    const hasValidPayload = !!(parsed.pdfUrl || parsed.receitaUrl || parsed.digitalLink);
 
     if (!hasValidPayload) {
       // Oculta o widget visualmente, mas não consome o guard nem chama onPrescriptionPrinted.
       // prescricaoImpressa processará a emissão com o payload completo.
-      pushDiagnosticEvent('prescricaoGerada:payload-vazio-aguarda-impressa', { iframes: captureIframeState() });
+      pushDiagnosticEvent('prescricaoGerada:sem-url-aguarda-impressa', { iframes: captureIframeState() });
       hidePrescription();
       forceHideMemedContainer();
       recordMemedPrescriptionEmission();
