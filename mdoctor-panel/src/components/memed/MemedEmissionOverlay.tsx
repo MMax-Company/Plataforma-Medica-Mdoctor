@@ -13,7 +13,7 @@ import {
   startMemedEmission,
   type MemedConfig,
 } from '@/services/memed.service';
-import { validatePrescription, sendPrescriptionWhatsApp } from '@/services/prescriptions';
+import { validatePrescription } from '@/services/prescriptions';
 import { hasPersistedMemedReceipt } from '@/lib/atendimento-status';
 import {
   getMemedDiagnosticLog,
@@ -108,11 +108,11 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
 
   const handlePrescriptionPrinted = useCallback(
     async (payload: unknown) => {
+      console.log('[chain] handlePrescriptionPrinted:start', { atendimentoId });
       if (!atendimentoId) return;
       const parsed = parsePrescriptionPayload(payload);
       if (!parsed.receitaId && !parsed.pdfUrl && !parsed.receitaUrl) {
-        // Payload inválido: não há dado para salvar. Marca como memed_processing e fecha
-        // o overlay para não travar — médico pode reemitir pelo painel.
+        console.warn('[chain] handlePrescriptionPrinted:payload-invalido', parsed);
         setSaveError('Receita não pôde ser salva automaticamente. Tente novamente pelo painel.');
         await markPending();
         onComplete();
@@ -121,6 +121,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       setSaveError(null);
       setClosing(true);
       try {
+        console.log('[chain] saveMemedReceipt:start');
         await saveMemedReceipt({
           atendimentoId,
           receitaId: parsed.receitaId || undefined,
@@ -130,22 +131,23 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
           unlockCode: parsed.unlockCode || undefined,
           payload: parsed.raw,
         });
-        void validatePrescription(atendimentoId).catch(() => undefined);
+        console.log('[chain] saveMemedReceipt:done');
+        console.log('[chain] validatePrescription:start');
+        void validatePrescription(atendimentoId).catch((err) => {
+          console.warn('[chain] validatePrescription:error', err);
+        });
+        console.log('[chain] validatePrescription:dispatched');
         setReceiptSaved(true);
         receiptSavedRef.current = true;
-        // Envio automático WhatsApp após receita salva — não bloqueia fechamento do overlay.
-        // Erro explícito exposto no saveError para que o médico possa reenviar pela fila.
-        const whatsappResult = await sendPrescriptionWhatsApp(atendimentoId);
-        if (!whatsappResult.data?.sent) {
-          setSaveError(`Receita salva. Falha no envio WhatsApp: ${whatsappResult.error ?? 'Tente pelo botão na fila.'}`);
-        }
       } catch (e: unknown) {
+        console.error('[chain] saveMemedReceipt:error', e);
         setSaveError(e instanceof Error ? e.message : 'Falha ao persistir receita');
       }
       await markPending();
-      // Fecha overlay APÓS o save — fetchAtendimentos() roda com status correto no banco,
-      // evitando sumir com todos os pacientes da fila prematuramente.
+      console.log('[chain] onComplete:start');
+      // Fecha overlay — fila.page.tsx é responsável pelo envio WhatsApp e gerenciamento de estado.
       onComplete();
+      console.log('[chain] onComplete:done');
     },
     [atendimentoId, markPending, onComplete],
   );
