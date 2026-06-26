@@ -25,6 +25,7 @@ const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../s
 const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
 const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
+const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
 const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
 const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
 const logger = require('../config/logger');
@@ -565,14 +566,36 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
     }
   }
   const receipt = previous.dados_clinicos?.memed_receita || {};
-  const receiptUrl =
+  let resolvedReceiptUrl =
     receipt.pdfUrl ||
     receipt.receitaUrl ||
     (isDeliveryMockEnabled() ? `/api/prescriptions/${req.params.id}/pdf` : '') ||
     (isContingency ? 'contingency' : '');
-  if (!receiptUrl) {
-    return res.status(400).json({ success: false, error: 'Receita Memed não encontrada para entrega', correlationId });
+
+  // Tenta recuperar a URL on-demand se não foi persistida mas o memed_id existe
+  if (!resolvedReceiptUrl && !isContingency) {
+    const memedId = receipt.memed_id || receipt.receitaId;
+    if (memedId) {
+      try {
+        const artifacts = await fetchPrescriptionArtifacts(memedId);
+        resolvedReceiptUrl = artifacts.pdfUrl || artifacts.digitalLink || null;
+        if (resolvedReceiptUrl) {
+          logger.info({ correlationId, memedId }, 'delivery: pdfUrl recuperado on-demand via fetchPrescriptionArtifacts');
+        }
+      } catch (enrichErr) {
+        logger.warn({ correlationId, memedId, err: enrichErr.message }, 'delivery: falha ao recuperar pdfUrl on-demand');
+      }
+    }
   }
+
+  if (!resolvedReceiptUrl) {
+    return res.status(400).json({
+      success: false,
+      error: 'Receita/PDF ainda não está disponível para envio pelo WhatsApp.',
+      correlationId
+    });
+  }
+  const receiptUrl = resolvedReceiptUrl;
 
   const target =
     channel === 'email'
