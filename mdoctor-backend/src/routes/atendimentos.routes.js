@@ -57,7 +57,7 @@ function hasSuccessfulDelivery(deliveries = [], channel = '') {
 
 function assertCanDeliverPrescription(atendimento = {}) {
   const status = String(atendimento.status || '').toLowerCase();
-  const readyStatuses = new Set(['ready', 'validated', 'aprovado']);
+  const readyStatuses = new Set(['ready', 'validated', 'aprovado', 'receita_emitida']);
 
   if (!readyStatuses.has(status)) {
     return {
@@ -68,7 +68,9 @@ function assertCanDeliverPrescription(atendimento = {}) {
   }
 
   const receipt = atendimento.dados_clinicos?.memed_receita || {};
-  if (!receipt.validated_at && !receipt.validatedAt) {
+  // validated_at só é obrigatório quando o fluxo de validação explícita ocorreu (status ready/validated).
+  // Para receita_emitida (validate ainda não disparou), exigir apenas que a receita exista com URL.
+  if (status !== 'receita_emitida' && !receipt.validated_at && !receipt.validatedAt) {
     return { ok: false, statusCode: 422, error: 'Receita ainda não foi validada pelo médico.' };
   }
 

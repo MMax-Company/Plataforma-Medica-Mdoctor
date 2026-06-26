@@ -232,10 +232,10 @@ router.post('/receita', requireAuth, async (req, res) => {
       console.warn('[memed] enrich prescription artifacts:', enrichError.message);
     }
   }
-  if (!memedId && !resolvedPdf && !resolvedDigital) {
+  if (!resolvedPdf && !resolvedDigital) {
     return res.status(422).json({
       success: false,
-      error: 'Informe receitaId (memed_id) ou pdfUrl/link digital da receita emitida.',
+      error: 'URL da receita não disponível — aguarde o Memed e tente novamente.',
       correlationId
     });
   }
