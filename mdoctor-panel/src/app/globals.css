@@ -641,14 +641,16 @@ body {
 
   .panel-header--operational .panel-header__ops {
     min-height: 48px;
-    max-width: 380px;
     padding: 6px 10px;
     align-items: center;
     gap: 6px;
   }
 
   .panel-header--operational .panel-header__memed {
-    display: none;
+    height: 32px;
+    font-size: 9.5px;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
   .panel-header--operational .panel-header__profile {
@@ -723,8 +725,7 @@ body {
   }
 
   .panel-header__col--center {
-    justify-content: flex-end;
-    padding-right: 4px;
+    justify-content: center;
   }
 
   .panel-header__col--ops {
@@ -765,10 +766,8 @@ body {
     font-size: 40px;
     line-height: 0.9;
     letter-spacing: -0.03em;
-    margin-left: 2px;
     margin-bottom: 0;
     padding-bottom: 0;
-    transform: translate(6px, 4px);
   }
 
   .panel-header__prontuario {
@@ -791,7 +790,6 @@ body {
     gap: 8px;
     padding: 8px 12px;
     width: 100%;
-    max-width: 410px;
     min-height: 62px;
     box-shadow: 0 4px 14px rgba(15, 23, 42, 0.04);
     justify-content: flex-end;

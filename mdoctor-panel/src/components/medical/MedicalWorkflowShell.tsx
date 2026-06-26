@@ -31,7 +31,6 @@ export function MedicalWorkflowShell({
   return (
     <main className="medical-workflow-root min-h-screen bg-[#F6F9FD] text-[#071B3A]">
       <MedicalPanelHeader
-        compact
         onLogout={handleLogout}
         onOpenMedicalRecord={onOpenQueue}
       />

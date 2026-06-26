@@ -3,14 +3,54 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, LogOut } from 'lucide-react';
 import { getAuthUser, type AuthUser } from '@/services/auth.service';
+import { isMemedRuntimeReady } from '@/lib/memed';
 
 const LOGO_SRC = '/doctor-prescreve-logo-transparent.png';
+
+type MemedStatus = 'connecting' | 'connected' | 'error';
+
+const MEMED_STATUS_CONFIG: Record<MemedStatus, { color: string; label: string }> = {
+  connected:  { color: '#0BA84F', label: 'Memed conectada' },
+  connecting: { color: '#F59E0B', label: 'Conectando...' },
+  error:      { color: '#EF4444', label: 'Desconectada' },
+};
+
+function useMemedStatus(): MemedStatus {
+  const [status, setStatus] = useState<MemedStatus>('connecting');
+
+  useEffect(() => {
+    if (isMemedRuntimeReady()) {
+      setStatus('connected');
+      return;
+    }
+
+    let attempts = 0;
+    const MAX_ATTEMPTS = 15; // 30 s
+
+    const id = setInterval(() => {
+      if (isMemedRuntimeReady()) {
+        setStatus('connected');
+        clearInterval(id);
+        return;
+      }
+      attempts++;
+      if (attempts >= MAX_ATTEMPTS) {
+        setStatus('error');
+        clearInterval(id);
+      }
+    }, 2000);
+
+    return () => clearInterval(id);
+  }, []);
+
+  return status;
+}
 
 function doctorInitials(name: string): string {
   const parts = name.replace(/^Dr\.?\s*/i, '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'DR';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return (parts[0][0] + parts.at(-1)![0]).toUpperCase();
 }
 
 function formatDoctorName(name: string): string {
@@ -23,12 +63,12 @@ function formatDoctorName(name: string): string {
 interface MedicalPanelHeaderProps {
   onLogout: () => void;
   onOpenMedicalRecord?: () => void;
-  compact?: boolean;
   operational?: boolean;
 }
 
-export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational = false }: MedicalPanelHeaderProps) {
+export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational = false }: Readonly<MedicalPanelHeaderProps>) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const memedStatus = useMemedStatus();
 
   useEffect(() => {
     setUser(getAuthUser());
@@ -38,10 +78,14 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
   const doctorRole = user?.role === 'admin' ? 'Administrador' : 'Médico';
   const initials = useMemo(() => doctorInitials(doctorName), [doctorName]);
 
+  const memedCfg = MEMED_STATUS_CONFIG[memedStatus];
+
   return (
     <>
     <header className={`panel-header${operational ? ' panel-header--operational' : ''}`}>
       <div className="panel-shell panel-header__shell">
+
+        {/* Esquerda — somente logo */}
         <div className="panel-header__col panel-header__col--brand">
           <div className="panel-header__brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -54,29 +98,40 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
               className="panel-header__logo shrink-0 bg-transparent"
               style={{ background: 'transparent' }}
             />
-            <h1 className="panel-header__title">Painel Médico</h1>
           </div>
         </div>
 
+        {/* Centro — título centralizado na página */}
         <div className="panel-header__col panel-header__col--center">
-          {onOpenMedicalRecord ? (
-            <button
-              type="button"
-              onClick={onOpenMedicalRecord}
-              className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
-            >
-              <ClipboardList className="h-4 w-4" aria-hidden="true" />
-              PRONTUÁRIO
-            </button>
-          ) : null}
+          <h1 className="panel-header__title">Painel Médico</h1>
         </div>
 
+        {/* Direita — Memed → PRONTUÁRIO → perfil → SAIR */}
         <div className="panel-header__col panel-header__col--ops">
           <div className="panel-header__ops">
+
             <div className="panel-header__memed">
-              <span className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#0BA84F]" aria-hidden="true" />
-              <span className="whitespace-nowrap">Certificado digital Memed</span>
+              <span
+                className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
+                style={{ backgroundColor: memedCfg.color }}
+                aria-hidden="true"
+              />
+              <span className="whitespace-nowrap">{memedCfg.label}</span>
             </div>
+
+            {onOpenMedicalRecord ? (
+              <>
+                <span className="panel-header__divider" aria-hidden="true" />
+                <button
+                  type="button"
+                  onClick={onOpenMedicalRecord}
+                  className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
+                >
+                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                  PRONTUÁRIO
+                </button>
+              </>
+            ) : null}
 
             <span className="panel-header__divider" aria-hidden="true" />
 
@@ -100,6 +155,7 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
             </button>
           </div>
         </div>
+
       </div>
     </header>
     <div className="panel-gold-band" aria-hidden="true" />
