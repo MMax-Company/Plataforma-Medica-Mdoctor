@@ -119,6 +119,7 @@ class MemedService {
     this.baseUrl = apiBase;
     const token =
       prescriber.token ||
+      prescriber.token_acesso ||
       prescriber.attributes?.token ||
       prescriber.attributes?.token_acesso ||
       process.env.MEMED_PRESCRITOR_TOKEN ||

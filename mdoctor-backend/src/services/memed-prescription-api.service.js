@@ -47,6 +47,7 @@ function pickUrl(data) {
     attrs.document_url ||
     attrs.link ||
     attrs.digital_link ||
+    attrs.url ||
     data.pdf_url ||
     data.url ||
     null
