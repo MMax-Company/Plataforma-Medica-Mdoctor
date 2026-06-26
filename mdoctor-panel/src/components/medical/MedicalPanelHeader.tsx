@@ -106,9 +106,23 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
           <h1 className="panel-header__title">Painel Médico</h1>
         </div>
 
-        {/* Direita — Memed → PRONTUÁRIO → perfil → SAIR */}
+        {/* Direita — PRONTUÁRIO → Memed → perfil → SAIR */}
         <div className="panel-header__col panel-header__col--ops">
           <div className="panel-header__ops">
+
+            {onOpenMedicalRecord ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenMedicalRecord}
+                  className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
+                >
+                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
+                  PRONTUÁRIO
+                </button>
+                <span className="panel-header__divider" aria-hidden="true" />
+              </>
+            ) : null}
 
             <div className="panel-header__memed">
               <span
@@ -118,20 +132,6 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
               />
               <span className="whitespace-nowrap">{memedCfg.label}</span>
             </div>
-
-            {onOpenMedicalRecord ? (
-              <>
-                <span className="panel-header__divider" aria-hidden="true" />
-                <button
-                  type="button"
-                  onClick={onOpenMedicalRecord}
-                  className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
-                >
-                  <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                  PRONTUÁRIO
-                </button>
-              </>
-            ) : null}
 
             <span className="panel-header__divider" aria-hidden="true" />
 
