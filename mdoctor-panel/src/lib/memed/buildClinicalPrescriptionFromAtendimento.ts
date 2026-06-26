@@ -91,6 +91,25 @@ export function buildClinicalPrescriptionFromAtendimento(
     return list.map(rowToClinicalItem);
   }
 
+  // Campos numerados: med1_nome/dose/frequencia/via, med2_*, med3_*
+  // Suporta receitas com até 3 medicamentos sem depender de texto livre.
+  const numberedItems: ClinicalPrescriptionItem[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const nome = String(clinical[`med${i}_nome`] || '').trim();
+    if (!nome) break;
+    const rawDose = String(clinical[`med${i}_dose`] || '').trim();
+    numberedItems.push(rowToClinicalItem({
+      name: nome,
+      dose: rawDose.replace(/[^\d.,]/g, '') || undefined,
+      unit: rawDose.replace(/[\d.,\s]/g, '') || undefined,
+      frequency: String(clinical[`med${i}_frequencia`] || '24h'),
+      route: String(clinical[`med${i}_via`] || 'oral'),
+      continuous: (clinical.uso_continuo as boolean | undefined) !== false,
+    }));
+  }
+  if (numberedItems.length > 0) return numberedItems;
+
+  // Fallback de texto livre (compatibilidade com dados antigos sem campos numerados).
   const fallback = String(
     clinical.medicacao_em_uso || clinical.medication || atendimento.medicacao_em_uso || '',
   ).trim();
