@@ -5,7 +5,7 @@ const axios = require('axios');
 const { initSupabase, getSupabase } = require('../config/supabase');
 const logger = require('../config/logger');
 
-const BUCKET = process.env.SUPABASE_BUCKET_PRESCRIPTIONS || 'prescriptions';
+const BUCKET = process.env.SUPABASE_BUCKET_PRESCRIPTIONS || 'receitas';
 
 async function mirrorMemedPdfToStorage({ atendimentoId, memedId, sourceUrl }) {
   if (process.env.MEMED_MIRROR_PDF_TO_STORAGE !== 'true') {
