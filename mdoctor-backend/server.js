@@ -240,10 +240,7 @@ app.listen(PORT,()=>{
   });
 });
 
-// Init WhatsApp service (Spec §9)
-if (process.env.WHATSAPP_ENABLED === 'true') {
-  const whatsapp = require('./src/whatsapp/whatsapp.service');
-  whatsapp.connect().catch(console.error);
-} else {
-  logger.info('whatsapp_disabled', { enabled: false });
-}
+// Cliente WhatsApp legado (Baileys direto) desativado: a entrega real usa a Evolution API
+// (src/services/providers/evolution.provider.js). Este cliente ficava tentando parear via QR
+// indefinidamente e derrubava a sessão da Evolution API com conflito "device_removed".
+logger.info('whatsapp_disabled', { enabled: false, reason: 'legacy_baileys_client_removed' });
