@@ -42,6 +42,9 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
     .err { background: #fff1f1; color: #a40000; border: 1px solid #ffc9c9; }
     .ok { background: #ecfdf3; color: #0b6b3a; border: 1px solid #b7ebd0; }
     .hint { font-size: 0.8rem; color: #5b6475; margin-top: 8px; }
+    .tips { margin-top: 16px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.82rem; color: #78350f; }
+    .tips ul { margin: 6px 0 0 16px; padding: 0; }
+    .tips li { margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -53,9 +56,15 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
       ${expiry ? `<p class="hint">Este link é válido até ${expiry}.</p>` : ''}
       ${
         success
-          ? '<div class="msg ok">Receita enviada com sucesso! Você já pode fechar esta página e aguardar o contato da equipe médica.</div>'
+          ? `<div class="msg ok">✅ Receita enviada com sucesso! Seu atendimento entrou na fila médica. Volte ao WhatsApp para acompanhar.</div>`
           : errorMessage
-            ? `<div class="msg err">${String(errorMessage).replace(/</g, '&lt;')}</div>`
+            ? `<div class="msg err">⚠️ ${String(errorMessage).replaceAll('<', '&lt;')}</div>
+               <div class="tips"><strong>Dicas para uma boa foto:</strong><ul>
+                 <li>Fotografe em local bem iluminado (luz natural é ideal)</li>
+                 <li>Mantenha a câmera firme, sem tremor</li>
+                 <li>A receita deve aparecer completa na foto, incluindo a data</li>
+                 <li>Evite reflexos ou sombras sobre o papel</li>
+               </ul></div>`
             : ''
       }
       ${
@@ -64,7 +73,7 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
           : `<form method="post" action="/api/upload-receita/${encodeURIComponent(token)}" enctype="multipart/form-data">
         <label for="file">Arquivo (JPG, PNG ou PDF — máx. 10 MB)</label>
         <input id="file" name="file" type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" required />
-        <button type="submit" id="btn">Enviar foto da receita</button>
+        <button type="submit" id="btn">${errorMessage ? 'Tentar novamente' : 'Enviar foto da receita'}</button>
       </form>
       <p class="hint">Seu arquivo é armazenado de forma segura e usado apenas para análise da renovação.</p>`
       }

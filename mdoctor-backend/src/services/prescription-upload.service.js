@@ -52,6 +52,23 @@ async function completeExternalPrescriptionUpload({ token, buffer, mimeType, fil
     analyzeImageQualitySafe(buffer, resolvedMime)
   ]);
 
+  // Reject images with inadequate quality — patient must re-upload
+  if (imageQuality?.grade === 'inadequate') {
+    const issues = imageQuality?.details?.issues || [];
+    const reasons = {
+      resolucao_baixa: 'a foto está com resolução muito baixa',
+      imagem_escura: 'a foto está muito escura',
+      imagem_clara_demais: 'a foto está muito clara / estourada',
+      baixo_contraste: 'o texto não está legível (baixo contraste)',
+      imagem_borrada: 'a foto está borrada',
+    };
+    const detail = issues.map(i => reasons[i] || i).filter(Boolean).join('; ') || 'qualidade insuficiente';
+    const err = new Error(`Foto da receita ilegível: ${detail}. Tire uma nova foto com boa iluminação e foco.`);
+    err.code = 'PRESCRIPTION_IMAGE_INADEQUATE';
+    err.statusCode = 422;
+    throw err;
+  }
+
   const clinical = applyPrescriptionMetadataToClinical(atendimento?.dados_clinicos || {}, prescriptionMeta);
 
   await markUploadSessionCompleted({
