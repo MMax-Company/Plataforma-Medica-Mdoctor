@@ -256,7 +256,95 @@ router.post('/process-message', async (req, res) => {
   }
 });
 
+router.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'] || (req.query.hub && req.query.hub.mode);
+  const token = req.query['hub.verify_token'] || (req.query.hub && req.query.hub.verify_token);
+  const challenge = req.query['hub.challenge'] || (req.query.hub && req.query.hub.challenge);
+
+  if (mode && token) {
+    if (mode === 'subscribe' && token === process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN) {
+      logger.info('WhatsApp webhook verified successfully');
+      return res.status(200).send(challenge);
+    } else {
+      logger.warn('WhatsApp webhook verification failed', { mode, tokenReceived: token ? '[provided]' : '[missing]' });
+      return res.status(403).json({ success: false, error: 'Verification token mismatch or invalid mode' });
+    }
+  }
+  return res.status(400).json({ success: false, error: 'Missing hub.mode or hub.verify_token' });
+});
+
 router.post('/webhook', async (req, res) => {
+  // Check if this is a Meta WhatsApp Webhook payload
+  if (req.body && req.body.object === 'whatsapp_business_account') {
+    // Respond HTTP 200 quickly to Meta
+    res.status(200).send('EVENT_RECEIVED');
+
+    // Process the entries asynchronously
+    (async () => {
+      try {
+        const entries = req.body.entry || [];
+        for (const entry of entries) {
+          const changes = entry.changes || [];
+          for (const change of changes) {
+            if (change.field === 'messages') {
+              const value = change.value || {};
+
+              // Process statuses
+              if (value.statuses && Array.isArray(value.statuses)) {
+                for (const status of value.statuses) {
+                  logger.info('WhatsApp business status received', {
+                    statusId: status.id,
+                    status: status.status,
+                    recipientId: String(status.recipient_id || '').replace(/\d(?=\d{4})/g, '*'),
+                    timestamp: status.timestamp
+                  });
+                }
+              }
+
+              // Process messages
+              if (value.messages && Array.isArray(value.messages)) {
+                for (const msg of value.messages) {
+                  const from = msg.from;
+                  let text = '';
+                  if (msg.type === 'text' && msg.text) {
+                    text = msg.text.body;
+                  } else if (msg.button && msg.button.text) {
+                    text = msg.button.text;
+                  } else if (msg.interactive) {
+                    if (msg.interactive.button_reply) {
+                      text = msg.interactive.button_reply.title;
+                    } else if (msg.interactive.list_reply) {
+                      text = msg.interactive.list_reply.title;
+                    }
+                  }
+
+                  if (from && text) {
+                    const maskedFrom = String(from).replace(/\d(?=\d{4})/g, '*');
+                    logger.info('WhatsApp business message received', {
+                      from: maskedFrom,
+                      messageId: msg.id,
+                      type: msg.type
+                    });
+
+                    // Call the existing processIncomingMessage asynchronously
+                    const result = await processIncomingMessage({ phone: from, text });
+                    logger.info('WhatsApp business message processed', {
+                      from: maskedFrom,
+                      replyLength: result?.reply ? result.reply.length : 0
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        logger.error('Error processing WhatsApp business account webhook asynchronously', { error: err.message });
+      }
+    })();
+    return;
+  }
+
   const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) {
     const requestId = req.requestId || 'unknown';
