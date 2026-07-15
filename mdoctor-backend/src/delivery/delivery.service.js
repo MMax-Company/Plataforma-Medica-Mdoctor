@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 const twilio = require('twilio');
 const evolutionProvider = require('../services/providers/evolution.provider');
+const metaProvider = require('../services/providers/meta.provider');
 
 const CHANNEL_LABELS = {
   whatsapp: 'WhatsApp',
@@ -52,6 +53,7 @@ function buildMessage({ pacienteNome, receiptUrl, channel }) {
 function resolveWhatsAppProvider() {
   const configured = String(process.env.WHATSAPP_PROVIDER || 'mock').trim().toLowerCase();
   if (configured === 'evolution') return 'evolution';
+  if (configured === 'meta') return 'meta';
   return 'mock';
 }
 
@@ -103,6 +105,7 @@ function enforceAntiSpam(target, cfg) {
 async function getWhatsAppProviderStatus() {
   const selected = resolveWhatsAppProvider();
   const evolutionConfigured = evolutionProvider.isConfigured();
+  const metaConfigured = metaProvider.isConfigured();
   let evolutionHealth = null;
   const sandbox = isSandboxMode();
   const dryRun = isDryRunMode();
@@ -121,7 +124,8 @@ async function getWhatsAppProviderStatus() {
     }
   }
 
-  const fallbackActive = selected === 'mock' || !evolutionConfigured || canUseDevelopmentMock();
+  const activeProviderConfigured = selected === 'meta' ? metaConfigured : evolutionConfigured;
+  const fallbackActive = selected === 'mock' || !activeProviderConfigured || canUseDevelopmentMock();
   const mockMode = fallbackActive || dryRun || sandbox;
 
   return {
@@ -142,6 +146,11 @@ async function getWhatsAppProviderStatus() {
       runtime: evolutionProvider.getRuntimeState(),
       safeReadEndpoints: evolutionProvider.SAFE_READ_ENDPOINTS,
       ...(evolutionHealth || {})
+    },
+    meta: {
+      configured: metaConfigured,
+      configuredParts: metaProvider.getConfiguredParts(),
+      templatesConfigured: metaProvider.isTemplatesConfigured()
     }
   };
 }
@@ -241,7 +250,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   }
 
   if (!providerResult && channel === 'whatsapp') {
-    if (sandbox && provider === 'evolution' && !manualTrigger) {
+    if (sandbox && (provider === 'evolution' || provider === 'meta') && !manualTrigger) {
       if (canUseDevelopmentMock()) {
         providerResult = {
           provider: 'mock-fallback',
@@ -250,7 +259,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
           warning: 'WHATSAPP_SANDBOX_MODE ativo: envio automático bloqueado, fallback mock aplicado'
         };
       } else {
-        const error = new Error('Sandbox ativo: envio Evolution requer chamada manual explícita');
+        const error = new Error(`Sandbox ativo: envio ${provider} requer chamada manual explícita`);
         error.code = 'SANDBOX_MANUAL_REQUIRED';
         throw error;
       }
@@ -258,9 +267,10 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   }
 
   if (!providerResult && channel === 'whatsapp') {
-    if (provider === 'evolution') {
+    if (provider === 'evolution' || provider === 'meta') {
+      const activeProvider = provider === 'meta' ? metaProvider : evolutionProvider;
       try {
-        providerResult = await evolutionProvider.sendTextMessage({
+        providerResult = await activeProvider.sendTextMessage({
           to: target,
           text: message,
           correlationId,
@@ -274,7 +284,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
           provider: 'mock-fallback',
           providerMessageId: `mock-fallback-${Date.now()}`,
           providerStatus: 'sent',
-          warning: `Evolution indisponível (${error.code || 'PROVIDER_ERROR'}): fallback mock aplicado`
+          warning: `${provider} indisponível (${error.code || 'PROVIDER_ERROR'}): fallback mock aplicado`
         };
       }
     }
@@ -314,10 +324,31 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   };
 }
 
+// Dispatcher fino para os envios "best-effort" fora do fluxo de entrega de
+// receita (avisos de fila de suporte, pesquisa pós-entrega, reenvio manual
+// pelo admin) — centraliza a escolha evolution/meta em vez de cada chamador
+// dar require direto num provider fixo. Sem sandbox/anti-spam/dry-run: esses
+// controles são específicos do fluxo principal de sendPrescription.
+async function sendWhatsAppText({ to, bsuid, text, correlationId, idempotencyKey }) {
+  const provider = resolveWhatsAppProvider();
+
+  if (provider === 'meta') {
+    return metaProvider.sendTextMessage({ to, bsuid, text, correlationId, idempotencyKey });
+  }
+  if (provider === 'evolution') {
+    return evolutionProvider.sendTextMessage({ to, text, correlationId, idempotencyKey });
+  }
+
+  const error = new Error(`Provider WhatsApp não configurado (WHATSAPP_PROVIDER=${provider})`);
+  error.code = 'PROVIDER_NOT_CONFIGURED';
+  throw error;
+}
+
 module.exports = {
   CHANNEL_LABELS,
   maskTarget,
   sendPrescription,
+  sendWhatsAppText,
   getWhatsAppProviderStatus,
   resolveWhatsAppProvider,
   isSandboxMode,

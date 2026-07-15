@@ -42,6 +42,13 @@ identity = extractMetaIdentifiers(
 );
 assert('parentBsuid extraído de from_parent_user_id', identity.parentBsuid === 'parent-bsuid-1');
 assert('username extraído de contact.profile.name', identity.username === 'Paciente Teste');
+assert(
+  'parentBsuidConfirmed é sempre false (inferência não documentada, não é contrato oficial)',
+  identity.parentBsuidConfirmed === false
+);
+
+identity = extractMetaIdentifiers({ from: '5511999999999' }, {});
+assert('parentBsuidConfirmed false mesmo sem parentBsuid resolvido', identity.parentBsuidConfirmed === false);
 
 // --- meta.provider.resolveRecipient: telefone usa "to", BSUID usa "recipient" ---
 

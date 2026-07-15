@@ -2,6 +2,8 @@ const express = require('express');
 const { randomUUID } = require('crypto');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { getReadinessReport } = require('../config/readiness');
+const { sendWhatsAppText } = require('../delivery/delivery.service');
+const metaProvider = require('../services/providers/meta.provider');
 const {
   listAtendimentos,
   getAtendimento,
@@ -313,7 +315,6 @@ router.post(
 
       if (phone) {
         try {
-          const { sendTextMessage } = require('../services/providers/evolution.provider');
           const text = [
             `Olá, ${atendimento.paciente_nome.split(' ')[0]}!`,
             '',
@@ -325,14 +326,14 @@ router.post(
             '_Qualquer dúvida, nossa equipe está à disposição._',
           ].join('\n');
 
-          await sendTextMessage({
+          await sendWhatsAppText({
             to: phone,
             text,
             correlationId: `resend-typebot-${atendimento.id}`,
           });
           sent = true;
         } catch {
-          // Evolution não configurado ou falha — retorna o link para o admin copiar
+          // Provider WhatsApp não configurado ou falha — retorna o link para o admin copiar
         }
       }
 
@@ -367,7 +368,6 @@ router.post(
 
       if (paymentLink && phone) {
         try {
-          const { sendTextMessage } = require('../services/providers/evolution.provider');
           const text = [
             `Olá, ${atendimento.paciente_nome.split(' ')[0]}!`,
             '',
@@ -379,14 +379,14 @@ router.post(
             '_Após a confirmação, seu pedido será encaminhado para avaliação médica._',
           ].join('\n');
 
-          await sendTextMessage({
+          await sendWhatsAppText({
             to: phone,
             text,
             correlationId: `resend-payment-${atendimento.id}`,
           });
           sent = true;
         } catch {
-          // Evolution não configurado ou falha
+          // Provider WhatsApp não configurado ou falha
         }
       }
 
@@ -404,5 +404,57 @@ router.post(
     }
   },
 );
+
+// ─── META WHATSAPP BUSINESS MANAGEMENT: gestão de templates da WABA ─────────
+// Capacidade mínima de list + manage exigida para demonstrar o uso real da
+// permissão whatsapp_business_management no App Review da Meta. Não ativa
+// nada em produção por si só — só expõe a ação quando WHATSAPP_ACCESS_TOKEN/
+// WHATSAPP_BUSINESS_ACCOUNT_ID estiverem configurados.
+
+router.get('/whatsapp/templates', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
+  try {
+    const { limit, after } = req.query || {};
+    const result = await metaProvider.listMessageTemplates({
+      limit: limit ? Number(limit) : undefined,
+      after: after || null,
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(err.code === 'PROVIDER_NOT_CONFIGURED' ? 409 : 502).json({
+      success: false,
+      error: err.message || 'Erro ao listar templates WABA',
+      code: err.code || 'PROVIDER_ERROR',
+    });
+  }
+});
+
+router.post('/whatsapp/templates', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
+  try {
+    const { name, category, language, components } = req.body || {};
+    const result = await metaProvider.createMessageTemplate({ name, category, language, components });
+    res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    const status = err.code === 'PROVIDER_NOT_CONFIGURED' ? 409 : err.code === 'INVALID_TEMPLATE_PAYLOAD' ? 400 : 502;
+    res.status(status).json({
+      success: false,
+      error: err.message || 'Erro ao criar template WABA',
+      code: err.code || 'PROVIDER_ERROR',
+    });
+  }
+});
+
+router.delete('/whatsapp/templates/:name', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
+  try {
+    const result = await metaProvider.deleteMessageTemplate({ name: req.params.name });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    const status = err.code === 'PROVIDER_NOT_CONFIGURED' ? 409 : err.code === 'INVALID_TEMPLATE_PAYLOAD' ? 400 : 502;
+    res.status(status).json({
+      success: false,
+      error: err.message || 'Erro ao excluir template WABA',
+      code: err.code || 'PROVIDER_ERROR',
+    });
+  }
+});
 
 module.exports = router;

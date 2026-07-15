@@ -355,7 +355,12 @@ router.post('/webhook', async (req, res) => {
                       bsuid: identity.bsuid,
                       parentBsuid: identity.parentBsuid,
                       username: identity.username,
-                      metadataPatch: { last_inbound_message_id: msg.id }
+                      metadataPatch: {
+                        last_inbound_message_id: msg.id,
+                        // parentBsuid é best-effort (ver whatsapp-meta-identity.service.js) —
+                        // guardamos a proveniência para não ser lido como dado confirmado.
+                        ...(identity.parentBsuid ? { parent_bsuid_confirmed: identity.parentBsuidConfirmed } : {})
+                      }
                     });
                   } catch (e) {
                     logger.warn('whatsapp_business_session_identity_failed', { messageId: msg.id, error: e.message });

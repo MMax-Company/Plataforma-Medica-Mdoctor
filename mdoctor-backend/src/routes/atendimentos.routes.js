@@ -1,7 +1,7 @@
 const { randomUUID } = require('crypto');
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
-const { sendPrescription, isDryRunMode } = require('../delivery/delivery.service');
+const { sendPrescription, sendWhatsAppText, resolveWhatsAppProvider, isDryRunMode } = require('../delivery/delivery.service');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const { createAuditLog } = require('../store/audit.store');
@@ -623,9 +623,9 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
   let delivery;
   try {
     if (isContingency) {
-      const evo = require('../services/providers/evolution.provider');
-      if (!evo.isConfigured()) throw Object.assign(new Error('WhatsApp não configurado'), { code: 'PROVIDER_NOT_CONFIGURED' });
-      const sendResult = await evo.sendTextMessage({
+      const provider = resolveWhatsAppProvider();
+      if (provider === 'mock') throw Object.assign(new Error('WhatsApp não configurado'), { code: 'PROVIDER_NOT_CONFIGURED' });
+      const sendResult = await sendWhatsAppText({
         to: target,
         text: String(contingency_text || '').trim() || 'Receita médica enviada pelo Doctor Prescreve.',
         correlationId,
@@ -636,10 +636,10 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
         channel,
         targetMasked: target.replace(/\d(?=\d{4})/g, '*'),
         receiptUrl: 'contingency',
-        provider: 'evolution',
+        provider: sendResult?.provider || provider,
         status: 'sent',
         sent_at: new Date().toISOString(),
-        providerMessageId: sendResult?.key?.id || null
+        providerMessageId: sendResult?.providerMessageId || null
       };
     } else if (isDeliveryMockEnabled() && !(channel === 'whatsapp' && isDryRunMode())) {
       delivery = {

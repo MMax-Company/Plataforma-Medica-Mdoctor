@@ -1,6 +1,5 @@
 const logger = require('../config/logger');
-const evolutionProvider = require('./providers/evolution.provider');
-const { isDryRunMode } = require('../delivery/delivery.service');
+const { isDryRunMode, resolveWhatsAppProvider, sendWhatsAppText } = require('../delivery/delivery.service');
 const {
   SURVEY_VERSION,
   PRESCRIPTION_SENT_MESSAGE,
@@ -55,12 +54,12 @@ async function sendSurveyWhatsApp({ phone, text, correlationId, idempotencyKey }
     return { provider: 'dry-run', providerStatus: 'simulated' };
   }
 
-  if (!evolutionProvider.isConfigured()) {
-    logger.warn('post_delivery_survey_evolution_not_configured', { correlationId });
-    return { skipped: true, reason: 'evolution_not_configured' };
+  if (resolveWhatsAppProvider() === 'mock') {
+    logger.warn('post_delivery_survey_provider_not_configured', { correlationId });
+    return { skipped: true, reason: 'whatsapp_provider_not_configured' };
   }
 
-  return evolutionProvider.sendTextMessage({
+  return sendWhatsAppText({
     to: digits,
     text,
     correlationId,

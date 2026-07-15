@@ -200,12 +200,12 @@ async function finalizeSupportAttendance(atendimentoId) {
     }
   });
 
-  // Best-effort send via Evolution if configured
+  // Best-effort send via provider WhatsApp configurado (evolution ou meta)
   const phone = atendimento.paciente_telefone;
   if (phone) {
     try {
-      const evo = require('./providers/evolution.provider');
-      await evo.sendTextMessage({ to: phone, text: FINALIZATION_TEXT });
+      const { sendWhatsAppText } = require('../delivery/delivery.service');
+      await sendWhatsAppText({ to: phone, text: FINALIZATION_TEXT });
     } catch (e) {
       logger.warn('support_finalization_send_failed', { atendimentoId, error: e.message });
     }
@@ -325,8 +325,8 @@ async function handleRejectionResponse({ phone, text }) {
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
     try {
-      const evo = require('./providers/evolution.provider');
-      await evo.sendTextMessage({ to: digits, text: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.' });
+      const { sendWhatsAppText } = require('../delivery/delivery.service');
+      await sendWhatsAppText({ to: digits, text: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.' });
     } catch (e) {
       logger.warn('rejection_close_send_failed', { id: match.id, error: e.message });
     }
