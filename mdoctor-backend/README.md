@@ -147,4 +147,4 @@ npm start
 npm run dev
 ```
 
-Nunca envie `.env`, logs, `node_modules`, `.next`, `whatsapp_auth` ou bancos locais para o GitHub.
+Nunca envie `.env`, logs, `node_modules`, `.next` ou bancos locais para o GitHub.

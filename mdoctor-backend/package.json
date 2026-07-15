@@ -5,7 +5,6 @@
   "main": "server.js",
   "dependencies": {
     "@supabase/supabase-js": "^2.106.1",
-    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "accepts": "^2.0.0",
     "anymatch": "^3.1.3",
     "axios": "^1.16.1",
@@ -95,7 +94,6 @@
     "picomatch": "^2.3.2",
     "proxy-addr": "^2.0.7",
     "pstree.remy": "^1.1.8",
-    "qrcode-terminal": "^0.12.0",
     "qs": "^6.15.2",
     "range-parser": "^1.2.1",
     "raw-body": "^3.0.2",
@@ -133,7 +131,7 @@
   },
   "scripts": {
     "env:check": "node scripts/guard-local-env.js",
-    "check": "node --check server.js && node --check src/auth/auth.routes.js && node --check src/auth/auth.middleware.js && node --check src/config/logger.js && node --check src/config/supabase.js && node --check src/config/readiness.js && node --check src/middlewares/request-logger.js && node --check src/middlewares/rate-limit.js && node --check src/services/memed.service.js && node --check src/store/audit.store.js && node --check src/store/atendimentos.store.js && node --check src/store/prescriptions.store.js && node --check src/store/receitas.store.js && node --check src/routes/atendimentos.routes.js && node --check src/routes/admin.routes.js && node --check src/routes/memed.routes.js && node --check src/routes/prescriptions.routes.js && node --check src/routes/whatsapp.routes.js && node --check src/delivery/delivery.service.js && node --check src/integrations/memed.service.js && node --check src/legacy-compat/index.js && node --check src/legacy-compat/routes.js && node --check src/legacy-compat/feature-flags.js && node --check src/legacy-compat/middlewares/legacy-log.js && node --check src/legacy-compat/maps/status.map.js && node --check src/legacy-compat/maps/payload.map.js && node --check src/legacy-compat/adapters/whatsapp.adapter.js && node --check src/legacy-compat/adapters/panel.adapter.js && node --check src/legacy-compat/adapters/auth.adapter.js && node --check src/whatsapp/whatsapp.service.js && node --check scripts/production-readiness-check.js",
+    "check": "node --check server.js && node --check src/auth/auth.routes.js && node --check src/auth/auth.middleware.js && node --check src/config/logger.js && node --check src/config/supabase.js && node --check src/config/readiness.js && node --check src/middlewares/request-logger.js && node --check src/middlewares/rate-limit.js && node --check src/services/memed.service.js && node --check src/store/audit.store.js && node --check src/store/atendimentos.store.js && node --check src/store/prescriptions.store.js && node --check src/store/receitas.store.js && node --check src/routes/atendimentos.routes.js && node --check src/routes/admin.routes.js && node --check src/routes/memed.routes.js && node --check src/routes/prescriptions.routes.js && node --check src/routes/whatsapp.routes.js && node --check src/delivery/delivery.service.js && node --check src/integrations/memed.service.js && node --check src/legacy-compat/index.js && node --check src/legacy-compat/routes.js && node --check src/legacy-compat/feature-flags.js && node --check src/legacy-compat/middlewares/legacy-log.js && node --check src/legacy-compat/maps/status.map.js && node --check src/legacy-compat/maps/payload.map.js && node --check src/legacy-compat/adapters/whatsapp.adapter.js && node --check src/legacy-compat/adapters/panel.adapter.js && node --check src/legacy-compat/adapters/auth.adapter.js && node --check scripts/production-readiness-check.js",
     "production-check": "node scripts/production-readiness-check.js",
     "supabase:migrate": "node scripts/apply-supabase-migrations-all.js",
     "supabase:validate": "node scripts/validate-supabase-infrastructure.js",
@@ -154,8 +152,7 @@
   },
   "nodemonConfig": {
     "ignore": [
-      "node_modules/**",
-      "whatsapp_auth/**"
+      "node_modules/**"
     ]
   },
   "keywords": [],

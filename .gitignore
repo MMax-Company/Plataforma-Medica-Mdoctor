@@ -63,7 +63,6 @@ vite.config.ts.timestamp-*
 .firebase/
 
 # Local auth/session state
-whatsapp_auth/
 *.sqlite
 *.db
 
