@@ -408,6 +408,28 @@ router.post('/webhook', async (req, res) => {
                   }
                 }
               }
+            } else if (change.field === 'account_update') {
+              // Documentado: evento PARTNER_REMOVED traz disconnection_info
+              // com reason/initiated_by. Nenhum telefone é exposto aqui.
+              const value = change.value || {};
+              logger.info('WhatsApp coexistence account_update received', {
+                event: value.event || null,
+                disconnectionReason: value.disconnection_info?.reason || null,
+                initiatedBy: value.disconnection_info?.initiated_by || null
+              });
+            } else if (['history', 'smb_app_state_sync', 'smb_message_echoes'].includes(change.field)) {
+              // Preparado para receber sem quebrar/expor dado sensível — não
+              // sincroniza nem persiste histórico/contatos/ecos (fora do
+              // escopo desta etapa). Nomes exatos dos subcampos de cada
+              // payload ainda não foram confirmados contra um evento real da
+              // Meta, então só logamos as chaves de topo, nunca conteúdo.
+              const value = change.value || {};
+              logger.info('WhatsApp coexistence webhook received', {
+                field: change.field,
+                valueKeys: Object.keys(value)
+              });
+            } else {
+              logger.info('WhatsApp business webhook field ignored', { field: change.field || null });
             }
           }
         }

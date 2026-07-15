@@ -1,9 +1,11 @@
 const express = require('express');
+const path = require('path');
 const { randomUUID } = require('crypto');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { getReadinessReport } = require('../config/readiness');
 const { sendWhatsAppText } = require('../delivery/delivery.service');
 const metaProvider = require('../services/providers/meta.provider');
+const logger = require('../config/logger');
 const {
   listAtendimentos,
   getAtendimento,
@@ -452,6 +454,62 @@ router.delete('/whatsapp/templates/:name', requireAuth, requireRole(...ADMIN_ROL
     res.status(status).json({
       success: false,
       error: err.message || 'Erro ao excluir template WABA',
+      code: err.code || 'PROVIDER_ERROR',
+    });
+  }
+});
+
+// ─── COEXISTENCE: Embedded Signup v4 (WhatsApp Business App Coexistence) ────
+// Mínimo funcional só de staging: página de teste com o SDK JS oficial da
+// Meta, endpoint de config (sem segredos) e endpoint de troca do
+// authorization code (autenticado, nunca expõe token/code em log ou
+// resposta). Nada aqui dispara onboarding real de nenhum número.
+
+router.get('/whatsapp/coexistence/signup', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'views', 'whatsapp-coexistence-signup.html'));
+});
+
+router.get('/whatsapp/coexistence/config', (_req, res) => {
+  const config = metaProvider.getConfig();
+  const configuredParts = metaProvider.getConfiguredParts(config);
+  res.json({
+    success: true,
+    appId: config.appId || null,
+    graphApiVersion: config.apiVersion,
+    embeddedSignupConfigId: config.embeddedSignupConfigId || null,
+    embeddedSignupConfigured: metaProvider.isEmbeddedSignupConfigured(),
+    coexistenceExchangeConfigured: metaProvider.isCoexistenceExchangeConfigured(),
+    configuredParts: {
+      appId: configuredParts.appId,
+      embeddedSignupConfigId: configuredParts.embeddedSignupConfigId,
+      appSecret: configuredParts.appSecret,
+    },
+  });
+});
+
+router.post('/whatsapp/coexistence/exchange-code', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
+  const { code, phoneNumberId, wabaId, businessId } = req.body || {};
+  try {
+    const result = await metaProvider.exchangeEmbeddedSignupCode({ code });
+    logger.info('whatsapp_coexistence_code_exchanged', {
+      actor: req.user?.sub || 'admin',
+      phoneNumberId: phoneNumberId || null,
+      wabaId: wabaId || null,
+      businessId: businessId || null,
+      tokenType: result.tokenType,
+      expiresIn: result.expiresIn,
+    });
+    res.json({ success: true, ...result, capturedIdentity: { phoneNumberId: phoneNumberId || null, wabaId: wabaId || null, businessId: businessId || null } });
+  } catch (err) {
+    logger.warn('whatsapp_coexistence_code_exchange_failed', {
+      actor: req.user?.sub || 'admin',
+      error: err.message,
+      code: err.code || null,
+    });
+    const status = err.code === 'PROVIDER_NOT_CONFIGURED' ? 409 : err.code === 'INVALID_EXCHANGE_PAYLOAD' ? 400 : 502;
+    res.status(status).json({
+      success: false,
+      error: err.message || 'Erro ao trocar code do Embedded Signup',
       code: err.code || 'PROVIDER_ERROR',
     });
   }

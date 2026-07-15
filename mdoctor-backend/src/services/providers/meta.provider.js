@@ -7,7 +7,10 @@ function getConfig() {
     phoneNumberId: String(process.env.WHATSAPP_PHONE_NUMBER_ID || '').trim(),
     businessAccountId: String(process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '').trim(),
     apiVersion: String(process.env.WHATSAPP_GRAPH_API_VERSION || DEFAULT_API_VERSION).trim(),
-    timeoutMs: Number(process.env.WHATSAPP_GRAPH_TIMEOUT_MS || DEFAULT_TIMEOUT_MS)
+    timeoutMs: Number(process.env.WHATSAPP_GRAPH_TIMEOUT_MS || DEFAULT_TIMEOUT_MS),
+    appId: String(process.env.WHATSAPP_APP_ID || '').trim(),
+    appSecret: String(process.env.WHATSAPP_APP_SECRET || '').trim(),
+    embeddedSignupConfigId: String(process.env.WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID || '').trim()
   };
 }
 
@@ -15,13 +18,30 @@ function getConfiguredParts(config = getConfig()) {
   return {
     accessToken: Boolean(config.accessToken),
     phoneNumberId: Boolean(config.phoneNumberId),
-    businessAccountId: Boolean(config.businessAccountId)
+    businessAccountId: Boolean(config.businessAccountId),
+    appId: Boolean(config.appId),
+    appSecret: Boolean(config.appSecret),
+    embeddedSignupConfigId: Boolean(config.embeddedSignupConfigId)
   };
 }
 
 function isConfigured() {
   const parts = getConfiguredParts();
   return parts.accessToken && parts.phoneNumberId;
+}
+
+// Troca de código do Embedded Signup (server-to-server) exige App ID + App
+// Secret — credenciais diferentes das usadas para enviar mensagem/gerenciar
+// templates. O config_id do Embedded Signup também é obrigatório para o SDK
+// JS abrir o fluxo, mas isso é checado à parte (ver isEmbeddedSignupConfigured).
+function isCoexistenceExchangeConfigured() {
+  const parts = getConfiguredParts();
+  return parts.appId && parts.appSecret;
+}
+
+function isEmbeddedSignupConfigured() {
+  const parts = getConfiguredParts();
+  return parts.appId && parts.embeddedSignupConfigId;
 }
 
 // Gestão de templates (WhatsApp Business Management API) usa o WABA ID, não
@@ -235,16 +255,113 @@ async function deleteMessageTemplate({ name }) {
   return { success: Boolean(data?.success), raw: data };
 }
 
+// --- WhatsApp Business App Coexistence (Embedded Signup v4) ---
+// Capacidade mínima: trocar o authorization code (válido ~30s) do Embedded
+// Signup por confirmação de acesso, e preparar as chamadas de sincronização
+// smb_app_data. Nada aqui dispara onboarding real nem sincroniza dados por
+// conta própria — precisa ser chamado explicitamente por um fluxo futuro.
+
+async function exchangeEmbeddedSignupCode({ code }) {
+  if (!isCoexistenceExchangeConfigured()) {
+    const error = new Error('Troca de código do Embedded Signup não configurada (WHATSAPP_APP_ID/WHATSAPP_APP_SECRET ausentes)');
+    error.code = 'PROVIDER_NOT_CONFIGURED';
+    throw error;
+  }
+  if (!code) {
+    const error = new Error('exchangeEmbeddedSignupCode requer code');
+    error.code = 'INVALID_EXCHANGE_PAYLOAD';
+    throw error;
+  }
+
+  const config = getConfig();
+  const params = new URLSearchParams({
+    client_id: config.appId,
+    client_secret: config.appSecret,
+    code
+  });
+
+  const { response, data } = await requestJson(
+    `https://graph.facebook.com/${config.apiVersion}/oauth/access_token?${params.toString()}`,
+    { method: 'GET' },
+    config.timeoutMs
+  );
+
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || `Falha ao trocar code do Embedded Signup (${response.status})`);
+    error.code = data?.error?.code || 'PROVIDER_ERROR';
+    error.providerResponse = data;
+    throw error;
+  }
+
+  // O access_token retornado por essa troca nunca sai desta função — nem em
+  // log, nem na resposta ao chamador. Só confirmamos que a troca funcionou.
+  return {
+    exchanged: true,
+    tokenType: data?.token_type || null,
+    expiresIn: data?.expires_in ?? null
+  };
+}
+
+async function requestSmbAppData({ phoneNumberId, syncType }) {
+  if (!isConfigured()) {
+    const error = new Error('Meta WhatsApp Cloud API não configurada (WHATSAPP_ACCESS_TOKEN ausente)');
+    error.code = 'PROVIDER_NOT_CONFIGURED';
+    throw error;
+  }
+  if (!phoneNumberId) {
+    const error = new Error('smb_app_data requer phoneNumberId');
+    error.code = 'INVALID_SMB_APP_DATA_PAYLOAD';
+    throw error;
+  }
+
+  const config = getConfig();
+  const { response, data } = await requestJson(
+    `https://graph.facebook.com/${config.apiVersion}/${phoneNumberId}/smb_app_data`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sync_type: syncType })
+    },
+    config.timeoutMs
+  );
+
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || `Falha smb_app_data (${syncType}) (${response.status})`);
+    error.code = data?.error?.code || 'PROVIDER_ERROR';
+    error.providerResponse = data;
+    throw error;
+  }
+
+  return { success: data?.success !== false, syncType, raw: data };
+}
+
+// sync_type: "smb_app_state_sync" — sincroniza contatos. Só pode ser chamado
+// uma vez por onboarding; falha exige offboarding e reonboarding.
+async function syncSmbAppState({ phoneNumberId }) {
+  return requestSmbAppData({ phoneNumberId, syncType: 'smb_app_state_sync' });
+}
+
+// sync_type: "history" — sincroniza histórico de mensagens (últimos 180
+// dias). Mesma restrição de uma única chamada por onboarding.
+async function syncSmbAppHistory({ phoneNumberId }) {
+  return requestSmbAppData({ phoneNumberId, syncType: 'history' });
+}
+
 module.exports = {
   getConfig,
   getConfiguredParts,
   isConfigured,
   isTemplatesConfigured,
+  isCoexistenceExchangeConfigured,
+  isEmbeddedSignupConfigured,
   resolveRecipient,
   listMessageTemplates,
   createMessageTemplate,
   deleteMessageTemplate,
   sendTextMessage,
   sendDocumentMessage,
+  exchangeEmbeddedSignupCode,
+  syncSmbAppState,
+  syncSmbAppHistory,
   normalizeResponse
 };

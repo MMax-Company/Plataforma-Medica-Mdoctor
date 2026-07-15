@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Doctor Prescreve — WhatsApp Business App Coexistence (staging)</title>
+<meta name="robots" content="noindex, nofollow" />
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 1.25rem; }
+  .warn { background: #fff3cd; border: 1px solid #ffe69c; padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
+  label { display: block; font-size: 0.85rem; margin-bottom: 4px; }
+  input[type=text] { width: 100%; padding: 8px; box-sizing: border-box; }
+  button { padding: 10px 16px; cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 12px; border-radius: 6px; font-size: 0.8rem; min-height: 80px; margin-top: 16px; }
+</style>
+</head>
+<body>
+  <h1>WhatsApp Business App Coexistence — homologação (staging)</h1>
+  <div class="warn">
+    Ferramenta interna de staging. Não inicia onboarding de nenhum número
+    automaticamente — só abre o fluxo oficial da Meta quando o botão é
+    clicado, e só se a configuração (config_id) estiver definida no backend.
+  </div>
+
+  <div class="field">
+    <label for="adminToken">Token de admin (Bearer, para autenticar a troca do code com o backend)</label>
+    <input type="text" id="adminToken" placeholder="cole o JWT de admin aqui" />
+  </div>
+
+  <button id="loginBtn" disabled>Carregando configuração…</button>
+
+  <div id="log">Aguardando…</div>
+
+  <script>
+    const logEl = document.getElementById('log');
+    const btn = document.getElementById('loginBtn');
+    const tokenInput = document.getElementById('adminToken');
+
+    function log(line) {
+      logEl.textContent += `\n${new Date().toISOString()} ${line}`;
+    }
+
+    let appConfig = null;
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/admin/whatsapp/coexistence/config');
+        appConfig = await res.json();
+        if (!appConfig.success || !appConfig.embeddedSignupConfigured) {
+          btn.textContent = 'Configuração pendente na Meta (ver AÇÃO MANUAL)';
+          log(`config indisponível: ${JSON.stringify(appConfig.configuredParts || {})}`);
+          return;
+        }
+        btn.textContent = 'Conectar número via WhatsApp Business App';
+        btn.disabled = false;
+        window.initFacebookSdk(appConfig.appId, appConfig.graphApiVersion);
+      } catch (err) {
+        log(`falha ao carregar config: ${err.message}`);
+      }
+    }
+
+    window.initFacebookSdk = function (appId, apiVersion) {
+      window.fbAsyncInit = function () {
+        FB.init({ appId, autoLogAppEvents: false, xfbml: false, version: apiVersion });
+        log('Facebook SDK inicializado (Embedded Signup v4).');
+      };
+      (function (d, s, id) {
+        if (d.getElementById(id)) return;
+        const js = d.createElement(s);
+        js.id = id;
+        js.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+        js.async = true;
+        js.defer = true;
+        d.body.appendChild(js);
+      })(document, 'script', 'facebook-jssdk');
+    };
+
+    // Escuta os eventos oficiais de sessão do Embedded Signup (WA_EMBEDDED_SIGNUP).
+    // https://developers.facebook.com/documentation/business-messaging/whatsapp/embedded-signup/onboarding-business-app-users
+    let capturedIdentity = { phoneNumberId: null, wabaId: null, businessId: null };
+
+    window.addEventListener('message', (event) => {
+      if (!event.origin || !event.origin.endsWith('facebook.com')) return;
+      let data;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+      if (!data || data.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+      if (data.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') {
+        capturedIdentity = {
+          phoneNumberId: data.data?.phone_number_id || null,
+          wabaId: data.data?.waba_id || null,
+          businessId: data.data?.business_id || null
+        };
+        log(`FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING recebido (version=${data.version ?? 'desconhecida'}). waba_id presente: ${Boolean(capturedIdentity.wabaId)}, phone_number_id presente: ${Boolean(capturedIdentity.phoneNumberId)}.`);
+      } else if (data.event === 'CANCEL') {
+        log(`CANCEL recebido no passo "${data.data?.current_step || 'desconhecido'}".`);
+      } else if (data.event === 'ERROR') {
+        log(`ERROR recebido: ${data.data?.error_message || 'sem detalhes'}.`);
+      }
+    });
+
+    btn.addEventListener('click', () => {
+      if (!appConfig?.embeddedSignupConfigId) {
+        log('config_id ausente — não é possível abrir o fluxo.');
+        return;
+      }
+      const receivedAt = Date.now();
+      FB.login(
+        (response) => {
+          const code = response?.authResponse?.code;
+          if (!code) {
+            log('FB.login não retornou authorization code (usuário cancelou ou negou).');
+            return;
+          }
+          const elapsedMs = Date.now() - receivedAt;
+          log(`authorization code recebido (${elapsedMs}ms desde o clique) — enviando ao backend imediatamente (válido ~30s).`);
+          exchangeCode(code);
+        },
+        {
+          config_id: appConfig.embeddedSignupConfigId,
+          response_type: 'code',
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            featureType: 'whatsapp_business_app_onboarding',
+            sessionInfoVersion: '3'
+          }
+        }
+      );
+    });
+
+    async function exchangeCode(code) {
+      const token = tokenInput.value.trim();
+      if (!token) {
+        log('token de admin não informado — não é possível chamar o backend.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/whatsapp/coexistence/exchange-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ code, ...capturedIdentity })
+        });
+        const body = await res.json();
+        log(`troca de code: HTTP ${res.status} — ${JSON.stringify({ success: body.success, exchanged: body.exchanged, error: body.error || null })}`);
+      } catch (err) {
+        log(`falha ao chamar backend: ${err.message}`);
+      }
+    }
+
+    loadConfig();
+  </script>
+</body>
+</html>
