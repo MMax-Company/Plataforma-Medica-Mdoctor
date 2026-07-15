@@ -24,7 +24,7 @@ const {
   closeWhatsAppSupportEntry,
   processIncomingMessage
 } = require('../services/whatsapp-support.service');
-const { extractMetaIdentifiers } = require('../services/whatsapp-meta-identity.service');
+const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
 const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const {
   applyPrescriptionMetadataToClinical,
@@ -300,13 +300,16 @@ router.post('/webhook', async (req, res) => {
                     ? String(status.recipient_parent_user_id)
                     : null;
 
+                  const statusErrors = extractStatusErrors(status);
+
                   logger.info('WhatsApp business status received', {
                     statusId: status.id,
                     status: status.status,
                     recipientId: recipientId ? recipientId.replace(/\d(?=\d{4})/g, '*') : null,
                     recipientUserId: recipientUserId ? '[present]' : null,
                     recipientParentUserId: recipientParentUserId ? '[present]' : null,
-                    timestamp: status.timestamp
+                    timestamp: status.timestamp,
+                    ...(statusErrors.length ? { errors: statusErrors } : {})
                   });
                 }
               }

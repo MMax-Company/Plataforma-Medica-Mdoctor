@@ -5,7 +5,7 @@
  *   node mdoctor-backend/scripts/test-whatsapp-meta-bsuid.js
  *   BACKEND_URL=... node mdoctor-backend/scripts/test-whatsapp-meta-bsuid.js --http
  */
-const { extractMetaIdentifiers } = require('../src/services/whatsapp-meta-identity.service');
+const { extractMetaIdentifiers, extractStatusErrors } = require('../src/services/whatsapp-meta-identity.service');
 const { resolveRecipient } = require('../src/services/providers/meta.provider');
 
 function assert(label, condition) {
@@ -49,6 +49,37 @@ assert(
 
 identity = extractMetaIdentifiers({ from: '5511999999999' }, {});
 assert('parentBsuidConfirmed false mesmo sem parentBsuid resolvido', identity.parentBsuidConfirmed === false);
+
+// --- extractStatusErrors: log seguro de status "failed" (só code/title/details) ---
+
+let statusErrors = extractStatusErrors({ status: 'sent' });
+assert('status sem errors[] retorna array vazio', Array.isArray(statusErrors) && statusErrors.length === 0);
+
+statusErrors = extractStatusErrors({
+  status: 'failed',
+  errors: [
+    {
+      code: 131047,
+      title: 'Re-engagement message',
+      message: 'Message failed to send because more than 24 hours have passed since the customer last replied to this number.',
+      error_data: { details: 'Message failed to send because more than 24 hours have passed since the customer last replied to this number.' },
+      href: 'https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/'
+    }
+  ]
+});
+assert('status failed extrai code', statusErrors[0].code === 131047);
+assert('status failed extrai title', statusErrors[0].title === 'Re-engagement message');
+assert('status failed extrai error_data.details', statusErrors[0].details.includes('24 hours'));
+assert('status failed NÃO inclui campos fora de code/title/details (ex: href)', !('href' in statusErrors[0]) && !('message' in statusErrors[0]));
+
+statusErrors = extractStatusErrors({
+  status: 'failed',
+  errors: [{ code: 470 }, { code: 471, title: 'Segundo erro' }]
+});
+assert('múltiplos errors[] são todos mapeados', statusErrors.length === 2 && statusErrors[1].title === 'Segundo erro');
+
+statusErrors = extractStatusErrors({ status: 'failed', errors: [{ code: 999 }] });
+assert('error sem error_data.details não quebra (vira null)', statusErrors[0].details === null);
 
 // --- meta.provider.resolveRecipient: telefone usa "to", BSUID usa "recipient" ---
 

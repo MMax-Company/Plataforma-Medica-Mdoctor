@@ -67,8 +67,21 @@ function extractMetaIdentifiers(message = {}, contact = {}) {
   };
 }
 
+// Extrai só o essencial de status.errors[] para log seguro: code/title/details
+// (texto de diagnóstico da própria Meta). Nunca inclui o payload bruto do
+// erro, que pode conter campos não previstos.
+function extractStatusErrors(status = {}) {
+  if (!Array.isArray(status.errors)) return [];
+  return status.errors.map((err) => ({
+    code: err?.code ?? null,
+    title: err?.title ?? null,
+    details: err?.error_data?.details ?? null
+  }));
+}
+
 module.exports = {
   PARENT_BSUID_MESSAGE_FIELD_CANDIDATES,
   PARENT_BSUID_CONTACT_FIELD_CANDIDATES,
-  extractMetaIdentifiers
+  extractMetaIdentifiers,
+  extractStatusErrors
 };
