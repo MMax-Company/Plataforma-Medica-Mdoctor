@@ -24,6 +24,8 @@ const {
   closeWhatsAppSupportEntry,
   processIncomingMessage
 } = require('../services/whatsapp-support.service');
+const { extractMetaIdentifiers } = require('../services/whatsapp-meta-identity.service');
+const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const {
   applyPrescriptionMetadataToClinical,
   formatIngestError,
@@ -292,10 +294,18 @@ router.post('/webhook', async (req, res) => {
               // Process statuses
               if (value.statuses && Array.isArray(value.statuses)) {
                 for (const status of value.statuses) {
+                  const recipientId = status.recipient_id ? String(status.recipient_id) : null;
+                  const recipientUserId = status.recipient_user_id ? String(status.recipient_user_id) : null;
+                  const recipientParentUserId = status.recipient_parent_user_id
+                    ? String(status.recipient_parent_user_id)
+                    : null;
+
                   logger.info('WhatsApp business status received', {
                     statusId: status.id,
                     status: status.status,
-                    recipientId: String(status.recipient_id || '').replace(/\d(?=\d{4})/g, '*'),
+                    recipientId: recipientId ? recipientId.replace(/\d(?=\d{4})/g, '*') : null,
+                    recipientUserId: recipientUserId ? '[present]' : null,
+                    recipientParentUserId: recipientParentUserId ? '[present]' : null,
                     timestamp: status.timestamp
                   });
                 }
@@ -303,8 +313,12 @@ router.post('/webhook', async (req, res) => {
 
               // Process messages
               if (value.messages && Array.isArray(value.messages)) {
-                for (const msg of value.messages) {
-                  const from = msg.from;
+                const contacts = Array.isArray(value.contacts) ? value.contacts : [];
+                for (let i = 0; i < value.messages.length; i++) {
+                  const msg = value.messages[i];
+                  const contact = contacts[i] || contacts[0] || {};
+                  const identity = extractMetaIdentifiers(msg, contact);
+
                   let text = '';
                   if (msg.type === 'text' && msg.text) {
                     text = msg.text.body;
@@ -318,21 +332,45 @@ router.post('/webhook', async (req, res) => {
                     }
                   }
 
-                  if (from && text) {
-                    const maskedFrom = String(from).replace(/\d(?=\d{4})/g, '*');
-                    logger.info('WhatsApp business message received', {
-                      from: maskedFrom,
+                  if (!identity.hasIdentifier || !text) {
+                    logger.warn('whatsapp_business_message_skipped', {
                       messageId: msg.id,
-                      type: msg.type
+                      hasIdentifier: identity.hasIdentifier,
+                      hasText: Boolean(text)
                     });
-
-                    // Call the existing processIncomingMessage asynchronously
-                    const result = await processIncomingMessage({ phone: from, text });
-                    logger.info('WhatsApp business message processed', {
-                      from: maskedFrom,
-                      replyLength: result?.reply ? result.reply.length : 0
-                    });
+                    continue;
                   }
+
+                  const maskedFrom = identity.phone ? identity.phone.replace(/\d(?=\d{4})/g, '*') : null;
+                  logger.info('WhatsApp business message received', {
+                    from: maskedFrom,
+                    bsuid: identity.bsuid ? '[present]' : null,
+                    messageId: msg.id,
+                    type: msg.type
+                  });
+
+                  try {
+                    await upsertSessionIdentity({
+                      phone: identity.phone,
+                      bsuid: identity.bsuid,
+                      parentBsuid: identity.parentBsuid,
+                      username: identity.username,
+                      metadataPatch: { last_inbound_message_id: msg.id }
+                    });
+                  } catch (e) {
+                    logger.warn('whatsapp_business_session_identity_failed', { messageId: msg.id, error: e.message });
+                  }
+
+                  // Contatos sem telefone (interoperabilidade) são roteados usando o
+                  // BSUID como chave — processIncomingMessage só usa esse valor como
+                  // identificador único, não valida que seja um telefone de verdade.
+                  const routingKey = identity.phone || identity.bsuid;
+                  const result = await processIncomingMessage({ phone: routingKey, text });
+                  logger.info('WhatsApp business message processed', {
+                    from: maskedFrom,
+                    bsuid: identity.bsuid ? '[present]' : null,
+                    replyLength: result?.reply ? result.reply.length : 0
+                  });
                 }
               }
             }
