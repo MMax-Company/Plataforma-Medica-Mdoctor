@@ -26,6 +26,7 @@ const {
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
 const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const metaProvider = require('../services/providers/meta.provider');
 const {
   applyPrescriptionMetadataToClinical,
   formatIngestError,
@@ -379,6 +380,32 @@ router.post('/webhook', async (req, res) => {
                     bsuid: identity.bsuid ? '[present]' : null,
                     replyLength: result?.reply ? result.reply.length : 0
                   });
+
+                  // Resposta sempre sai pelo canal Meta, independente do
+                  // WHATSAPP_PROVIDER global (que rege só o fluxo de entrega de
+                  // receita) — quem escreveu pelo Meta recebe resposta pelo Meta.
+                  if (result?.reply) {
+                    try {
+                      const sendResult = await metaProvider.sendTextMessage({
+                        to: identity.phone,
+                        bsuid: identity.bsuid,
+                        text: result.reply,
+                        correlationId: msg.id
+                      });
+                      logger.info('WhatsApp business reply sent', {
+                        from: maskedFrom,
+                        bsuid: identity.bsuid ? '[present]' : null,
+                        messageId: msg.id,
+                        providerMessageId: sendResult?.providerMessageId || null
+                      });
+                    } catch (e) {
+                      logger.warn('whatsapp_business_reply_send_failed', {
+                        messageId: msg.id,
+                        error: e.message,
+                        code: e.code || null
+                      });
+                    }
+                  }
                 }
               }
             }

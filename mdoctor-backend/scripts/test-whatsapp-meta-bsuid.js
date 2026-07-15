@@ -97,15 +97,25 @@ try {
 }
 assert('resolveRecipient sem telefone nem BSUID lança erro claro', threw);
 
-// --- Probe HTTP opcional: webhook Meta contendo SOMENTE BSUID, sem nenhum número ---
+// --- Probe HTTP opcional: webhook Meta com telefone e com SOMENTE BSUID,
+// mais verificação de persistência real em whatsapp_sessions (se as
+// credenciais Supabase estiverem no ambiente) ---
 
-async function httpProbe() {
-  const base = String(process.env.BACKEND_URL || 'http://127.0.0.1:3004').replace(/\/$/, '');
+function buildMessagePayload({ waId, userId, parentUserId, phone, text, name }) {
+  const contact = {};
+  if (name) contact.profile = { name };
+  if (waId) contact.wa_id = waId;
 
-  const health = await fetch(`${base}/healthz`);
-  assert('http healthz', health.ok);
+  const message = {
+    id: `wamid.test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: 'text',
+    text: { body: text }
+  };
+  if (phone) message.from = phone;
+  if (userId) message.from_user_id = userId;
+  if (parentUserId) message.from_parent_user_id = parentUserId;
 
-  const bsuidOnlyPayload = {
+  return {
     object: 'whatsapp_business_account',
     entry: [
       {
@@ -113,33 +123,79 @@ async function httpProbe() {
         changes: [
           {
             field: 'messages',
-            value: {
-              messaging_product: 'whatsapp',
-              contacts: [{ profile: { name: 'Contato BSUID' }, wa_id: 'bsuid-only-contact-999' }],
-              messages: [
-                {
-                  id: `wamid.test-bsuid-${Date.now()}`,
-                  from_user_id: 'bsuid-only-999',
-                  from_parent_user_id: 'bsuid-parent-999',
-                  type: 'text',
-                  text: { body: '1' }
-                }
-              ]
-            }
+            value: { messaging_product: 'whatsapp', contacts: [contact], messages: [message] }
           }
         ]
       }
     ]
   };
+}
 
-  const res = await fetch(`${base}/api/whatsapp/webhook`, {
+async function httpProbe() {
+  const base = String(process.env.BACKEND_URL || 'http://127.0.0.1:3004').replace(/\/$/, '');
+
+  const health = await fetch(`${base}/healthz`);
+  assert('http healthz', health.ok);
+
+  const suffix = Date.now();
+
+  const bsuidOnlyPayload = buildMessagePayload({
+    waId: `bsuid-only-contact-${suffix}`,
+    userId: `bsuid-only-${suffix}`,
+    parentUserId: `bsuid-parent-${suffix}`,
+    text: '1',
+    name: 'Contato BSUID Teste'
+  });
+
+  let res = await fetch(`${base}/api/whatsapp/webhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(bsuidOnlyPayload)
   });
-  const body = await res.text();
-  console.log('HTTP', res.status, body);
+  let body = await res.text();
+  console.log('HTTP (BSUID-only)', res.status, body);
   assert('webhook aceita payload só-BSUID (sem telefone em lugar algum) com 200', res.status === 200 && body === 'EVENT_RECEIVED');
+
+  const testPhone = `55119${String(suffix).slice(-8)}`;
+  const phonePayload = buildMessagePayload({ phone: testPhone, text: '1', name: 'Contato Telefone Teste' });
+
+  res = await fetch(`${base}/api/whatsapp/webhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(phonePayload)
+  });
+  body = await res.text();
+  console.log('HTTP (telefone)', res.status, body);
+  assert('webhook aceita payload com telefone com 200', res.status === 200 && body === 'EVENT_RECEIVED');
+
+  const hasSupabaseEnv = process.env.SUPABASE_URL && (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY);
+  if (!hasSupabaseEnv) {
+    console.log('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes — pulando verificação de persistência no banco');
+    return;
+  }
+
+  // Processamento do webhook é assíncrono (responde 200 antes de persistir) —
+  // aguarda um pouco antes de checar o banco.
+  await new Promise((resolve) => setTimeout(resolve, 3000));
+  const { getSupabase } = require('../src/config/supabase');
+  const supabase = getSupabase();
+
+  const { data: bsuidRow } = await supabase
+    .from('whatsapp_sessions')
+    .select('phone,bsuid,parent_bsuid,username')
+    .eq('bsuid', `bsuid-only-${suffix}`)
+    .maybeSingle();
+  assert('identidade BSUID-only persistida em whatsapp_sessions (sem telefone)', Boolean(bsuidRow) && bsuidRow.phone === null);
+  assert('parent_bsuid persistido para o contato BSUID-only', bsuidRow?.parent_bsuid === `bsuid-parent-${suffix}`);
+  assert('username persistido para o contato BSUID-only', bsuidRow?.username === 'Contato BSUID Teste');
+
+  const { data: phoneRow } = await supabase
+    .from('whatsapp_sessions')
+    .select('phone,bsuid,username')
+    .eq('phone', testPhone)
+    .maybeSingle();
+  assert('identidade por telefone persistida em whatsapp_sessions', Boolean(phoneRow) && phoneRow.phone === testPhone);
+  assert('username persistido para o contato por telefone', phoneRow?.username === 'Contato Telefone Teste');
 }
 
 (async () => {
