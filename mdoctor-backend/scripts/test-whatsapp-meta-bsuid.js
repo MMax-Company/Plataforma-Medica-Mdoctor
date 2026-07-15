@@ -177,7 +177,8 @@ async function httpProbe() {
   // Processamento do webhook é assíncrono (responde 200 antes de persistir) —
   // aguarda um pouco antes de checar o banco.
   await new Promise((resolve) => setTimeout(resolve, 3000));
-  const { getSupabase } = require('../src/config/supabase');
+  const { getSupabase, initSupabase, isInitialized } = require('../src/config/supabase');
+  if (!isInitialized()) initSupabase();
   const supabase = getSupabase();
 
   const { data: bsuidRow } = await supabase
