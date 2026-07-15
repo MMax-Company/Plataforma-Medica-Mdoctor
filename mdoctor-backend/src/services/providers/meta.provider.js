@@ -1,5 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 12000;
-const DEFAULT_API_VERSION = 'v21.0';
+const DEFAULT_API_VERSION = 'v25.0';
 
 function getConfig() {
   return {

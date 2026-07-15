@@ -45,6 +45,13 @@ function restore() {
     'listMessageTemplates retorna os templates parseados',
     listResult.templates.length === 1 && listResult.templates[0].name === 'tpl_a'
   );
+  assert('DEFAULT_API_VERSION é v25.0 (sem WHATSAPP_GRAPH_API_VERSION setado)', lastCall.url.startsWith('https://graph.facebook.com/v25.0/'));
+
+  process.env.WHATSAPP_GRAPH_API_VERSION = 'v30.0';
+  mockFetch(200, { data: [], paging: {} });
+  await metaProvider.listMessageTemplates();
+  assert('WHATSAPP_GRAPH_API_VERSION continua funcionando como override', lastCall.url.startsWith('https://graph.facebook.com/v30.0/'));
+  delete process.env.WHATSAPP_GRAPH_API_VERSION;
 
   mockFetch(200, { id: 'tpl-id-1', status: 'PENDING', category: 'UTILITY' });
   const createResult = await metaProvider.createMessageTemplate({
