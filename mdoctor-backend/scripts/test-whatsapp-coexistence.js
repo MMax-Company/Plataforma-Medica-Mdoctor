@@ -142,6 +142,31 @@ function restore() {
       coexistenceExchangeConfigured: config.coexistenceExchangeConfigured,
       configuredParts: config.configuredParts
     }));
+
+    // Regressão: CSP global (helmet, script-src 'self' sem exceções) travava
+    // a página em "Carregando configuração…" porque bloqueava o <script>
+    // inline e o SDK externo da Meta. Confirma que a rota da página sobrescreve
+    // o CSP para permitir script-src 'self' + connect.facebook.net, e que o
+    // JS externo é servido corretamente.
+    const signupRes = await fetch(`${base}/api/admin/whatsapp/coexistence/signup`);
+    const signupCsp = signupRes.headers.get('content-security-policy') || '';
+    assert('GET /coexistence/signup responde 200', signupRes.status === 200);
+    assert(
+      'CSP da página de signup permite script-src self + connect.facebook.net (não é o CSP global default)',
+      signupCsp.includes("script-src 'self' https://connect.facebook.net")
+    );
+    const signupHtml = await signupRes.text();
+    assert('página não tem mais <script> inline (JS extraído para arquivo externo)', !/<script>[\s\S]*fetch\(/.test(signupHtml));
+    assert('página referencia o JS externo same-origin', signupHtml.includes('src="/api/admin/whatsapp/coexistence/signup.js"'));
+
+    const signupJsRes = await fetch(`${base}/api/admin/whatsapp/coexistence/signup.js`);
+    assert('GET /coexistence/signup.js responde 200', signupJsRes.status === 200);
+    assert(
+      'GET /coexistence/signup.js é servido como JavaScript',
+      (signupJsRes.headers.get('content-type') || '').includes('javascript')
+    );
+    const signupJsBody = await signupJsRes.text();
+    assert('signup.js contém loadConfig()', signupJsBody.includes('function loadConfig'));
   }
 
   if (process.argv.includes('--http')) {

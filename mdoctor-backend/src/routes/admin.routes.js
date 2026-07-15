@@ -465,8 +465,33 @@ router.delete('/whatsapp/templates/:name', requireAuth, requireRole(...ADMIN_ROL
 // authorization code (autenticado, nunca expõe token/code em log ou
 // resposta). Nada aqui dispara onboarding real de nenhum número.
 
+// CSP global (helmet(), server.js) usa script-src 'self' sem exceções — isso
+// bloqueava tanto o <script> inline quanto o SDK externo da Meta
+// (connect.facebook.net), deixando a página travada em "Carregando
+// configuração…" sem nenhum erro capturável no fetch (o navegador só recusa
+// executar o script, silenciosamente). Por isso o JS foi extraído para um
+// arquivo same-origin e o CSP é sobrescrito só nesta rota — o resto do app
+// continua com o CSP padrão do helmet().
+const COEXISTENCE_SIGNUP_CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://connect.facebook.net",
+  "connect-src 'self' https://graph.facebook.com https://*.facebook.com",
+  "frame-src https://www.facebook.com https://web.facebook.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https://*.facebook.com https://*.fbcdn.net",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'"
+].join('; ');
+
 router.get('/whatsapp/coexistence/signup', (_req, res) => {
+  res.setHeader('Content-Security-Policy', COEXISTENCE_SIGNUP_CSP);
   res.sendFile(path.join(__dirname, '..', 'views', 'whatsapp-coexistence-signup.html'));
+});
+
+router.get('/whatsapp/coexistence/signup.js', (_req, res) => {
+  res.type('application/javascript');
+  res.sendFile(path.join(__dirname, '..', 'views', 'whatsapp-coexistence-signup.js'));
 });
 
 router.get('/whatsapp/coexistence/config', (_req, res) => {
