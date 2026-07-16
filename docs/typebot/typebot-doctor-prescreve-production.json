@@ -1,14 +1,14 @@
 {
   "version": "6.1",
   "id": "higij2z0xihxxkr378rmljgu",
-  "name": "Doctor Prescreve",
+  "name": "Doctor Prescreve Homologação",
   "events": [
     {
       "id": "k6kY6gwRE6noPoYQNGzgUq",
       "outgoingEdgeId": "oNvqaqNExdSH2kKEhKZHuE",
       "graphCoordinates": {
-        "x": -4204.68,
-        "y": -2320.06
+        "x": -5121.33,
+        "y": -2920.13
       },
       "type": "start"
     }
@@ -18,8 +18,8 @@
       "id": "kinRXxYop2X4d7F9qt8WNB",
       "title": "Bem-Vindo",
       "graphCoordinates": {
-        "x": -4718.63,
-        "y": -2516.49
+        "x": -5114.49,
+        "y": -2803.17
       },
       "blocks": [
         {
@@ -86,8 +86,8 @@
       "id": "b2l6ks9gkl95zebue3wri6tr",
       "title": "Consentimento LGPD",
       "graphCoordinates": {
-        "x": -4348.33,
-        "y": -2201.47
+        "x": -4661.68,
+        "y": -2889.4
       },
       "blocks": [
         {
@@ -120,8 +120,8 @@
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
@@ -139,8 +139,8 @@
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
@@ -197,8 +197,8 @@
       "id": "wupo36l29a2x66rh0bwf5yex",
       "title": "Confirmação de dados",
       "graphCoordinates": {
-        "x": -3671.31,
-        "y": -919.63
+        "x": -3663.81,
+        "y": 40.37
       },
       "blocks": [
         {
@@ -244,8 +244,8 @@
       "id": "pjgm9a0jhn3awaa5vtmat7ko",
       "title": "Sinais de Alerta",
       "graphCoordinates": {
-        "x": -2868.52,
-        "y": -2754.25
+        "x": -2622.6,
+        "y": -2886.75
       },
       "blocks": [
         {
@@ -332,8 +332,8 @@
       "id": "wb0gci4696hfx2s63brqetda",
       "title": "Tempo de Uso",
       "graphCoordinates": {
-        "x": -3952.44,
-        "y": -1828.92
+        "x": -3097.42,
+        "y": -2932.25
       },
       "blocks": [
         {
@@ -390,8 +390,8 @@
       "id": "fni2p22kfg51hs6s6lhcteec",
       "title": "Declaração de elegibilidade",
       "graphCoordinates": {
-        "x": -3610.46,
-        "y": -1996.64
+        "x": -2726.72,
+        "y": -2133.71
       },
       "blocks": [
         {
@@ -498,8 +498,8 @@
       "id": "qcah9q14es9gj6enry35d05u",
       "title": "Tratamento Menor 30 dias",
       "graphCoordinates": {
-        "x": -4006.86,
-        "y": -1183.41
+        "x": -1761.86,
+        "y": -2763.41
       },
       "blocks": [
         {
@@ -534,8 +534,8 @@
       "id": "y3vfu7p0f987fe6f1n2zx2t4",
       "title": "Sinal  alerta identificado",
       "graphCoordinates": {
-        "x": -2461.12,
-        "y": -2670.02
+        "x": -2157.79,
+        "y": -2737.53
       },
       "blocks": [
         {
@@ -570,8 +570,8 @@
       "id": "mulxehkwbcrynjfjnji1g2jx",
       "title": "Nome social",
       "graphCoordinates": {
-        "x": -3232.14,
-        "y": -2334.92
+        "x": -3868.86,
+        "y": -2915.76
       },
       "blocks": [
         {
@@ -609,8 +609,8 @@
       "id": "ulwovuu3brh5oeawwcuvr0h2",
       "title": "Pagamento",
       "graphCoordinates": {
-        "x": -2784.28,
-        "y": -1937.95
+        "x": -5093.39,
+        "y": -1195.46
       },
       "blocks": [
         {
@@ -639,8 +639,8 @@
       "id": "vo62j813iek8fjy0uoq0ttrc",
       "title": "Doença Cronica",
       "graphCoordinates": {
-        "x": -3971.32,
-        "y": -2432.66
+        "x": -3509.1,
+        "y": -2918.18
       },
       "blocks": [
         {
@@ -712,8 +712,8 @@
       "id": "od03hfeq73l5xvs0lj9xrox3",
       "title": "Dados Pessoais",
       "graphCoordinates": {
-        "x": -2015.18,
-        "y": -2034.51
+        "x": -2177.68,
+        "y": -2332.01
       },
       "blocks": [
         {
@@ -756,8 +756,7 @@
             "inputMode": "text",
             "attachments": {
               "isEnabled": false
-            },
-            "retryMessageContent": "Data inválida. Use dd/mm/aaaa, ddmmaaaa ou dd-mm-aaaa (ex.: 31/12/1980)."
+            }
           }
         },
         {
@@ -827,8 +826,8 @@
       "id": "bhrt6it0ud0teq3tw26q40ba",
       "title": "Group #23",
       "graphCoordinates": {
-        "x": -2937.14,
-        "y": -1250.71
+        "x": -4707.14,
+        "y": -1803.21
       },
       "blocks": [
         {
@@ -870,8 +869,8 @@
       "id": "jnbvtyzr1ffz4ff5n05a999k",
       "title": "Group #22",
       "graphCoordinates": {
-        "x": -4736.43,
-        "y": -1850.11
+        "x": -5124,
+        "y": -2209.29
       },
       "blocks": [
         {
@@ -1011,8 +1010,8 @@
       "id": "e84h0bt9n8hgrj4ut48h245l",
       "title": "Solicitação Elegível",
       "graphCoordinates": {
-        "x": -3207.1,
-        "y": -2002.74
+        "x": -1727.91,
+        "y": -2300.27
       },
       "blocks": [
         {
@@ -1039,8 +1038,8 @@
       "id": "g60uvyvi39v47j4ahnoxkxzn",
       "title": "Group #20",
       "graphCoordinates": {
-        "x": -3214.73,
-        "y": -1683.5
+        "x": -3134.73,
+        "y": -103.5
       },
       "blocks": [
         {
@@ -1048,19 +1047,6 @@
           "outgoingEdgeId": "vgmrhkywl7kagoaeaq2ybdmg",
           "type": "Webhook",
           "options": {
-            "isCustomBody": true,
-            "webhook": {
-              "queryParams": [],
-              "headers": [
-                {
-                  "id": "fs8sq629dz0woj58f90174bp",
-                  "key": "Content-Type",
-                  "value": "application/json"
-                }
-              ],
-              "url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
-              "body": "{\n  \"from\": \"{{whatsapp}}\",\n  \"telefone\": \"{{whatsapp}}\",\n  \"patient_name\": \"{{Nome_Completo}}\",\n  \"birth_date\": \"{{data_nascimento}}\",\n  \"cpf\": \"{{cpf_paciente}}\",\n  \"whatsapp\": \"{{whatsapp}}\",\n  \"email\": \"{{Email}}\",\n  \"address\": \"{{Endereco}}\",\n  \"cep\": \"{{cep}}\",\n  \"chronic_condition\": \"{{doenca_cronica}}\",\n  \"continuous_use_days\": \"{{continuous_use_days}}\",\n  \"tempo_uso\": \"{{tempo_uso}}\",\n  \"has_warning_signs\": \"{{has_warning_signs}}\",\n  \"sinais_alerta\": \"{{sinais_alerta}}\",\n  \"eligibility_status\": \"{{eligibility_status}}\",\n  \"ineligibility_reason\": \"{{ineligibility_reason}}\",\n  \"has_previous_prescription\": \"{{has_previous_prescription}}\",\n  \"has_prescription_photo_ready\": \"{{has_prescription_photo_ready}}\",\n  \"medication_count\": \"{{medication_count}}\",\n  \"medication_1_name\": \"{{med1_nome}}\",\n  \"medication_1_dose\": \"{{med1_dose}}\",\n  \"medication_1_frequency\": \"{{med1_frequencia}}\",\n  \"medication_1_route\": \"{{med1_via}}\",\n  \"medication_2_name\": \"{{med2_nome}}\",\n  \"medication_2_dose\": \"{{med2_dose}}\",\n  \"medication_2_frequency\": \"{{med2_frequencia}}\",\n  \"medication_2_route\": \"{{med2_via}}\",\n  \"medication_3_name\": \"{{med3_nome}}\",\n  \"medication_3_dose\": \"{{med3_dose}}\",\n  \"medication_3_frequency\": \"{{med3_frequencia}}\",\n  \"medication_3_route\": \"{{med3_via}}\",\n  \"medications\": [\n    { \"name\": \"{{med1_nome}}\", \"dose\": \"{{med1_dose}}\", \"frequency\": \"{{med1_frequencia}}\", \"route\": \"{{med1_via}}\" },\n    { \"name\": \"{{med2_nome}}\", \"dose\": \"{{med2_dose}}\", \"frequency\": \"{{med2_frequencia}}\", \"route\": \"{{med2_via}}\" },\n    { \"name\": \"{{med3_nome}}\", \"dose\": \"{{med3_dose}}\", \"frequency\": \"{{med3_frequencia}}\", \"route\": \"{{med3_via}}\" }\n  ],\n  \"medication_name\": \"{{med1_nome}}\",\n  \"medication_dose\": \"{{med1_dose}}\",\n  \"medication_frequency\": \"{{med1_frequencia}}\",\n  \"medication_route\": \"{{med1_via}}\",\n  \"primeiro_medicamento\": \"{{med1_nome}} — {{med1_dose}} — {{med1_frequencia}}\",\n  \"segundo_medicamento\": \"{{med2_nome}} — {{med2_dose}} — {{med2_frequencia}}\",\n  \"terceiro_medicamento\": \"{{med3_nome}} — {{med3_dose}} — {{med3_frequencia}}\",\n  \"payment_status\": \"paid\",\n  \"pagamento_status\": \"CONFIRMADO\",\n  \"pagamento\": \"pago\",\n  \"protocol\": \"staging-clinical-v1\",\n  \"source\": \"typebot-doctor-prescreve\",\n  \"nome\": \"{{Nome_Completo}}\",\n  \"doenca_cronica\": \"{{doenca_cronica}}\",\n  \"text\": \"Triagem Doctor Prescreve — {{Nome_Completo}} — {{doenca_cronica}} — {{med1_nome}}\",\n  \"lgpd_accepted\": \"{{lgpd_accepted}}\",\n  \"privacy_policy_accepted\": \"{{privacy_policy_accepted}}\",\n  \"telemedicine_consent_accepted\": \"{{telemedicine_consent_accepted}}\",\n  \"non_urgency_notice_accepted\": \"{{non_urgency_notice_accepted}}\",\n  \"terms_of_use_accepted\": \"{{terms_of_use_accepted}}\",\n  \"accepted_terms_at\": \"{{accepted_terms_at}}\",\n  \"accepted_terms_links\": \"{{accepted_terms_links}}\",\n  \"terms_presented\": [{\"id\":\"lgpd\",\"label\":\"Consentimento LGPD\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"privacy\",\"label\":\"Política de Privacidade\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"telemedicine\",\"label\":\"Consentimento Telemedicina Assíncrona\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\",\"step\":\"telemedicine\"},{\"id\":\"non_urgency\",\"label\":\"Aviso Importante — Não Urgência/Emergência\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf\",\"step\":\"telemedicine\"},{\"id\":\"terms_of_use\",\"label\":\"Política e Termos de Uso\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\",\"step\":\"payment\"}],\n  \"terms_accepted\": \"{{terms_accepted_summary}}\",\n  \"typebot_public_id\": \"doctor-prescreve-8rmljgu\"\n}"
-            },
             "responseVariableMapping": [
               {
                 "id": "map_upload_url",
@@ -1077,7 +1063,20 @@
                 "variableId": "var_atendimento_id",
                 "bodyPath": "atendimentoId"
               }
-            ]
+            ],
+            "isCustomBody": true,
+            "webhook": {
+              "queryParams": [],
+              "headers": [
+                {
+                  "id": "fs8sq629dz0woj58f90174bp",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
+              "body": "{\n  \"from\": \"{{whatsapp}}\",\n  \"telefone\": \"{{whatsapp}}\",\n  \"patient_name\": \"{{Nome_Completo}}\",\n  \"birth_date\": \"{{data_nascimento}}\",\n  \"cpf\": \"{{cpf_paciente}}\",\n  \"whatsapp\": \"{{whatsapp}}\",\n  \"email\": \"{{Email}}\",\n  \"address\": \"{{Endereco}}\",\n  \"cep\": \"{{cep}}\",\n  \"chronic_condition\": \"{{doenca_cronica}}\",\n  \"continuous_use_days\": \"{{continuous_use_days}}\",\n  \"tempo_uso\": \"{{tempo_uso}}\",\n  \"has_warning_signs\": \"{{has_warning_signs}}\",\n  \"sinais_alerta\": \"{{sinais_alerta}}\",\n  \"eligibility_status\": \"{{eligibility_status}}\",\n  \"ineligibility_reason\": \"{{ineligibility_reason}}\",\n  \"has_previous_prescription\": \"{{has_previous_prescription}}\",\n  \"has_prescription_photo_ready\": \"{{has_prescription_photo_ready}}\",\n  \"medication_count\": \"{{medication_count}}\",\n  \"medication_1_name\": \"{{med1_nome}}\",\n  \"medication_1_dose\": \"{{med1_dose}}\",\n  \"medication_1_frequency\": \"{{med1_frequencia}}\",\n  \"medication_1_route\": \"{{med1_via}}\",\n  \"medication_2_name\": \"{{med2_nome}}\",\n  \"medication_2_dose\": \"{{med2_dose}}\",\n  \"medication_2_frequency\": \"{{med2_frequencia}}\",\n  \"medication_2_route\": \"{{med2_via}}\",\n  \"medication_3_name\": \"{{med3_nome}}\",\n  \"medication_3_dose\": \"{{med3_dose}}\",\n  \"medication_3_frequency\": \"{{med3_frequencia}}\",\n  \"medication_3_route\": \"{{med3_via}}\",\n  \"medications\": [\n    { \"name\": \"{{med1_nome}}\", \"dose\": \"{{med1_dose}}\", \"frequency\": \"{{med1_frequencia}}\", \"route\": \"{{med1_via}}\" },\n    { \"name\": \"{{med2_nome}}\", \"dose\": \"{{med2_dose}}\", \"frequency\": \"{{med2_frequencia}}\", \"route\": \"{{med2_via}}\" },\n    { \"name\": \"{{med3_nome}}\", \"dose\": \"{{med3_dose}}\", \"frequency\": \"{{med3_frequencia}}\", \"route\": \"{{med3_via}}\" }\n  ],\n  \"medication_name\": \"{{med1_nome}}\",\n  \"medication_dose\": \"{{med1_dose}}\",\n  \"medication_frequency\": \"{{med1_frequencia}}\",\n  \"medication_route\": \"{{med1_via}}\",\n  \"primeiro_medicamento\": \"{{med1_nome}} — {{med1_dose}} — {{med1_frequencia}}\",\n  \"segundo_medicamento\": \"{{med2_nome}} — {{med2_dose}} — {{med2_frequencia}}\",\n  \"terceiro_medicamento\": \"{{med3_nome}} — {{med3_dose}} — {{med3_frequencia}}\",\n  \"payment_status\": \"paid\",\n  \"pagamento_status\": \"CONFIRMADO\",\n  \"pagamento\": \"pago\",\n  \"protocol\": \"staging-clinical-v1\",\n  \"source\": \"typebot-doctor-prescreve\",\n  \"nome\": \"{{Nome_Completo}}\",\n  \"doenca_cronica\": \"{{doenca_cronica}}\",\n  \"text\": \"Triagem Doctor Prescreve — {{Nome_Completo}} — {{doenca_cronica}} — {{med1_nome}}\",\n  \"lgpd_accepted\": \"{{lgpd_accepted}}\",\n  \"privacy_policy_accepted\": \"{{privacy_policy_accepted}}\",\n  \"telemedicine_consent_accepted\": \"{{telemedicine_consent_accepted}}\",\n  \"non_urgency_notice_accepted\": \"{{non_urgency_notice_accepted}}\",\n  \"terms_of_use_accepted\": \"{{terms_of_use_accepted}}\",\n  \"accepted_terms_at\": \"{{accepted_terms_at}}\",\n  \"accepted_terms_links\": \"{{accepted_terms_links}}\",\n  \"terms_presented\": [{\"id\":\"lgpd\",\"label\":\"Consentimento LGPD\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"privacy\",\"label\":\"Política de Privacidade\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"telemedicine\",\"label\":\"Consentimento Telemedicina Assíncrona\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\",\"step\":\"telemedicine\"},{\"id\":\"non_urgency\",\"label\":\"Aviso Importante — Não Urgência/Emergência\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf\",\"step\":\"telemedicine\"},{\"id\":\"terms_of_use\",\"label\":\"Política e Termos de Uso\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\",\"step\":\"payment\"}],\n  \"terms_accepted\": \"{{terms_accepted_summary}}\",\n  \"typebot_public_id\": \"doctor-prescreve-8rmljgu\"\n}"
+            }
           }
         }
       ]
@@ -1086,8 +1085,8 @@
       "id": "rp422fl4hazbcuxqloeav9ce",
       "title": "Nao elegivel",
       "graphCoordinates": {
-        "x": -3337.04,
-        "y": -1238.26
+        "x": -1769.54,
+        "y": -1928.26
       },
       "blocks": [
         {
@@ -1129,8 +1128,8 @@
       "id": "w1hv8mudb1upggxvd1rldzhy",
       "title": "Medicamento 1",
       "graphCoordinates": {
-        "x": -2478.68,
-        "y": -1756.6
+        "x": -4408.68,
+        "y": -1031.6
       },
       "blocks": [
         {
@@ -1199,6 +1198,7 @@
         },
         {
           "id": "blk_nggi0xs0",
+          "outgoingEdgeId": "edge_med1_to_route",
           "type": "choice input",
           "items": [
             {
@@ -1212,8 +1212,7 @@
           ],
           "options": {
             "variableId": "var_f58ysctc"
-          },
-          "outgoingEdgeId": "edge_med1_to_route"
+          }
         }
       ]
     },
@@ -1221,8 +1220,8 @@
       "id": "o1xsvn2jsapc3r1p4uf33vor",
       "title": "Medicamento 2",
       "graphCoordinates": {
-        "x": -2490.78,
-        "y": -1470.34
+        "x": -3935.78,
+        "y": -1070.34
       },
       "blocks": [
         {
@@ -1291,6 +1290,7 @@
         },
         {
           "id": "blk_upxrgzun",
+          "outgoingEdgeId": "edge_med2_to_route",
           "type": "choice input",
           "items": [
             {
@@ -1304,8 +1304,7 @@
           ],
           "options": {
             "variableId": "var_gmomjnaw"
-          },
-          "outgoingEdgeId": "edge_med2_to_route"
+          }
         }
       ]
     },
@@ -1313,8 +1312,8 @@
       "id": "iaurdgxvycgifdiuif84saz5",
       "title": "Medicamento 3",
       "graphCoordinates": {
-        "x": -2544.57,
-        "y": -998.88
+        "x": -3479.57,
+        "y": -1051.38
       },
       "blocks": [
         {
@@ -1383,6 +1382,7 @@
         },
         {
           "id": "blk_gxda5jr4",
+          "outgoingEdgeId": "edge_med3_to_foto",
           "type": "choice input",
           "items": [
             {
@@ -1396,8 +1396,7 @@
           ],
           "options": {
             "variableId": "var_6u0oxmee"
-          },
-          "outgoingEdgeId": "edge_med3_to_foto"
+          }
         }
       ]
     },
@@ -1405,8 +1404,8 @@
       "id": "huh6fmizvv701t9u7hc2mult",
       "title": "Quantidade de medicamentos",
       "graphCoordinates": {
-        "x": -2038.22,
-        "y": -1169.13
+        "x": -4840.72,
+        "y": -931.63
       },
       "blocks": [
         {
@@ -1432,21 +1431,21 @@
           "items": [
             {
               "id": "l6ckgiezhwfz71q9ghzbr60o",
+              "outgoingEdgeId": "edge_medcount_to_med1",
               "content": "1",
-              "value": "1",
-              "outgoingEdgeId": "edge_medcount_to_med1"
+              "value": "1"
             },
             {
               "id": "a3tft76xm1j35grku3wi2wcr",
+              "outgoingEdgeId": "edge_medcount_to_med1_b",
               "content": "2",
-              "value": "2",
-              "outgoingEdgeId": "edge_medcount_to_med1_b"
+              "value": "2"
             },
             {
               "id": "tcxyvudqg1en4j05s0bby66i",
+              "outgoingEdgeId": "edge_medcount_to_med1_c",
               "content": "3",
-              "value": "3",
-              "outgoingEdgeId": "edge_medcount_to_med1_c"
+              "value": "3"
             }
           ],
           "options": {
@@ -1459,8 +1458,8 @@
       "id": "grp_receita_anterior",
       "title": "Receita anterior",
       "graphCoordinates": {
-        "x": -2700,
-        "y": -1550
+        "x": -3880,
+        "y": -2102.5
       },
       "blocks": [
         {
@@ -1507,8 +1506,8 @@
       "id": "grp_foto_receita",
       "title": "ENVIO DA RECEITA ANTERIOR",
       "graphCoordinates": {
-        "x": -2500,
-        "y": -1450
+        "x": -2960,
+        "y": -1047.5
       },
       "blocks": [
         {
@@ -1538,8 +1537,8 @@
                 "type": "p",
                 "children": [
                   {
-                    "type": "a",
                     "url": "{{upload_url}}",
+                    "type": "a",
                     "children": [
                       {
                         "text": "Enviar foto da receita"
@@ -1587,8 +1586,8 @@
       "id": "grp_gate_pagamento",
       "title": "Gate elegível pagamento",
       "graphCoordinates": {
-        "x": -3000,
-        "y": -1850
+        "x": -4285.02,
+        "y": -2583.36
       },
       "blocks": [
         {
@@ -1631,8 +1630,8 @@
       "id": "grp_inelegivel_presencial",
       "title": "Inelegível presencial",
       "graphCoordinates": {
-        "x": -3300,
-        "y": -1100
+        "x": -4375,
+        "y": -2222.5
       },
       "blocks": [
         {
@@ -1674,8 +1673,8 @@
       "id": "grp_route_after_med1",
       "title": "Rota após medicamento 1",
       "graphCoordinates": {
-        "x": -2400,
-        "y": -1300
+        "x": -4792.5,
+        "y": -52.5
       },
       "blocks": [
         {
@@ -1732,8 +1731,8 @@
       "id": "grp_route_after_med2",
       "title": "Rota após medicamento 2",
       "graphCoordinates": {
-        "x": -2400,
-        "y": -1150
+        "x": -4432.5,
+        "y": 195
       },
       "blocks": [
         {
@@ -1776,8 +1775,8 @@
       "id": "grp_lgpd_accept",
       "title": "Registro LGPD",
       "graphCoordinates": {
-        "x": -4500,
-        "y": -2400
+        "x": -4264.19,
+        "y": -2934.2
       },
       "blocks": [
         {
@@ -1828,8 +1827,8 @@
       "id": "grp_telemedicina_consent",
       "title": "Telemedicina e não urgência",
       "graphCoordinates": {
-        "x": -3600,
-        "y": -2000
+        "x": -3127.9,
+        "y": -2446.27
       },
       "blocks": [
         {
@@ -1862,8 +1861,8 @@
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
@@ -1881,8 +1880,8 @@
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
@@ -1922,8 +1921,8 @@
       "id": "grp_telemedicina_accept",
       "title": "Registro telemedicina",
       "graphCoordinates": {
-        "x": -3500,
-        "y": -1950
+        "x": -3521.23,
+        "y": -1992.09
       },
       "blocks": [
         {
@@ -1974,8 +1973,8 @@
       "id": "grp_telemedicina_decline",
       "title": "Encerramento telemedicina",
       "graphCoordinates": {
-        "x": -3500,
-        "y": -1800
+        "x": -3520.84,
+        "y": -2302.51
       },
       "blocks": [
         {
@@ -2010,8 +2009,8 @@
       "id": "grp_termos_uso",
       "title": "Termos de uso",
       "graphCoordinates": {
-        "x": -2900,
-        "y": -1750
+        "x": -3890,
+        "y": -2562.5
       },
       "blocks": [
         {
@@ -2044,8 +2043,8 @@
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
@@ -2079,8 +2078,8 @@
       "id": "grp_termos_accept",
       "title": "Registro termos",
       "graphCoordinates": {
-        "x": -2850,
-        "y": -1700
+        "x": -4722.5,
+        "y": -2272.5
       },
       "blocks": [
         {
@@ -2139,8 +2138,8 @@
       "id": "grp_upload_status_check",
       "title": "Conferir upload da receita",
       "graphCoordinates": {
-        "x": -2300,
-        "y": -1410
+        "x": -3385,
+        "y": -1605
       },
       "blocks": [
         {
@@ -2187,8 +2186,8 @@
       "id": "grp_upload_status_result",
       "title": "Resultado conferência upload",
       "graphCoordinates": {
-        "x": -2100,
-        "y": -1410
+        "x": -3867.5,
+        "y": -1677.5
       },
       "blocks": [
         {
@@ -2231,8 +2230,8 @@
       "id": "grp_upload_confirmed",
       "title": "Upload confirmado",
       "graphCoordinates": {
-        "x": -1900,
-        "y": -1510
+        "x": -4305,
+        "y": -1757.5
       },
       "blocks": [
         {
@@ -2259,8 +2258,8 @@
       "id": "grp_upload_pending_retry",
       "title": "Upload pendente",
       "graphCoordinates": {
-        "x": -1900,
-        "y": -1310
+        "x": -4305,
+        "y": -1507.5
       },
       "blocks": [
         {
@@ -3091,8 +3090,7 @@
     },
     {
       "id": "var_upload_url",
-      "name": "upload_url",
-      "sampleValue": "https://painel-medico-staging-staging.up.railway.app/upload-receita/token-exemplo"
+      "name": "upload_url"
     },
     {
       "id": "var_upload_check_action",
@@ -3133,13 +3131,78 @@
     }
   },
   "createdAt": "2026-05-04T01:19:53.269Z",
-  "updatedAt": "2026-05-29T07:29:48.043Z",
+  "updatedAt": "2026-07-16T17:40:36.862Z",
   "icon": "🤝",
   "folderId": null,
   "publicId": "doctor-prescreve-8rmljgu",
   "customDomain": null,
   "workspaceId": "cmmhv3b27000204lbqnb1sdyp",
-  "resultsTablePreferences": null,
+  "resultsTablePreferences": {
+    "columnsOrder": [
+      "select",
+      "date",
+      "sbjZWLJGVkHAkDqS4JQeGow",
+      "ivbr3o1a7lv8izhfteuerhqx",
+      "plhspmybxbhylbfbsvqyhlmj",
+      "s5VQGsVF4hQgziQsXVdwPDW",
+      "r0imrcgaiv1idzkykt891q4u",
+      "w9v6g0rlkucnfmxc3qh2a2qt",
+      "oq3zsok0c2tdl3qamma8tush",
+      "rapfykn1f1uno89ypqmwi43f",
+      "b156nm008xh7gb52n7w3egzn",
+      "pkodixot7oiiya9iknntuvz2",
+      "ds9z9lnz3yayokyy8d81fudj",
+      "ar8jtu7sa8gfndqeebrvyj15",
+      "dein7u2qnr8q32p2lv1krd5p",
+      "tbla9w2i2kbeyzun88hai3s9",
+      "dwoaqosurlamebpra9yf7pm4",
+      "blk_0oydu2f7",
+      "q78qjnk6ticwkeifl7xe2rju",
+      "blk_xp763m78",
+      "blk_n5x21i7c",
+      "blk_yyroio7i",
+      "blk_nggi0xs0",
+      "blk_fjhq98ob",
+      "blk_e3e58xjk",
+      "blk_g7zx538s",
+      "blk_upxrgzun",
+      "blk_k8s4myef",
+      "blk_g0v3kz80",
+      "blk_mefdgbik",
+      "blk_gxda5jr4",
+      "w97ho902ina4lg7b6dn0sycw",
+      "blk_receita_choice",
+      "blk_upload_check",
+      "blk_tele_choice",
+      "blk_terms_choice",
+      "ve5p3y8pm9ekos5jh1pla0od4",
+      "vhjcttuqsgnju4zclf9bp83ux",
+      "vqtp7ya6itka0bjv49wi1iyk9",
+      "s6166vt43vgab4wz1qsi33yf",
+      "f401cbd1-58d9-492a-81a9-3ee49e200c72",
+      "b8ded1b9-984b-4398-80e5-96cbe6810a5e",
+      "7f6dbb07-cc2a-40c0-9133-7bae5b4f4609",
+      "var_ogqju3rw",
+      "var_7wa4675j",
+      "var_vuymu8y8",
+      "var_3qdmrwpx",
+      "var_ucu1v51l",
+      "var_rb0uqixe",
+      "var_bgyyq9y6",
+      "var_gxtdyx7e",
+      "var_qesjr9zn",
+      "var_es63vwzc",
+      "var_32f9m2p8",
+      "var_d2fpw0vw",
+      "var_j2iqo1vy",
+      "var_upload_url",
+      "logs"
+    ],
+    "columnsVisibility": {
+      "sbjZWLJGVkHAkDqS4JQeGow": true
+    },
+    "columnsWidth": {}
+  },
   "isArchived": false,
   "isClosed": false,
   "whatsAppCredentialsId": null,
