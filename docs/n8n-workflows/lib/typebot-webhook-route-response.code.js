@@ -22,6 +22,19 @@ const ok = httpOk && apiSuccess;
 const atendimentoId =
   body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;
 
+// upload_url pode usar o domínio do painel (UPLOAD_PAGE_BASE_URL); o endpoint de
+// status vive no backend — deriva pelo token, não pelo domínio do upload_url.
+const uploadUrl = body?.upload_url || null;
+const uploadToken = uploadUrl
+  ? decodeURIComponent(String(uploadUrl).split('/upload-receita/')[1] || '').replace(/[/?#].*$/, '')
+  : '';
+const backendBase = String($env.BACKEND_BASE_URL || '').replace(/\/$/, '');
+const uploadStatusUrl =
+  body?.upload_status_url ||
+  (uploadToken && backendBase
+    ? `${backendBase}/api/upload-receita/${encodeURIComponent(uploadToken)}/status`
+    : null);
+
 return [
   {
     json: {
@@ -32,7 +45,9 @@ return [
         ? {
             success: true,
             message: body?.message || 'Triagem recebida com sucesso',
-            atendimentoId
+            atendimentoId,
+            upload_url: uploadUrl,
+            upload_status_url: uploadStatusUrl
           }
         : {
             success: false,
