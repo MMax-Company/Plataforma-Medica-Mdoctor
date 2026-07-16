@@ -1,6 +1,5 @@
 const { randomUUID } = require('crypto');
 const twilio = require('twilio');
-const evolutionProvider = require('../services/providers/evolution.provider');
 const metaProvider = require('../services/providers/meta.provider');
 
 const CHANNEL_LABELS = {
@@ -52,7 +51,6 @@ function buildMessage({ pacienteNome, receiptUrl, channel }) {
 
 function resolveWhatsAppProvider() {
   const configured = String(process.env.WHATSAPP_PROVIDER || 'mock').trim().toLowerCase();
-  if (configured === 'evolution') return 'evolution';
   if (configured === 'meta') return 'meta';
   return 'mock';
 }
@@ -104,27 +102,12 @@ function enforceAntiSpam(target, cfg) {
 
 async function getWhatsAppProviderStatus() {
   const selected = resolveWhatsAppProvider();
-  const evolutionConfigured = evolutionProvider.isConfigured();
   const metaConfigured = metaProvider.isConfigured();
-  let evolutionHealth = null;
   const sandbox = isSandboxMode();
   const dryRun = isDryRunMode();
   const antiSpam = antiSpamConfig();
 
-  if (selected === 'evolution' || evolutionConfigured) {
-    try {
-      evolutionHealth = await evolutionProvider.healthCheck();
-    } catch (error) {
-      evolutionHealth = {
-        ok: false,
-        configured: evolutionConfigured,
-        provider: 'evolution',
-        message: error.message
-      };
-    }
-  }
-
-  const activeProviderConfigured = selected === 'meta' ? metaConfigured : evolutionConfigured;
+  const activeProviderConfigured = selected === 'meta' ? metaConfigured : false;
   const fallbackActive = selected === 'mock' || !activeProviderConfigured || canUseDevelopmentMock();
   const mockMode = fallbackActive || dryRun || sandbox;
 
@@ -139,13 +122,6 @@ async function getWhatsAppProviderStatus() {
       ...antiSpam,
       trackedNumbers: sandboxStore.recentByNumber.size,
       trackedEvents: sandboxStore.recentGlobal.length
-    },
-    evolution: {
-      configured: evolutionConfigured,
-      configuredParts: evolutionProvider.getConfiguredParts(),
-      runtime: evolutionProvider.getRuntimeState(),
-      safeReadEndpoints: evolutionProvider.SAFE_READ_ENDPOINTS,
-      ...(evolutionHealth || {})
     },
     meta: {
       configured: metaConfigured,
@@ -250,7 +226,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   }
 
   if (!providerResult && channel === 'whatsapp') {
-    if (sandbox && (provider === 'evolution' || provider === 'meta') && !manualTrigger) {
+    if (sandbox && provider === 'meta' && !manualTrigger) {
       if (canUseDevelopmentMock()) {
         providerResult = {
           provider: 'mock-fallback',
@@ -267,10 +243,9 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
   }
 
   if (!providerResult && channel === 'whatsapp') {
-    if (provider === 'evolution' || provider === 'meta') {
-      const activeProvider = provider === 'meta' ? metaProvider : evolutionProvider;
+    if (provider === 'meta') {
       try {
-        providerResult = await activeProvider.sendTextMessage({
+        providerResult = await metaProvider.sendTextMessage({
           to: target,
           text: message,
           correlationId,
@@ -326,7 +301,7 @@ async function sendPrescription({ channel, target, receiptUrl, pacienteNome, cor
 
 // Dispatcher fino para os envios "best-effort" fora do fluxo de entrega de
 // receita (avisos de fila de suporte, pesquisa pós-entrega, reenvio manual
-// pelo admin) — centraliza a escolha evolution/meta em vez de cada chamador
+// pelo admin) — centraliza a escolha do provider em vez de cada chamador
 // dar require direto num provider fixo. Sem sandbox/anti-spam/dry-run: esses
 // controles são específicos do fluxo principal de sendPrescription.
 async function sendWhatsAppText({ to, bsuid, text, correlationId, idempotencyKey }) {
@@ -334,9 +309,6 @@ async function sendWhatsAppText({ to, bsuid, text, correlationId, idempotencyKey
 
   if (provider === 'meta') {
     return metaProvider.sendTextMessage({ to, bsuid, text, correlationId, idempotencyKey });
-  }
-  if (provider === 'evolution') {
-    return evolutionProvider.sendTextMessage({ to, text, correlationId, idempotencyKey });
   }
 
   const error = new Error(`Provider WhatsApp não configurado (WHATSAPP_PROVIDER=${provider})`);

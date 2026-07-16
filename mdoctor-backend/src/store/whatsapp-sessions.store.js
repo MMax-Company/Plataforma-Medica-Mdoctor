@@ -121,7 +121,7 @@ async function upsertSessionMetadata({ phone, patientId = null, metadataPatch = 
     id: randomUUID(),
     phone: digits,
     patient_id: patientId || null,
-    provider: 'evolution',
+    provider: 'meta',
     status: 'active',
     metadata: metadataPatch,
     last_message_at: now,

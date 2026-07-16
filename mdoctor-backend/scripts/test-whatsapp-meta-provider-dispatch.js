@@ -6,7 +6,6 @@
  *   node mdoctor-backend/scripts/test-whatsapp-meta-provider-dispatch.js
  */
 const delivery = require('../src/delivery/delivery.service');
-const evolutionProvider = require('../src/services/providers/evolution.provider');
 const metaProvider = require('../src/services/providers/meta.provider');
 
 function assert(label, condition) {
@@ -16,22 +15,17 @@ function assert(label, condition) {
 
 const originalProviderEnv = process.env.WHATSAPP_PROVIDER;
 const originalMetaSend = metaProvider.sendTextMessage;
-const originalEvoSend = evolutionProvider.sendTextMessage;
 
 function restore() {
   if (originalProviderEnv === undefined) delete process.env.WHATSAPP_PROVIDER;
   else process.env.WHATSAPP_PROVIDER = originalProviderEnv;
   metaProvider.sendTextMessage = originalMetaSend;
-  evolutionProvider.sendTextMessage = originalEvoSend;
 }
 
 (async () => {
   // --- resolveWhatsAppProvider reconhece 'meta' sem virar o default ---
   process.env.WHATSAPP_PROVIDER = 'meta';
   assert('resolveWhatsAppProvider reconhece "meta"', delivery.resolveWhatsAppProvider() === 'meta');
-
-  process.env.WHATSAPP_PROVIDER = 'evolution';
-  assert('resolveWhatsAppProvider mantém "evolution" funcionando', delivery.resolveWhatsAppProvider() === 'evolution');
 
   process.env.WHATSAPP_PROVIDER = 'algo-invalido';
   assert('resolveWhatsAppProvider cai para "mock" em valor desconhecido', delivery.resolveWhatsAppProvider() === 'mock');
@@ -41,30 +35,17 @@ function restore() {
 
   // --- sendWhatsAppText despacha para o provider correto sem tocar rede real ---
   let metaCalled = false;
-  let evoCalled = false;
   metaProvider.sendTextMessage = async () => {
     metaCalled = true;
     return { provider: 'meta', providerMessageId: 'meta-test-id', providerStatus: 'sent' };
   };
-  evolutionProvider.sendTextMessage = async () => {
-    evoCalled = true;
-    return { provider: 'evolution', providerMessageId: 'evo-test-id', providerStatus: 'sent' };
-  };
 
   process.env.WHATSAPP_PROVIDER = 'meta';
   const metaResult = await delivery.sendWhatsAppText({ to: '5511999999999', text: 'oi' });
-  assert('sendWhatsAppText com WHATSAPP_PROVIDER=meta chama só o meta.provider', metaCalled && !evoCalled);
+  assert('sendWhatsAppText com WHATSAPP_PROVIDER=meta chama o meta.provider', metaCalled);
   assert('sendWhatsAppText preserva o resultado do meta.provider', metaResult.provider === 'meta');
 
   metaCalled = false;
-  evoCalled = false;
-  process.env.WHATSAPP_PROVIDER = 'evolution';
-  const evoResult = await delivery.sendWhatsAppText({ to: '5511999999999', text: 'oi' });
-  assert('sendWhatsAppText com WHATSAPP_PROVIDER=evolution chama só o evolution.provider', evoCalled && !metaCalled);
-  assert('sendWhatsAppText preserva o resultado do evolution.provider', evoResult.provider === 'evolution');
-
-  metaCalled = false;
-  evoCalled = false;
   process.env.WHATSAPP_PROVIDER = 'mock';
   let threwNotConfigured = false;
   try {
@@ -74,7 +55,7 @@ function restore() {
   }
   assert(
     'sendWhatsAppText sem provider real configurado lança PROVIDER_NOT_CONFIGURED sem chamar nenhum provider',
-    threwNotConfigured && !metaCalled && !evoCalled
+    threwNotConfigured && !metaCalled
   );
 
   restore();

@@ -148,7 +148,7 @@ async function main() {
           latestDeploymentId: deployment?.id || status?.deploymentId || null,
           latestDeploymentAt: deployment?.createdAt || null,
           variableKeyCount: variableKeys.length,
-          variableKeys: variableKeys.filter((k) => !/SECRET|KEY|PASS|TOKEN|PASSWORD/i.test(k) || /^(NODE_ENV|ENVIRONMENT_NAME|DATA_ENV|FLOW_ENV|WHATSAPP_|N8N_|EVOLUTION_|BACKEND_|CORS_|BASE_URL|PORT|MEMED_|SUPABASE_URL)/.test(k)).slice(0, 40),
+          variableKeys: variableKeys.filter((k) => !/SECRET|KEY|PASS|TOKEN|PASSWORD/i.test(k) || /^(NODE_ENV|ENVIRONMENT_NAME|DATA_ENV|FLOW_ENV|WHATSAPP_|N8N_|BACKEND_|CORS_|BASE_URL|PORT|MEMED_|SUPABASE_URL)/.test(k)).slice(0, 40),
           sensitiveKeyNames: variableKeys.filter((k) => /SECRET|KEY|PASS|TOKEN|PASSWORD|API_KEY/i.test(k))
         });
       }

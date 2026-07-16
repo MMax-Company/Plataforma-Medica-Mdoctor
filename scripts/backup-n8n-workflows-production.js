@@ -17,7 +17,6 @@ const outDir = path.join(__dirname, '../docs/backups');
 const date = new Date().toISOString().slice(0, 10);
 
 const TARGETS = [
-  { match: /evolution\s+webhook/i, file: `${date}-evolution-webhook-production.json` },
   { match: /typebot/i, file: `${date}-typebot-webhook-production.json`, pathHint: 'typebot-webhook' }
 ];
 

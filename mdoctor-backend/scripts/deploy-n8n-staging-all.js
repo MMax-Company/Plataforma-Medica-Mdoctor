@@ -20,7 +20,6 @@ if (!process.env.N8N_API_KEY && fs.existsSync(stagingEnv)) {
 
 const workflows = [
   'docs/n8n-workflows/typebot-webhook-staging.json',
-  'docs/n8n-workflows/evolution-webhook-staging.json',
   'docs/n8n-workflows/clinical-rejection-notify-staging.json',
   'docs/n8n-workflows/stripe-payment-staging.json',
   'docs/n8n-workflows/prescription-delivery-staging.json',

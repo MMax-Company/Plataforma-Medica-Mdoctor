@@ -21,7 +21,6 @@ coverage/
 !.env.production.example
 docker/n8n.env
 docker/n8n.staging.env
-mdoctor-backend/.env.evolution-staging
 scripts/_n8n-staging-vars.json
 scripts/railway-audit-output.json
 mdoctor-backend/scripts/_railway-web-prod-patch.json

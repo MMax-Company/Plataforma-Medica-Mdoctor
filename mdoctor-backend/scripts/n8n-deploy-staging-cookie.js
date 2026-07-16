@@ -14,7 +14,6 @@ const password = String(process.env.N8N_OWNER_PASSWORD || 'TempPass123!');
 
 const workflows = [
   'docs/n8n-workflows/typebot-webhook-staging.json',
-  'docs/n8n-workflows/evolution-webhook-staging.json',
   'docs/n8n-workflows/clinical-rejection-notify-staging.json',
   'docs/n8n-workflows/stripe-payment-staging.json',
   'docs/n8n-workflows/prescription-delivery-staging.json',

@@ -330,13 +330,9 @@ async function main() {
   }
 
   log.ok(`workflow ativo na API (id=${workflowId}, active=${finalRow.active})`);
-  if (finalCheck.workflowKind === 'evolution-webhook') {
-    log.ok(`workflow Evolution validado (${finalCheck.nodeCount} nós, conexões íntegras)`);
-  } else {
-    log.ok(
-      `nó "${finalCheck.httpNodeName}" → ${TRIAGEM_PATH} (${finalCheck.nodeCount} nós)`
-    );
-  }
+  log.ok(
+    `nó "${finalCheck.httpNodeName}" → ${TRIAGEM_PATH} (${finalCheck.nodeCount} nós)`
+  );
 
   const webhookPaths = extractWebhookPaths(payload);
   if (!skipWebhookCheck && webhookPaths.length) {

@@ -200,7 +200,7 @@ async function finalizeSupportAttendance(atendimentoId) {
     }
   });
 
-  // Best-effort send via provider WhatsApp configurado (evolution ou meta)
+  // Best-effort send via provider WhatsApp configurado (meta)
   const phone = atendimento.paciente_telefone;
   if (phone) {
     try {

@@ -1,19 +1,13 @@
 #!/usr/bin/env node
 /**
- * Healthcheck operacional — WhatsApp / Evolution / n8n / backend (produção assistida).
+ * Healthcheck operacional — n8n / backend (produção assistida).
  *
  * Uso:
  *   node scripts/check-production-health.js
  *
  * Env (valores padrão = stack atual):
- *   EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE
  *   N8N_BASE_URL, BACKEND_URL
  */
-const EVOLUTION_URL = String(
-  process.env.EVOLUTION_API_URL || 'https://evolution-api-staging-staging-40d1.up.railway.app'
-).replace(/\/$/, '');
-const EVOLUTION_KEY = String(process.env.EVOLUTION_API_KEY || process.env.AUTHENTICATION_API_KEY || '').trim();
-const INSTANCE = String(process.env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();
 const N8N = String(process.env.N8N_BASE_URL || 'https://n8n-node-production-f844.up.railway.app').replace(
   /\/$/,
   ''
@@ -48,27 +42,6 @@ async function main() {
   const checks = [];
 
   checks.push(
-    await timed('evolution_online', async () => {
-      const r = await fetchStatus(`${EVOLUTION_URL}/`);
-      if (!r.ok && r.status !== 404) throw new Error(`HTTP ${r.status}`);
-      return { status: r.status };
-    })
-  );
-
-  checks.push(
-    await timed('evolution_instance_open', async () => {
-      if (!EVOLUTION_KEY) throw new Error('EVOLUTION_API_KEY ausente');
-      const r = await fetchStatus(`${EVOLUTION_URL}/instance/connectionState/${encodeURIComponent(INSTANCE)}`, {
-        headers: { apikey: EVOLUTION_KEY }
-      });
-      const state = r.json?.instance?.state || r.json?.state;
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      if (state !== 'open') throw new Error(`state=${state || 'unknown'}`);
-      return { state };
-    })
-  );
-
-  checks.push(
     await timed('n8n_online', async () => {
       let r = await fetchStatus(`${N8N}/healthz`);
       if (!r.ok) r = await fetchStatus(`${N8N}/`);
@@ -85,7 +58,7 @@ async function main() {
     })
   );
 
-  for (const path of ['evolution-webhook', 'typebot-webhook']) {
+  for (const path of ['typebot-webhook']) {
     checks.push(
       await timed(`webhook_${path.replace(/-/g, '_')}`, async () => {
         const r = await fetchStatus(`${N8N}/webhook/${path}`, {
@@ -102,7 +75,7 @@ async function main() {
 
   const report = {
     generated_at: new Date().toISOString(),
-    targets: { EVOLUTION_URL, INSTANCE, N8N, BACKEND },
+    targets: { N8N, BACKEND },
     checks,
     success: checks.every((c) => c.ok),
     failures: checks.filter((c) => !c.ok).map((c) => c.name)
