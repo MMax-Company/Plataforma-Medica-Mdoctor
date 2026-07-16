@@ -21,6 +21,8 @@ export type ProntuarioAtendimento = {
   elegibilidade?: { eligible?: boolean; reason?: string } | null;
   dados_clinicos?: Record<string, unknown> & {
     condition?: string;
+    nome_social?: string;
+    social_name?: string;
     data_nascimento?: string;
     birth_date?: string;
     idade?: string;
@@ -90,6 +92,35 @@ function formText(...values: Array<unknown>) {
   return typeof found === 'string' ? found : '';
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function formatMedications(clinical: Record<string, unknown>) {
+  const medications = Array.isArray(clinical.medications) ? clinical.medications : [];
+  if (!medications.length) return firstText(clinical.medicacao_em_uso, 'Já declarado na teletriagem.');
+  return medications
+    .slice(0, 3)
+    .map((entry, index) => {
+      const med = asRecord(entry);
+      const dose = [med.dose, med.unit].filter(Boolean).join('');
+      return `${index + 1}. ${firstText(med.name, med.label)}${dose ? ` ${dose}` : ''} · ${firstText(med.frequency)} · ${firstText(med.route)}`;
+    })
+    .join('\n');
+}
+
+function formatTriageHistory(clinical: Record<string, unknown>) {
+  const nested = asRecord(clinical.triagem_nested);
+  const triagem = asRecord(nested.triagem);
+  const details = [
+    `Patologias: ${firstText(triagem.doencas, clinical.chronic_condition_label, clinical.doenca_cronica)}`,
+    `Sinais de alerta: ${firstText(triagem.sinais_alerta, clinical.sinais_alerta, clinical.has_warning_signs === true ? 'sim' : 'não')}`,
+    `Tempo de uso: ${firstText(triagem.tempo_uso, clinical.tempo_uso, clinical.continuous_use_days)}`,
+  ].join('\n');
+  const narrative = formText(clinical.historico_clinico, clinical.doenca_cronica);
+  return narrative ? `${details}\n${narrative}` : details;
+}
+
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return 'P';
@@ -141,14 +172,10 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
     const c = atendimento.dados_clinicos || {};
     return {
       queixa: firstText(c.queixa_principal, c.chief_complaint, c.notes, atendimento.condicao, c.condition),
-      historico: firstText(
-        c.historico_clinico,
-        c.doenca_cronica,
-        'Paciente faz uso de medicação para doença crônica de forma contínua.',
-      ),
+      historico: formatTriageHistory(c),
       exame: firstText(c.exame_fisico, c.exame_fisico_telemedicina, 'Paciente nega alterações físicas ou clínicas relevantes.'),
       alergias: firstText(c.alergias, 'Nega alergias medicamentosas ou alimentares.'),
-      medicacao: firstText(c.medicacao_em_uso, 'Já declarado na teletriagem.'),
+      medicacao: formatMedications(c),
       conduta: firstText(
         c.conduta,
         c.conduta_medica,

@@ -320,6 +320,7 @@ function normalizeTypebotPayload(body = {}) {
   const original = body.rawMessage?.original && typeof body.rawMessage.original === 'object' ? body.rawMessage.original : body;
 
   const patientName = pickFirst(original.patient_name, original.nome, original.Nome_Completo, body.patient_name);
+  const socialName = pickFirst(original.nome_social, original.social_name, body.nome_social, body.social_name);
   const birthDate = normalizeBirthDate(pickFirst(original.birth_date, original.data_nascimento, body.birth_date));
   const cpf = normalizeCpf(pickFirst(original.cpf, original.cpf_paciente, body.cpf));
   const whatsapp = normalizeWhatsapp(pickFirst(original.whatsapp, original.telefone, body.from, body.telefone));
@@ -353,6 +354,8 @@ function normalizeTypebotPayload(body = {}) {
 
   const base = {
     patient_name: patientName,
+    nome_social: socialName,
+    social_name: socialName,
     birth_date: birthDate,
     cpf,
     whatsapp,
@@ -439,6 +442,8 @@ function normalizeTypebotPayload(body = {}) {
 function toPatientEvaluationShape(normalized = {}) {
   return {
     name: normalized.patient_name,
+    nome_social: normalized.nome_social,
+    social_name: normalized.social_name,
     phone: normalized.whatsapp,
     email: normalized.email,
     cpf: normalized.cpf,
@@ -488,6 +493,8 @@ function toPatientEvaluationShape(normalized = {}) {
 function buildCleanBackendPayload(normalized = {}, meta = {}) {
   return {
     patient_name: normalized.patient_name,
+    nome_social: normalized.nome_social,
+    social_name: normalized.social_name,
     birth_date: normalized.birth_date,
     cpf: normalized.cpf,
     whatsapp: normalized.whatsapp,

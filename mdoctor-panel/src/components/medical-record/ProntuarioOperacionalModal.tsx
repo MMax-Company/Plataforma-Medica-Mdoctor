@@ -93,7 +93,7 @@ function ClinicalBlock({
             ) : null}
           </>
         ) : (
-          <p className="text-[10.5px] font-medium leading-tight text-slate-700">{value}</p>
+          <p className="whitespace-pre-line text-[10.5px] font-medium leading-tight text-slate-700">{value}</p>
         )}
       </div>
     </section>
@@ -152,7 +152,6 @@ export function ProntuarioOperacionalModal({
     rejectAttendance,
     initials,
     firstText,
-    formatRecordId,
   } = prontuario;
 
   const eligible = atendimento?.elegibilidade?.eligible !== false;
@@ -192,6 +191,16 @@ export function ProntuarioOperacionalModal({
     : [];
 
   const cepValue = atendimento ? firstText(clinical.cep, clinical.postal_code) : 'Não informado';
+  const socialName = atendimento
+    ? firstText(clinical.nome_social, clinical.social_name)
+    : 'Não informado';
+  const consentSummary = atendimento
+    ? [
+        clinical.lgpd_accepted === true ? 'LGPD ✓' : 'LGPD —',
+        clinical.telemedicine_consent_accepted === true ? 'Telemedicina ✓' : 'Telemedicina —',
+        clinical.terms_of_use_accepted === true ? 'Termos ✓' : 'Termos —',
+      ].join(' · ')
+    : 'Não informado';
 
   return createPortal(
     <div
@@ -353,11 +362,11 @@ export function ProntuarioOperacionalModal({
                           {firstText(clinical.idade, clinical.age)}
                         </span>
                       </div>
+                      {socialName !== 'Não informado' ? (
+                        <p className="mt-0.5 text-[9px] font-semibold text-slate-600">Nome social: {socialName}</p>
+                      ) : null}
                       <p className="mt-0.5 text-[8.5px] font-bold text-slate-400">
-                        Prontuário:{' '}
-                        <span className="text-[#2563eb]">
-                          #{String(clinical.prontuario_display || formatRecordId(atendimento.id))}
-                        </span>
+                        Atendimento: <span className="break-all text-[#2563eb]">{atendimento.id}</span>
                       </p>
                       {whatsappUrl ? (
                         <a
@@ -397,6 +406,14 @@ export function ProntuarioOperacionalModal({
                     <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-1">
                       <span className="text-slate-400">📮 CEP</span>
                       <span className="font-bold text-slate-900">{cepValue}</span>
+                    </div>
+                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-1">
+                      <span className="text-slate-400">💳 Pagamento</span>
+                      <span className="font-bold text-slate-900">{atendimento.pagamento_status || 'Não informado'}</span>
+                    </div>
+                    <div className="shrink-0 border-t border-slate-100 pt-1">
+                      <span className="text-slate-400">🔒 Consentimentos</span>
+                      <p className="mt-0.5 text-[8px] font-bold leading-tight text-slate-900">{consentSummary}</p>
                     </div>
                   </div>
                 </div>
