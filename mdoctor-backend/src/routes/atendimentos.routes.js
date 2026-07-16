@@ -143,17 +143,9 @@ router.get('/queue', requireAuth, async (_req, res) => {
     if (terminal.has(st)) return false;
     return isClinicallyEligible(item) && isVisibleInMedicalPanel(item);
   });
-  const rejectedPaid = paid.filter((item) => {
-    const st = String(item.status || '').toLowerCase();
-    return st === 'rejected' || st === 'recusado' || item.elegibilidade?.eligible === false;
-  });
-  const merged = [...activeEligible];
-  for (const row of rejectedPaid) {
-    if (!merged.some((item) => item.id === row.id)) merged.push(row);
-  }
   res.json({
     success: true,
-    atendimentos: merged
+    atendimentos: activeEligible
   });
 });
 

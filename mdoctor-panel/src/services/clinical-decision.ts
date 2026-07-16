@@ -15,7 +15,7 @@ type BackendAtendimento = {
 };
 
 export const CLINICAL_REJECT_WHATSAPP_MESSAGE =
-  'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.';
+  'Após análise médica, sua solicitação não foi aprovada. O estorno do pagamento será processado e poderá ser concluído em até 72 horas, conforme os prazos da instituição financeira.';
 
 function unwrapAtendimento(data: BackendAtendimento | { atendimento?: BackendAtendimento }): BackendAtendimento {
   if ('atendimento' in data && data.atendimento) return data.atendimento;

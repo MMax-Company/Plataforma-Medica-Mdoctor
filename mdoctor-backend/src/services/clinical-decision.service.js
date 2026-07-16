@@ -1,30 +1,13 @@
 const { PROTOCOL_VERSION } = require('./clinical-intelligence.service');
 const { isVisibleInMedicalPanel } = require('./clinical-payload-normalizer.service');
-const { DEFAULT_REJECT_MESSAGE } = require('./n8n-clinical-notify.service');
 const { refundRejectedAtendimento } = require('./stripe-refund.service');
 const { buildRejectMotivoText, validateRejectPayload } = require('../constants/clinical-reject-reasons');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
+const { enqueueClinicalRejection } = require('../store/whatsapp-outbox.store');
 
-// Mensagem enviada ao paciente quando a reprovação médica veio acompanhada de
-// estorno iniciado. Sem prazo fixo: o prazo real depende da instituição
-// financeira e não há prazo configurável aprovado para operação.
-function buildRefundRejectMessage(pacienteNome) {
-  const nome = String(pacienteNome || '').trim() || 'paciente';
-  return [
-    `Olá, ${nome}. Após avaliação médica, sua solicitação não foi aprovada e nenhuma receita será emitida. ` +
-      'O estorno do valor pago foi solicitado e será devolvido pela mesma forma de pagamento. ' +
-      'O prazo para aparecer na conta ou fatura depende da instituição financeira e será informado conforme o retorno do meio de pagamento.',
-    '',
-    '*1* - Encerrar atendimento',
-    '*2* - Falar com o suporte'
-  ].join('\n');
-}
-
-// Estados de estorno em que a mensagem ao paciente pode afirmar que o estorno
-// foi solicitado. failed/payment_not_found/error usam a mensagem padrão, sem
-// prometer devolução que não foi iniciada.
-const REFUND_CLAIMED_STATUSES = new Set(['succeeded', 'pending', 'requires_action', 'already_refunded']);
+const CLINICAL_REJECT_WHATSAPP_MESSAGE =
+  'Após análise médica, sua solicitação não foi aprovada. O estorno do pagamento será processado e poderá ser concluído em até 72 horas, conforme os prazos da instituição financeira.';
 
 function resolveDecisionRationale(rationale, notes) {
   if (rationale && typeof rationale === 'object') {
@@ -315,6 +298,32 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
   const previousStatus = String(previous.status || '').toLowerCase();
   const previousRejection = previous.dados_clinicos?.motivo_rejeicao || null;
   if ((previousStatus === 'rejected' || previousStatus === 'recusado') && previousRejection) {
+    let notification = previous.dados_clinicos?.notificacao_reprovacao || null;
+    if (!notification?.queued && previous.paciente_telefone) {
+      const queued = await enqueueClinicalRejection({
+        atendimentoId,
+        phone: previous.paciente_telefone,
+        message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
+        doctorId: previousRejection.rejected_by || doctorId,
+        correlationId
+      });
+      notification = {
+        sent: false,
+        queued: true,
+        status: queued.message.status,
+        queueId: queued.message.id,
+        duplicate: queued.duplicate,
+        queued_at: queued.message.created_at || new Date().toISOString()
+      };
+      await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
+        motivo: previous.motivo_decisao,
+        medicoId: previousRejection.rejected_by || doctorId,
+        dados_clinicos: {
+          ...(previous.dados_clinicos || {}),
+          notificacao_reprovacao: notification
+        }
+      });
+    }
     await createAuditLog({
       entity_type: 'atendimento',
       entity_id: atendimentoId,
@@ -328,7 +337,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       atendimento: previous,
       decisao: null,
       estorno: previous.dados_clinicos?.estorno || null,
-      notification: { sent: false, skipped: true, reason: 'atendimento_ja_reprovado' },
+      notification: notification || { sent: false, skipped: true, reason: 'telefone_ausente' },
       correlationId,
       reason_code: previousRejection.code || null,
       reason_label: previousRejection.label || null
@@ -404,40 +413,39 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
         checked_at: new Date().toISOString()
       };
 
-  // Mensagem ao paciente sai direto pela Meta Cloud API (mesmo canal de todos
-  // os envios do backend). Só afirma estorno quando ele foi de fato iniciado.
-  const refundClaimed = REFUND_CLAIMED_STATUSES.has(String(estorno?.status || ''));
-  const message =
-    body.mensagem_whatsapp ||
-    (refundClaimed ? buildRefundRejectMessage(previous.paciente_nome) : DEFAULT_REJECT_MESSAGE);
+  // Persiste o estado do estorno antes de enfileirar. Se o banco recusar a
+  // mensagem, uma repetição da rota recupera este estado sem novo estorno.
+  mergedClinical.estorno = estorno;
+  await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
+    motivo,
+    medicoId: doctorId,
+    dados_clinicos: mergedClinical
+  });
 
+  const message = CLINICAL_REJECT_WHATSAPP_MESSAGE;
   let notification;
   if (previous.paciente_telefone) {
-    try {
-      // eslint-disable-next-line global-require
-      const { sendWhatsAppText } = require('../delivery/delivery.service');
-      const sendResult = await sendWhatsAppText({
-        to: previous.paciente_telefone,
-        text: message,
-        correlationId,
-        idempotencyKey: `clinical-reject:${atendimentoId}`
-      });
-      notification = {
-        sent: true,
-        provider: sendResult?.provider || null,
-        providerMessageId: sendResult?.providerMessageId || null
-      };
-    } catch (error) {
-      notification = { sent: false, error: error.message, code: error.code || null };
-    }
+    const queued = await enqueueClinicalRejection({
+      atendimentoId,
+      phone: previous.paciente_telefone,
+      message,
+      doctorId,
+      correlationId
+    });
+    notification = {
+      sent: false,
+      queued: true,
+      status: queued.message.status,
+      queueId: queued.message.id,
+      duplicate: queued.duplicate
+    };
   } else {
     notification = { sent: false, skipped: true, reason: 'telefone_ausente' };
   }
 
-  mergedClinical.estorno = estorno;
   mergedClinical.notificacao_reprovacao = {
     ...notification,
-    attempted_at: new Date().toISOString()
+    queued_at: notification.queued ? new Date().toISOString() : null
   };
 
   await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
@@ -456,7 +464,9 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       reason_code: reasonCode,
       reason_label: reasonMeta.label,
       motivo_resumido: motivo,
-      whatsappSent: notification.sent,
+      whatsappSent: false,
+      whatsappQueued: notification.queued || false,
+      whatsappQueueId: notification.queueId || null,
       whatsappSkipped: notification.skipped || false,
       whatsappError: notification.error || null,
       estorno_status: estorno?.status || null,
@@ -481,6 +491,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
 }
 
 module.exports = {
+  CLINICAL_REJECT_WHATSAPP_MESSAGE,
   approveAtendimento,
   rejectAtendimento,
   assertCanApprove,
