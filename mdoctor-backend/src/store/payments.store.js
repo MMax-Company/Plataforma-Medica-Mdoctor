@@ -63,7 +63,31 @@ async function recordStripePaymentEvent({
   return { duplicate: false, payment, paymentEvent };
 }
 
+async function findPaymentByAppointment(appointmentId) {
+  if (!appointmentId) return null;
+  const data = await dbQuery('buscar payment por appointment', async (supabase) =>
+    supabase
+      .from(T.PAYMENTS)
+      .select('*')
+      .eq('appointment_id', appointmentId)
+      .order('paid_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+  return data || null;
+}
+
+async function markPaymentRefunded(paymentId) {
+  if (!paymentId) return null;
+  const data = await dbQuery('marcar payment como refunded', async (supabase) =>
+    supabase.from(T.PAYMENTS).update({ status: 'refunded' }).eq('id', paymentId).select('*').maybeSingle()
+  );
+  return data || null;
+}
+
 module.exports = {
   findPaymentEventByProviderId,
+  findPaymentByAppointment,
+  markPaymentRefunded,
   recordStripePaymentEvent
 };
