@@ -85,6 +85,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
   const [mounted, setMounted] = useState(false);
 
   const [cpf, setCpf] = useState('');
+  const [atendimentoId, setAtendimentoId] = useState('');
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
@@ -140,7 +141,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
   }
 
   function clearAll() {
-    setCpf(''); setPhone(''); setName(''); setBirthDate('');
+    setAtendimentoId(''); setCpf(''); setPhone(''); setName(''); setBirthDate('');
     setResults([]); setSearched(false); setSearchError(null);
   }
 
@@ -155,7 +156,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
         <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5">
           <div>
             <h2 className="text-[15px] font-black uppercase tracking-tight text-slate-900">Buscar Prontuário</h2>
-            <p className="mt-0.5 text-[10px] text-slate-400">Localize um paciente por CPF, telefone ou nome + data de nascimento</p>
+            <p className="mt-0.5 text-[10px] text-slate-400">Localize por ID do atendimento, CPF, telefone ou nome</p>
           </div>
           <button
             type="button"
@@ -170,9 +171,28 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
         {/* Search sections */}
         <div className="shrink-0 space-y-2 overflow-y-auto px-5 py-4">
 
+          {/* Atendimento ID */}
+          <div className={sectionClass}>
+            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">1. Buscar por ID do atendimento</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className={inputClass}
+                placeholder="UUID completo do atendimento"
+                value={atendimentoId}
+                onChange={(e) => setAtendimentoId(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && atendimentoId.trim()) void doSearch({ id: atendimentoId }); }}
+              />
+              <button type="button" className={btnSearch} disabled={!atendimentoId.trim() || loading} onClick={() => void doSearch({ id: atendimentoId })}>
+                <Search className="h-3 w-3" />
+                Buscar
+              </button>
+            </div>
+          </div>
+
           {/* CPF */}
           <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">1. Buscar por CPF</p>
+            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">2. Buscar por CPF</p>
             <div className="flex gap-2">
               <input
                 ref={cpfRef}
@@ -194,7 +214,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
 
           {/* Phone */}
           <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">2. Buscar por Telefone / WhatsApp</p>
+            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">3. Buscar por Telefone / WhatsApp</p>
             <div className="flex gap-2">
               <input
                 type="tel"
@@ -213,7 +233,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
 
           {/* Name + DOB */}
           <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">3. Buscar por Nome + Data de Nascimento</p>
+            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">4. Buscar por Nome (nascimento opcional)</p>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -221,19 +241,19 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                 placeholder="Nome completo do paciente"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim() && birthDate) void doSearch({ name, birth_date: birthDate }); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void doSearch({ name, birth_date: birthDate }); }}
               />
               <input
                 type="date"
                 className={`${inputClass} w-40 shrink-0`}
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim() && birthDate) void doSearch({ name, birth_date: birthDate }); }}
+                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void doSearch({ name, birth_date: birthDate }); }}
               />
               <button
                 type="button"
                 className={btnSearch}
-                disabled={!name.trim() || !birthDate || loading}
+                disabled={!name.trim() || loading}
                 onClick={() => void doSearch({ name, birth_date: birthDate })}
               >
                 <Search className="h-3 w-3" />
@@ -242,7 +262,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
             </div>
           </div>
 
-          {(searched || cpf || phone || name || birthDate) && (
+          {(searched || atendimentoId || cpf || phone || name || birthDate) && (
             <div className="flex justify-end">
               <button type="button" className={btnClear} onClick={clearAll}>Limpar busca</button>
             </div>
@@ -290,7 +310,10 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                       onClick={() => handleSelect(r.id)}
                       title="Clique para abrir o prontuário"
                     >
-                      <td className="px-3 py-2.5 font-semibold text-slate-900">{r.paciente_nome || '—'}</td>
+                      <td className="px-3 py-2.5 font-semibold text-slate-900">
+                        <span className="block">{r.paciente_nome || '—'}</span>
+                        <span className="block font-mono text-[8px] font-normal text-slate-400">{r.id}</span>
+                      </td>
                       <td className="px-3 py-2.5 text-slate-600">{r.paciente_cpf ? maskCpf(r.paciente_cpf) : '—'}</td>
                       <td className="px-3 py-2.5 text-slate-600">{formatDob(r.data_nascimento)}</td>
                       <td className="px-3 py-2.5 text-slate-600">{maskPhone(r.paciente_telefone)}</td>

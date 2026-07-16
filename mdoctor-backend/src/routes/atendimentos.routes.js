@@ -224,15 +224,17 @@ router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
 });
 
 router.get('/search', requireAuth, async (req, res) => {
-  const { cpf, phone, name, birth_date } = req.query;
+  const { cpf, phone, name, birth_date, id, atendimento_id } = req.query;
+  const idValue = String(id || atendimento_id || '').trim().toLowerCase();
+  const hasId = Boolean(idValue);
   const hasCpf = Boolean(String(cpf || '').replace(/\D/g, ''));
   const hasPhone = Boolean(String(phone || '').replace(/\D/g, ''));
-  const hasNameDob = Boolean(String(name || '').trim()) && Boolean(String(birth_date || '').trim());
+  const hasName = Boolean(String(name || '').trim());
 
-  if (!hasCpf && !hasPhone && !hasNameDob) {
+  if (!hasId && !hasCpf && !hasPhone && !hasName) {
     return res.status(400).json({
       success: false,
-      error: 'Informe CPF, telefone, ou nome completo + data de nascimento'
+      error: 'Informe ID do atendimento, CPF, telefone ou nome'
     });
   }
 
@@ -251,12 +253,13 @@ router.get('/search', requireAuth, async (req, res) => {
 
   const cpfDigits = hasCpf ? normDigits(cpf) : null;
   const phoneDigits = hasPhone ? normDigits(phone) : null;
-  const nameLower = hasNameDob ? normText(name) : null;
-  const birthNorm = hasNameDob ? normDate(birth_date) : null;
+  const nameLower = hasName ? normText(name) : null;
+  const birthNorm = hasName && birth_date ? normDate(birth_date) : null;
 
   const rows = await listAtendimentos();
 
   const matched = rows.filter((item) => {
+    if (hasId) return String(item.id || '').toLowerCase() === idValue;
     if (cpfDigits) {
       const c = normDigits(item.paciente_cpf);
       return c.length > 0 && c === cpfDigits;
@@ -266,9 +269,10 @@ router.get('/search', requireAuth, async (req, res) => {
       if (!p) return false;
       return p === phoneDigits || p.endsWith(phoneDigits) || phoneDigits.endsWith(p);
     }
-    if (nameLower && birthNorm) {
+    if (nameLower) {
       const nameMatch = normText(item.paciente_nome).includes(nameLower);
       if (!nameMatch) return false;
+      if (!birthNorm) return true;
       const dob = normDate(item.dados_clinicos?.data_nascimento || item.dados_clinicos?.birth_date || '');
       return dob === birthNorm;
     }
