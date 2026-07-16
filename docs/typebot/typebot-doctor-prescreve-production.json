@@ -233,7 +233,7 @@
           "items": [
             {
               "id": "nmhyrnorx68pd9jrp98esvli",
-              "outgoingEdgeId": "qdbm3l4g51y98mq9cyysegzw",
+              "outgoingEdgeId": "edge_confirm_to_webhook",
               "content": "Confirmar dados"
             }
           ]
@@ -312,7 +312,7 @@
           "items": [
             {
               "id": "a9scc91xjc7798d5pc0jxjc6",
-              "outgoingEdgeId": "o51d9l56lzldmzcuvc0jdg6y",
+              "outgoingEdgeId": "edge_sinais_to_telemedicine",
               "content": {
                 "comparisons": [
                   {
@@ -811,7 +811,7 @@
         },
         {
           "id": "q78qjnk6ticwkeifl7xe2rju",
-          "outgoingEdgeId": "b0xx8xgpeppttigdubv0bm9a",
+          "outgoingEdgeId": "edge_dados_to_receita",
           "type": "text input",
           "options": {
             "labels": {
@@ -1017,7 +1017,7 @@
       "blocks": [
         {
           "id": "xus8mt3l0wv32b84gv9tkihm",
-          "outgoingEdgeId": "g261wwhfcfbx63z22taik9uz",
+          "outgoingEdgeId": "edge_elegivel_to_dados",
           "type": "text",
           "content": {
             "richText": [
