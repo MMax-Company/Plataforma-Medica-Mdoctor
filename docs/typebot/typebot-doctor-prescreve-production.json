@@ -319,7 +319,7 @@
                     "id": "qf5sqyzuy963qmgulzj6uwru",
                     "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
                     "comparisonOperator": "Equal to",
-                    "value": "\"NAO\""
+                    "value": "NAO"
                   }
                 ]
               }
@@ -1036,46 +1036,6 @@
       ]
     },
     {
-      "id": "kxi1xjwkktevmhyz3g3bfdsk",
-      "title": "Group #24",
-      "graphCoordinates": {
-        "x": -2864.51,
-        "y": -1726.55
-      },
-      "blocks": [
-        {
-          "id": "naqdx2b52cqo071kiyqitwvu",
-          "type": "text",
-          "content": {
-            "richText": [
-              {
-                "id": "V8SgBRQLze",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Para análise, informe a data da sua última receita e o nome do medicamento.{{fotoReceitaUrl}}"
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "a4sb4qiou40a9yb655mi35tv",
-          "outgoingEdgeId": "dfdw7exk4j7d1jyr333lfrpr",
-          "type": "text input",
-          "options": {
-            "labels": {
-              "placeholder": "Ex: Receita de Losartana 50mg de 10/11/2025",
-              "button": "Enviar"
-            },
-            "variableId": "vvadqxw928d59ugifytviajq4",
-            "isLong": false
-          }
-        }
-      ]
-    },
-    {
       "id": "g60uvyvi39v47j4ahnoxkxzn",
       "title": "Group #20",
       "graphCoordinates": {
@@ -1590,6 +1550,27 @@
               }
             ]
           }
+        },
+        {
+          "id": "blk_upload_check",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "upload_check_yes",
+              "outgoingEdgeId": "edge_upload_check_request",
+              "content": "Já enviei a receita",
+              "value": "check"
+            },
+            {
+              "id": "upload_check_no",
+              "outgoingEdgeId": "edge_upload_check_wait",
+              "content": "Ainda não enviei",
+              "value": "wait"
+            }
+          ],
+          "options": {
+            "variableId": "var_upload_check_action"
+          }
         }
       ]
     },
@@ -1701,7 +1682,7 @@
                     "id": "cmp_md3e16lz",
                     "variableId": "var_971mu6mb",
                     "comparisonOperator": "Equal to",
-                    "value": "\"1\""
+                    "value": "1"
                   }
                 ]
               }
@@ -1715,7 +1696,7 @@
                     "id": "cmp_pudsd6ih",
                     "variableId": "var_971mu6mb",
                     "comparisonOperator": "Equal to",
-                    "value": "\"2\""
+                    "value": "2"
                   }
                 ]
               }
@@ -1729,7 +1710,7 @@
                     "id": "cmp_i2atp0fu",
                     "variableId": "var_971mu6mb",
                     "comparisonOperator": "Equal to",
-                    "value": "\"3\""
+                    "value": "3"
                   }
                 ]
               }
@@ -1759,7 +1740,7 @@
                     "id": "cmp_gkkyhqvu",
                     "variableId": "var_971mu6mb",
                     "comparisonOperator": "Equal to",
-                    "value": "\"2\""
+                    "value": "2"
                   }
                 ]
               }
@@ -1773,7 +1754,7 @@
                     "id": "cmp_akbbnym7",
                     "variableId": "var_971mu6mb",
                     "comparisonOperator": "Equal to",
-                    "value": "\"3\""
+                    "value": "3"
                   }
                 ]
               }
@@ -2144,6 +2125,197 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_upload_status_check",
+      "title": "Conferir upload da receita",
+      "graphCoordinates": {
+        "x": -2300,
+        "y": -1410
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_status_webhook",
+          "outgoingEdgeId": "edge_status_to_condition",
+          "type": "Webhook",
+          "options": {
+            "responseVariableMapping": [
+              {
+                "id": "map_status_upload_completed",
+                "variableId": "var_upload_completed",
+                "bodyPath": "upload_completed"
+              },
+              {
+                "id": "map_status_upload_message",
+                "variableId": "var_upload_check_message",
+                "bodyPath": "message"
+              },
+              {
+                "id": "map_status_upload_url",
+                "variableId": "var_upload_url",
+                "bodyPath": "upload_url"
+              }
+            ],
+            "isCustomBody": true,
+            "webhook": {
+              "queryParams": [],
+              "headers": [
+                {
+                  "id": "hdr_upload_status_ct",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{upload_status_url}}",
+              "body": "{}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_status_result",
+      "title": "Resultado conferência upload",
+      "graphCoordinates": {
+        "x": -2100,
+        "y": -1410
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_status_condition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_upload_done_true",
+              "outgoingEdgeId": "edge_status_done",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_upload_true",
+                    "variableId": "var_upload_completed",
+                    "comparisonOperator": "Equal to",
+                    "value": "true"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "cond_upload_done_false",
+              "outgoingEdgeId": "edge_status_pending",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_upload_not_true",
+                    "variableId": "var_upload_completed",
+                    "comparisonOperator": "Not equal",
+                    "value": "true"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_confirmed",
+      "title": "Upload confirmado",
+      "graphCoordinates": {
+        "x": -1900,
+        "y": -1510
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_confirmed_txt",
+          "outgoingEdgeId": "edge_upload_confirmed_to_end",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_upload_confirmed",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Receita localizada com sucesso. Sua triagem foi encaminhada para análise médica."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_pending_retry",
+      "title": "Upload pendente",
+      "graphCoordinates": {
+        "x": -1900,
+        "y": -1310
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_pending_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_upload_pending_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Ainda não localizamos o envio da receita."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_pending_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Use novamente o link abaixo e depois clique em \"Já enviei a receita\" para conferir."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_pending_3",
+                "type": "p",
+                "children": [
+                  {
+                    "url": "{{upload_url}}",
+                    "type": "a",
+                    "children": [
+                      {
+                        "text": "Enviar foto da receita"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_upload_pending_choice",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "pending_retry",
+              "outgoingEdgeId": "edge_pending_retry_to_status",
+              "content": "Já enviei a receita",
+              "value": "check"
+            },
+            {
+              "id": "pending_back",
+              "outgoingEdgeId": "edge_pending_back_to_upload",
+              "content": "Ainda não enviei",
+              "value": "wait"
+            }
+          ],
+          "options": {
+            "variableId": "var_upload_check_action"
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -2325,7 +2497,7 @@
     {
       "id": "edge_dados_to_receita",
       "from": {
-        "blockId": "q78qjnk6ticw"
+        "blockId": "q78qjnk6ticwkeifl7xe2rju"
       },
       "to": {
         "groupId": "grp_receita_anterior"
@@ -2597,6 +2769,91 @@
       "id": "edge_foto_link_to_end",
       "from": {
         "blockId": "blk_foto_link"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_upload_check_request",
+      "from": {
+        "blockId": "blk_upload_check",
+        "itemId": "upload_check_yes"
+      },
+      "to": {
+        "groupId": "grp_upload_status_check",
+        "blockId": "blk_upload_status_webhook"
+      }
+    },
+    {
+      "id": "edge_upload_check_wait",
+      "from": {
+        "blockId": "blk_upload_check",
+        "itemId": "upload_check_no"
+      },
+      "to": {
+        "groupId": "grp_foto_receita",
+        "blockId": "blk_foto_link"
+      }
+    },
+    {
+      "id": "edge_status_to_condition",
+      "from": {
+        "blockId": "blk_upload_status_webhook"
+      },
+      "to": {
+        "groupId": "grp_upload_status_result",
+        "blockId": "blk_upload_status_condition"
+      }
+    },
+    {
+      "id": "edge_status_done",
+      "from": {
+        "blockId": "blk_upload_status_condition",
+        "itemId": "cond_upload_done_true"
+      },
+      "to": {
+        "groupId": "grp_upload_confirmed",
+        "blockId": "blk_upload_confirmed_txt"
+      }
+    },
+    {
+      "id": "edge_status_pending",
+      "from": {
+        "blockId": "blk_upload_status_condition",
+        "itemId": "cond_upload_done_false"
+      },
+      "to": {
+        "groupId": "grp_upload_pending_retry",
+        "blockId": "blk_upload_pending_txt"
+      }
+    },
+    {
+      "id": "edge_pending_retry_to_status",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_retry"
+      },
+      "to": {
+        "groupId": "grp_upload_status_check",
+        "blockId": "blk_upload_status_webhook"
+      }
+    },
+    {
+      "id": "edge_pending_back_to_upload",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_back"
+      },
+      "to": {
+        "groupId": "grp_foto_receita",
+        "blockId": "blk_foto_link"
+      }
+    },
+    {
+      "id": "edge_upload_confirmed_to_end",
+      "from": {
+        "blockId": "blk_upload_confirmed_txt"
       },
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
