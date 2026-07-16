@@ -482,13 +482,13 @@
               "id": "bknghkx2o6o7415qlyvv1v2t",
               "outgoingEdgeId": "sozjhxmnxly3ybh3jju1awa1",
               "content": "Sim",
-              "value": "sim"
+              "value": "{{SIM}}"
             },
             {
               "id": "uve39ku5lajo21x78dl7i335",
               "outgoingEdgeId": "obe3sg61navcvru4wpy68uan",
               "content": "Não",
-              "value": "nao"
+              "value": "{{NÃO}}"
             }
           ]
         }
@@ -1066,16 +1066,6 @@
                 "id": "map_upload_url",
                 "variableId": "var_upload_url",
                 "bodyPath": "upload_url"
-              },
-              {
-                "id": "map_upload_status_url",
-                "variableId": "var_upload_status_url",
-                "bodyPath": "upload_status_url"
-              },
-              {
-                "id": "map_atendimento_id",
-                "variableId": "var_atendimento_id",
-                "bodyPath": "atendimentoId"
               }
             ]
           }
@@ -1440,13 +1430,13 @@
               "id": "a3tft76xm1j35grku3wi2wcr",
               "content": "2",
               "value": "2",
-              "outgoingEdgeId": "edge_medcount_to_med1_b"
+              "outgoingEdgeId": "edge_medcount_to_med1"
             },
             {
               "id": "tcxyvudqg1en4j05s0bby66i",
               "content": "3",
               "value": "3",
-              "outgoingEdgeId": "edge_medcount_to_med1_c"
+              "outgoingEdgeId": "edge_medcount_to_med1"
             }
           ],
           "options": {
@@ -1531,6 +1521,7 @@
         {
           "id": "blk_foto_link",
           "type": "text",
+          "outgoingEdgeId": "edge_foto_link_to_end",
           "content": {
             "richText": [
               {
@@ -2176,8 +2167,7 @@
                 }
               ],
               "url": "{{upload_status_url}}",
-              "body": "{}",
-              "method": "GET"
+              "body": "{}"
             }
           }
         }
@@ -2426,6 +2416,34 @@
       },
       "to": {
         "groupId": "e84h0bt9n8hgrj4ut48h245l"
+      }
+    },
+    {
+      "id": "gxvgai6wl7iwwc41d6lrrx6z",
+      "from": {
+        "blockId": "op525eof9wh6t3p2dgusj6vi"
+      },
+      "to": {
+        "groupId": "fni2p22kfg51hs6s6lhcteec"
+      }
+    },
+    {
+      "id": "fu2odekdi7zmcs9na14bkaks",
+      "from": {
+        "blockId": "mloj5c3l4yjapg85uzvq6rnn",
+        "itemId": "itpplgcswslda93reij8f5t5"
+      },
+      "to": {
+        "groupId": "fni2p22kfg51hs6s6lhcteec"
+      }
+    },
+    {
+      "id": "oeuocbgqpa3fmza0z9jrorm5",
+      "from": {
+        "blockId": "cf0hq8fg24uy2spkwfosmu2n"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
       }
     },
     {
@@ -2745,6 +2763,15 @@
       },
       "to": {
         "groupId": "grp_foto_receita"
+      }
+    },
+    {
+      "id": "edge_foto_link_to_end",
+      "from": {
+        "blockId": "blk_foto_link"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
       }
     },
     {
@@ -3093,36 +3120,6 @@
       "id": "var_upload_url",
       "name": "upload_url",
       "sampleValue": "https://painel-medico-staging-staging.up.railway.app/upload-receita/token-exemplo"
-    },
-    {
-      "id": "var_upload_check_action",
-      "name": "upload_check_action",
-      "isSessionVariable": false
-    },
-    {
-      "id": "var_upload_check_message",
-      "name": "upload_check_message",
-      "isSessionVariable": false
-    },
-    {
-      "id": "var_upload_completed",
-      "name": "upload_completed",
-      "isSessionVariable": false
-    },
-    {
-      "id": "var_upload_status_url",
-      "name": "upload_status_url",
-      "isSessionVariable": false
-    },
-    {
-      "id": "vou30coxarhyas9y5q07k78k9",
-      "name": "nome_social",
-      "isSessionVariable": false
-    },
-    {
-      "id": "var_atendimento_id",
-      "name": "atendimentoId",
-      "isSessionVariable": false
     }
   ],
   "theme": {},
