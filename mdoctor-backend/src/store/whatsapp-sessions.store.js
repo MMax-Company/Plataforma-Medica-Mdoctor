@@ -147,6 +147,19 @@ async function clearSurveySession(phone) {
   return data;
 }
 
+async function setTypebotSessionId({ sessionId, typebotSessionId }) {
+  if (!sessionId || !typebotSessionId) return null;
+  const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .update({ typebot_session_id: typebotSessionId, updated_at: new Date().toISOString() })
+      .eq('id', sessionId)
+      .select('*')
+      .single()
+  );
+  return data;
+}
+
 function getActiveSurveySession(session = {}) {
   return session?.metadata?.post_delivery_survey || null;
 }
@@ -157,6 +170,7 @@ module.exports = {
   getSessionByBsuid,
   getSessionByPhone,
   normalizePhone,
+  setTypebotSessionId,
   upsertSessionIdentity,
   upsertSessionMetadata
 };

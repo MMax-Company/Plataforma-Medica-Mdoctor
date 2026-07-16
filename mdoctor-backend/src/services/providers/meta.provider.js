@@ -150,6 +150,46 @@ async function sendTextMessage({ to, bsuid, recipientId, text, correlationId, id
   );
 }
 
+async function sendButtonMessage({ to, bsuid, recipientId, body, buttons, correlationId, idempotencyKey }) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  return postMessage({
+    ...recipient,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: String(body || 'Escolha uma opção:').slice(0, 1024) },
+      action: {
+        buttons: (buttons || []).slice(0, 3).map((item) => ({
+          type: 'reply',
+          reply: { id: String(item.id).slice(0, 256), title: String(item.title || item.value).slice(0, 20) }
+        }))
+      }
+    }
+  }, { correlationId, idempotencyKey });
+}
+
+async function sendListMessage({ to, bsuid, recipientId, body, button, rows, correlationId, idempotencyKey }) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  return postMessage({
+    ...recipient,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: String(body || 'Escolha uma opção:').slice(0, 1024) },
+      action: {
+        button: String(button || 'Ver opções').slice(0, 20),
+        sections: [{
+          title: 'Opções',
+          rows: (rows || []).slice(0, 10).map((item) => ({
+            id: String(item.id).slice(0, 200),
+            title: String(item.title || item.value).slice(0, 24)
+          }))
+        }]
+      }
+    }
+  }, { correlationId, idempotencyKey });
+}
+
 async function sendDocumentMessage({ to, bsuid, recipientId, documentUrl, fileName, caption, correlationId, idempotencyKey }) {
   const recipient = resolveRecipient({ to, bsuid, recipientId });
   return postMessage(
@@ -359,6 +399,8 @@ module.exports = {
   createMessageTemplate,
   deleteMessageTemplate,
   sendTextMessage,
+  sendButtonMessage,
+  sendListMessage,
   sendDocumentMessage,
   exchangeEmbeddedSignupCode,
   syncSmbAppState,
