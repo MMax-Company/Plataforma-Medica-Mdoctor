@@ -27,6 +27,7 @@ const {
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
 const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
+const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
 const {
   applyPrescriptionMetadataToClinical,
   formatIngestError,
@@ -38,6 +39,7 @@ const {
 const { verifyN8nWebhookSecret } = require('../middlewares/n8n-webhook-auth');
 
 const router = express.Router();
+const handleTypebotWhatsAppInbound = createTypebotWhatsAppBridge();
 
 router.post('/ingest-previous-prescription', async (req, res) => {
   const auth = verifyN8nWebhookSecret(req);
@@ -330,9 +332,9 @@ router.post('/webhook', async (req, res) => {
                     text = msg.button.text;
                   } else if (msg.interactive) {
                     if (msg.interactive.button_reply) {
-                      text = msg.interactive.button_reply.title;
+                      text = msg.interactive.button_reply.id || msg.interactive.button_reply.title;
                     } else if (msg.interactive.list_reply) {
-                      text = msg.interactive.list_reply.title;
+                      text = msg.interactive.list_reply.id || msg.interactive.list_reply.title;
                     }
                   }
 
@@ -353,8 +355,9 @@ router.post('/webhook', async (req, res) => {
                     type: msg.type
                   });
 
+                  let whatsappSession;
                   try {
-                    await upsertSessionIdentity({
+                    whatsappSession = await upsertSessionIdentity({
                       phone: identity.phone,
                       bsuid: identity.bsuid,
                       parentBsuid: identity.parentBsuid,
@@ -370,42 +373,24 @@ router.post('/webhook', async (req, res) => {
                     logger.warn('whatsapp_business_session_identity_failed', { messageId: msg.id, error: e.message });
                   }
 
-                  // Contatos sem telefone (interoperabilidade) são roteados usando o
-                  // BSUID como chave — processIncomingMessage só usa esse valor como
-                  // identificador único, não valida que seja um telefone de verdade.
-                  const routingKey = identity.phone || identity.bsuid;
-                  const result = await processIncomingMessage({ phone: routingKey, text });
+                  if (!whatsappSession) {
+                    logger.warn('whatsapp_business_typebot_skipped_no_session', { messageId: msg.id });
+                    continue;
+                  }
+
+                  const result = await handleTypebotWhatsAppInbound({
+                    messageId: msg.id,
+                    text,
+                    identity,
+                    whatsappSession
+                  });
                   logger.info('WhatsApp business message processed', {
                     from: maskedFrom,
                     bsuid: identity.bsuid ? '[present]' : null,
-                    replyLength: result?.reply ? result.reply.length : 0
+                    duplicate: result.duplicate,
+                    responsesSent: result.responsesSent,
+                    sessionIdReused: result.sessionIdReused
                   });
-
-                  // Resposta sempre sai pelo canal Meta, independente do
-                  // WHATSAPP_PROVIDER global (que rege só o fluxo de entrega de
-                  // receita) — quem escreveu pelo Meta recebe resposta pelo Meta.
-                  if (result?.reply) {
-                    try {
-                      const sendResult = await metaProvider.sendTextMessage({
-                        to: identity.phone,
-                        bsuid: identity.bsuid,
-                        text: result.reply,
-                        correlationId: msg.id
-                      });
-                      logger.info('WhatsApp business reply sent', {
-                        from: maskedFrom,
-                        bsuid: identity.bsuid ? '[present]' : null,
-                        messageId: msg.id,
-                        providerMessageId: sendResult?.providerMessageId || null
-                      });
-                    } catch (e) {
-                      logger.warn('whatsapp_business_reply_send_failed', {
-                        messageId: msg.id,
-                        error: e.message,
-                        code: e.code || null
-                      });
-                    }
-                  }
                 }
               }
             } else if (change.field === 'account_update') {

@@ -148,6 +148,7 @@
     "staging:memed-real-preflight": "node scripts/validar-memed-real-staging.js",
     "test:whatsapp-meta-bsuid": "node scripts/test-whatsapp-meta-bsuid.js",
     "test:whatsapp-meta-provider": "node scripts/test-whatsapp-meta-provider-dispatch.js",
+    "test:whatsapp-typebot-bridge": "node scripts/test-whatsapp-typebot-bridge.js",
     "test:whatsapp-meta-templates": "node scripts/test-whatsapp-meta-templates.js",
     "test:whatsapp-coexistence": "node scripts/test-whatsapp-coexistence.js",
     "start": "node server.js",
