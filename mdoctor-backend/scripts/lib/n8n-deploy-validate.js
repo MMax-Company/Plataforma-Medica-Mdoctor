@@ -47,10 +47,28 @@ function validateWorkflowContent(row, expectedPayload) {
   if (!url.includes(TRIAGEM_PATH)) {
     return { ok: false, reason: `URL não contém ${TRIAGEM_PATH}`, url, httpNodeName: httpNode.name };
   }
-  if (!url.includes('BACKEND_BASE_URL')) {
+  const usesBackendEnv = url.includes('BACKEND_BASE_URL');
+  const usesStagingBackend = url === 'https://mdoctor-backend-staging-staging.up.railway.app/api/webhook/triagem';
+  const usesEncryptedHeaderCredential =
+    httpNode.parameters?.authentication === 'genericCredentialType' &&
+    httpNode.parameters?.genericAuthType === 'httpHeaderAuth' &&
+    Boolean(httpNode.credentials?.httpHeaderAuth?.id);
+  const exposesSecretInHeaders = (httpNode.parameters?.headerParameters?.parameters || []).some(
+    (header) => header.name === 'X-MDoctor-Webhook-Secret'
+  );
+
+  if (!usesBackendEnv && !(usesStagingBackend && usesEncryptedHeaderCredential)) {
     return {
       ok: false,
-      reason: 'URL deve usar $env.BACKEND_BASE_URL (expressão n8n)',
+      reason: 'URL deve usar $env.BACKEND_BASE_URL ou backend staging com credencial HTTP criptografada',
+      url,
+      httpNodeName: httpNode.name
+    };
+  }
+  if (exposesSecretInHeaders) {
+    return {
+      ok: false,
+      reason: 'segredo do webhook não deve permanecer em headerParameters; use credencial HTTP criptografada',
       url,
       httpNodeName: httpNode.name
     };

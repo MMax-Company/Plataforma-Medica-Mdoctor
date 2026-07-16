@@ -36,7 +36,9 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ ($env.BACKEND_BASE_URL || '').replace(/\\/$/, '') + '/api/webhook/triagem' }}",
+        "url": "https://mdoctor-backend-staging-staging.up.railway.app/api/webhook/triagem",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -51,10 +53,6 @@
             {
               "name": "Idempotency-Key",
               "value": "={{ $json.idempotencyKey }}"
-            },
-            {
-              "name": "X-MDoctor-Webhook-Secret",
-              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
             },
             {
               "name": "X-N8N-Workflow",
@@ -79,6 +77,12 @@
       "name": "POST Triagem Backend",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "zsyabqCX8QKs1M0u",
+          "name": "MDoctor Backend Webhook Staging"
+        }
+      },
       "position": [
         700,
         300
@@ -87,7 +91,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * n8n Code node: monta resposta Typebot após POST /api/webhook/triagem\n */\nconst item = $input.first();\nconst json = item.json || {};\nlet statusCode = item.statusCode || json.statusCode || 200;\nlet body = json;\n\nif (json.body !== undefined) {\n  try {\n    body = typeof json.body === 'string' ? JSON.parse(json.body) : json.body;\n  } catch {\n    body = { raw: json.body };\n  }\n}\n\nconst ctx = $('Build Payload').first().json;\nconst httpOk = Number(statusCode) >= 200 && Number(statusCode) < 300;\nconst apiSuccess = body?.success !== false && !body?.error;\nconst ok = httpOk && apiSuccess;\n\nconst atendimentoId =\n  body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;\n\n// upload_url pode usar o domínio do painel (UPLOAD_PAGE_BASE_URL); o endpoint de\n// status vive no backend — deriva pelo token, não pelo domínio do upload_url.\nconst uploadUrl = body?.upload_url || null;\nconst uploadToken = uploadUrl\n  ? decodeURIComponent(String(uploadUrl).split('/upload-receita/')[1] || '').replace(/[/?#].*$/, '')\n  : '';\nconst backendBase = String($env.BACKEND_BASE_URL || '').replace(/\\/$/, '');\nconst uploadStatusUrl =\n  body?.upload_status_url ||\n  (uploadToken && backendBase\n    ? `${backendBase}/api/upload-receita/${encodeURIComponent(uploadToken)}/status`\n    : null);\n\nreturn [\n  {\n    json: {\n      ok,\n      statusCode: Number(statusCode),\n      correlationId: ctx.correlationId,\n      typebotResponse: ok\n        ? {\n            success: true,\n            message: body?.message || 'Triagem recebida com sucesso',\n            atendimentoId,\n            upload_url: uploadUrl,\n            upload_status_url: uploadStatusUrl\n          }\n        : {\n            success: false,\n            message: body?.message || body?.error || 'Erro ao processar triagem'\n          }\n    }\n  }\n];\n"
+        "jsCode": "/**\n * n8n Code node: monta resposta Typebot após POST /api/webhook/triagem\n */\nconst item = $input.first();\nconst json = item.json || {};\nlet statusCode = item.statusCode || json.statusCode || 200;\nlet body = json;\n\nif (json.body !== undefined) {\n  try {\n    body = typeof json.body === 'string' ? JSON.parse(json.body) : json.body;\n  } catch {\n    body = { raw: json.body };\n  }\n}\n\nconst ctx = $('Build Payload').first().json;\nconst httpOk = Number(statusCode) >= 200 && Number(statusCode) < 300;\nconst apiSuccess = body?.success !== false && !body?.error;\nconst ok = httpOk && apiSuccess;\n\nconst atendimentoId =\n  body?.atendimentoId || body?.atendimento_id || body?.atendimento?.id || body?.id || null;\n\n// upload_url pode usar o domínio do painel (UPLOAD_PAGE_BASE_URL); o endpoint de\n// status vive no backend — deriva pelo token, não pelo domínio do upload_url.\nconst uploadUrl = body?.upload_url || null;\nconst uploadToken = uploadUrl\n  ? decodeURIComponent(String(uploadUrl).split('/upload-receita/')[1] || '').replace(/[/?#].*$/, '')\n  : '';\nconst backendBase = 'https://mdoctor-backend-staging-staging.up.railway.app';\nconst uploadStatusUrl =\n  body?.upload_status_url ||\n  (uploadToken && backendBase\n    ? `${backendBase}/api/upload-receita/${encodeURIComponent(uploadToken)}/status`\n    : null);\n\nreturn [\n  {\n    json: {\n      ok,\n      statusCode: Number(statusCode),\n      correlationId: ctx.correlationId,\n      typebotResponse: ok\n        ? {\n            success: true,\n            message: body?.message || 'Triagem recebida com sucesso',\n            atendimentoId,\n            upload_url: uploadUrl,\n            upload_status_url: uploadStatusUrl\n          }\n        : {\n            success: false,\n            message: body?.message || body?.error || 'Erro ao processar triagem'\n          }\n    }\n  }\n];\n"
       },
       "id": "tb-route",
       "name": "Route Response",
