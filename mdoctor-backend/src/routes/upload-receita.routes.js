@@ -97,7 +97,21 @@ async function loadSessionContext(token) {
 
 router.get('/:token/status', async (req, res) => {
   try {
-    const { record, atendimento } = await loadSessionContext(req.params.token);
+    // Não exige token ativo: token usado significa upload concluído, e esta
+    // rota precisa reportar isso (o Typebot consulta após o envio).
+    const record = await resolveTokenRecord(req.params.token);
+    if (!record) {
+      const err = new Error('Link de upload inválido ou expirado');
+      err.code = 'UPLOAD_TOKEN_INVALID';
+      err.statusCode = 404;
+      throw err;
+    }
+    const atendimento = await getAtendimento(record.atendimentoId);
+    if (!atendimento) {
+      const err = new Error('Atendimento não encontrado para este link');
+      err.statusCode = 404;
+      throw err;
+    }
     const clinical = atendimento.dados_clinicos || {};
     const uploaded = hasStoredPreviousPrescription(clinical);
     return res.json({
