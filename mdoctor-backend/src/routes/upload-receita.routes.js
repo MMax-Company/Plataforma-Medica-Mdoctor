@@ -96,6 +96,32 @@ async function loadSessionContext(token) {
   return { record, atendimento };
 }
 
+async function loadUploadPageContext(token) {
+  const record = await resolveTokenRecord(token);
+  if (!record) {
+    const err = new Error('Link de upload inválido ou expirado');
+    err.code = 'UPLOAD_TOKEN_INVALID';
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const atendimento = await getAtendimento(record.atendimentoId);
+  if (!atendimento) {
+    const err = new Error('Atendimento não encontrado para este link');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const clinical = atendimento.dados_clinicos || {};
+  const completed = record.used || record.status === 'completed' || hasStoredPreviousPrescription(clinical);
+  if (completed) {
+    return { record, atendimento, completed: true };
+  }
+
+  assertTokenActive(record);
+  return { record, atendimento, completed: false };
+}
+
 router.get('/:token/status', async (req, res) => {
   try {
     // Não exige token ativo: token usado significa upload concluído, e esta
@@ -182,6 +208,43 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       }
     });
   } catch (error) {
+    if (error.code === 'UPLOAD_TOKEN_USED') {
+      try {
+        const record = await resolveTokenRecord(token);
+        const atendimento = record ? await getAtendimento(record.atendimentoId) : null;
+        if (atendimento && hasStoredPreviousPrescription(atendimento.dados_clinicos || {})) {
+          const whatsappResume = await resumeTypebotAfterPrescriptionUpload({
+            atendimentoId: atendimento.id,
+            token,
+            correlationId,
+            phone: atendimento.paciente_telefone
+          }).catch(() => ({ ok: false, code: 'RESUME_ERROR' }));
+
+          const wantsHtml = String(req.headers.accept || '').includes('text/html');
+          if (wantsHtml) {
+            const html = renderUploadPage({
+              token,
+              patientName: atendimento.paciente_nome,
+              success: true
+            });
+            return res.status(200).type('html').send(html);
+          }
+
+          return res.json({
+            success: true,
+            correlationId,
+            message: 'Receita anterior já havia sido recebida',
+            atendimento_id: atendimento.id,
+            status: atendimento.status,
+            whatsapp_resume: whatsappResume,
+            alreadyUploaded: true
+          });
+        }
+      } catch (_) {
+        /* fall through to default error handling */
+      }
+    }
+
     const formatted = formatIngestError(error);
     await createAuditLog({
       entity_type: 'prescription_upload',
@@ -207,9 +270,9 @@ router.post('/:token', upload.single('file'), async (req, res) => {
 function registerUploadPageRoutes(app) {
   const pageHandler = async (req, res) => {
     try {
-      const { record, atendimento } = await loadSessionContext(req.params.token);
+      const { record, atendimento, completed } = await loadUploadPageContext(req.params.token);
       const clinical = atendimento.dados_clinicos || {};
-      if (hasStoredPreviousPrescription(clinical)) {
+      if (completed || hasStoredPreviousPrescription(clinical)) {
         return res
           .status(200)
           .type('html')
