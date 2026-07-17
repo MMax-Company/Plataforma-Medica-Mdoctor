@@ -403,11 +403,16 @@ router.post('/webhook', async (req, res) => {
                       continue;
                     }
                     try {
-                      await ingestWhatsAppPrescriptionMedia({
+                      const mediaResult = await ingestWhatsAppPrescriptionMedia({
                         ...mediaPayload,
                         identity,
                         whatsappSession,
                         messageId: msg.id
+                      });
+                      logger.info('WhatsApp business prescription media processed', {
+                        from: maskedFrom,
+                        uploadAtendimentoId: mediaResult.uploadContext?.atendimentoId || null,
+                        whatsappResume: mediaResult.whatsappResume || null
                       });
                     } catch (error) {
                       logger.error('whatsapp_business_prescription_media_failed', {
@@ -422,9 +427,8 @@ router.post('/webhook', async (req, res) => {
                         idempotencyKey: `${msg.id}:upload-error`,
                         text: `Não foi possível receber a foto da receita: ${error.message}`
                       }).catch(() => {});
-                      continue;
                     }
-                    text = 'Já enviei a receita';
+                    continue;
                   }
 
                   const result = await handleTypebotWhatsAppInbound({

@@ -5,6 +5,7 @@ const { getAtendimento } = require('../store/atendimentos.store');
 const { hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { MAX_BYTES, formatIngestError } = require('../services/previous-prescription-storage.service');
 const { completeExternalPrescriptionUpload } = require('../services/prescription-upload.service');
+const { resumeTypebotAfterPrescriptionUpload } = require('../services/typebot-prescription-upload.service');
 const {
   assertTokenActive,
   resolveTokenRecord
@@ -56,7 +57,7 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
       ${expiry ? `<p class="hint">Este link é válido até ${expiry}.</p>` : ''}
       ${
         success
-          ? `<div class="msg ok">✅ Receita enviada com sucesso! Seu atendimento entrou na fila médica. Volte ao WhatsApp para acompanhar.</div>`
+          ? `<div class="msg ok"><strong>Receita enviada com sucesso</strong><br/>Seu atendimento entrou na fila médica. Volte ao WhatsApp para acompanhar.</div>`
           : errorMessage
             ? `<div class="msg err">⚠️ ${String(errorMessage).replaceAll('<', '&lt;')}</div>
                <div class="tips"><strong>Dicas para uma boa foto:</strong><ul>
@@ -149,6 +150,13 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       correlationId
     });
 
+    const whatsappResume = await resumeTypebotAfterPrescriptionUpload({
+      atendimentoId: result.atendimento?.id,
+      token,
+      correlationId,
+      phone: result.atendimento?.paciente_telefone
+    }).catch(() => ({ ok: false, code: 'RESUME_ERROR' }));
+
     const wantsHtml = String(req.headers.accept || '').includes('text/html');
     if (wantsHtml) {
       const html = renderUploadPage({
@@ -166,6 +174,7 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       message: 'Receita anterior recebida com sucesso',
       atendimento_id: result.atendimento?.id,
       status: result.atendimento?.status,
+      whatsapp_resume: whatsappResume,
       prescription: {
         storage_path: result.prescriptionMeta?.previous_prescription_storage_path,
         mime_type: result.prescriptionMeta?.previous_prescription_mime_type,

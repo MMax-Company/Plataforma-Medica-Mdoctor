@@ -1,9 +1,14 @@
-const { STATUS, listAtendimentos } = require('../store/atendimentos.store');
-const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const T = require('../db/tables');
+const { STATUS, listAtendimentos, getAtendimento } = require('../store/atendimentos.store');
+const { getSessionByPhone, upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const { dbQuery } = require('../db/persistence');
+const { createIntegrationError } = require('../store/integration-logs.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
 const { resolveTokenRecord } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
+
+const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
 
 const UPLOAD_CHOICE_INPUT_IDS = new Set([
   'blk_upload_check',
@@ -160,6 +165,132 @@ function augmentOutputsWithUploadLink(outputs = [], uploadContext = null, { forc
   return outputs;
 }
 
+async function findWhatsAppSessionForPrescriptionUpload({ atendimentoId, phone = null, whatsappSession = null } = {}) {
+  if (whatsappSession?.typebot_session_id) return whatsappSession;
+
+  const digits = phone ? normalizePhone(phone) : '';
+  if (digits) {
+    const byPhone = await getSessionByPhone(digits);
+    if (byPhone?.typebot_session_id) return byPhone;
+  }
+
+  if (!atendimentoId) return null;
+
+  const byAtendimento = await dbQuery('buscar whatsapp session por atendimento de upload', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .select('*')
+      .filter('metadata->typebot_prescription_upload->>atendimento_id', 'eq', String(atendimentoId))
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+  return byAtendimento || null;
+}
+
+async function sendTypebotOutputs({ session, outputs, correlationId, provider = metaProvider }) {
+  const providerMessageIds = [];
+  for (const output of outputs) {
+    const common = {
+      to: session.phone,
+      bsuid: session.bsuid,
+      correlationId,
+      idempotencyKey: `${correlationId}:${providerMessageIds.length}`
+    };
+    let sent;
+    if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+    else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+    else sent = await provider.sendTextMessage({ ...common, text: output.text });
+    if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
+  }
+  return providerMessageIds;
+}
+
+async function resumeTypebotAfterPrescriptionUpload(
+  { atendimentoId, token, correlationId = null, whatsappSession = null, phone = null },
+  deps = {}
+) {
+  if (process.env.WHATSAPP_ENABLED !== 'true') {
+    return { ok: false, code: 'WHATSAPP_DISABLED' };
+  }
+
+  const provider = deps.provider || metaProvider;
+  if (!provider.isConfigured || !provider.isConfigured()) {
+    return { ok: false, code: 'WHATSAPP_NOT_CONFIGURED' };
+  }
+
+  let resolvedPhone = phone || whatsappSession?.phone || null;
+  if (!resolvedPhone && atendimentoId) {
+    const atendimento = await getAtendimento(atendimentoId);
+    resolvedPhone = atendimento?.paciente_telefone || null;
+  }
+
+  const session = await findWhatsAppSessionForPrescriptionUpload({
+    atendimentoId,
+    phone: resolvedPhone,
+    whatsappSession
+  });
+
+  if (!session?.typebot_session_id) {
+    return { ok: false, code: 'NO_TYPEBOT_SESSION' };
+  }
+
+  const uploadMeta = session.metadata?.typebot_prescription_upload || {};
+  if (uploadMeta.resumed_for_token === token && uploadMeta.resumed_at) {
+    return { ok: true, alreadyResumed: true, responsesSent: 0 };
+  }
+
+  const bridge = require('./typebot-whatsapp.bridge');
+  const callTypebot = deps.callTypebot || bridge.fetchTypebot;
+  const convertResponse = deps.convertTypebotResponse || bridge.convertTypebotResponse;
+  const upsertSession = deps.upsertSessionIdentity || upsertSessionIdentity;
+  const logError = deps.createIntegrationError || createIntegrationError;
+  const correlation = correlationId || `prescription-upload-${String(token || atendimentoId).slice(-12)}`;
+
+  try {
+    const typebot = await callTypebot(
+      `/sessions/${encodeURIComponent(session.typebot_session_id)}/continueChat`,
+      { message: { type: 'text', text: UPLOAD_SUCCESS_REPLY, metadata: { replyId: correlation } } }
+    );
+
+    const providerMessageIds = await sendTypebotOutputs({
+      session,
+      outputs: convertResponse(typebot),
+      correlationId: correlation,
+      provider
+    });
+
+    await upsertSession({
+      phone: session.phone,
+      bsuid: session.bsuid,
+      metadataPatch: {
+        typebot_expected_input_id: typebot.input?.id || null,
+        typebot_prescription_upload: {
+          ...uploadMeta,
+          atendimento_id: uploadMeta.atendimento_id || atendimentoId || null,
+          token: uploadMeta.token || token || null,
+          resumed_at: new Date().toISOString(),
+          resumed_for_token: token || uploadMeta.token || null
+        }
+      }
+    }).catch(() => {});
+
+    return { ok: true, responsesSent: providerMessageIds.length, typebotSessionId: session.typebot_session_id };
+  } catch (error) {
+    await logError({
+      integration: 'typebot_prescription_upload',
+      correlationId: correlation,
+      error,
+      request: {
+        atendimento_id: atendimentoId || null,
+        token_suffix: token ? String(token).slice(-8) : null,
+        phase: 'continue_after_upload'
+      }
+    }).catch(() => {});
+    return { ok: false, code: 'RESUME_FAILED', error: error.message };
+  }
+}
+
 async function ingestWhatsAppPrescriptionMedia({
   mediaId,
   mimeType,
@@ -188,27 +319,32 @@ async function ingestWhatsAppPrescriptionMedia({
 
   await persistUploadContext({ identity, uploadContext });
 
-  const sent = await provider.sendTextMessage({
-    to: identity.phone,
-    bsuid: identity.bsuid,
-    correlationId: messageId,
-    idempotencyKey: `${messageId}:upload-ack`,
-    text: '✅ Receita recebida com sucesso! Aguarde enquanto confirmamos o envio...'
-  });
+  const resume = await resumeTypebotAfterPrescriptionUpload(
+    {
+      atendimentoId: uploadContext.atendimentoId,
+      token: uploadContext.token,
+      correlationId: messageId,
+      whatsappSession,
+      phone: identity?.phone
+    },
+    { provider }
+  );
 
   return {
     handled: true,
     uploadContext,
-    providerMessageId: sent?.providerMessageId || null
+    whatsappResume: resume
   };
 }
 
 module.exports = {
   UPLOAD_CHOICE_INPUT_IDS,
+  UPLOAD_SUCCESS_REPLY,
   augmentOutputsWithUploadLink,
   buildUploadStatusUrl,
   findPendingUploadContext,
   findUploadContextForPhone,
+  findWhatsAppSessionForPrescriptionUpload,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
   isUploadChoiceInput,
@@ -216,5 +352,7 @@ module.exports = {
   outputsContainUrl,
   persistUploadContext,
   responseLooksLikeUploadStage,
+  resumeTypebotAfterPrescriptionUpload,
+  sendTypebotOutputs,
   uploadContextFromSession
 };

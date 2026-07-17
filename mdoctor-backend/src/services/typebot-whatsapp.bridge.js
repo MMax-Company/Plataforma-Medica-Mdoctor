@@ -240,6 +240,9 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const getUploadStatus = deps.getUploadStatus || ((token) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').getUploadStatus(token));
+  const resumeTypebotAfterPrescriptionUpload = deps.resumeTypebotAfterPrescriptionUpload || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').resumeTypebotAfterPrescriptionUpload(args));
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
@@ -286,24 +289,28 @@ function createTypebotWhatsAppBridge(deps = {}) {
       ) {
         const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
         if (uploadStatus.upload_completed) {
-          await persistUploadContext({ identity, uploadContext: uploadContextBeforeChat });
-          const sent = await provider.sendTextMessage({
-            to: identity.phone,
-            bsuid: identity.bsuid,
+          const resume = await resumeTypebotAfterPrescriptionUpload({
+            atendimentoId: uploadContextBeforeChat.atendimentoId,
+            token: uploadContextBeforeChat.token,
             correlationId: messageId,
-            idempotencyKey: `${messageId}:upload-confirmed`,
-            text: '✅ Receita confirmada! Seu atendimento entrou na fila médica. Em breve um médico analisará sua solicitação.'
+            whatsappSession: currentSession,
+            phone: identity?.phone
           });
-          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
           expectedInputs.set(identityKey, null);
           await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
-          await finish({ messageId, status: 'processed', providerMessageIds });
+          await finish({
+            messageId,
+            status: resume.ok ? 'processed' : 'failed',
+            providerMessageIds: [],
+            errorMessage: resume.ok ? null : resume.error || resume.code
+          });
           return {
             duplicate: false,
-            responsesSent: providerMessageIds.length,
+            responsesSent: resume.responsesSent || 0,
             sessionId: existingSessionId,
             sessionIdReused: Boolean(existingSessionId),
-            uploadConfirmed: true
+            uploadConfirmed: true,
+            whatsappResume: resume
           };
         }
       }

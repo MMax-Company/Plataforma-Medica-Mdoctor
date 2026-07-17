@@ -59,7 +59,8 @@ export default function UploadReceitaPage() {
 
         {success ? (
           <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-            Receita enviada com sucesso! Você já pode fechar esta página e aguardar o contato da equipe médica.
+            <p className="text-base font-black">Receita enviada com sucesso</p>
+            <p className="mt-2">Seu atendimento entrou na fila médica. Volte ao WhatsApp para acompanhar.</p>
           </div>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
