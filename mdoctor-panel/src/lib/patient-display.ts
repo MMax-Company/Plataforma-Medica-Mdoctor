@@ -74,9 +74,11 @@ type MedicalQueueTimingSource = {
 /** Timestamp em que o paciente entrou na fila médica (não a triagem inicial). */
 export function getMedicalQueueEnteredAt(item: MedicalQueueTimingSource): string | undefined {
   const clinical = item.dados_clinicos || {};
+  const explicit = String(clinical.medical_queue_entered_at || '').trim();
+  if (explicit) return explicit;
+
   const uploadSession = clinical.prescription_upload_session as { completed_at?: string } | undefined;
   const candidates = [
-    clinical.medical_queue_entered_at,
     uploadSession?.completed_at,
     clinical.previous_prescription_uploaded_at,
     item.atualizado_em,
