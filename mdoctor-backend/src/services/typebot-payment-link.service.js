@@ -98,13 +98,28 @@ async function getPaymentConfigByToken(token) {
   const state = paymentStateFromSession(session);
   if (!state) return { found: false };
   const { payment, expired } = state;
+
+  let intentAlreadyPaid = false;
+  if (payment.status === 'pending' && !expired && payment.intent_id) {
+    const stripe = getStripe();
+    if (stripe) {
+      try {
+        const intent = await stripe.paymentIntents.retrieve(payment.intent_id);
+        intentAlreadyPaid = intent.status === 'succeeded';
+      } catch (_) {
+        intentAlreadyPaid = false;
+      }
+    }
+  }
+
   return {
     found: true,
     expired,
     status: payment.status,
     amountLabel: payment.amount_label,
     publicKey: payment.public_key,
-    clientSecret: payment.status === 'pending' && !expired ? payment.client_secret : null
+    clientSecret: payment.status === 'pending' && !expired ? payment.client_secret : null,
+    intentAlreadyPaid
   };
 }
 

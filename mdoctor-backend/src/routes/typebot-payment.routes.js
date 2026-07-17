@@ -15,7 +15,7 @@ const router = express.Router();
 const PAYMENT_PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self' https://js.stripe.com",
-  "connect-src 'self' https://api.stripe.com",
+  "connect-src 'self' https://api.stripe.com https://m.stripe.com https://m.stripe.network",
   'frame-src https://js.stripe.com https://hooks.stripe.com',
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
@@ -39,7 +39,8 @@ router.get('/:token/config', async (req, res) => {
       status: config.status,
       amountLabel: config.amountLabel,
       publicKey: config.publicKey,
-      clientSecret: config.clientSecret
+      clientSecret: config.clientSecret,
+      intentAlreadyPaid: Boolean(config.intentAlreadyPaid)
     });
   } catch (error) {
     logger.error('typebot_payment_config_failed', { error: error.message });

@@ -12,6 +12,10 @@
     statusEl.className = 'status' + (cls ? ' ' + cls : '');
   }
 
+  function paymentReturnUrl() {
+    return window.location.origin + window.location.pathname;
+  }
+
   async function completeOnServer() {
     const res = await fetch(`/api/typebot-payment/${encodeURIComponent(token)}/complete`, { method: 'POST' });
     const data = await res.json().catch(() => ({}));
@@ -21,7 +25,39 @@
     return data;
   }
 
+  async function finalizeAfterPayment() {
+    setStatus('Pagamento aprovado. Retomando seu atendimento…');
+    await completeOnServer();
+    payButton.style.display = 'none';
+    setStatus('✅ Pagamento confirmado! Volte ao WhatsApp para continuar o atendimento.', 'ok');
+  }
+
+  async function recoverAfterClientError(stripeError) {
+    try {
+      await completeOnServer();
+      payButton.style.display = 'none';
+      setStatus('✅ Pagamento confirmado! Volte ao WhatsApp para continuar o atendimento.', 'ok');
+      return true;
+    } catch (_) {
+      setStatus(stripeError.message || 'Não foi possível processar o pagamento.', 'error');
+      payButton.disabled = false;
+      return false;
+    }
+  }
+
   async function init() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('redirect_status') === 'succeeded') {
+      payButton.disabled = true;
+      try {
+        await finalizeAfterPayment();
+      } catch (err) {
+        setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
+        payButton.disabled = false;
+      }
+      return;
+    }
+
     const res = await fetch(`/api/typebot-payment/${encodeURIComponent(token)}/config`);
     const config = await res.json().catch(() => ({}));
     if (!res.ok || !config.success) {
@@ -33,6 +69,17 @@
     if (config.status === 'completed') {
       payButton.style.display = 'none';
       setStatus('✅ Pagamento já confirmado. Continue seu atendimento no WhatsApp.', 'ok');
+      return;
+    }
+
+    if (config.intentAlreadyPaid) {
+      payButton.disabled = true;
+      try {
+        await finalizeAfterPayment();
+      } catch (err) {
+        setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
+        payButton.disabled = false;
+      }
       return;
     }
 
@@ -48,17 +95,22 @@
     payButton.addEventListener('click', async function () {
       payButton.disabled = true;
       setStatus('Processando pagamento…');
-      const result = await stripe.confirmPayment({ elements, redirect: 'if_required' });
+      const result = await stripe.confirmPayment({
+        elements,
+        redirect: 'if_required',
+        confirmParams: { return_url: paymentReturnUrl() }
+      });
       if (result.error) {
-        setStatus(result.error.message || 'Não foi possível processar o pagamento.', 'error');
+        await recoverAfterClientError(result.error);
+        return;
+      }
+      if (result.paymentIntent && result.paymentIntent.status === 'processing') {
+        setStatus('Pagamento em processamento. Aguarde a confirmação…');
         payButton.disabled = false;
         return;
       }
-      setStatus('Pagamento aprovado. Retomando seu atendimento…');
       try {
-        await completeOnServer();
-        payButton.style.display = 'none';
-        setStatus('✅ Pagamento confirmado! Volte ao WhatsApp para continuar o atendimento.', 'ok');
+        await finalizeAfterPayment();
       } catch (err) {
         setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
         payButton.disabled = false;
