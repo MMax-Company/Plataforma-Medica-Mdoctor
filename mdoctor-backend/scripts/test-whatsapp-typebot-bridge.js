@@ -8,6 +8,15 @@ process.env.TYPEBOT_RETRY_ATTEMPTS = '4';
 process.env.TYPEBOT_RETRY_BASE_DELAY_MS = '300';
 process.env.TYPEBOT_RETRY_MAX_DELAY_MS = '2500';
 
+const uploadBridgeMocks = {
+  findPendingUploadContext: async () => null,
+  persistUploadContext: async () => {},
+  uploadContextFromSession: () => null,
+  augmentOutputsWithUploadLink: (outputs) => outputs,
+  responseLooksLikeUploadStage: () => false,
+  isUploadChoiceInput: () => false
+};
+
 async function main() {
   const calls = [];
   const sent = [];
@@ -16,6 +25,13 @@ async function main() {
   let storedSessionId = null;
   let storedExpectedInputId = null;
   const bridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    findPendingUploadContext: async () => null,
+    persistUploadContext: async () => {},
+    uploadContextFromSession: () => null,
+    augmentOutputsWithUploadLink: (outputs) => outputs,
+    responseLooksLikeUploadStage: () => false,
+    isUploadChoiceInput: () => false,
     claimMetaMessage: async ({ messageId }) => {
       if (receipts.has(messageId)) return { claimed: false };
       receipts.add(messageId);
@@ -70,6 +86,7 @@ async function main() {
   let releaseStart;
   const startGate = new Promise((resolve) => { releaseStart = resolve; });
   const rapidBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
     claimMetaMessage: async () => ({ claimed: true }),
     finishMetaMessage: async () => {},
     setTypebotSessionId: async ({ typebotSessionId }) => { rapidStoredSessionId = typebotSessionId; },
@@ -109,6 +126,7 @@ async function main() {
   const retryReceipts = new Set();
   let retryStoredSessionId = null;
   const retryBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
     claimMetaMessage: async ({ messageId }) => {
       if (retryReceipts.has(messageId)) return { claimed: false };
       retryReceipts.add(messageId);
@@ -183,6 +201,7 @@ async function main() {
     const validationSent = [];
     let expectedInputId = testCase.id;
     const validationBridge = createTypebotWhatsAppBridge({
+      ...uploadBridgeMocks,
       claimMetaMessage: async ({ messageId }) => {
         if (validationReceipts.has(messageId)) return { claimed: false };
         validationReceipts.add(messageId);
@@ -261,6 +280,7 @@ async function main() {
   const medDoseReceipts = new Set();
   let medDoseExpectedInputId = 'blk_xp763m78';
   const medDoseBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
     claimMetaMessage: async ({ messageId }) => {
       if (medDoseReceipts.has(messageId)) return { claimed: false };
       medDoseReceipts.add(messageId);
@@ -310,6 +330,7 @@ async function main() {
   const paymentLinks = [];
   const paymentReceipts = new Set();
   const paymentBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
     claimMetaMessage: async ({ messageId }) => {
       if (paymentReceipts.has(messageId)) return { claimed: false };
       paymentReceipts.add(messageId);

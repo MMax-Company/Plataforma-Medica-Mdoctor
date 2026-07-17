@@ -387,6 +387,47 @@ async function syncSmbAppHistory({ phoneNumberId }) {
   return requestSmbAppData({ phoneNumberId, syncType: 'history' });
 }
 
+async function downloadMedia(mediaId) {
+  if (!isConfigured()) {
+    const error = new Error('Meta WhatsApp Cloud API não configurada (WHATSAPP_ACCESS_TOKEN ausente)');
+    error.code = 'PROVIDER_NOT_CONFIGURED';
+    throw error;
+  }
+  const id = String(mediaId || '').trim();
+  if (!id) {
+    const error = new Error('downloadMedia requer mediaId');
+    error.code = 'META_MEDIA_ID_REQUIRED';
+    throw error;
+  }
+
+  const config = getConfig();
+  const { response, data } = await requestJson(
+    `https://graph.facebook.com/${config.apiVersion}/${id}`,
+    { headers: { Authorization: `Bearer ${config.accessToken}` } },
+    config.timeoutMs
+  );
+  if (!response.ok || !data?.url) {
+    const error = new Error(data?.error?.message || `Falha ao obter URL da mídia Meta (${response.status})`);
+    error.code = data?.error?.code || 'META_MEDIA_LOOKUP_FAILED';
+    throw error;
+  }
+
+  const fileResponse = await fetch(data.url, {
+    headers: { Authorization: `Bearer ${config.accessToken}` }
+  });
+  if (!fileResponse.ok) {
+    const error = new Error(`Falha ao baixar mídia Meta (${fileResponse.status})`);
+    error.code = 'META_MEDIA_DOWNLOAD_FAILED';
+    throw error;
+  }
+
+  return {
+    buffer: Buffer.from(await fileResponse.arrayBuffer()),
+    mimeType: data.mime_type || fileResponse.headers.get('content-type') || 'application/octet-stream',
+    sha256: data.sha256 || null
+  };
+}
+
 module.exports = {
   getConfig,
   getConfiguredParts,
@@ -402,6 +443,7 @@ module.exports = {
   sendButtonMessage,
   sendListMessage,
   sendDocumentMessage,
+  downloadMedia,
   exchangeEmbeddedSignupCode,
   syncSmbAppState,
   syncSmbAppHistory,

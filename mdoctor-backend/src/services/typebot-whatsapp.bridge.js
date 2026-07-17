@@ -24,6 +24,23 @@ function richTextToPlainText(nodes = []) {
   const parts = [];
   const walk = (items) => {
     for (const item of items || []) {
+      if (item?.type === 'a') {
+        const labelParts = [];
+        if (Array.isArray(item.children)) {
+          for (const child of item.children) {
+            if (typeof child?.text === 'string') labelParts.push(child.text);
+          }
+        }
+        const label = labelParts.join('').trim() || 'Abrir link';
+        const url = String(item.url || '').trim();
+        if (url) {
+          parts.push(label);
+          parts.push(url);
+        } else if (label) {
+          parts.push(label);
+        }
+        continue;
+      }
       if (typeof item?.text === 'string') parts.push(item.text);
       if (Array.isArray(item?.children)) walk(item.children);
       if (item?.type === 'p') parts.push('\n');
@@ -199,6 +216,24 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const createPaymentLink = deps.createPaymentLink || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').createPaymentLinkForSession(args));
+  const findUploadContext = deps.findPendingUploadContext || ((phone) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').findPendingUploadContext(phone));
+  const persistUploadContext = deps.persistUploadContext || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').persistUploadContext(args));
+  const uploadContextFromSession = deps.uploadContextFromSession || ((session, fallback) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').uploadContextFromSession(session, fallback));
+  const augmentUploadOutputs = deps.augmentOutputsWithUploadLink || ((outputs, ctx, options) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').augmentOutputsWithUploadLink(outputs, ctx, options));
+  const responseLooksLikeUploadStage = deps.responseLooksLikeUploadStage || ((typebot, inputId) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').responseLooksLikeUploadStage(typebot, inputId));
+  const isUploadChoiceInput = deps.isUploadChoiceInput || ((inputId) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').isUploadChoiceInput(inputId));
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
@@ -276,7 +311,17 @@ function createTypebotWhatsAppBridge(deps = {}) {
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
 
       const providerMessageIds = [];
-      for (const output of convertTypebotResponse(typebot)) {
+      let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));
+      if (uploadContext) await persistUploadContext({ identity, uploadContext });
+
+      let outputs = convertTypebotResponse(typebot);
+      if (uploadContext && responseLooksLikeUploadStage(typebot, nextInputId)) {
+        outputs = augmentUploadOutputs(outputs, uploadContext, {
+          force: isUploadChoiceInput(nextInputId) || isUploadChoiceInput(expectedInputId)
+        });
+      }
+
+      for (const output of outputs) {
         const common = { to: identity.phone, bsuid: identity.bsuid, correlationId: messageId, idempotencyKey: `${messageId}:${providerMessageIds.length}` };
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });

@@ -29,6 +29,10 @@ const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
 const {
+  findPendingUploadContext,
+  ingestWhatsAppPrescriptionMedia
+} = require('../services/typebot-prescription-upload.service');
+const {
   applyPrescriptionMetadataToClinical,
   formatIngestError,
   ingestPreviousPrescription,
@@ -326,8 +330,21 @@ router.post('/webhook', async (req, res) => {
                   const identity = extractMetaIdentifiers(msg, contact);
 
                   let text = '';
+                  let mediaPayload = null;
                   if (msg.type === 'text' && msg.text) {
                     text = msg.text.body;
+                  } else if (msg.type === 'image' && msg.image?.id) {
+                    mediaPayload = {
+                      mediaId: msg.image.id,
+                      mimeType: msg.image.mime_type || 'image/jpeg',
+                      filename: msg.image.filename || 'receita-whatsapp.jpg'
+                    };
+                  } else if (msg.type === 'document' && msg.document?.id) {
+                    mediaPayload = {
+                      mediaId: msg.document.id,
+                      mimeType: msg.document.mime_type || 'application/pdf',
+                      filename: msg.document.filename || 'receita-whatsapp.pdf'
+                    };
                   } else if (msg.button && msg.button.text) {
                     text = msg.button.text;
                   } else if (msg.interactive) {
@@ -338,11 +355,12 @@ router.post('/webhook', async (req, res) => {
                     }
                   }
 
-                  if (!identity.hasIdentifier || !text) {
+                  if (!identity.hasIdentifier || (!text && !mediaPayload)) {
                     logger.warn('whatsapp_business_message_skipped', {
                       messageId: msg.id,
                       hasIdentifier: identity.hasIdentifier,
-                      hasText: Boolean(text)
+                      hasText: Boolean(text),
+                      hasMedia: Boolean(mediaPayload)
                     });
                     continue;
                   }
@@ -376,6 +394,37 @@ router.post('/webhook', async (req, res) => {
                   if (!whatsappSession) {
                     logger.warn('whatsapp_business_typebot_skipped_no_session', { messageId: msg.id });
                     continue;
+                  }
+
+                  if (mediaPayload) {
+                    const pendingUpload = await findPendingUploadContext(identity.phone);
+                    if (!pendingUpload) {
+                      logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                      continue;
+                    }
+                    try {
+                      await ingestWhatsAppPrescriptionMedia({
+                        ...mediaPayload,
+                        identity,
+                        whatsappSession,
+                        messageId: msg.id
+                      });
+                    } catch (error) {
+                      logger.error('whatsapp_business_prescription_media_failed', {
+                        messageId: msg.id,
+                        error: error.message,
+                        code: error.code || null
+                      });
+                      await metaProvider.sendTextMessage({
+                        to: identity.phone,
+                        bsuid: identity.bsuid,
+                        correlationId: msg.id,
+                        idempotencyKey: `${msg.id}:upload-error`,
+                        text: `Não foi possível receber a foto da receita: ${error.message}`
+                      }).catch(() => {});
+                      continue;
+                    }
+                    text = 'Já enviei a receita';
                   }
 
                   const result = await handleTypebotWhatsAppInbound({

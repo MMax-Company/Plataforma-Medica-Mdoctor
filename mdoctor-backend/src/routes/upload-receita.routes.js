@@ -119,7 +119,7 @@ router.get('/:token/status', async (req, res) => {
       token_status: record.status,
       atendimento_id: atendimento.id,
       atendimento_status: atendimento.status,
-      upload_completed: uploaded,
+      upload_completed: uploaded ? 'true' : 'false',
       upload_url: clinical.prescription_upload_session?.upload_url || null,
       expires_at: clinical.prescription_upload_session?.expires_at || new Date(record.expiresAt).toISOString()
     });
