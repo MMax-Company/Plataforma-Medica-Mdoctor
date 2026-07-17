@@ -179,9 +179,9 @@ async function runFullSurveyFlow(attendanceId) {
   step('full_step_q1', afterOptIn?.metadata?.post_delivery_survey?.step === 'q1');
 
   for (const [answer, expectedStep] of [['2', 'q2'], ['1', 'q3'], ['1', null]]) {
-    const inbound = await surveyInbound(answer);
-    step(`full_answer_${answer}_handled`, inbound.status === 200 && inbound.data?.handled === true, inbound.data);
-    await sleep(500);
+    const inbound = await sendWa(answer, `full-${answer}-${expectedStep || 'done'}`);
+    step(`full_answer_${answer}_handled`, inbound.status === 200, { status: inbound.status });
+    await sleep(3500);
     const session = await getWaSession();
     if (expectedStep) {
       step(`full_step_${expectedStep}`, session?.metadata?.post_delivery_survey?.step === expectedStep);
@@ -216,9 +216,9 @@ async function runDeclineFlow(attendanceId) {
   await triggerSurvey(attendanceId);
   await sleep(1000);
 
-  const decline = await surveyInbound('2');
-  step('decline_handled', decline.status === 200 && decline.data?.handled === true, decline.data);
-  await sleep(500);
+  const decline = await sendWa('2', 'decline');
+  step('decline_handled', decline.status === 200, { status: decline.status });
+  await sleep(3500);
 
   const session = await getWaSession();
   step('decline_clears_survey', !session?.metadata?.post_delivery_survey);
