@@ -109,13 +109,44 @@ async function handleStripeWebhookEvent(event) {
     return { status: 200, body: { success: true, ignored: true, type: event.type } };
   }
 
+  const object = event.data?.object || {};
   const atendimentoId = extractAtendimentoId(event);
   if (!atendimentoId) {
+    if (event.type === 'payment_intent.succeeded') {
+      const intentId = String(object.payment_intent || object.id || '').trim();
+      if (intentId) {
+        const {
+          completePaymentByToken,
+          findSessionByPaymentIntentId
+        } = require('./typebot-payment-link.service');
+        const session = await findSessionByPaymentIntentId(intentId);
+        const token = session?.metadata?.typebot_payment?.token;
+        if (token) {
+          try {
+            const result = await completePaymentByToken(token, { session });
+            return {
+              status: 200,
+              body: {
+                success: true,
+                typebot_payment: true,
+                duplicate: Boolean(result.alreadyCompleted),
+                responsesSent: result.responsesSent ?? 0
+              }
+            };
+          } catch (error) {
+            logger.error('stripe_webhook_typebot_payment_resume_failed', {
+              intentId,
+              error: error.message
+            });
+            return { status: 500, body: { success: false, error: error.message } };
+          }
+        }
+      }
+    }
     logger.warn('stripe_webhook_missing_atendimento_id', { type: event.type, id: event.id });
     return { status: 200, body: { success: true, ignored: true, reason: 'missing_atendimento_id' } };
   }
 
-  const object = event.data?.object || {};
   const result = await applyStripePaymentConfirmed(atendimentoId, {
     eventId: event.id,
     eventType: event.type,

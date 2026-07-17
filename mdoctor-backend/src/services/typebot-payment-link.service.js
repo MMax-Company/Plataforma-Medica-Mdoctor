@@ -86,6 +86,20 @@ async function findSessionByPaymentToken(token) {
   );
 }
 
+async function findSessionByPaymentIntentId(intentId) {
+  const normalized = String(intentId || '').trim();
+  if (!normalized) return null;
+  return dbQuery('buscar sessão por intent de pagamento typebot', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .select('*')
+      .filter('metadata->typebot_payment->>intent_id', 'eq', normalized)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+}
+
 function paymentStateFromSession(session) {
   const payment = session?.metadata?.typebot_payment;
   if (!payment) return null;
@@ -243,5 +257,6 @@ module.exports = {
   createPaymentLinkForSession,
   extractIntentId,
   findSessionByPaymentToken,
+  findSessionByPaymentIntentId,
   getPaymentConfigByToken
 };

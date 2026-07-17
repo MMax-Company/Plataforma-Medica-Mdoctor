@@ -81,10 +81,18 @@ if (startupReadiness.status !== 'ok') {
   });
 }
 
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+function resolveCorsOrigins() {
+  const configured = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:3001')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  const selfOrigins = [process.env.PUBLIC_BASE_URL, process.env.BASE_URL]
+    .map((value) => String(value || '').trim().replace(/\/$/, ''))
+    .filter(Boolean);
+  return [...new Set([...configured, ...selfOrigins])];
+}
+
+const corsOrigins = resolveCorsOrigins();
 
 app.set('trust proxy', 1);
 app.use(helmet());

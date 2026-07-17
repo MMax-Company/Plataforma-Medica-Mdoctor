@@ -474,8 +474,9 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const exactCause = describeError(error);
       const detailedError = Object.assign(new Error(exactCause), { code: error.code });
       await finish({ messageId, status: 'failed', errorMessage: exactCause }).catch(() => {});
+      const errorCode = String(error.code ?? '');
       await logError({
-        integration: error.code?.startsWith('META_') || error.code === 'PROVIDER_ERROR' ? 'meta_whatsapp' : 'typebot_runtime',
+        integration: errorCode.startsWith('META_') || errorCode === 'PROVIDER_ERROR' ? 'meta_whatsapp' : 'typebot_runtime',
         correlationId: messageId,
         error: detailedError,
         request: {
