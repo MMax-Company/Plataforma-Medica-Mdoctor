@@ -160,12 +160,46 @@ async function setTypebotSessionId({ sessionId, typebotSessionId }) {
   return data;
 }
 
+const TYPEBOT_METADATA_KEYS = [
+  'typebot_expected_input_id',
+  'typebot_payment',
+  'typebot_prescription_upload',
+  'whatsapp_menu_state'
+];
+
+async function clearTypebotSession({ sessionId, metadataPatch = {} }) {
+  if (!sessionId) return null;
+  const existing = await dbQuery('buscar whatsapp session para limpar typebot', async (supabase) =>
+    supabase.from(T.WHATSAPP_SESSIONS).select('*').eq('id', sessionId).maybeSingle()
+  );
+  if (!existing?.id) return null;
+
+  const metadata = { ...(existing.metadata || {}), ...metadataPatch };
+  for (const key of TYPEBOT_METADATA_KEYS) delete metadata[key];
+
+  const now = new Date().toISOString();
+  const data = await dbQuery('limpar sessão Typebot no WhatsApp', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .update({
+        typebot_session_id: null,
+        metadata,
+        updated_at: now
+      })
+      .eq('id', sessionId)
+      .select('*')
+      .single()
+  );
+  return data;
+}
+
 function getActiveSurveySession(session = {}) {
   return session?.metadata?.post_delivery_survey || null;
 }
 
 module.exports = {
   clearSurveySession,
+  clearTypebotSession,
   getActiveSurveySession,
   getSessionByBsuid,
   getSessionByPhone,

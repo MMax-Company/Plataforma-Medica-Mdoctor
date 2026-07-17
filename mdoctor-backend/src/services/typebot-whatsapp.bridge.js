@@ -5,9 +5,11 @@ const {
   getSessionByBsuid,
   getSessionByPhone,
   setTypebotSessionId,
+  clearTypebotSession,
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
 const { validateTypebotInput } = require('./typebot-personal-data.validation');
+const { resolveMetaInboundRouting } = require('./whatsapp-support.service');
 
 function getConfig() {
   return {
@@ -195,6 +197,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const claim = deps.claimMetaMessage || claimMetaMessage;
   const finish = deps.finishMetaMessage || finishMetaMessage;
   const saveSessionId = deps.setTypebotSessionId || setTypebotSessionId;
+  const resetTypebotSession = deps.clearTypebotSession || clearTypebotSession;
+  const routeInbound = deps.resolveMetaInboundRouting || resolveMetaInboundRouting;
   const logError = deps.createIntegrationError || createIntegrationError;
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
@@ -249,8 +253,40 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
     const config = getConfig();
     try {
-      const currentSession = await reloadSession({ identity, whatsappSession });
-      const existingSessionId = currentSession?.typebot_session_id || null;
+      let currentSession = await reloadSession({ identity, whatsappSession });
+      const routing = await routeInbound({
+        phone: identity?.phone,
+        text,
+        session: currentSession
+      });
+
+      if (routing?.handled && routing.action === 'reply' && routing.reply) {
+        const sent = await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:menu`,
+          text: routing.reply
+        });
+        const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+        await finish({ messageId, status: 'processed', providerMessageIds });
+        return {
+          duplicate: false,
+          responsesSent: providerMessageIds.length,
+          sessionId: currentSession?.typebot_session_id || null,
+          sessionIdReused: Boolean(currentSession?.typebot_session_id),
+          menuHandled: true
+        };
+      }
+
+      if (routing?.action === 'typebot_clean' && currentSession?.id) {
+        currentSession = await resetTypebotSession({ sessionId: currentSession.id }) || currentSession;
+        expectedInputs.set(identityKey, null);
+      }
+
+      const existingSessionId = routing?.action === 'typebot_clean'
+        ? null
+        : (currentSession?.typebot_session_id || null);
       const expectedInputId = expectedInputs.has(identityKey)
         ? expectedInputs.get(identityKey)
         : currentSession?.metadata?.typebot_expected_input_id || null;

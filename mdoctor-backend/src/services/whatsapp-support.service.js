@@ -8,6 +8,12 @@ const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
 const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
+const MENU_TEXT =
+  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar atendimento\n*2* - Suporte';
+
+const SUPPORT_WAITING_TEXT =
+  'Aguarde, em breve nossa equipe realizará seu atendimento.\n\n*1* - Aguardar atendimento\n*ENCERRAR* - Encerrar atendimento\n*3* - Iniciar chatbot novamente';
+
 const SUPPORT_SUB = {
   WAITING: 'waiting',
   EM_ATENDIMENTO: 'em_atendimento',
@@ -112,8 +118,7 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
   return {
     duplicate: false,
     atendimento,
-    reply:
-      'Aguarde, em breve nossa equipe realizará seu atendimento.\n\n*0* - Voltar ao menu inicial\n*ENCERRAR* - Encerrar atendimento'
+    reply: SUPPORT_WAITING_TEXT
   };
 }
 
@@ -353,6 +358,87 @@ async function handleRejectionResponse({ phone, text }) {
   return { handled: true, reply: REJECTION_OPTIONS };
 }
 
+function normalizeMenuText(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+function isActiveTypebotFlow(session = {}) {
+  return Boolean(session?.typebot_session_id && session?.metadata?.typebot_expected_input_id);
+}
+
+async function handleSupportQueueInput({ phone, textNorm }) {
+  if (textNorm === 'ENCERRAR' || textNorm === '2') {
+    const result = await closeWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: result.reply };
+  }
+  if (textNorm === '3' || textNorm === 'CHATBOT' || textNorm === 'INICIAR CHATBOT NOVAMENTE') {
+    await closeWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'typebot_clean' };
+  }
+  if (textNorm === '0') {
+    const result = await closeWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: `${result.reply}\n\n${MENU_TEXT}` };
+  }
+  if (textNorm === '1' || textNorm === 'AGUARDAR' || textNorm === 'AGUARDAR ATENDIMENTO') {
+    return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
+  }
+  return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
+}
+
+async function resolveMetaInboundRouting({ phone, text, session = null }) {
+  try {
+    const surveyResult = await handleSurveyInbound({ phone, text });
+    if (surveyResult.handled) {
+      return { handled: true, action: 'reply', reply: surveyResult.reply };
+    }
+  } catch (e) {
+    logger.warn('meta_inbound_survey_check_failed', { error: e.message });
+  }
+
+  try {
+    const rejResult = await handleRejectionResponse({ phone, text });
+    if (rejResult.handled) {
+      return { handled: true, action: 'reply', reply: rejResult.reply };
+    }
+  } catch (e) {
+    logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
+  }
+
+  if (isActiveTypebotFlow(session)) {
+    return { handled: false, action: 'typebot' };
+  }
+
+  const textNorm = normalizeMenuText(text);
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+
+  if (sub === SUPPORT_SUB.AWAITING_DECISION) {
+    if (textNorm === '1' || textNorm === '2') {
+      const result = await respondToFinalization(phone, textNorm);
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+    return {
+      handled: true,
+      action: 'reply',
+      reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita'
+    };
+  }
+
+  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    return handleSupportQueueInput({ phone, textNorm });
+  }
+
+  if (textNorm === '1') {
+    return { handled: true, action: 'typebot_clean' };
+  }
+  if (textNorm === '2') {
+    const result = await createWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: result.reply };
+  }
+
+  return { handled: true, action: 'reply', reply: MENU_TEXT };
+}
+
 async function processIncomingMessage({ phone, text }) {
   // 1. Survey responses take priority — "1"/"2" would otherwise be misrouted to menu logic
   try {
@@ -374,8 +460,7 @@ async function processIncomingMessage({ phone, text }) {
     logger.warn('process_message_rejection_check_failed', { error: e.message });
   }
 
-  const MENU_TEXT = 'Olá, sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar sua avaliação para renovação de receita.\n*2* - Falar com o suporte.';
-  const textNorm = String(text || '').trim().toUpperCase();
+  const textNorm = normalizeMenuText(text);
 
   const ctx = await getPatientSupportContext(phone);
   const sub = ctx?.support_sub_status || null;
@@ -389,14 +474,11 @@ async function processIncomingMessage({ phone, text }) {
   }
 
   if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
-    if (textNorm === 'ENCERRAR' || textNorm === '0') {
-      const result = await closeWhatsAppSupportEntry({ phone });
-      return { reply: result.reply };
-    }
-    return { reply: 'Você está na fila de suporte. Nossa equipe entrará em contato em breve.\n\n*0* - Cancelar e voltar ao menu inicial\n*ENCERRAR* - Encerrar atendimento' };
+    const queueResult = await handleSupportQueueInput({ phone, textNorm });
+    return { reply: queueResult.reply };
   }
 
-  // No active support — main menu
+  // No active support — main menu (n8n/Evolution path keeps Typebot URL on option 1)
   if (textNorm === '1') {
     return { reply: `✅ Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções e preencha suas informações. Um médico irá analisar e emitir sua receita em breve.` };
   }
@@ -449,7 +531,11 @@ async function closeInactiveSessions() {
 
 module.exports = {
   SUPPORT_SUB,
+  MENU_TEXT,
+  SUPPORT_WAITING_TEXT,
   normalizePhone,
+  normalizeMenuText,
+  isActiveTypebotFlow,
   getSupportSubStatus,
   findOpenSupportByPhone,
   createWhatsAppSupportEntry,
@@ -460,6 +546,7 @@ module.exports = {
   finalizeSupportAttendance,
   getPatientSupportContext,
   respondToFinalization,
+  resolveMetaInboundRouting,
   processIncomingMessage,
   closeInactiveSessions
 };

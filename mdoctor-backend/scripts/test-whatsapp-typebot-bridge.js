@@ -29,6 +29,7 @@ async function main() {
   let storedExpectedInputId = null;
   const bridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     findPendingUploadContext: async () => null,
     persistUploadContext: async () => {},
     uploadContextFromSession: () => null,
@@ -90,6 +91,7 @@ async function main() {
   const startGate = new Promise((resolve) => { releaseStart = resolve; });
   const rapidBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async () => ({ claimed: true }),
     finishMetaMessage: async () => {},
     setTypebotSessionId: async ({ typebotSessionId }) => { rapidStoredSessionId = typebotSessionId; },
@@ -130,6 +132,7 @@ async function main() {
   let retryStoredSessionId = null;
   const retryBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (retryReceipts.has(messageId)) return { claimed: false };
       retryReceipts.add(messageId);
@@ -205,6 +208,7 @@ async function main() {
     let expectedInputId = testCase.id;
     const validationBridge = createTypebotWhatsAppBridge({
       ...uploadBridgeMocks,
+      resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
       claimMetaMessage: async ({ messageId }) => {
         if (validationReceipts.has(messageId)) return { claimed: false };
         validationReceipts.add(messageId);
@@ -284,6 +288,7 @@ async function main() {
   let medDoseExpectedInputId = 'blk_xp763m78';
   const medDoseBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (medDoseReceipts.has(messageId)) return { claimed: false };
       medDoseReceipts.add(messageId);
@@ -334,6 +339,7 @@ async function main() {
   const paymentReceipts = new Set();
   const paymentBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (paymentReceipts.has(messageId)) return { claimed: false };
       paymentReceipts.add(messageId);
@@ -376,6 +382,68 @@ async function main() {
   assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok'));
   assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-link');
 
+  const menuSent = [];
+  let menuCleared = false;
+  const menuBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    clearTypebotSession: async () => { menuCleared = true; return { id: 'wa-menu', typebot_session_id: null, metadata: {} }; },
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    resolveMetaInboundRouting: async ({ text }) => {
+      const norm = String(text || '').trim();
+      if (norm === '1') return { handled: true, action: 'typebot_clean' };
+      if (norm === '2') return { handled: true, action: 'reply', reply: 'Aguarde suporte.' };
+      return { handled: true, action: 'reply', reply: 'Menu inicial' };
+    },
+    callTypebot: async (path) => {
+      assert(path.includes('/startChat'));
+      return {
+        sessionId: 'menu-session',
+        messages: [{ type: 'text', content: { plainText: 'Typebot iniciado.' } }],
+        input: { id: 'choice-1', type: 'choice input', items: [{ content: 'Sim' }] }
+      };
+    },
+    provider: {
+      sendTextMessage: async (payload) => { menuSent.push(payload); return { providerMessageId: `menu-${menuSent.length}` }; },
+      sendButtonMessage: async (payload) => { menuSent.push(payload); return { providerMessageId: `menu-${menuSent.length}` }; },
+      sendListMessage: async () => ({})
+    }
+  });
+
+  const menuOi = await menuBridge({
+    messageId: 'menu-oi',
+    text: 'Oi',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: null }
+  });
+  assert.equal(menuOi.menuHandled, true);
+  assert.equal(menuSent.length, 1);
+  assert.equal(menuSent[0].text, 'Menu inicial');
+  assert.equal(menuCleared, false);
+
+  const menuInvalid = await menuBridge({
+    messageId: 'menu-invalid',
+    text: 'xyz',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: null }
+  });
+  assert.equal(menuInvalid.menuHandled, true);
+  assert.equal(menuSent[menuSent.length - 1].text, 'Menu inicial');
+
+  const menuStart = await menuBridge({
+    messageId: 'menu-start',
+    text: '1',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: 'stale-session' }
+  });
+  assert.equal(menuStart.menuHandled, undefined);
+  assert.equal(menuCleared, true);
+  assert(menuSent.some((item) => item.text === 'Typebot iniciado.' || item.body));
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -386,7 +454,9 @@ async function main() {
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
-    textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed'
+    textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed',
+    menuShowsBeforeTypebot: menuOi.menuHandled ? 'ok' : 'failed',
+    menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed'
   }));
 }
 
