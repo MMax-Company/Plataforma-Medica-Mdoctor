@@ -18,7 +18,7 @@ const base = {
   cpf: '123.456.789-09',
   birth_date: '09/02/1988',
   email: 'ana@example.com',
-  address: 'Rua A, 100',
+  address: 'Rua A, 100, Centro, São Paulo, SP',
   cep: '01310-100',
   chronic_condition: 'has',
   tempo_uso: 'Mais de 6 meses',

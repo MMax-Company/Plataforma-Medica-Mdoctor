@@ -9,6 +9,11 @@ const {
   mapTypebotWarningFlags,
   parseClinicalFlags
 } = require('./clinical-intelligence.service');
+const {
+  isInvalidClinicalValue,
+  sanitizeMedications,
+  normalizeStructuredAddress
+} = require('./typebot-clinical-data.validation');
 
 const INELIGIBLE_USER_MESSAGE =
   'Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação.';
@@ -182,10 +187,17 @@ function parseMedicationFreeText(text = '', overrides = {}) {
   let frequency = overrides.frequency || '';
   let route = overrides.route || '';
 
-  const doseMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
+  const doseSource = dose || raw;
+  const doseMatch = String(doseSource).match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
   if (doseMatch) {
-    dose = String(overrides.dose || doseMatch[1] || '').replace(',', '.');
+    dose = String(doseMatch[1] || '').replace(',', '.');
     unit = (overrides.unit || doseMatch[2] || unit || 'mg').toLowerCase();
+  }
+
+  const rawDoseMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
+  if (!dose && rawDoseMatch) {
+    dose = String(rawDoseMatch[1] || '').replace(',', '.');
+    unit = (overrides.unit || rawDoseMatch[2] || unit || 'mg').toLowerCase();
   }
 
   if (!name) {
@@ -210,12 +222,19 @@ function parseMedicationFreeText(text = '', overrides = {}) {
   };
 }
 
-function normalizeMedications(payload = {}, maxItems = 3) {
-  const count = Math.min(
-    maxItems,
-    Math.max(1, Number(pickFirst(payload.medication_count, payload.qtd_medicamentos) || 1))
+function medicationHasStructuredFields(item = {}) {
+  return Boolean(
+    item?.name ||
+      item?.dose ||
+      item?.frequency ||
+      item?.route ||
+      item?.label ||
+      item?.raw_text
   );
+}
 
+function normalizeMedicationBundle(payload = {}, maxItems = 3) {
+  const declaredCount = Number(pickFirst(payload.medication_count, payload.qtd_medicamentos) || 0) || null;
   const slots = [
     {
       text: pickFirst(payload.primeiro_medicamento, payload.medication_name, payload.medicamento),
@@ -246,29 +265,49 @@ function normalizeMedications(payload = {}, maxItems = 3) {
     }
   ];
 
+  let medications = [];
+
   if (Array.isArray(payload.medications) && payload.medications.length) {
-    return payload.medications.slice(0, maxItems).map((item, index) => {
-      const parsed =
-        parseMedicationFreeText(item.label || item.raw_text || item.name || '', {
-          name: item.name,
-          dose: item.dose,
-          unit: item.unit,
-          frequency: item.frequency,
-          route: item.route
-        }) || {};
-      return { index: index + 1, ...parsed, ...item, name: parsed.name || item.name };
-    });
+    medications = payload.medications
+      .slice(0, maxItems)
+      .filter(medicationHasStructuredFields)
+      .map((item) => {
+        const parsed =
+          parseMedicationFreeText(item.label || item.raw_text || item.name || '', {
+            name: item.name,
+            dose: item.dose,
+            unit: item.unit,
+            frequency: item.frequency,
+            route: item.route
+          }) || {};
+        return {
+          ...parsed,
+          ...item,
+          name: parsed.name || item.name,
+          dose: parsed.dose || item.dose,
+          frequency: parsed.frequency || item.frequency,
+          route: parsed.route || item.route
+        };
+      });
+  } else {
+    const slotLimit = declaredCount
+      ? Math.min(maxItems, Math.max(1, declaredCount))
+      : maxItems;
+    for (let i = 0; i < slotLimit; i += 1) {
+      const slot = slots[i];
+      if (!slot?.text && !slot?.overrides?.name) continue;
+      const parsed = parseMedicationFreeText(slot.text || '', slot.overrides);
+      if (parsed) medications.push(parsed);
+    }
   }
 
-  const medications = [];
-  for (let i = 0; i < count; i += 1) {
-    const slot = slots[i];
-    if (!slot?.text && !slot?.overrides?.name) continue;
-    const parsed = parseMedicationFreeText(slot.text || '', slot.overrides);
-    if (parsed) medications.push({ index: i + 1, ...parsed });
-  }
-
-  return medications;
+  const sanitized = sanitizeMedications(medications, declaredCount);
+  return {
+    medications: sanitized.medications,
+    medication_count: sanitized.medication_count,
+    declared_medication_count: declaredCount,
+    countMismatch: sanitized.countMismatch
+  };
 }
 
 function normalizeWarningSigns(payload = {}) {
@@ -304,9 +343,21 @@ function validateRequiredFields(normalized = {}, options = {}) {
   if (!normalized.whatsapp) missing.push('whatsapp');
   if (!normalized.email) missing.push('email');
   if (!normalized.address) missing.push('address');
+  if (!normalized.address_structured?.rua) missing.push('address.rua');
+  if (!normalized.address_structured?.numero) missing.push('address.numero');
+  if (!normalized.address_structured?.bairro) missing.push('address.bairro');
+  if (!normalized.address_structured?.cidade) missing.push('address.cidade');
+  if (!normalized.address_structured?.estado) missing.push('address.estado');
   if (!normalized.cep) missing.push('cep');
   if (!normalized.chronic_condition) missing.push('chronic_condition');
   if (!normalized.medications?.length) missing.push('medications');
+  if (normalized.medications?.some((med) => isInvalidClinicalValue(med.dose) || isInvalidClinicalValue(med.name))) {
+    missing.push('medications.invalid_values');
+  }
+  const declaredCount = Number(normalized.declared_medication_count || 0);
+  if (declaredCount > 0 && declaredCount !== normalized.medication_count) {
+    missing.push('medication_count.mismatch');
+  }
   if (normalized.has_previous_prescription !== true) missing.push('has_previous_prescription');
   if (!externalUpload && !normalized.previous_prescription_file) missing.push('previous_prescription_file');
 
@@ -325,10 +376,16 @@ function normalizeTypebotPayload(body = {}) {
   const cpf = normalizeCpf(pickFirst(original.cpf, original.cpf_paciente, body.cpf));
   const whatsapp = normalizeWhatsapp(pickFirst(original.whatsapp, original.telefone, body.from, body.telefone));
   const email = normalizeEmail(pickFirst(original.email, original.Email, body.email));
-  const address = pickFirst(original.address, original.Endereco, original.endereco, body.address);
-  const cep = normalizeCep(pickFirst(original.cep, original.CEP, body.cep));
+  const addressStructured = normalizeStructuredAddress({
+    ...original,
+    address: pickFirst(original.address, original.Endereco, original.endereco, body.address),
+    cep: pickFirst(original.cep, original.CEP, body.cep)
+  });
+  const address = addressStructured?.formatted || pickFirst(original.address, original.Endereco, original.endereco, body.address);
+  const cep = normalizeCep(pickFirst(original.cep, original.CEP, body.cep, addressStructured?.cep));
   const chronic = normalizeChronicCondition(pickFirst(original.chronic_condition, original.doenca_cronica, body.doenca_cronica));
-  const medications = normalizeMedications(original);
+  const medicationBundle = normalizeMedicationBundle(original);
+  const medications = medicationBundle.medications;
   const payment = normalizePaymentStatus(original);
   const usageDays = extractUsageDays({
     continuous_use_days: original.continuous_use_days,
@@ -361,10 +418,20 @@ function normalizeTypebotPayload(body = {}) {
     whatsapp,
     email,
     address,
+    address_structured: addressStructured
+      ? {
+          rua: addressStructured.rua,
+          numero: addressStructured.numero,
+          bairro: addressStructured.bairro,
+          cidade: addressStructured.cidade,
+          estado: addressStructured.estado
+        }
+      : null,
     cep,
     chronic_condition: chronic?.normalized || null,
     chronic_condition_label: chronic?.raw || null,
-    medication_count: medications.length,
+    medication_count: medicationBundle.medication_count,
+    declared_medication_count: medicationBundle.declared_medication_count,
     medications,
     medication_name: medications[0]?.name || null,
     medication_dose: medications[0]?.dose || null,
@@ -448,6 +515,7 @@ function toPatientEvaluationShape(normalized = {}) {
     email: normalized.email,
     cpf: normalized.cpf,
     address: normalized.address,
+    address_structured: normalized.address_structured,
     cep: normalized.cep,
     birth_date: normalized.birth_date,
     data_nascimento: normalized.birth_date,
@@ -500,6 +568,7 @@ function buildCleanBackendPayload(normalized = {}, meta = {}) {
     whatsapp: normalized.whatsapp,
     email: normalized.email,
     address: normalized.address,
+    address_structured: normalized.address_structured,
     cep: normalized.cep,
     chronic_condition: normalized.chronic_condition,
     medication_count: normalized.medication_count,
@@ -564,6 +633,8 @@ module.exports = {
   isExternalUploadMode,
   isVisibleInMedicalPanel,
   parseMedicationFreeText,
+  normalizeMedicationBundle,
+  normalizeMedications: (payload, maxItems) => normalizeMedicationBundle(payload, maxItems).medications,
   normalizeBirthDate,
   normalizeCpf,
   normalizeWhatsapp,

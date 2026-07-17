@@ -1,3 +1,6 @@
+const { compactWhitespace, digitsOnly } = require('./typebot-validation.utils');
+const { validateStructuredAddress, validateClinicalInput } = require('./typebot-clinical-data.validation');
+
 const PERSONAL_INPUTS = Object.freeze({
   ds9z9lnz3yayokyy8d81fudj: {
     field: 'name',
@@ -21,7 +24,7 @@ const PERSONAL_INPUTS = Object.freeze({
   },
   q78qjnk6ticwkeifl7xe2rju: {
     field: 'address',
-    question: 'Qual é o seu endereço completo?'
+    question: 'Qual é o seu endereço completo? Informe rua, número, bairro, cidade e estado (UF).'
   },
   blk_0oydu2f7: {
     field: 'cep',
@@ -40,14 +43,6 @@ const BRAZILIAN_DDDS = new Set([
   '81', '82', '83', '84', '85', '86', '87', '88', '89',
   '91', '92', '93', '94', '95', '96', '97', '98', '99'
 ]);
-
-function compactWhitespace(value) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ');
-}
-
-function digitsOnly(value) {
-  return String(value ?? '').replace(/\D/g, '');
-}
 
 function validateName(value) {
   const normalized = compactWhitespace(value);
@@ -125,11 +120,9 @@ function validateEmail(value) {
 }
 
 function validateAddress(value) {
-  const address = compactWhitespace(value);
-  const valid = address.length >= 10 && address.split(' ').filter(Boolean).length >= 2;
-  return valid
-    ? { valid: true, value: address }
-    : { valid: false, error: 'Informe um endereço completo com pelo menos 10 caracteres.' };
+  const result = validateStructuredAddress(value);
+  if (!result.valid) return result;
+  return { valid: true, value: result.value, structured: result.structured };
 }
 
 function validateCep(value) {
@@ -149,10 +142,10 @@ const VALIDATORS = {
   cep: validateCep
 };
 
-function validatePersonalInput(inputId, value, { now = new Date() } = {}) {
+function validatePersonalInput(inputId, value, options = {}) {
   const definition = PERSONAL_INPUTS[inputId];
   if (!definition) return { isPersonal: false, valid: true, value };
-  const result = VALIDATORS[definition.field](value, now);
+  const result = VALIDATORS[definition.field](value, options.now);
   return {
     isPersonal: true,
     field: definition.field,
@@ -161,7 +154,16 @@ function validatePersonalInput(inputId, value, { now = new Date() } = {}) {
   };
 }
 
+function validateTypebotInput(inputId, value, options = {}) {
+  const personal = validatePersonalInput(inputId, value, options);
+  if (personal.isPersonal) return personal;
+  const clinical = validateClinicalInput(inputId, value, options);
+  if (clinical.isClinical) return clinical;
+  return { isPersonal: false, isClinical: false, valid: true, value };
+}
+
 module.exports = {
   PERSONAL_INPUTS,
-  validatePersonalInput
+  validatePersonalInput,
+  validateTypebotInput
 };

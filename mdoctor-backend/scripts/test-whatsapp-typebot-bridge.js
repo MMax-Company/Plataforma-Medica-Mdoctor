@@ -194,7 +194,7 @@ async function main() {
     { id: 'dein7u2qnr8q32p2lv1krd5p', invalid: '11111111111', valid: '52998224725' },
     { id: 'tbla9w2i2kbeyzun88hai3s9', invalid: '119123', valid: '11985485777' },
     { id: 'dwoaqosurlamebpra9yf7pm4', invalid: 'max@', valid: 'max@example.com' },
-    { id: 'q78qjnk6ticwkeifl7xe2rju', invalid: 'Rua A', valid: 'Rua Aurora, 965' },
+    { id: 'q78qjnk6ticwkeifl7xe2rju', invalid: 'Rua A', valid: 'Rua Aurora, 965, República, São Paulo, SP' },
     { id: 'blk_0oydu2f7', invalid: '123', valid: '01209003' }
   ];
   const validationResults = [];

@@ -7,7 +7,7 @@ const {
   setTypebotSessionId,
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
-const { validatePersonalInput } = require('./typebot-personal-data.validation');
+const { validateTypebotInput } = require('./typebot-personal-data.validation');
 
 function getConfig() {
   return {
@@ -254,8 +254,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const expectedInputId = expectedInputs.has(identityKey)
         ? expectedInputs.get(identityKey)
         : currentSession?.metadata?.typebot_expected_input_id || null;
-      const validation = validatePersonalInput(expectedInputId, text, { now: now() });
-      if (validation.isPersonal && !validation.valid) {
+      const validation = validateTypebotInput(expectedInputId, text, { now: now() });
+      if ((validation.isPersonal || validation.isClinical) && !validation.valid) {
         const sent = await provider.sendTextMessage({
           to: identity.phone,
           bsuid: identity.bsuid,
@@ -313,7 +313,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
       const message = {
         type: 'text',
-        text: validation.isPersonal ? validation.value : String(text || ''),
+        text: (validation.isPersonal || validation.isClinical) ? validation.value : String(text || ''),
         metadata: { replyId: messageId }
       };
       const typebot = await callWithRetry(
