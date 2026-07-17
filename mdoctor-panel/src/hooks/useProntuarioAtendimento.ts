@@ -18,6 +18,8 @@ export type ProntuarioAtendimento = {
   paciente_email?: string;
   condicao?: string;
   pagamento_status?: string;
+  criado_em?: string;
+  atualizado_em?: string;
   elegibilidade?: { eligible?: boolean; reason?: string } | null;
   dados_clinicos?: Record<string, unknown> & {
     condition?: string;

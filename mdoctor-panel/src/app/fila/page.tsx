@@ -178,6 +178,7 @@ export default function FilaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
+  const [prontuarioConsultMode, setProntuarioConsultMode] = useState(false);
   const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   // Once true, overlay stays mounted so div#prescricao-memed is never destroyed between patients.
@@ -310,13 +311,15 @@ export default function FilaPage() {
     router.replace(query ? `/fila?${query}` : '/fila', { scroll: false });
   }
 
-  function openProntuarioModal(id: string) {
+  function openProntuarioModal(id: string, consultMode = false) {
+    setProntuarioConsultMode(consultMode);
     setProntuarioId(id);
     syncProntuarioUrl(id);
   }
 
   function closeProntuarioModal() {
     setProntuarioId(null);
+    setProntuarioConsultMode(false);
     syncProntuarioUrl(null);
   }
 
@@ -771,12 +774,16 @@ export default function FilaPage() {
       <PatientSearchModal
         open={patientSearchOpen}
         onClose={() => setPatientSearchOpen(false)}
-        onSelectAtendimento={(id) => { setPatientSearchOpen(false); openProntuarioModal(id); }}
+        onSelectAtendimento={(id) => {
+          setPatientSearchOpen(false);
+          openProntuarioModal(id, true);
+        }}
       />
 
       <ProntuarioOperacionalModal
         atendimentoId={prontuarioId}
         open={Boolean(prontuarioId)}
+        consultMode={prontuarioConsultMode}
         onClose={closeProntuarioModal}
         onCompleted={() => {
           void fetchAtendimentos();
