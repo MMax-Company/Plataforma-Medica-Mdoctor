@@ -242,6 +242,16 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const isUploadConfirmationText = deps.isUploadConfirmationText || ((value) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').isUploadConfirmationText(value));
+  const stripUploadChoiceOutputs = deps.stripUploadChoiceOutputs || ((outputs) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').stripUploadChoiceOutputs(outputs));
+  const outputsContainUrl = deps.outputsContainUrl || ((outputs, url) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').outputsContainUrl(outputs, url));
+  const uploadSuccessReply = deps.UPLOAD_SUCCESS_REPLY || (
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').UPLOAD_SUCCESS_REPLY
+  );
   const getUploadStatus = deps.getUploadStatus || ((token) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').getUploadStatus(token));
@@ -319,7 +329,21 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const expectedInputId = expectedInputs.has(identityKey)
         ? expectedInputs.get(identityKey)
         : currentSession?.metadata?.typebot_expected_input_id || null;
-      const validation = validateTypebotInput(expectedInputId, text, { now: now() });
+      const uploadContextBeforeChat = uploadContextFromSession(
+        currentSession,
+        await findUploadContext(identity?.phone)
+      );
+      let inboundText = String(text || '');
+      const atUploadChoiceStage = isUploadChoiceInput(expectedInputId)
+        || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id);
+      if (uploadContextBeforeChat && atUploadChoiceStage) {
+        const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
+        if (uploadStatus.upload_completed) {
+          inboundText = uploadSuccessReply;
+        }
+      }
+
+      const validation = validateTypebotInput(expectedInputId, inboundText, { now: now() });
       if ((validation.isPersonal || validation.isClinical) && !validation.valid) {
         const sent = await provider.sendTextMessage({
           to: identity.phone,
@@ -340,45 +364,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
         };
       }
 
-      const uploadContextBeforeChat = uploadContextFromSession(
-        currentSession,
-        await findUploadContext(identity?.phone)
-      );
-      if (
-        uploadContextBeforeChat
-        && isUploadConfirmationText(text)
-        && (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id))
-      ) {
-        const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
-        if (uploadStatus.upload_completed) {
-          await persistUploadContext({ identity, uploadContext: uploadContextBeforeChat });
-          const sent = await provider.sendTextMessage({
-            to: identity.phone,
-            bsuid: identity.bsuid,
-            correlationId: messageId,
-            idempotencyKey: `${messageId}:upload-confirmed`,
-            text: '✅ Receita confirmada! Seu atendimento entrou na fila médica. Em breve um médico analisará sua solicitação.'
-          });
-          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
-          expectedInputs.set(identityKey, null);
-          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
-          await finish({ messageId, status: 'processed', providerMessageIds });
-          return {
-            duplicate: false,
-            responsesSent: providerMessageIds.length,
-            sessionId: existingSessionId,
-            sessionIdReused: Boolean(existingSessionId),
-            uploadConfirmed: true
-          };
-        }
-      }
-
       const path = existingSessionId
         ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
         : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
       const message = {
         type: 'text',
-        text: (validation.isPersonal || validation.isClinical) ? validation.value : String(text || ''),
+        text: (validation.isPersonal || validation.isClinical) ? validation.value : inboundText,
         metadata: { replyId: messageId }
       };
       const typebot = await callWithRetry(
@@ -416,13 +407,29 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
       const providerMessageIds = [];
       let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));
-      if (uploadContext) await persistUploadContext({ identity, uploadContext });
+      const uploadMeta = currentSession?.metadata?.typebot_prescription_upload || {};
+      const linkAlreadySent = Boolean(uploadMeta.link_sent_at);
 
       let outputs = convertTypebotResponse(typebot);
       if (uploadContext && responseLooksLikeUploadStage(typebot, nextInputId)) {
+        outputs = stripUploadChoiceOutputs(outputs);
+        const hasRetryHint = outputs.some((output) => /link abaixo|enviar foto da receita|não localizamos/i.test(String(output.text || '')));
         outputs = augmentUploadOutputs(outputs, uploadContext, {
-          force: isUploadChoiceInput(nextInputId) || isUploadChoiceInput(expectedInputId)
+          force: !linkAlreadySent && (isUploadChoiceInput(nextInputId) || isUploadChoiceInput(expectedInputId)),
+          linkAlreadySent
         });
+        if (!linkAlreadySent && (outputsContainUrl(outputs, uploadContext.uploadUrl) || hasRetryHint)) {
+          await persistUploadContext({
+            identity,
+            uploadContext,
+            whatsappSession: currentSession,
+            linkSentAt: new Date().toISOString()
+          });
+        } else if (uploadContext) {
+          await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
+        }
+      } else if (uploadContext) {
+        await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
       }
 
       for (const output of outputs) {

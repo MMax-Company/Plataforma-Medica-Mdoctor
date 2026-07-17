@@ -409,6 +409,8 @@ router.post('/webhook', async (req, res) => {
                         whatsappSession,
                         messageId: msg.id
                       });
+                      logger.info('whatsapp_business_prescription_media_handled', { messageId: msg.id });
+                      continue;
                     } catch (error) {
                       logger.error('whatsapp_business_prescription_media_failed', {
                         messageId: msg.id,
@@ -424,7 +426,6 @@ router.post('/webhook', async (req, res) => {
                       }).catch(() => {});
                       continue;
                     }
-                    text = 'Já enviei a receita';
                   }
 
                   const result = await handleTypebotWhatsAppInbound({

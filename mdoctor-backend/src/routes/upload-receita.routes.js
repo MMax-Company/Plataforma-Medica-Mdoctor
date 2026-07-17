@@ -5,6 +5,7 @@ const { getAtendimento } = require('../store/atendimentos.store');
 const { hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { MAX_BYTES, formatIngestError } = require('../services/previous-prescription-storage.service');
 const { completeExternalPrescriptionUpload } = require('../services/prescription-upload.service');
+const { resumeTypebotAfterPrescriptionUpload } = require('../services/typebot-prescription-upload.service');
 const {
   assertTokenActive,
   resolveTokenRecord
@@ -17,9 +18,17 @@ const upload = multer({
   limits: { fileSize: MAX_BYTES, files: 1 }
 });
 
+function wantsHtmlResponse(req) {
+  const accept = String(req.headers.accept || '').toLowerCase();
+  if (accept.includes('text/html')) return true;
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  return contentType.includes('multipart/form-data');
+}
+
 function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, success = false }) {
   const safeName = String(patientName || 'Paciente').replace(/</g, '&lt;');
   const expiry = expiresAt ? new Date(expiresAt).toLocaleString('pt-BR') : '';
+  const encodedToken = encodeURIComponent(token);
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -45,6 +54,7 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
     .tips { margin-top: 16px; padding: 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.82rem; color: #78350f; }
     .tips ul { margin: 6px 0 0 16px; padding: 0; }
     .tips li { margin-bottom: 4px; }
+    #status { display: none; margin-top: 12px; font-size: 0.9rem; color: #26325f; }
   </style>
 </head>
 <body>
@@ -70,12 +80,46 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
       ${
         success
           ? ''
-          : `<form method="post" action="/api/upload-receita/${encodeURIComponent(token)}" enctype="multipart/form-data">
+          : `<form id="uploadForm" enctype="multipart/form-data">
         <label for="file">Arquivo (JPG, PNG ou PDF — máx. 10 MB)</label>
         <input id="file" name="file" type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" required />
         <button type="submit" id="btn">${errorMessage ? 'Tentar novamente' : 'Enviar foto da receita'}</button>
+        <p id="status">Enviando arquivo…</p>
       </form>
-      <p class="hint">Seu arquivo é armazenado de forma segura e usado apenas para análise da renovação.</p>`
+      <p class="hint">Seu arquivo é armazenado de forma segura e usado apenas para análise da renovação.</p>
+      <script>
+        (function () {
+          var form = document.getElementById('uploadForm');
+          if (!form) return;
+          form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var fileInput = document.getElementById('file');
+            var btn = document.getElementById('btn');
+            var status = document.getElementById('status');
+            if (!fileInput || !fileInput.files || !fileInput.files.length) return;
+            btn.disabled = true;
+            status.style.display = 'block';
+            status.textContent = 'Enviando arquivo…';
+            var body = new FormData();
+            body.append('file', fileInput.files[0]);
+            fetch('/api/upload-receita/${encodedToken}', {
+              method: 'POST',
+              body: body,
+              headers: { Accept: 'text/html' }
+            }).then(function (res) {
+              return res.text().then(function (text) {
+                document.open();
+                document.write(text);
+                document.close();
+              });
+            }).catch(function () {
+              btn.disabled = false;
+              status.style.display = 'none';
+              alert('Falha no envio. Verifique sua conexão e tente novamente.');
+            });
+          });
+        })();
+      </script>`
       }
     </div>
   </div>
@@ -95,10 +139,28 @@ async function loadSessionContext(token) {
   return { record, atendimento };
 }
 
+function handleMulterUpload(req, res, next) {
+  upload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    const token = req.params.token;
+    const correlationId = req.get('X-Correlation-Id') || req.requestId || 'unknown';
+    const message = err.code === 'LIMIT_FILE_SIZE'
+      ? 'Arquivo muito grande. O limite é 10 MB.'
+      : (err.message || 'Falha ao processar o arquivo enviado.');
+    if (wantsHtmlResponse(req)) {
+      return res.status(413).type('html').send(renderUploadPage({ token, patientName: 'Paciente', errorMessage: message }));
+    }
+    return res.status(err.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({
+      success: false,
+      correlationId,
+      error: message,
+      code: err.code || 'UPLOAD_PARSE_ERROR'
+    });
+  });
+}
+
 router.get('/:token/status', async (req, res) => {
   try {
-    // Não exige token ativo: token usado significa upload concluído, e esta
-    // rota precisa reportar isso (o Typebot consulta após o envio).
     const record = await resolveTokenRecord(req.params.token);
     if (!record) {
       const err = new Error('Link de upload inválido ou expirado');
@@ -132,13 +194,17 @@ router.get('/:token/status', async (req, res) => {
   }
 });
 
-router.post('/:token', upload.single('file'), async (req, res) => {
+router.post('/:token', handleMulterUpload, async (req, res) => {
   const token = req.params.token;
   const correlationId = req.get('X-Correlation-Id') || req.requestId || 'unknown';
 
   try {
     if (!req.file?.buffer?.length) {
-      return res.status(400).json({ success: false, error: 'Arquivo obrigatório (campo file)', correlationId });
+      const message = 'Arquivo obrigatório (campo file)';
+      if (wantsHtmlResponse(req)) {
+        return res.status(400).type('html').send(renderUploadPage({ token, patientName: 'Paciente', errorMessage: message }));
+      }
+      return res.status(400).json({ success: false, error: message, correlationId });
     }
 
     const result = await completeExternalPrescriptionUpload({
@@ -149,8 +215,18 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       correlationId
     });
 
-    const wantsHtml = String(req.headers.accept || '').includes('text/html');
-    if (wantsHtml) {
+    resumeTypebotAfterPrescriptionUpload({
+      token,
+      atendimentoId: result.atendimento?.id,
+      correlationId
+    }).catch((error) => createAuditLog({
+      entity_type: 'prescription_upload',
+      action: 'resume_typebot_failed',
+      actor: 'system',
+      payload: { correlationId, token: '[redacted]', error: error.message }
+    }));
+
+    if (wantsHtmlResponse(req)) {
       const html = renderUploadPage({
         token,
         patientName: result.atendimento?.paciente_nome,
@@ -181,8 +257,7 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       payload: { correlationId, token: '[redacted]', ...formatted }
     });
 
-    const wantsHtml = String(req.headers.accept || '').includes('text/html');
-    if (wantsHtml) {
+    if (wantsHtmlResponse(req)) {
       const html = renderUploadPage({
         token,
         patientName: 'Paciente',
@@ -240,4 +315,4 @@ function registerUploadPageRoutes(app) {
   app.get('/receita/upload/:token', pageHandler);
 }
 
-module.exports = { router, registerUploadPageRoutes, renderUploadPage };
+module.exports = { router, registerUploadPageRoutes, renderUploadPage, wantsHtmlResponse };
