@@ -78,8 +78,9 @@ async function sendSurveyWhatsApp({ phone, text, correlationId, idempotencyKey }
 }
 
 async function setSurveySession({ phone, patientId, outcomeId, attendanceId, step }) {
+  const digits = normalizePhone(phone);
   await upsertSessionMetadata({
-    phone,
+    phone: digits,
     patientId,
     metadataPatch: {
       post_delivery_survey: {
@@ -91,6 +92,11 @@ async function setSurveySession({ phone, patientId, outcomeId, attendanceId, ste
       }
     }
   });
+
+  const waSession = await getSessionByPhone(digits);
+  if (waSession?.id && waSession.typebot_session_id) {
+    await clearTypebotSession({ sessionId: waSession.id });
+  }
 }
 
 async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, correlationId = 'post-delivery-survey' }) {
@@ -123,11 +129,6 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     attendanceId,
     step: 'opt_in'
   });
-
-  const waSession = await getSessionByPhone(digits);
-  if (waSession?.id) {
-    await clearTypebotSession({ sessionId: waSession.id });
-  }
 
   // Send messages sequentially — ordering matters (closing first, then opt-in offer)
   await sendSurveyWhatsApp({

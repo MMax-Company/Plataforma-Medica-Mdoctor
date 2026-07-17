@@ -44,12 +44,38 @@ async function getWaSession() {
   return Array.isArray(rows) ? rows[0] : null;
 }
 
-async function findCompletedAtendimento() {
-  const rows = await supabaseFetch(
-    `atendimentos?paciente_telefone=eq.${PHONE}&status=eq.concluido&select=id,patient_id,paciente_telefone,status&order=updated_at.desc&limit=5`
+async function findSurveyAttendanceId() {
+  const session = await getWaSession();
+  const fromSession = session?.metadata?.post_delivery_survey?.attendance_id;
+  if (fromSession) return { id: fromSession, patient_id: session?.patient_id || null };
+
+  const outcomes = await supabaseFetch(
+    `patient_outcomes?patient_id=not.is.null&select=attendance_id,patient_id&order=created_at.desc&limit=10`
   );
-  if (!Array.isArray(rows) || !rows.length) return null;
-  return rows[0];
+  if (Array.isArray(outcomes)) {
+    for (const row of outcomes) {
+      const phoneRows = await supabaseFetch(
+        `atendimentos?id=eq.${row.attendance_id}&select=id,patient_id,paciente_telefone,status&limit=1`
+      );
+      const match = Array.isArray(phoneRows) ? phoneRows[0] : null;
+      if (match && String(match.paciente_telefone || '').replace(/\D/g, '').endsWith('985485777')) {
+        return match;
+      }
+    }
+    if (outcomes[0]?.attendance_id) {
+      return { id: outcomes[0].attendance_id, patient_id: outcomes[0].patient_id || null };
+    }
+  }
+
+  const rows = await supabaseFetch(
+    `atendimentos?paciente_telefone=eq.${PHONE}&select=id,patient_id,paciente_telefone,status&order=criado_em.desc&limit=5`
+  );
+  if (Array.isArray(rows) && rows.length) return rows[0];
+
+  const loose = await supabaseFetch(
+    `atendimentos?paciente_telefone=ilike.*98548*&select=id,patient_id,paciente_telefone,status&order=criado_em.desc&limit=5`
+  );
+  return Array.isArray(loose) && loose.length ? loose[0] : null;
 }
 
 async function resetSurveyState(attendanceId) {
@@ -200,9 +226,9 @@ async function runDeclineFlow(attendanceId) {
 }
 
 async function main() {
-  const atendimento = await findCompletedAtendimento();
+  const atendimento = await findSurveyAttendanceId();
   if (!atendimento?.id) {
-    console.log(JSON.stringify({ fatal: 'Nenhum atendimento concluido encontrado para o telefone de teste', phone: PHONE }, null, 2));
+    console.log(JSON.stringify({ fatal: 'Nenhum attendance_id de pesquisa encontrado para o telefone de teste', phone: PHONE }, null, 2));
     process.exit(1);
   }
 
