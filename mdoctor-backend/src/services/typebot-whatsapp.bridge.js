@@ -4,6 +4,7 @@ const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-
 const {
   getSessionByBsuid,
   getSessionByPhone,
+  getActiveSurveySession,
   setTypebotSessionId,
   clearTypebotSession,
   upsertSessionIdentity
@@ -277,6 +278,34 @@ function createTypebotWhatsAppBridge(deps = {}) {
           sessionIdReused: Boolean(currentSession?.typebot_session_id),
           menuHandled: true
         };
+      }
+
+      if (getActiveSurveySession(currentSession)?.step) {
+        const { handleSurveyInbound } = require('./post-delivery-survey.service');
+        const surveyResult = await handleSurveyInbound({
+          phone: identity?.phone,
+          text,
+          correlationId: messageId,
+          sendOutbound: false
+        });
+        if (surveyResult.reply) {
+          const sent = await provider.sendTextMessage({
+            to: identity.phone,
+            bsuid: identity.bsuid,
+            correlationId: messageId,
+            idempotencyKey: `${messageId}:survey`,
+            text: surveyResult.reply
+          });
+          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+          await finish({ messageId, status: 'processed', providerMessageIds });
+          return {
+            duplicate: false,
+            responsesSent: providerMessageIds.length,
+            sessionId: currentSession?.typebot_session_id || null,
+            sessionIdReused: Boolean(currentSession?.typebot_session_id),
+            surveyHandled: true
+          };
+        }
       }
 
       if (routing?.action === 'typebot_clean' && currentSession?.id) {

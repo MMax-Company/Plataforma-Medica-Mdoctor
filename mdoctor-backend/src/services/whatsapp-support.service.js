@@ -4,6 +4,8 @@ const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
+const { getActiveSurveySession, getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
 const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
@@ -386,10 +388,23 @@ async function handleSupportQueueInput({ phone, textNorm }) {
 }
 
 async function resolveMetaInboundRouting({ phone, text, session = null }) {
+  const digits = normalizePhone(phone);
+  let resolvedSession = session;
+  if (!resolvedSession && digits) {
+    resolvedSession = await getSessionByPhone(digits);
+  }
+
   try {
-    const surveyResult = await handleSurveyInbound({ phone, text });
+    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false });
     if (surveyResult.handled) {
       return { handled: true, action: 'reply', reply: surveyResult.reply };
+    }
+    if (getActiveSurveySession(resolvedSession)?.step) {
+      return {
+        handled: true,
+        action: 'reply',
+        reply: surveyResult.reply || SURVEY_OPT_IN_MESSAGE
+      };
     }
   } catch (e) {
     logger.warn('meta_inbound_survey_check_failed', { error: e.message });
@@ -404,7 +419,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
   }
 
-  if (isActiveTypebotFlow(session)) {
+  if (isActiveTypebotFlow(resolvedSession || session)) {
     return { handled: false, action: 'typebot' };
   }
 
@@ -440,11 +455,17 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
 }
 
 async function processIncomingMessage({ phone, text }) {
+  const digits = normalizePhone(phone);
+
   // 1. Survey responses take priority — "1"/"2" would otherwise be misrouted to menu logic
   try {
-    const surveyResult = await handleSurveyInbound({ phone, text });
+    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false });
     if (surveyResult.handled) {
       return { reply: surveyResult.reply };
+    }
+    const session = digits ? await getSessionByPhone(digits) : null;
+    if (getActiveSurveySession(session)?.step) {
+      return { reply: surveyResult.reply || SURVEY_OPT_IN_MESSAGE };
     }
   } catch (e) {
     logger.warn('process_message_survey_check_failed', { error: e.message });

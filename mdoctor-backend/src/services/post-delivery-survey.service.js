@@ -20,6 +20,7 @@ const {
 } = require('../store/patient-outcomes.store');
 const {
   clearSurveySession,
+  clearTypebotSession,
   getActiveSurveySession,
   getSessionByPhone,
   normalizePhone,
@@ -28,6 +29,15 @@ const {
 const { createAuditLog } = require('../store/audit.store');
 
 const INVALID_ANSWER_MESSAGE = 'Não entendi sua resposta. Responda apenas com o número da opção indicada.';
+
+function isSurveySkipText(raw = '') {
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return ['encerrar', 'pular', 'skip', 'sair', 'cancelar'].includes(normalized);
+}
 
 function isSurveyEnabled() {
   const flag = String(process.env.POST_DELIVERY_SURVEY_ENABLED || '').trim().toLowerCase();
@@ -114,6 +124,11 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     step: 'opt_in'
   });
 
+  const waSession = await getSessionByPhone(digits);
+  if (waSession?.id) {
+    await clearTypebotSession({ sessionId: waSession.id });
+  }
+
   // Send messages sequentially — ordering matters (closing first, then opt-in offer)
   await sendSurveyWhatsApp({
     phone: digits,
@@ -145,7 +160,7 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
   return { triggered: true, outcome, sendResult };
 }
 
-async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound' }) {
+async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound', sendOutbound = true }) {
   if (!isSurveyEnabled()) {
     return { handled: false, reason: 'survey_disabled' };
   }
@@ -177,6 +192,32 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
   let nextStep = null;
   let reply = null;
   let patch = {};
+
+  if (isSurveySkipText(rawText)) {
+    await clearSurveySession(digits);
+    if (sendOutbound) {
+      await sendSurveyWhatsApp({
+        phone: digits,
+        text: SURVEY_OPT_IN_DECLINED_MESSAGE,
+        correlationId,
+        idempotencyKey: `survey-skipped:${outcome.id}:${Date.now()}`
+      });
+    }
+    await createAuditLog({
+      entity_type: 'patient_outcome_survey',
+      entity_id: outcome.id,
+      action: 'survey_skipped',
+      actor: 'patient',
+      payload: { correlationId, attendance_id: outcome.attendance_id, step }
+    });
+    return {
+      handled: true,
+      step: 'skipped',
+      completed: false,
+      outcome,
+      reply: SURVEY_OPT_IN_DECLINED_MESSAGE
+    };
+  }
 
   if (step === 'opt_in') {
     const answer = parseYesNoAnswer(rawText);
@@ -260,7 +301,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     });
   }
 
-  if (reply) {
+  if (reply && sendOutbound) {
     await sendSurveyWhatsApp({
       phone: digits,
       text: reply,
