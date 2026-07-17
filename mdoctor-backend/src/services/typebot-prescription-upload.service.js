@@ -67,6 +67,14 @@ async function findPendingUploadContext(phone) {
   return ctx;
 }
 
+async function findUploadContextForPhone(phone) {
+  const pending = await findPendingUploadContext(phone);
+  if (pending) return pending;
+  const rows = await listAtendimentos();
+  const match = rows.find((row) => phonesMatch(row.paciente_telefone, phone) && extractUploadSession(row));
+  return match ? extractUploadSession(match) : null;
+}
+
 async function persistUploadContext({ identity, uploadContext }) {
   if (!uploadContext) return;
   await upsertSessionIdentity({
@@ -200,6 +208,7 @@ module.exports = {
   augmentOutputsWithUploadLink,
   buildUploadStatusUrl,
   findPendingUploadContext,
+  findUploadContextForPhone,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
   isUploadChoiceInput,

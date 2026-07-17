@@ -10,11 +10,14 @@ process.env.TYPEBOT_RETRY_MAX_DELAY_MS = '2500';
 
 const uploadBridgeMocks = {
   findPendingUploadContext: async () => null,
+  findUploadContextForPhone: async () => null,
   persistUploadContext: async () => {},
   uploadContextFromSession: () => null,
   augmentOutputsWithUploadLink: (outputs) => outputs,
   responseLooksLikeUploadStage: () => false,
-  isUploadChoiceInput: () => false
+  isUploadChoiceInput: () => false,
+  isUploadConfirmationText: () => false,
+  getUploadStatus: async () => ({ upload_completed: false })
 };
 
 async function main() {

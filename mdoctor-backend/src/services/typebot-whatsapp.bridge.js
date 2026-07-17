@@ -216,9 +216,9 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const createPaymentLink = deps.createPaymentLink || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').createPaymentLinkForSession(args));
-  const findUploadContext = deps.findPendingUploadContext || ((phone) =>
+  const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone) =>
     // eslint-disable-next-line global-require
-    require('./typebot-prescription-upload.service').findPendingUploadContext(phone));
+    require('./typebot-prescription-upload.service').findUploadContextForPhone(phone));
   const persistUploadContext = deps.persistUploadContext || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').persistUploadContext(args));
@@ -234,6 +234,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const isUploadChoiceInput = deps.isUploadChoiceInput || ((inputId) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').isUploadChoiceInput(inputId));
+  const isUploadConfirmationText = deps.isUploadConfirmationText || ((value) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').isUploadConfirmationText(value));
+  const getUploadStatus = deps.getUploadStatus || ((token) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').getUploadStatus(token));
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
@@ -267,6 +273,39 @@ function createTypebotWhatsAppBridge(deps = {}) {
           validationFailed: true,
           expectedInputId
         };
+      }
+
+      const uploadContextBeforeChat = uploadContextFromSession(
+        currentSession,
+        await findUploadContext(identity?.phone)
+      );
+      if (
+        uploadContextBeforeChat
+        && isUploadConfirmationText(text)
+        && (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id))
+      ) {
+        const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
+        if (uploadStatus.upload_completed) {
+          await persistUploadContext({ identity, uploadContext: uploadContextBeforeChat });
+          const sent = await provider.sendTextMessage({
+            to: identity.phone,
+            bsuid: identity.bsuid,
+            correlationId: messageId,
+            idempotencyKey: `${messageId}:upload-confirmed`,
+            text: '✅ Receita confirmada! Seu atendimento entrou na fila médica. Em breve um médico analisará sua solicitação.'
+          });
+          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+          expectedInputs.set(identityKey, null);
+          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
+          await finish({ messageId, status: 'processed', providerMessageIds });
+          return {
+            duplicate: false,
+            responsesSent: providerMessageIds.length,
+            sessionId: existingSessionId,
+            sessionIdReused: Boolean(existingSessionId),
+            uploadConfirmed: true
+          };
+        }
       }
 
       const path = existingSessionId
