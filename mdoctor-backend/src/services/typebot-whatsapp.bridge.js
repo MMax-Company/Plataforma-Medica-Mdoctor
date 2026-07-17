@@ -1,7 +1,11 @@
 const metaProvider = require('./providers/meta.provider');
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
-const { setTypebotSessionId } = require('../store/whatsapp-sessions.store');
+const {
+  getSessionByBsuid,
+  getSessionByPhone,
+  setTypebotSessionId
+} = require('../store/whatsapp-sessions.store');
 
 function getConfig() {
   return {
@@ -79,21 +83,28 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const saveSessionId = deps.setTypebotSessionId || setTypebotSessionId;
   const logError = deps.createIntegrationError || createIntegrationError;
   const callTypebot = deps.callTypebot || fetchTypebot;
+  const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
+    if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
+    if (identity?.bsuid) return (await getSessionByBsuid(identity.bsuid)) || whatsappSession;
+    return whatsappSession;
+  });
+  const sessionQueues = new Map();
 
-  return async function handleInbound({ messageId, text, identity, whatsappSession }) {
+  async function processInbound({ messageId, text, identity, whatsappSession }) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
     if (!claimed.claimed) return { duplicate: true, responsesSent: 0, sessionIdReused: Boolean(whatsappSession?.typebot_session_id) };
 
     const config = getConfig();
-    const existingSessionId = whatsappSession?.typebot_session_id || null;
     try {
+      const currentSession = await reloadSession({ identity, whatsappSession });
+      const existingSessionId = currentSession?.typebot_session_id || null;
       const typebot = existingSessionId
         ? await callTypebot(`/sessions/${encodeURIComponent(existingSessionId)}/continueChat`, { message: text }, { config })
         : await callTypebot(`/typebots/${encodeURIComponent(config.publicId)}/startChat`, { message: text }, { config });
 
       const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
-      if (!existingSessionId) await saveSessionId({ sessionId: whatsappSession.id, typebotSessionId: sessionId });
+      if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
 
       const providerMessageIds = [];
       for (const output of convertTypebotResponse(typebot)) {
@@ -116,6 +127,18 @@ function createTypebotWhatsAppBridge(deps = {}) {
         request: { message_id: messageId, whatsapp_session_id: whatsappSession?.id || null }
       }).catch(() => {});
       throw error;
+    }
+  }
+
+  return async function handleInbound(payload) {
+    const identityKey = payload.whatsappSession?.id || payload.identity?.phone || payload.identity?.bsuid || 'unknown';
+    const previous = sessionQueues.get(identityKey) || Promise.resolve();
+    const current = previous.catch(() => {}).then(() => processInbound(payload));
+    sessionQueues.set(identityKey, current);
+    try {
+      return await current;
+    } finally {
+      if (sessionQueues.get(identityKey) === current) sessionQueues.delete(identityKey);
     }
   };
 }

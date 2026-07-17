@@ -9,6 +9,7 @@ async function main() {
   const sent = [];
   const receipts = new Set();
   let savedSessionId = null;
+  let storedSessionId = null;
   const bridge = createTypebotWhatsAppBridge({
     claimMetaMessage: async ({ messageId }) => {
       if (receipts.has(messageId)) return { claimed: false };
@@ -16,7 +17,11 @@ async function main() {
       return { claimed: true };
     },
     finishMetaMessage: async (row) => calls.push({ kind: 'finish', ...row }),
-    setTypebotSessionId: async ({ typebotSessionId }) => { savedSessionId = typebotSessionId; },
+    setTypebotSessionId: async ({ typebotSessionId }) => {
+      savedSessionId = typebotSessionId;
+      storedSessionId = typebotSessionId;
+    },
+    reloadSession: async ({ whatsappSession }) => ({ ...whatsappSession, typebot_session_id: storedSessionId }),
     createIntegrationError: async () => {},
     callTypebot: async (path, body) => {
       calls.push({ kind: 'typebot', path, body });
@@ -50,11 +55,47 @@ async function main() {
   assert.equal(duplicate.duplicate, true);
   assert.equal(sent.length, sentBeforeDuplicate);
 
+  const rapidCalls = [];
+  let rapidStoredSessionId = null;
+  let releaseStart;
+  const startGate = new Promise((resolve) => { releaseStart = resolve; });
+  const rapidBridge = createTypebotWhatsAppBridge({
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async ({ typebotSessionId }) => { rapidStoredSessionId = typebotSessionId; },
+    reloadSession: async ({ whatsappSession }) => ({ ...whatsappSession, typebot_session_id: rapidStoredSessionId }),
+    createIntegrationError: async () => {},
+    callTypebot: async (path, body) => {
+      rapidCalls.push({ path, body });
+      if (path.includes('/startChat')) {
+        await startGate;
+        return { sessionId: 'rapid-session', messages: [] };
+      }
+      return { messages: [] };
+    },
+    provider: {
+      sendTextMessage: async () => ({}),
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const emptySession = { id: 'wa-rapid', typebot_session_id: null };
+  const rapidFirst = rapidBridge({ messageId: 'rapid-1', text: 'sim', identity, whatsappSession: emptySession });
+  const rapidSecond = rapidBridge({ messageId: 'rapid-2', text: 'Max Vinicius Ferreira Matos', identity, whatsappSession: emptySession });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(rapidCalls.length, 1, 'a segunda mensagem deve aguardar a primeira');
+  releaseStart();
+  await Promise.all([rapidFirst, rapidSecond]);
+  assert.deepEqual(rapidCalls.map((call) => call.body.message), ['sim', 'Max Vinicius Ferreira Matos']);
+  assert(rapidCalls[0].path.includes('/startChat'));
+  assert(rapidCalls[1].path.includes('/sessions/rapid-session/continueChat'));
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
     nextReplyReusesSessionId: second.sessionIdReused ? 'ok' : 'failed',
-    duplicateDoesNotDoubleReply: sent.length === sentBeforeDuplicate ? 'ok' : 'failed'
+    duplicateDoesNotDoubleReply: sent.length === sentBeforeDuplicate ? 'ok' : 'failed',
+    rapidMessagesStayOrdered: rapidCalls[1].path.includes('/sessions/rapid-session/continueChat') ? 'ok' : 'failed'
   }));
 }
 

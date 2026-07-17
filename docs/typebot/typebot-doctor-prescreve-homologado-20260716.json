@@ -726,7 +726,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Pode nos informar seus dados pessoais?{{dados_pessoais}}"
+                    "text": "Qual é o seu nome completo?"
                   }
                 ]
               }
@@ -745,6 +745,23 @@
           }
         },
         {
+          "id": "prompt_data_nascimento",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_data_nascimento",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a sua data de nascimento? Informe no formato DD/MM/AAAA."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "ar8jtu7sa8gfndqeebrvyj15",
           "type": "text input",
           "options": {
@@ -760,6 +777,23 @@
           }
         },
         {
+          "id": "prompt_cpf",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_cpf_text",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu CPF?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "dein7u2qnr8q32p2lv1krd5p",
           "type": "text input",
           "options": {
@@ -769,6 +803,23 @@
             },
             "variableId": "l0d0q94md6neae25qm9ilubn",
             "inputMode": "numeric"
+          }
+        },
+        {
+          "id": "prompt_telefone",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_telefone_text",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu telefone com DDD?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -785,6 +836,23 @@
           }
         },
         {
+          "id": "prompt_email",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_email_text",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu e-mail?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "dwoaqosurlamebpra9yf7pm4",
           "type": "email input",
           "options": {
@@ -797,7 +865,53 @@
           }
         },
         {
+          "id": "prompt_endereco",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_endereco_text",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu endereço completo?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "q78qjnk6ticwkeifl7xe2rju",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Rua, número, complemento, bairro e cidade"
+            },
+            "variableId": "vi35p4gd73v2cuk9ai4jw2irs",
+            "isLong": false
+          }
+        },
+        {
+          "id": "prompt_cep",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "prompt_cep_text",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu CEP?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_0oydu2f7",
+          "outgoingEdgeId": "edge_dados_to_receita",
           "type": "text input",
           "options": {
             "labels": {
@@ -806,18 +920,6 @@
             },
             "variableId": "var_9lceldd5",
             "inputMode": "numeric"
-          }
-        },
-        {
-          "id": "q78qjnk6ticwkeifl7xe2rju",
-          "outgoingEdgeId": "edge_dados_to_receita",
-          "type": "text input",
-          "options": {
-            "labels": {
-              "placeholder": "Endereço com CEP"
-            },
-            "variableId": "vi35p4gd73v2cuk9ai4jw2irs",
-            "isLong": false
           }
         }
       ]
