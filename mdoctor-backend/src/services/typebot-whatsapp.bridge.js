@@ -4,14 +4,19 @@ const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-
 const {
   getSessionByBsuid,
   getSessionByPhone,
-  setTypebotSessionId
+  setTypebotSessionId,
+  upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
+const { validatePersonalInput } = require('./typebot-personal-data.validation');
 
 function getConfig() {
   return {
     viewerUrl: String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, ''),
     publicId: String(process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim(),
-    timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000)
+    timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
+    retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
+    retryBaseDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_BASE_DELAY_MS || 300)),
+    retryMaxDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_MAX_DELAY_MS || 2500))
   };
 }
 
@@ -57,19 +62,100 @@ function convertTypebotResponse(response = {}) {
   return outputs;
 }
 
+function errorPart(error) {
+  if (!error) return '';
+  const name = error.name && error.name !== 'Error' ? error.name : 'Error';
+  const code = error.code ? ` [${error.code}]` : '';
+  const status = error.status ? ` HTTP ${error.status}` : '';
+  return `${name}${code}${status}: ${String(error.message || error)}`;
+}
+
+function describeError(error) {
+  const parts = [];
+  const seen = new Set();
+  let current = error;
+  while (current && !seen.has(current) && parts.length < 5) {
+    seen.add(current);
+    const part = errorPart(current);
+    if (part && !parts.includes(part)) parts.push(part);
+    current = current.cause;
+  }
+  return parts.join(' <- ').slice(0, 2000) || 'Erro desconhecido';
+}
+
+function isRetryableTypebotError(error) {
+  if (typeof error?.retryable === 'boolean') return error.retryable;
+  const status = Number(error?.status || 0);
+  if ([408, 409, 425, 429].includes(status) || status >= 500) return true;
+  const codes = [];
+  let current = error;
+  while (current) {
+    if (current.code) codes.push(String(current.code));
+    current = current.cause;
+  }
+  if (codes.some((code) => /^(ABORT_ERR|ECONNRESET|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|UND_ERR_)/.test(code))) return true;
+  return /fetch failed|network|socket|timeout/i.test(describeError(error));
+}
+
+function wait(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+async function callWithRetry(operation, {
+  attempts,
+  baseDelayMs,
+  maxDelayMs,
+  sleep = wait,
+  onRetry = async () => {}
+}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await operation(attempt);
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetryableTypebotError(error);
+      if (!retryable || attempt >= attempts) {
+        error.retryAttempts = attempt;
+        error.retryExhausted = retryable && attempt >= attempts;
+        throw error;
+      }
+      const delayMs = Math.min(maxDelayMs, baseDelayMs * (2 ** (attempt - 1)));
+      await onRetry(error, { attempt, delayMs, nextAttempt: attempt + 1 });
+      await sleep(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 async function fetchTypebot(path, body, { fetchImpl = fetch, config = getConfig() } = {}) {
   if (!config.viewerUrl) throw Object.assign(new Error('TYPEBOT_VIEWER_URL não configurada'), { code: 'TYPEBOT_NOT_CONFIGURED' });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
   try {
-    const response = await fetchImpl(`${config.viewerUrl}/api/v1${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal
-    });
+    let response;
+    try {
+      response = await fetchImpl(`${config.viewerUrl}/api/v1${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+    } catch (cause) {
+      const timeoutReached = cause?.name === 'AbortError';
+      const error = new Error(timeoutReached ? 'Timeout na chamada ao Typebot' : 'Falha de rede na chamada ao Typebot', { cause });
+      error.code = timeoutReached ? 'TYPEBOT_TIMEOUT' : 'TYPEBOT_FETCH_FAILED';
+      error.retryable = true;
+      throw error;
+    }
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error(data?.message || `Typebot HTTP ${response.status}`), { code: 'TYPEBOT_RUNTIME_ERROR' });
+    if (!response.ok) {
+      const error = new Error(data?.message || `Typebot HTTP ${response.status}`);
+      error.code = 'TYPEBOT_RUNTIME_ERROR';
+      error.status = response.status;
+      error.retryable = [408, 409, 425, 429].includes(response.status) || response.status >= 500;
+      throw error;
+    }
     return data;
   } finally {
     clearTimeout(timeout);
@@ -83,14 +169,24 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const saveSessionId = deps.setTypebotSessionId || setTypebotSessionId;
   const logError = deps.createIntegrationError || createIntegrationError;
   const callTypebot = deps.callTypebot || fetchTypebot;
+  const sleep = deps.sleep || wait;
+  const now = deps.now || (() => new Date());
+  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId }) => upsertSessionIdentity({
+    phone: identity?.phone,
+    bsuid: identity?.bsuid,
+    parentBsuid: identity?.parentBsuid,
+    username: identity?.username,
+    metadataPatch: { typebot_expected_input_id: inputId || null }
+  }));
   const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
     if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
     if (identity?.bsuid) return (await getSessionByBsuid(identity.bsuid)) || whatsappSession;
     return whatsappSession;
   });
   const sessionQueues = new Map();
+  const expectedInputs = new Map();
 
-  async function processInbound({ messageId, text, identity, whatsappSession }) {
+  async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
     if (!claimed.claimed) return { duplicate: true, responsesSent: 0, sessionIdReused: Boolean(whatsappSession?.typebot_session_id) };
 
@@ -98,13 +194,70 @@ function createTypebotWhatsAppBridge(deps = {}) {
     try {
       const currentSession = await reloadSession({ identity, whatsappSession });
       const existingSessionId = currentSession?.typebot_session_id || null;
-      const typebot = existingSessionId
-        ? await callTypebot(`/sessions/${encodeURIComponent(existingSessionId)}/continueChat`, { message: text }, { config })
-        : await callTypebot(`/typebots/${encodeURIComponent(config.publicId)}/startChat`, { message: text }, { config });
+      const expectedInputId = expectedInputs.has(identityKey)
+        ? expectedInputs.get(identityKey)
+        : currentSession?.metadata?.typebot_expected_input_id || null;
+      const validation = validatePersonalInput(expectedInputId, text, { now: now() });
+      if (validation.isPersonal && !validation.valid) {
+        const sent = await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:validation`,
+          text: `${validation.error}\n\n${validation.question}`
+        });
+        const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+        await finish({ messageId, status: 'processed', providerMessageIds });
+        return {
+          duplicate: false,
+          responsesSent: providerMessageIds.length,
+          sessionId: existingSessionId,
+          sessionIdReused: Boolean(existingSessionId),
+          validationFailed: true,
+          expectedInputId
+        };
+      }
+
+      const path = existingSessionId
+        ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
+        : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
+      const message = {
+        type: 'text',
+        text: validation.isPersonal ? validation.value : String(text || ''),
+        metadata: { replyId: messageId }
+      };
+      const typebot = await callWithRetry(
+        () => callTypebot(path, { message }, { config }),
+        {
+          attempts: config.retryAttempts,
+          baseDelayMs: config.retryBaseDelayMs,
+          maxDelayMs: config.retryMaxDelayMs,
+          sleep,
+          onRetry: async (error, retry) => {
+            const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
+            await logError({
+              integration: 'typebot_runtime',
+              correlationId: messageId,
+              error: detailedError,
+              request: {
+                message_id: messageId,
+                whatsapp_session_id: currentSession?.id || null,
+                phase: 'retry',
+                attempt: retry.attempt,
+                next_attempt: retry.nextAttempt,
+                backoff_ms: retry.delayMs
+              }
+            }).catch(() => {});
+          }
+        }
+      );
 
       const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
       if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
+      const nextInputId = typebot.input?.id || null;
+      expectedInputs.set(identityKey, nextInputId);
+      await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
 
       const providerMessageIds = [];
       for (const output of convertTypebotResponse(typebot)) {
@@ -117,14 +270,27 @@ function createTypebotWhatsAppBridge(deps = {}) {
       }
 
       await finish({ messageId, status: 'processed', providerMessageIds });
-      return { duplicate: false, responsesSent: providerMessageIds.length, sessionId, sessionIdReused: Boolean(existingSessionId) };
+      return {
+        duplicate: false,
+        responsesSent: providerMessageIds.length,
+        sessionId,
+        sessionIdReused: Boolean(existingSessionId),
+        retryAttempts: typebot.retryAttempts || undefined
+      };
     } catch (error) {
-      await finish({ messageId, status: 'failed', errorMessage: error.message }).catch(() => {});
+      const exactCause = describeError(error);
+      const detailedError = Object.assign(new Error(exactCause), { code: error.code });
+      await finish({ messageId, status: 'failed', errorMessage: exactCause }).catch(() => {});
       await logError({
         integration: error.code?.startsWith('META_') || error.code === 'PROVIDER_ERROR' ? 'meta_whatsapp' : 'typebot_runtime',
         correlationId: messageId,
-        error,
-        request: { message_id: messageId, whatsapp_session_id: whatsappSession?.id || null }
+        error: detailedError,
+        request: {
+          message_id: messageId,
+          whatsapp_session_id: whatsappSession?.id || null,
+          retry_attempts: error.retryAttempts || 1,
+          retry_exhausted: Boolean(error.retryExhausted)
+        }
       }).catch(() => {});
       throw error;
     }
@@ -133,7 +299,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
   return async function handleInbound(payload) {
     const identityKey = payload.whatsappSession?.id || payload.identity?.phone || payload.identity?.bsuid || 'unknown';
     const previous = sessionQueues.get(identityKey) || Promise.resolve();
-    const current = previous.catch(() => {}).then(() => processInbound(payload));
+    const current = previous.catch(() => {}).then(() => processInbound(payload, identityKey));
     sessionQueues.set(identityKey, current);
     try {
       return await current;
@@ -143,4 +309,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
   };
 }
 
-module.exports = { convertTypebotResponse, createTypebotWhatsAppBridge, fetchTypebot };
+module.exports = {
+  callWithRetry,
+  convertTypebotResponse,
+  createTypebotWhatsAppBridge,
+  describeError,
+  fetchTypebot,
+  isRetryableTypebotError
+};

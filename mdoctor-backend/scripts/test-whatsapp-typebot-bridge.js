@@ -1,8 +1,12 @@
 const assert = require('assert');
 const { createTypebotWhatsAppBridge } = require('../src/services/typebot-whatsapp.bridge');
+const { validatePersonalInput } = require('../src/services/typebot-personal-data.validation');
 
 process.env.TYPEBOT_VIEWER_URL = 'https://viewer.example.test';
 process.env.TYPEBOT_PUBLIC_ID = 'doctor-prescreve-8rmljgu';
+process.env.TYPEBOT_RETRY_ATTEMPTS = '4';
+process.env.TYPEBOT_RETRY_BASE_DELAY_MS = '300';
+process.env.TYPEBOT_RETRY_MAX_DELAY_MS = '2500';
 
 async function main() {
   const calls = [];
@@ -10,6 +14,7 @@ async function main() {
   const receipts = new Set();
   let savedSessionId = null;
   let storedSessionId = null;
+  let storedExpectedInputId = null;
   const bridge = createTypebotWhatsAppBridge({
     claimMetaMessage: async ({ messageId }) => {
       if (receipts.has(messageId)) return { claimed: false };
@@ -21,7 +26,12 @@ async function main() {
       savedSessionId = typebotSessionId;
       storedSessionId = typebotSessionId;
     },
-    reloadSession: async ({ whatsappSession }) => ({ ...whatsappSession, typebot_session_id: storedSessionId }),
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: storedSessionId,
+      metadata: { typebot_expected_input_id: storedExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { storedExpectedInputId = inputId; },
     createIntegrationError: async () => {},
     callTypebot: async (path, body) => {
       calls.push({ kind: 'typebot', path, body });
@@ -64,6 +74,7 @@ async function main() {
     finishMetaMessage: async () => {},
     setTypebotSessionId: async ({ typebotSessionId }) => { rapidStoredSessionId = typebotSessionId; },
     reloadSession: async ({ whatsappSession }) => ({ ...whatsappSession, typebot_session_id: rapidStoredSessionId }),
+    persistExpectedInput: async () => {},
     createIntegrationError: async () => {},
     callTypebot: async (path, body) => {
       rapidCalls.push({ path, body });
@@ -86,16 +97,150 @@ async function main() {
   assert.equal(rapidCalls.length, 1, 'a segunda mensagem deve aguardar a primeira');
   releaseStart();
   await Promise.all([rapidFirst, rapidSecond]);
-  assert.deepEqual(rapidCalls.map((call) => call.body.message), ['sim', 'Max Vinicius Ferreira Matos']);
+  assert.deepEqual(rapidCalls.map((call) => call.body.message.text), ['sim', 'Max Vinicius Ferreira Matos']);
+  assert.deepEqual(rapidCalls.map((call) => call.body.message.metadata.replyId), ['rapid-1', 'rapid-2']);
   assert(rapidCalls[0].path.includes('/startChat'));
   assert(rapidCalls[1].path.includes('/sessions/rapid-session/continueChat'));
+
+  const retryCalls = [];
+  const retryFinishes = [];
+  const retryLogs = [];
+  const retryDelays = [];
+  const retryReceipts = new Set();
+  let retryStoredSessionId = null;
+  const retryBridge = createTypebotWhatsAppBridge({
+    claimMetaMessage: async ({ messageId }) => {
+      if (retryReceipts.has(messageId)) return { claimed: false };
+      retryReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async (row) => retryFinishes.push(row),
+    setTypebotSessionId: async ({ typebotSessionId }) => { retryStoredSessionId = typebotSessionId; },
+    reloadSession: async ({ whatsappSession }) => ({ ...whatsappSession, typebot_session_id: retryStoredSessionId }),
+    persistExpectedInput: async () => {},
+    createIntegrationError: async (row) => retryLogs.push(row),
+    sleep: async (delayMs) => { retryDelays.push(delayMs); },
+    callTypebot: async (path, body) => {
+      retryCalls.push({ path, body });
+      if (retryCalls.length === 1) {
+        const cause = Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' });
+        throw Object.assign(new TypeError('fetch failed'), { cause });
+      }
+      if (retryCalls.length === 2) {
+        const cause = Object.assign(new Error('DNS temporário'), { code: 'EAI_AGAIN' });
+        throw Object.assign(new TypeError('fetch failed'), { cause });
+      }
+      return {
+        sessionId: 'retry-session',
+        messages: [{ type: 'text', content: { plainText: 'Recuperado.' } }],
+        input: { id: 'ds9z9lnz3yayokyy8d81fudj', type: 'text input' }
+      };
+    },
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'meta-retry-1' }),
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const retryPayload = {
+    messageId: 'retry-1',
+    text: 'Oi',
+    identity,
+    whatsappSession: { id: 'wa-retry', typebot_session_id: null }
+  };
+  const recovered = await retryBridge(retryPayload);
+  const retryDuplicate = await retryBridge(retryPayload);
+  assert.equal(recovered.duplicate, false);
+  assert.equal(retryDuplicate.duplicate, true);
+  assert.equal(retryCalls.length, 3, 'deve recuperar sem reenvio manual');
+  assert.deepEqual(retryDelays, [300, 600]);
+  assert.deepEqual(retryFinishes.map((item) => item.status), ['processed']);
+  assert.equal(retryLogs.length, 2);
+  assert(retryLogs[0].error.message.includes('ECONNRESET'));
+  assert(retryLogs[1].error.message.includes('EAI_AGAIN'));
+  assert(retryCalls.every((call) => call.body.message.metadata.replyId === 'retry-1'));
+
+  const fixedNow = new Date('2026-07-17T12:00:00Z');
+  const birthInputId = 'ar8jtu7sa8gfndqeebrvyj15';
+  assert.equal(validatePersonalInput(birthInputId, '18/07/2008', { now: fixedNow }).valid, false);
+  assert.equal(validatePersonalInput(birthInputId, '17/07/2008', { now: fixedNow }).valid, true);
+  assert.equal(validatePersonalInput(birthInputId, '16/07/1945', { now: fixedNow }).valid, false);
+  assert.equal(validatePersonalInput(birthInputId, '17/07/1946', { now: fixedNow }).valid, true);
+
+  const validationCases = [
+    { id: 'ds9z9lnz3yayokyy8d81fudj', invalid: 'Max', valid: 'Max Vinicius' },
+    { id: birthInputId, invalid: '31/02/2000', valid: '09/02/1988' },
+    { id: 'dein7u2qnr8q32p2lv1krd5p', invalid: '11111111111', valid: '52998224725' },
+    { id: 'tbla9w2i2kbeyzun88hai3s9', invalid: '119123', valid: '11985485777' },
+    { id: 'dwoaqosurlamebpra9yf7pm4', invalid: 'max@', valid: 'max@example.com' },
+    { id: 'q78qjnk6ticwkeifl7xe2rju', invalid: 'Rua A', valid: 'Rua Aurora, 965' },
+    { id: 'blk_0oydu2f7', invalid: '123', valid: '01209003' }
+  ];
+  const validationResults = [];
+  for (const [index, testCase] of validationCases.entries()) {
+    const validationReceipts = new Set();
+    const validationCalls = [];
+    const validationSent = [];
+    let expectedInputId = testCase.id;
+    const validationBridge = createTypebotWhatsAppBridge({
+      claimMetaMessage: async ({ messageId }) => {
+        if (validationReceipts.has(messageId)) return { claimed: false };
+        validationReceipts.add(messageId);
+        return { claimed: true };
+      },
+      finishMetaMessage: async () => {},
+      setTypebotSessionId: async () => {},
+      reloadSession: async ({ whatsappSession }) => ({
+        ...whatsappSession,
+        metadata: { typebot_expected_input_id: expectedInputId }
+      }),
+      persistExpectedInput: async ({ inputId }) => { expectedInputId = inputId; },
+      createIntegrationError: async () => {},
+      now: () => fixedNow,
+      callTypebot: async (path, body) => {
+        validationCalls.push({ path, body });
+        return {
+          messages: [{ type: 'text', content: { plainText: 'Próxima pergunta.' } }],
+          input: { id: `next-${index}`, type: 'text input' }
+        };
+      },
+      provider: {
+        sendTextMessage: async (payload) => {
+          validationSent.push(payload);
+          return { providerMessageId: `validation-${validationSent.length}` };
+        },
+        sendButtonMessage: async () => ({}),
+        sendListMessage: async () => ({})
+      }
+    });
+    const whatsappSession = { id: `wa-validation-${index}`, typebot_session_id: 'existing-session' };
+    const invalidMessageId = `validation-${index}-invalid`;
+    const invalid = await validationBridge({ messageId: invalidMessageId, text: testCase.invalid, identity, whatsappSession });
+    const duplicateInvalid = await validationBridge({ messageId: invalidMessageId, text: testCase.invalid, identity, whatsappSession });
+    assert.equal(invalid.validationFailed, true);
+    assert.equal(duplicateInvalid.duplicate, true);
+    assert.equal(validationCalls.length, 0, 'valor inválido não pode chegar ao Typebot');
+    assert.equal(expectedInputId, testCase.id, 'valor inválido deve manter o mesmo input');
+    assert(validationSent[0].text.includes(validatePersonalInput(testCase.id, testCase.invalid, { now: fixedNow }).question));
+
+    const validMessageId = `validation-${index}-valid`;
+    const valid = await validationBridge({ messageId: validMessageId, text: testCase.valid, identity, whatsappSession });
+    assert.equal(valid.validationFailed, undefined);
+    assert.equal(validationCalls.length, 1);
+    assert.equal(validationCalls[0].body.message.metadata.replyId, validMessageId);
+    assert.equal(expectedInputId, `next-${index}`);
+    validationResults.push('ok');
+  }
 
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
     nextReplyReusesSessionId: second.sessionIdReused ? 'ok' : 'failed',
     duplicateDoesNotDoubleReply: sent.length === sentBeforeDuplicate ? 'ok' : 'failed',
-    rapidMessagesStayOrdered: rapidCalls[1].path.includes('/sessions/rapid-session/continueChat') ? 'ok' : 'failed'
+    rapidMessagesStayOrdered: rapidCalls[1].path.includes('/sessions/rapid-session/continueChat') ? 'ok' : 'failed',
+    transientFailureRecoveredWithoutManualResend: retryCalls.length === 3 && retryFinishes[0]?.status === 'processed' ? 'ok' : 'failed',
+    retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
+    invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed'
   }));
 }
 
