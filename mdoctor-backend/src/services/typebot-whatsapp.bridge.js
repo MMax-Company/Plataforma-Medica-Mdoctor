@@ -183,6 +183,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
     if (identity?.bsuid) return (await getSessionByBsuid(identity.bsuid)) || whatsappSession;
     return whatsappSession;
   });
+  // Lazy require para evitar ciclo com typebot-payment-link.service (que usa
+  // fetchTypebot/convertTypebotResponse deste módulo).
+  const createPaymentLink = deps.createPaymentLink || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').createPaymentLinkForSession(args));
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
@@ -267,6 +272,34 @@ function createTypebotWhatsAppBridge(deps = {}) {
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
+      }
+
+      // Payment input não tem representação nativa no WhatsApp: gera um link
+      // seguro que abre o pagamento web da MESMA sessão Typebot. Best-effort —
+      // se falhar, o paciente reenvia a última resposta e o link é retentado.
+      if (typebot.input?.type === 'payment input' && typebot.input.runtimeOptions?.paymentIntentSecret) {
+        try {
+          const link = await createPaymentLink({
+            identity,
+            typebotSessionId: sessionId,
+            runtimeOptions: typebot.input.runtimeOptions
+          });
+          const sent = await provider.sendTextMessage({
+            to: identity.phone,
+            bsuid: identity.bsuid,
+            correlationId: messageId,
+            idempotencyKey: `${messageId}:payment-link`,
+            text: `💳 Para concluir o pagamento${link.amountLabel ? ` (${link.amountLabel})` : ''}, acesse o link seguro:\n${link.url}\n\nApós a confirmação, o atendimento continua automaticamente aqui no WhatsApp.`
+          });
+          if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
+        } catch (error) {
+          await logError({
+            integration: 'typebot_payment_link',
+            correlationId: messageId,
+            error,
+            request: { message_id: messageId, whatsapp_session_id: currentSession?.id || null, phase: 'create_link' }
+          }).catch(() => {});
+        }
       }
 
       await finish({ messageId, status: 'processed', providerMessageIds });

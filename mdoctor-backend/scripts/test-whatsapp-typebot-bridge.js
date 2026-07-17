@@ -232,6 +232,52 @@ async function main() {
     validationResults.push('ok');
   }
 
+  const paymentSent = [];
+  const paymentLinks = [];
+  const paymentReceipts = new Set();
+  const paymentBridge = createTypebotWhatsAppBridge({
+    claimMetaMessage: async ({ messageId }) => {
+      if (paymentReceipts.has(messageId)) return { claimed: false };
+      paymentReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    createPaymentLink: async (args) => {
+      paymentLinks.push(args);
+      return { token: 'tok', url: 'https://staging.example/api/typebot-payment/tok', amountLabel: 'R$69.90' };
+    },
+    callTypebot: async () => ({
+      sessionId: 'pay-session',
+      messages: [{ type: 'text', content: { plainText: 'Termos aceitos. Você será direcionado ao pagamento.' } }],
+      input: {
+        id: 'rapfykn1f1uno89ypqmwi43f',
+        type: 'payment input',
+        runtimeOptions: { paymentIntentSecret: 'pi_123_secret_abc', publicKey: 'pk_test_x', amountLabel: 'R$69.90' }
+      }
+    }),
+    provider: {
+      sendTextMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const payResult = await paymentBridge({
+    messageId: 'pay-1',
+    text: 'Li e concordo com os termos',
+    identity,
+    whatsappSession: { id: 'wa-pay', typebot_session_id: 'pay-session' }
+  });
+  assert.equal(payResult.responsesSent, 2, 'texto do bot + link de pagamento');
+  assert.equal(paymentLinks.length, 1);
+  assert.equal(paymentLinks[0].typebotSessionId, 'pay-session');
+  assert.equal(paymentLinks[0].runtimeOptions.paymentIntentSecret, 'pi_123_secret_abc');
+  assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok'));
+  assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-link');
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -240,7 +286,8 @@ async function main() {
     rapidMessagesStayOrdered: rapidCalls[1].path.includes('/sessions/rapid-session/continueChat') ? 'ok' : 'failed',
     transientFailureRecoveredWithoutManualResend: retryCalls.length === 3 && retryFinishes[0]?.status === 'processed' ? 'ok' : 'failed',
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
-    invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed'
+    invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
+    paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed'
   }));
 }
 

@@ -195,6 +195,11 @@ app.use('/api/upload-receita', makeRateLimit({
   max: Number(process.env.UPLOAD_RATE_LIMIT_MAX || 30),
   windowMs: Number(process.env.UPLOAD_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
 }), require('./src/routes/upload-receita.routes').router);
+app.use('/api/typebot-payment', makeRateLimit({
+  name: 'typebot_payment',
+  max: Number(process.env.TYPEBOT_PAYMENT_RATE_LIMIT_MAX || 60),
+  windowMs: Number(process.env.TYPEBOT_PAYMENT_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000)
+}), require('./src/routes/typebot-payment.routes'));
 const { registerUploadPageRoutes } = require('./src/routes/upload-receita.routes');
 registerUploadPageRoutes(app);
 app.use('/api/memed',require('./src/routes/memed.routes'));
