@@ -3,6 +3,7 @@ const memed = require('../integrations/memed.service');
 const { assertRealMemedReceipt, getMemedRuntimeStatus } = require('../config/memed-runtime');
 const { mirrorMemedPdfToStorage } = require('../services/memed-receipt-mirror.service');
 const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
+const { buildMemedPayloadFromAtendimento } = require('../services/memed-payload.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
@@ -82,6 +83,26 @@ router.get('/config', (_req, res) => {
     },
     runtime
   });
+});
+
+/** Preview do payload Memed (setPaciente + addItems) — não emite nem assina receita. */
+router.get('/payload/:atendimentoId', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || `memed-payload-${Date.now()}`;
+  try {
+    const atendimento = await getAtendimento(req.params.atendimentoId);
+    if (!atendimento) {
+      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+    }
+    const payload = buildMemedPayloadFromAtendimento(atendimento);
+    return res.json({ success: true, correlationId, payload });
+  } catch (error) {
+    return res.status(422).json({
+      success: false,
+      error: error.message || 'Falha ao montar payload Memed',
+      code: error.code || 'MEMED_PAYLOAD_INVALID',
+      correlationId
+    });
+  }
 });
 
 router.post('/auth', requireAuth, async (req, res) => {
