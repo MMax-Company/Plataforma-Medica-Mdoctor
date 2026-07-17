@@ -39,6 +39,11 @@ function typebotText(message = {}) {
   return richTextToPlainText(message.content?.richText || message.content || []);
 }
 
+function textInputPrompt(input = {}) {
+  const labels = input.options?.labels || input.options || {};
+  return String(labels.placeholder || labels.label || '').trim();
+}
+
 function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
@@ -58,6 +63,12 @@ function convertTypebotResponse(response = {}) {
     outputs.push(choices.length <= 3
       ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
       : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
+  }
+
+  const hasTextOutput = outputs.some((output) => output.kind === 'text');
+  if (input.type === 'text input' && !hasTextOutput) {
+    const prompt = textInputPrompt(input);
+    if (prompt) outputs.push({ kind: 'text', text: prompt });
   }
   return outputs;
 }
@@ -348,5 +359,6 @@ module.exports = {
   createTypebotWhatsAppBridge,
   describeError,
   fetchTypebot,
-  isRetryableTypebotError
+  isRetryableTypebotError,
+  textInputPrompt
 };

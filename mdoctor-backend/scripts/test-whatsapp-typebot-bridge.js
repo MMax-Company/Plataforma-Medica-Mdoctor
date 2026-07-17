@@ -1,5 +1,5 @@
 const assert = require('assert');
-const { createTypebotWhatsAppBridge } = require('../src/services/typebot-whatsapp.bridge');
+const { convertTypebotResponse, createTypebotWhatsAppBridge } = require('../src/services/typebot-whatsapp.bridge');
 const { validatePersonalInput } = require('../src/services/typebot-personal-data.validation');
 
 process.env.TYPEBOT_VIEWER_URL = 'https://viewer.example.test';
@@ -232,6 +232,80 @@ async function main() {
     validationResults.push('ok');
   }
 
+  assert.deepEqual(
+    convertTypebotResponse({
+      messages: [],
+      input: {
+        id: 'blk_n5x21i7c',
+        type: 'text input',
+        options: { labels: { placeholder: 'Dose (ex.: 50 mg)', button: 'Enviar' } }
+      }
+    }),
+    [{ kind: 'text', text: 'Dose (ex.: 50 mg)' }],
+    'text input sem mensagem deve enviar placeholder ao WhatsApp'
+  );
+  assert.deepEqual(
+    convertTypebotResponse({
+      messages: [{ type: 'text', content: { plainText: 'Medicamento 1 de 1 — informe:' } }],
+      input: {
+        id: 'blk_xp763m78',
+        type: 'text input',
+        options: { labels: { placeholder: 'Nome do medicamento', button: 'Enviar' } }
+      }
+    }).map((item) => item.text),
+    ['Medicamento 1 de 1 — informe:'],
+    'text input com mensagem anterior não deve duplicar placeholder'
+  );
+
+  const medDoseSent = [];
+  const medDoseReceipts = new Set();
+  let medDoseExpectedInputId = 'blk_xp763m78';
+  const medDoseBridge = createTypebotWhatsAppBridge({
+    claimMetaMessage: async ({ messageId }) => {
+      if (medDoseReceipts.has(messageId)) return { claimed: false };
+      medDoseReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'fhfy71suowpdmj4xn2kbtbqy',
+      metadata: { typebot_expected_input_id: medDoseExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { medDoseExpectedInputId = inputId; },
+    createIntegrationError: async () => {},
+    callTypebot: async (path, body) => {
+      assert.equal(body.message.text, 'Captopril');
+      assert(path.includes('/sessions/fhfy71suowpdmj4xn2kbtbqy/continueChat'));
+      return {
+        messages: [],
+        input: {
+          id: 'blk_n5x21i7c',
+          type: 'text input',
+          options: { labels: { placeholder: 'Dose (ex.: 50 mg)', button: 'Enviar' } }
+        }
+      };
+    },
+    provider: {
+      sendTextMessage: async (payload) => {
+        medDoseSent.push(payload);
+        return { providerMessageId: `med-dose-${medDoseSent.length}` };
+      },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const medDoseResult = await medDoseBridge({
+    messageId: 'med-dose-captopril',
+    text: 'Captopril',
+    identity: { phone: '5511985485777', bsuid: null },
+    whatsappSession: { id: '369997bf-d103-4df9-96ae-416ff16a096d', typebot_session_id: 'fhfy71suowpdmj4xn2kbtbqy' }
+  });
+  assert.equal(medDoseResult.responsesSent, 1);
+  assert.equal(medDoseSent[0].text, 'Dose (ex.: 50 mg)');
+  assert.equal(medDoseExpectedInputId, 'blk_n5x21i7c');
+
   const paymentSent = [];
   const paymentLinks = [];
   const paymentReceipts = new Set();
@@ -287,7 +361,8 @@ async function main() {
     transientFailureRecoveredWithoutManualResend: retryCalls.length === 3 && retryFinishes[0]?.status === 'processed' ? 'ok' : 'failed',
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
-    paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed'
+    paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
+    textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed'
   }));
 }
 
