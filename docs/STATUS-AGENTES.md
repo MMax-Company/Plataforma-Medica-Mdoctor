@@ -47,6 +47,25 @@ Documento único de handoff entre agentes. **Consultar antes de iniciar qualquer
 
 ## Histórico recente
 
+### 2026-07-18 — Upload de receita sem resposta no WhatsApp (staging)
+
+| Campo | Valor |
+|-------|--------|
+| **Data** | 2026-07-18 ~02:15 (BRT) |
+| **Agente** | Claude |
+| **Tarefa** | Após o paciente 98548 enviar a receita, sem resposta no WhatsApp e atendimento fora do painel médico. |
+| **Causa** | (1) Rate limit de `/api/whatsapp/webhook` era 20 req/min por IP; as rajadas de status da Meta (sent/delivered/read) estouraram o limite e o webhook com a foto do paciente levou **429** e foi descartado (8 audit logs `webhook_rate_limited` 04:13:45–56Z; atendimento `8b4809ee` preso em `awaiting_prescription_upload` sem arquivo). (2) Latente no Typebot self-hosted: os 6 `responseVariableMapping` dos blocos `axuwb907imxr22bqbnugj3ab` (triagem) e `blk_upload_status_webhook` usavam `bodyPath` sem prefixo `data.` — o engine 3.17.2 avalia `Function('statusCode','data', 'return (expr)')`, então `upload_status_url`/`upload_completed`/`atendimentoId` ficavam sempre `undefined` e a conferência pós-upload caía no ramo "upload pendente" (pedia nova foto mesmo com arquivo salvo). Confirmado na sessão real `yc1igfpawthpfe4628au4e49` e no bundle do viewer. |
+| **Correção** | (1) `server.js`: limiter próprio do webhook Meta — `WHATSAPP_WEBHOOK_RATE_LIMIT_MAX` (default 300/min) / `WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_MS`. (2) Patch direto no Postgres do Typebot (`Typebot` + `PublicTypebot`, typebot `higij2z0xihxxkr378rmljgu`): prefixo `data.` nos 6 bodyPaths de cada tabela; backup pré-patch em `/tmp/tb-groups-backup-20260718.json` no container do builder. Espelhado em `docs/typebot/typebot-doctor-prescreve-homologado-20260716.json` (alterado, **ainda não commitado** por ordem do Max). |
+| **Arquivos alterados** | `mdoctor-backend/server.js` (commitado); `docs/typebot/typebot-doctor-prescreve-homologado-20260716.json` (working tree); DB Typebot self-hosted |
+| **Commit(s)** | `58e4ef3` — `fix(whatsapp): rate limit proprio para webhook Meta (300/min)` |
+| **Deploy** | `mdoctor-backend-staging` → `c2835ef2-fe5e-408f-a01e-1109941de751` — **SUCCESS** (04:28Z) |
+| **Ambiente alterado** | staging backend; DB do Typebot self-hosted (Typebot-MDoctor); Supabase staging (atendimento 8b4809ee concluído em teste; sessões WhatsApp 98548 zeradas ao final) |
+| **Testes** | Upload real com o token pendente de `8b4809ee`: `POST /api/upload-receita/:token` → status `waiting`, `upload_completed: true`, `storage_path` salvo (`receita-anterior-1784349056932.png`, qualidade `adequate`), `prescription_upload_resume.completed_at` 04:31:00Z, mensagens entregues no WhatsApp (status callbacks Meta) e atendimento visível em `/api/atendimentos/queue`. E2E completo via webhook simulado avançou até o pagamento e foi **interrompido a pedido** — os mapeamentos corrigidos não chegaram a ser exercitados num fluxo novo de ponta a ponta. |
+| **Pendências** | Validar e2e o ramo pós-upload com sessão nova (mapeamentos `data.`); commitar o JSON homologado espelhado; script de pagamento via API precisa de `return_url` no confirm do PaymentIntent (só afeta teste, não o fluxo real). |
+| **Produção alterada** | **Não** |
+
+---
+
 ### 2026-07-17 — Teste E2E pesquisa WhatsApp via webhook Meta
 
 | Campo | Valor |
@@ -163,10 +182,11 @@ Documento único de handoff entre agentes. **Consultar antes de iniciar qualquer
 
 ## Estado do repositório (última atualização deste doc)
 
-- **Branch:** `main` — **ahead ~8 commits** vs `origin/main` (sem push)
+- **Branch:** `main` — **ahead ~12 commits** vs `origin/main` (sem push)
 - **Produção backend (`web`):** deploy ativo `6e0bd595` (2026-06-20)
 - **Produção painel:** deploy `1bf9432d` — não redeployado pelos commits acima
-- **Staging backend ativo:** `211664d4` (pesquisa + menu + Memed + clínica)
+- **Staging backend ativo:** `c2835ef2` (rate limit webhook Meta, inclui 58e4ef3)
+- **Working tree:** `docs/typebot/typebot-doctor-prescreve-homologado-20260716.json` alterado sem commit (prefixo `data.`)
 
 ## Commits locais não listados acima (contexto)
 
