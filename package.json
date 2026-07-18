@@ -14,6 +14,7 @@
     "hardening-memed": "playwright test e2e/memed-human-hardening.spec.ts",
     "painel-funcional": "playwright test e2e/painel-funcional.spec.ts",
     "tour-visual-ci": "node scripts/tour-visual-ci.js",
+    "validate-whatsapp-token": "node scripts/validate-whatsapp-meta-token.mjs",
     "tour-trace": "playwright show-trace",
     "tour-report": "playwright show-report docs/playwright-artifacts/html-report"
   },
