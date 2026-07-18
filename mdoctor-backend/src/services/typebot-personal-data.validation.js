@@ -13,7 +13,7 @@ const PERSONAL_INPUTS = Object.freeze({
   },
   tbla9w2i2kbeyzun88hai3s9: {
     field: 'phone',
-    question: 'Qual é o seu telefone com DDD?'
+    question: 'Qual é o seu WhatsApp?'
   },
   dwoaqosurlamebpra9yf7pm4: {
     field: 'email',

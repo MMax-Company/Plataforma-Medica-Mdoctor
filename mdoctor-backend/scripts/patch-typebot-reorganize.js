@@ -496,34 +496,9 @@ function patchTermsAcceptGroup(bot) {
 }
 
 function patchDadosPessoais(bot) {
-  const dados = findGroup(bot, 'Dados Pessoais');
-  if (!dados) return;
-  const cepVar = ensureVariable(bot, 'cep');
-  const hasCep = dados.blocks.some(
-    (b) => b.options?.variableId && bot.variables.find((v) => v.id === b.options.variableId)?.name === 'cep'
-  );
-  if (!hasCep) {
-    dados.blocks.splice(dados.blocks.length - 1, 0, {
-      id: uid('blk'),
-      type: 'text input',
-      options: {
-        labels: { placeholder: 'CEP (somente números)', button: 'Enviar' },
-        variableId: cepVar.id,
-        inputMode: 'numeric'
-      }
-    });
-  }
-  const birthBlock = dados.blocks.find(
-    (b) => bot.variables.find((v) => v.id === b.options?.variableId)?.name === 'data_nascimento'
-  );
-  if (birthBlock?.options) {
-    birthBlock.options.labels = birthBlock.options.labels || {};
-    birthBlock.options.labels.placeholder = 'Nascimento (dd/mm/aaaa ou 8 dígitos)';
-    birthBlock.options.retryMessageContent =
-      'Data inválida. Use dd/mm/aaaa, ddmmaaaa ou dd-mm-aaaa (ex.: 31/12/1980).';
-  }
-  const endBlock = dados.blocks.find((b) => b.id === IDS.dadosEndereco);
-  if (endBlock) delete endBlock.outgoingEdgeId;
+  ensureVariable(bot, 'cep');
+  // eslint-disable-next-line global-require
+  require('./patch-typebot-dados-pessoais').patchDadosPessoais(bot);
 }
 
 function patchIneligibleTexts(bot) {
