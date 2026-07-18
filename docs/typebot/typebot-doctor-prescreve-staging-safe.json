@@ -1628,7 +1628,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Triagem aprovada. Leia os termos antes do pagamento da taxa de avaliação médica."
+                    "text": "Triagem aprovada. Leia os termos antes do pagamento da consulta médica."
                   }
                 ]
               }
@@ -2037,6 +2037,15 @@
                     "text": "Antes de realizar o pagamento, leia e aceite os termos de uso do Doctor Prescreve."
                   }
                 ]
+              },
+              {
+                "id": "p_terms_intro_docs",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Leia os documentos abaixo:"
+                  }
+                ]
               }
             ]
           }
@@ -2047,19 +2056,95 @@
           "content": {
             "richText": [
               {
-                "id": "p_1wqukbym",
+                "id": "p_terms_doc_0",
                 "type": "p",
                 "children": [
                   {
                     "text": "📄 "
                   },
                   {
-                    "type": "a",
                     "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf",
+                    "type": "a",
                     "target": "_blank",
                     "children": [
                       {
-                        "text": "Política e Termos de Uso"
+                        "text": "Termos de Uso"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_doc_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "📄 "
+                  },
+                  {
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf",
+                    "type": "a",
+                    "target": "_blank",
+                    "children": [
+                      {
+                        "text": "Política de Privacidade"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_doc_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "📄 "
+                  },
+                  {
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Cancelamento_e_Reembolso_Doctor_Prescreve.pdf",
+                    "type": "a",
+                    "target": "_blank",
+                    "children": [
+                      {
+                        "text": "Política de Cancelamento e Reembolso"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_doc_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "📄 "
+                  },
+                  {
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_da_Prescricao_Doctor_Prescreve.pdf",
+                    "type": "a",
+                    "target": "_blank",
+                    "children": [
+                      {
+                        "text": "Política da Prescrição"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_doc_4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "📄 "
+                  },
+                  {
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf",
+                    "type": "a",
+                    "target": "_blank",
+                    "children": [
+                      {
+                        "text": "Aviso de Não Urgência e Emergência"
                       }
                     ]
                   }
@@ -2075,8 +2160,14 @@
             {
               "id": "terms_agree",
               "outgoingEdgeId": "edge_terms_to_accept",
-              "content": "Li e concordo com os termos",
+              "content": "Li e concordo",
               "value": "sim"
+            },
+            {
+              "id": "terms_decline",
+              "outgoingEdgeId": "edge_terms_to_decline",
+              "value": "nao",
+              "content": "Não concordo"
             }
           ],
           "options": {
@@ -2137,6 +2228,51 @@
                 "children": [
                   {
                     "text": "Termos aceitos. Você será direcionado ao pagamento."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_termos_decline",
+      "title": "Encerramento termos",
+      "graphCoordinates": {
+        "x": -2900,
+        "y": -1650
+      },
+      "blocks": [
+        {
+          "id": "blk_termos_decline_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_terms_decline_0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Tudo bem. Sem o aceite dos termos de uso não é possível seguir com a avaliação médica."
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_decline_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O atendimento foi encerrado e nenhuma cobrança foi realizada."
+                  }
+                ]
+              },
+              {
+                "id": "p_terms_decline_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Se mudar de ideia, é só enviar uma nova mensagem por aqui."
                   }
                 ]
               }
@@ -2600,6 +2736,17 @@
       },
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_terms_to_decline",
+      "from": {
+        "blockId": "blk_terms_choice",
+        "itemId": "terms_decline"
+      },
+      "to": {
+        "groupId": "grp_termos_decline",
+        "blockId": "blk_termos_decline_txt"
       }
     }
   ],

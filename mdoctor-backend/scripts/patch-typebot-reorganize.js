@@ -645,7 +645,7 @@ function patchGatePagamento(bot) {
       outgoingEdgeId: 'edge_gate_to_terms',
       type: 'text',
       content: {
-        richText: [richParagraph('Triagem aprovada. Leia os termos antes do pagamento da taxa de avaliação médica.')]
+        richText: [richParagraph('Triagem aprovada. Leia os termos antes do pagamento da consulta médica.')]
       }
     }
   ];
