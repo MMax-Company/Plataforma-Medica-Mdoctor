@@ -100,6 +100,10 @@ app.use(requestLogger);
 app.use(cors({
   origin(origin, callback) {
     if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) return callback(null, true);
+    // Webviews (ex.: WhatsApp/Android) enviam "Origin: null" em navegações de
+    // formulário same-origin (página de upload). Segue sem headers CORS em vez
+    // de responder 500 — o navegador continua aplicando as restrições normais.
+    if (origin === 'null') return callback(null, false);
     return callback(new Error('Origem nao autorizada pelo CORS'));
   },
   credentials: true
