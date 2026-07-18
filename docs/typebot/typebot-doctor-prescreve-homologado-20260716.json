@@ -1240,11 +1240,28 @@
           "content": {
             "richText": [
               {
-                "id": "p_6cm6ltth",
+                "id": "blk_epa4gygz_p",
                 "type": "p",
                 "children": [
                   {
                     "text": "Medicamento 1 de {{medication_count}} — informe:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med1_nome_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_nome_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual o nome do medicamento?"
                   }
                 ]
               }
@@ -1263,14 +1280,48 @@
           }
         },
         {
+          "id": "blk_med1_dose_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_dose_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a dose ou concentração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_n5x21i7c",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "Dose ou concentração (ex.: 50 mg)",
               "button": "Enviar"
             },
             "variableId": "var_qlugduhi"
+          }
+        },
+        {
+          "id": "blk_med1_freq_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_freq_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a frequência de uso?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1278,20 +1329,33 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_u67nnmfx",
-              "content": "1x ao dia"
+              "id": "it_med1_freq_1",
+              "content": "uma vez ao dia"
             },
             {
-              "id": "it_r8pyxoe2",
-              "content": "2x ao dia"
+              "id": "it_med1_freq_2",
+              "content": "duas vezes ao dia"
             },
             {
-              "id": "it_tfkqrmxl",
-              "content": "3x ao dia"
+              "id": "it_med1_freq_3",
+              "content": "três vezes ao dia"
             },
             {
-              "id": "it_8u6jqc4i",
-              "content": "Conforme receita anterior"
+              "id": "it_med1_freq_4",
+              "content": "dias alternados"
+            },
+            {
+              "id": "it_med1_freq_5",
+              "content": "uma vez por semana"
+            },
+            {
+              "id": "it_med1_freq_6",
+              "content": "conforme necessidade"
+            },
+            {
+              "id": "it_med1_freq_7",
+              "content": "outra frequência",
+              "outgoingEdgeId": "edge_med1_freq_outra"
             }
           ],
           "options": {
@@ -1299,20 +1363,108 @@
           }
         },
         {
+          "id": "blk_med1_via_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_via_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a via de administração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_nggi0xs0",
-          "outgoingEdgeId": "edge_med1_to_route",
           "type": "choice input",
           "items": [
             {
-              "id": "it_tb0ztjb3",
-              "content": "Via oral"
+              "id": "it_med1_via_1",
+              "content": "oral"
             },
             {
-              "id": "it_gmrbtntk",
-              "content": "Outra via"
+              "id": "it_med1_via_2",
+              "content": "subcutânea"
+            },
+            {
+              "id": "it_med1_via_3",
+              "content": "inalatória"
+            },
+            {
+              "id": "it_med1_via_4",
+              "content": "tópica"
+            },
+            {
+              "id": "it_med1_via_5",
+              "content": "outra via",
+              "outgoingEdgeId": "edge_med1_via_outra"
             }
           ],
           "options": {
+            "variableId": "var_f58ysctc"
+          },
+          "outgoingEdgeId": "edge_med1_to_route"
+        },
+        {
+          "id": "blk_med1_freq_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_freq_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a frequência:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med1_freq_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med1_freq_outra_to_via",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a frequência",
+              "button": "Enviar"
+            },
+            "variableId": "var_8uua327o"
+          }
+        },
+        {
+          "id": "blk_med1_via_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med1_via_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a via de administração:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med1_via_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med1_via_outra_exit",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a via",
+              "button": "Enviar"
+            },
             "variableId": "var_f58ysctc"
           }
         }
@@ -1332,11 +1484,28 @@
           "content": {
             "richText": [
               {
-                "id": "p_wus0jtes",
+                "id": "blk_mikn1jnk_p",
                 "type": "p",
                 "children": [
                   {
                     "text": "Medicamento 2 de {{medication_count}} — informe:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med2_nome_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_nome_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual o nome do medicamento?"
                   }
                 ]
               }
@@ -1355,14 +1524,48 @@
           }
         },
         {
+          "id": "blk_med2_dose_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_dose_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a dose ou concentração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_e3e58xjk",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "Dose ou concentração (ex.: 50 mg)",
               "button": "Enviar"
             },
             "variableId": "var_r8ghfh11"
+          }
+        },
+        {
+          "id": "blk_med2_freq_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_freq_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a frequência de uso?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1370,20 +1573,33 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_u33e53jo",
-              "content": "1x ao dia"
+              "id": "it_med2_freq_1",
+              "content": "uma vez ao dia"
             },
             {
-              "id": "it_7otcjheo",
-              "content": "2x ao dia"
+              "id": "it_med2_freq_2",
+              "content": "duas vezes ao dia"
             },
             {
-              "id": "it_tokbl73j",
-              "content": "3x ao dia"
+              "id": "it_med2_freq_3",
+              "content": "três vezes ao dia"
             },
             {
-              "id": "it_hndq2njw",
-              "content": "Conforme receita anterior"
+              "id": "it_med2_freq_4",
+              "content": "dias alternados"
+            },
+            {
+              "id": "it_med2_freq_5",
+              "content": "uma vez por semana"
+            },
+            {
+              "id": "it_med2_freq_6",
+              "content": "conforme necessidade"
+            },
+            {
+              "id": "it_med2_freq_7",
+              "content": "outra frequência",
+              "outgoingEdgeId": "edge_med2_freq_outra"
             }
           ],
           "options": {
@@ -1391,20 +1607,108 @@
           }
         },
         {
+          "id": "blk_med2_via_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_via_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a via de administração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_upxrgzun",
-          "outgoingEdgeId": "edge_med2_to_route",
           "type": "choice input",
           "items": [
             {
-              "id": "it_eoecc509",
-              "content": "Via oral"
+              "id": "it_med2_via_1",
+              "content": "oral"
             },
             {
-              "id": "it_voklo6yu",
-              "content": "Outra via"
+              "id": "it_med2_via_2",
+              "content": "subcutânea"
+            },
+            {
+              "id": "it_med2_via_3",
+              "content": "inalatória"
+            },
+            {
+              "id": "it_med2_via_4",
+              "content": "tópica"
+            },
+            {
+              "id": "it_med2_via_5",
+              "content": "outra via",
+              "outgoingEdgeId": "edge_med2_via_outra"
             }
           ],
           "options": {
+            "variableId": "var_gmomjnaw"
+          },
+          "outgoingEdgeId": "edge_med2_to_route"
+        },
+        {
+          "id": "blk_med2_freq_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_freq_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a frequência:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med2_freq_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med2_freq_outra_to_via",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a frequência",
+              "button": "Enviar"
+            },
+            "variableId": "var_mb5cid9v"
+          }
+        },
+        {
+          "id": "blk_med2_via_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med2_via_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a via de administração:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med2_via_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med2_via_outra_exit",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a via",
+              "button": "Enviar"
+            },
             "variableId": "var_gmomjnaw"
           }
         }
@@ -1424,11 +1728,28 @@
           "content": {
             "richText": [
               {
-                "id": "p_68zlej3o",
+                "id": "blk_f0osinc4_p",
                 "type": "p",
                 "children": [
                   {
                     "text": "Medicamento 3 de {{medication_count}} — informe:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med3_nome_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_nome_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual o nome do medicamento?"
                   }
                 ]
               }
@@ -1447,14 +1768,48 @@
           }
         },
         {
+          "id": "blk_med3_dose_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_dose_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a dose ou concentração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_g0v3kz80",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "Dose ou concentração (ex.: 50 mg)",
               "button": "Enviar"
             },
             "variableId": "var_8o8q2i2u"
+          }
+        },
+        {
+          "id": "blk_med3_freq_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_freq_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a frequência de uso?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1462,20 +1817,33 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_vfy61gj3",
-              "content": "1x ao dia"
+              "id": "it_med3_freq_1",
+              "content": "uma vez ao dia"
             },
             {
-              "id": "it_j2ckm0xp",
-              "content": "2x ao dia"
+              "id": "it_med3_freq_2",
+              "content": "duas vezes ao dia"
             },
             {
-              "id": "it_y3f1a8m2",
-              "content": "3x ao dia"
+              "id": "it_med3_freq_3",
+              "content": "três vezes ao dia"
             },
             {
-              "id": "it_016kni8p",
-              "content": "Conforme receita anterior"
+              "id": "it_med3_freq_4",
+              "content": "dias alternados"
+            },
+            {
+              "id": "it_med3_freq_5",
+              "content": "uma vez por semana"
+            },
+            {
+              "id": "it_med3_freq_6",
+              "content": "conforme necessidade"
+            },
+            {
+              "id": "it_med3_freq_7",
+              "content": "outra frequência",
+              "outgoingEdgeId": "edge_med3_freq_outra"
             }
           ],
           "options": {
@@ -1483,20 +1851,108 @@
           }
         },
         {
+          "id": "blk_med3_via_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_via_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual a via de administração?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_gxda5jr4",
-          "outgoingEdgeId": "edge_med3_to_foto",
           "type": "choice input",
           "items": [
             {
-              "id": "it_ax7l7jfr",
-              "content": "Via oral"
+              "id": "it_med3_via_1",
+              "content": "oral"
             },
             {
-              "id": "it_u51kf052",
-              "content": "Outra via"
+              "id": "it_med3_via_2",
+              "content": "subcutânea"
+            },
+            {
+              "id": "it_med3_via_3",
+              "content": "inalatória"
+            },
+            {
+              "id": "it_med3_via_4",
+              "content": "tópica"
+            },
+            {
+              "id": "it_med3_via_5",
+              "content": "outra via",
+              "outgoingEdgeId": "edge_med3_via_outra"
             }
           ],
           "options": {
+            "variableId": "var_6u0oxmee"
+          },
+          "outgoingEdgeId": "edge_med3_to_foto"
+        },
+        {
+          "id": "blk_med3_freq_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_freq_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a frequência:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med3_freq_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med3_freq_outra_to_via",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a frequência",
+              "button": "Enviar"
+            },
+            "variableId": "var_la7nbosl"
+          }
+        },
+        {
+          "id": "blk_med3_via_outra_q",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_med3_via_outra_q_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe a via de administração:"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_med3_via_outra_in",
+          "type": "text input",
+          "outgoingEdgeId": "edge_med3_via_outra_exit",
+          "options": {
+            "labels": {
+              "placeholder": "Descreva a via",
+              "button": "Enviar"
+            },
             "variableId": "var_6u0oxmee"
           }
         }
@@ -2931,6 +3387,131 @@
       },
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_med1_freq_outra",
+      "from": {
+        "blockId": "blk_yyroio7i",
+        "itemId": "it_med1_freq_7"
+      },
+      "to": {
+        "groupId": "w1hv8mudb1upggxvd1rldzhy",
+        "blockId": "blk_med1_freq_outra_q"
+      }
+    },
+    {
+      "id": "edge_med1_freq_outra_to_via",
+      "from": {
+        "blockId": "blk_med1_freq_outra_in"
+      },
+      "to": {
+        "groupId": "w1hv8mudb1upggxvd1rldzhy",
+        "blockId": "blk_med1_via_q"
+      }
+    },
+    {
+      "id": "edge_med1_via_outra",
+      "from": {
+        "blockId": "blk_nggi0xs0",
+        "itemId": "it_med1_via_5"
+      },
+      "to": {
+        "groupId": "w1hv8mudb1upggxvd1rldzhy",
+        "blockId": "blk_med1_via_outra_q"
+      }
+    },
+    {
+      "id": "edge_med1_via_outra_exit",
+      "from": {
+        "blockId": "blk_med1_via_outra_in"
+      },
+      "to": {
+        "groupId": "grp_route_after_med1",
+        "blockId": "grp_route_after_med1_cond"
+      }
+    },
+    {
+      "id": "edge_med2_freq_outra",
+      "from": {
+        "blockId": "blk_g7zx538s",
+        "itemId": "it_med2_freq_7"
+      },
+      "to": {
+        "groupId": "o1xsvn2jsapc3r1p4uf33vor",
+        "blockId": "blk_med2_freq_outra_q"
+      }
+    },
+    {
+      "id": "edge_med2_freq_outra_to_via",
+      "from": {
+        "blockId": "blk_med2_freq_outra_in"
+      },
+      "to": {
+        "groupId": "o1xsvn2jsapc3r1p4uf33vor",
+        "blockId": "blk_med2_via_q"
+      }
+    },
+    {
+      "id": "edge_med2_via_outra",
+      "from": {
+        "blockId": "blk_upxrgzun",
+        "itemId": "it_med2_via_5"
+      },
+      "to": {
+        "groupId": "o1xsvn2jsapc3r1p4uf33vor",
+        "blockId": "blk_med2_via_outra_q"
+      }
+    },
+    {
+      "id": "edge_med2_via_outra_exit",
+      "from": {
+        "blockId": "blk_med2_via_outra_in"
+      },
+      "to": {
+        "groupId": "grp_route_after_med2",
+        "blockId": "grp_route_after_med2_cond"
+      }
+    },
+    {
+      "id": "edge_med3_freq_outra",
+      "from": {
+        "blockId": "blk_mefdgbik",
+        "itemId": "it_med3_freq_7"
+      },
+      "to": {
+        "groupId": "iaurdgxvycgifdiuif84saz5",
+        "blockId": "blk_med3_freq_outra_q"
+      }
+    },
+    {
+      "id": "edge_med3_freq_outra_to_via",
+      "from": {
+        "blockId": "blk_med3_freq_outra_in"
+      },
+      "to": {
+        "groupId": "iaurdgxvycgifdiuif84saz5",
+        "blockId": "blk_med3_via_q"
+      }
+    },
+    {
+      "id": "edge_med3_via_outra",
+      "from": {
+        "blockId": "blk_gxda5jr4",
+        "itemId": "it_med3_via_5"
+      },
+      "to": {
+        "groupId": "iaurdgxvycgifdiuif84saz5",
+        "blockId": "blk_med3_via_outra_q"
+      }
+    },
+    {
+      "id": "edge_med3_via_outra_exit",
+      "from": {
+        "blockId": "blk_med3_via_outra_in"
+      },
+      "to": {
+        "groupId": "wupo36l29a2x66rh0bwf5yex"
       }
     }
   ],

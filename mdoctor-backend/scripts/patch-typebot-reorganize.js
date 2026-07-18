@@ -19,6 +19,7 @@ const {
   collectBareSupabaseUrlsInTextBlocks,
   webhookConsentFields
 } = require('./typebot-documents');
+const { applyMedicamentosPatch } = require('./patch-typebot-medicamentos');
 
 const targetPath = path.join(__dirname, '../../docs/typebot/typebot-doctor-prescreve-staging-safe.json');
 const exportMirrorPath = path.join(
@@ -687,51 +688,9 @@ function patchIneligibleGroup(bot) {
 }
 
 function patchMedicationGroups(bot) {
-  const v = (n) => ensureVariable(bot, n).id;
-  const freqItems = ['1x ao dia', '2x ao dia', '3x ao dia', 'Conforme receita anterior'];
-  const routeItems = [
-    { content: 'Via oral', value: 'oral' },
-    { content: 'Outra via', value: 'outra' }
-  ];
-
-  const med1 = findGroupByIdPrefix(bot, IDS.grpMed1) || findGroup(bot, 'Medicamento 1');
-  if (med1) {
-    const built = buildMedicationGroup('Medicamento 1 de {{medication_count}} — informe:', { x: 0, y: 0 }, [
-      { placeholder: 'Nome do medicamento', variableId: v('med1_nome') },
-      { placeholder: 'Dose (ex.: 50 mg)', variableId: v('med1_dose') },
-      { type: 'choice', items: freqItems, variableId: v('med1_frequencia') },
-      { type: 'choice', items: routeItems.map((r) => r.content), variableId: v('med1_via') }
-    ]);
-    built.blocks[built.blocks.length - 1].outgoingEdgeId = 'edge_med1_to_route';
-    med1.blocks = built.blocks;
-    med1.title = 'Medicamento 1';
-  }
-
-  const med2 = findGroupByIdPrefix(bot, IDS.grpMed2) || findGroup(bot, 'Medicamento 2');
-  if (med2) {
-    const built = buildMedicationGroup('Medicamento 2 de {{medication_count}} — informe:', { x: 0, y: 0 }, [
-      { placeholder: 'Nome do medicamento', variableId: v('med2_nome') },
-      { placeholder: 'Dose (ex.: 50 mg)', variableId: v('med2_dose') },
-      { type: 'choice', items: freqItems, variableId: v('med2_frequencia') },
-      { type: 'choice', items: routeItems.map((r) => r.content), variableId: v('med2_via') }
-    ]);
-    built.blocks[built.blocks.length - 1].outgoingEdgeId = 'edge_med2_to_route';
-    med2.blocks = built.blocks;
-    med2.title = 'Medicamento 2';
-  }
-
-  const med3 = findGroupByIdPrefix(bot, IDS.grpMed3) || findGroup(bot, 'Medicamento 3');
-  if (med3) {
-    const built = buildMedicationGroup('Medicamento 3 de {{medication_count}} — informe:', { x: 0, y: 0 }, [
-      { placeholder: 'Nome do medicamento', variableId: v('med3_nome') },
-      { placeholder: 'Dose (ex.: 50 mg)', variableId: v('med3_dose') },
-      { type: 'choice', items: freqItems, variableId: v('med3_frequencia') },
-      { type: 'choice', items: routeItems.map((r) => r.content), variableId: v('med3_via') }
-    ]);
-    built.blocks[built.blocks.length - 1].outgoingEdgeId = 'edge_med3_to_foto';
-    med3.blocks = built.blocks;
-    med3.title = 'Medicamento 3';
-  }
+  const patched = applyMedicamentosPatch(bot);
+  bot.groups = patched.groups;
+  bot.edges = patched.edges;
 }
 
 function patchMedCountGroup(bot) {
