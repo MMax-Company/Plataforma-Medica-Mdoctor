@@ -7,7 +7,10 @@ const {
   setTypebotSessionId,
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
-const { validatePersonalInput } = require('./typebot-personal-data.validation');
+const {
+  buildPersonalDataOutputs,
+  validatePersonalInput
+} = require('./typebot-personal-data.validation');
 
 function getConfig() {
   return {
@@ -87,7 +90,7 @@ function convertTypebotResponse(response = {}) {
     const prompt = textInputPrompt(input);
     if (prompt) outputs.push({ kind: 'text', text: prompt });
   }
-  return outputs;
+  return buildPersonalDataOutputs(outputs, input);
 }
 
 function errorPart(error) {
@@ -345,7 +348,27 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
       if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
-      const nextInputId = typebot.input?.id || null;
+      let nextInputId = typebot.input?.id || null;
+      if (validation.isPersonal && validation.valid && nextInputId === expectedInputId) {
+        const sent = await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:personal-resync`,
+          text: `Não foi possível registrar sua resposta.\n\n${validation.question}`
+        });
+        const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+        await finish({ messageId, status: 'processed', providerMessageIds });
+        return {
+          duplicate: false,
+          responsesSent: providerMessageIds.length,
+          sessionId,
+          sessionIdReused: Boolean(existingSessionId),
+          validationFailed: true,
+          expectedInputId,
+          personalResync: true
+        };
+      }
       expectedInputs.set(identityKey, nextInputId);
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
 

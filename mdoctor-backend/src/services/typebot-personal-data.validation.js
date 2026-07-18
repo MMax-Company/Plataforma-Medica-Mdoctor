@@ -1,3 +1,13 @@
+const PERSONAL_INPUT_ORDER = Object.freeze([
+  'ds9z9lnz3yayokyy8d81fudj',
+  'ar8jtu7sa8gfndqeebrvyj15',
+  'dein7u2qnr8q32p2lv1krd5p',
+  'tbla9w2i2kbeyzun88hai3s9',
+  'dwoaqosurlamebpra9yf7pm4',
+  'blk_0oydu2f7',
+  'q78qjnk6ticwkeifl7xe2rju'
+]);
+
 const PERSONAL_INPUTS = Object.freeze({
   ds9z9lnz3yayokyy8d81fudj: {
     field: 'name',
@@ -149,10 +159,48 @@ const VALIDATORS = {
   cep: validateCep
 };
 
+function isPersonalInputId(inputId) {
+  return Boolean(inputId && PERSONAL_INPUTS[inputId]);
+}
+
+function personalInputIndex(inputId) {
+  return PERSONAL_INPUT_ORDER.indexOf(inputId);
+}
+
+function nextPersonalInputId(inputId) {
+  const index = personalInputIndex(inputId);
+  return index >= 0 && index < PERSONAL_INPUT_ORDER.length - 1
+    ? PERSONAL_INPUT_ORDER[index + 1]
+    : null;
+}
+
+function matchesFuturePersonalField(inputId, value, now = new Date()) {
+  const currentIndex = personalInputIndex(inputId);
+  if (currentIndex < 0) return null;
+  for (let index = currentIndex + 1; index < PERSONAL_INPUT_ORDER.length; index += 1) {
+    const futureId = PERSONAL_INPUT_ORDER[index];
+    const futureField = PERSONAL_INPUTS[futureId].field;
+    if (VALIDATORS[futureField](value, now).valid) return futureField;
+  }
+  return null;
+}
+
 function validatePersonalInput(inputId, value, { now = new Date() } = {}) {
   const definition = PERSONAL_INPUTS[inputId];
-  if (!definition) return { isPersonal: false, valid: true, value };
+  if (!definition) return { isPersonal: false, valid: true, value: String(value ?? '') };
+
+  const futureField = matchesFuturePersonalField(inputId, value, now);
   const result = VALIDATORS[definition.field](value, now);
+  if (!result.valid && futureField) {
+    return {
+      isPersonal: true,
+      field: definition.field,
+      question: definition.question,
+      valid: false,
+      error: 'Esta resposta parece ser de outro campo. Responda apenas a pergunta atual.'
+    };
+  }
+
   return {
     isPersonal: true,
     field: definition.field,
@@ -161,7 +209,21 @@ function validatePersonalInput(inputId, value, { now = new Date() } = {}) {
   };
 }
 
+function buildPersonalDataOutputs(outputs = [], input = {}) {
+  if (!isPersonalInputId(input?.id)) return outputs;
+  const question = PERSONAL_INPUTS[input.id].question;
+  const nonText = outputs.filter((output) => output.kind !== 'text');
+  const textOutputs = outputs.filter((output) => output.kind === 'text');
+  const matching = textOutputs.find((output) => output.text.trim() === question);
+  return [{ kind: 'text', text: matching?.text || question }, ...nonText];
+}
+
 module.exports = {
+  PERSONAL_INPUT_ORDER,
   PERSONAL_INPUTS,
+  buildPersonalDataOutputs,
+  isPersonalInputId,
+  nextPersonalInputId,
+  personalInputIndex,
   validatePersonalInput
 };

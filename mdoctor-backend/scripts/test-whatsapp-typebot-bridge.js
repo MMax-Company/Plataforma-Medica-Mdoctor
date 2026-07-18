@@ -1,6 +1,10 @@
 const assert = require('assert');
 const { convertTypebotResponse, createTypebotWhatsAppBridge } = require('../src/services/typebot-whatsapp.bridge');
-const { validatePersonalInput } = require('../src/services/typebot-personal-data.validation');
+const {
+  PERSONAL_INPUT_ORDER,
+  buildPersonalDataOutputs,
+  validatePersonalInput
+} = require('../src/services/typebot-personal-data.validation');
 
 process.env.TYPEBOT_VIEWER_URL = 'https://viewer.example.test';
 process.env.TYPEBOT_PUBLIC_ID = 'doctor-prescreve-8rmljgu';
@@ -376,6 +380,91 @@ async function main() {
   assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok'));
   assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-link');
 
+  assert.equal(
+    validatePersonalInput('dwoaqosurlamebpra9yf7pm4', '01209003', { now: fixedNow }).valid,
+    false,
+    'CEP não pode ser aceito no campo e-mail'
+  );
+  assert.equal(
+    validatePersonalInput('blk_0oydu2f7', 'Rua Aurora, 965', { now: fixedNow }).valid,
+    false,
+    'endereço não pode ser aceito no campo CEP'
+  );
+  assert.deepEqual(
+    buildPersonalDataOutputs([], { id: 'tbla9w2i2kbeyzun88hai3s9', type: 'phone number input' }),
+    [{ kind: 'text', text: 'Qual é o seu WhatsApp?' }],
+    'phone input sem mensagem deve enviar pergunta canônica'
+  );
+  assert.deepEqual(
+    convertTypebotResponse({
+      messages: [{ type: 'text', content: { plainText: 'Qual é o seu WhatsApp?' } }],
+      input: { id: 'tbla9w2i2kbeyzun88hai3s9', type: 'phone number input' }
+    }).map((item) => item.text),
+    ['Qual é o seu WhatsApp?'],
+    'deve manter apenas a pergunta canônica do WhatsApp'
+  );
+
+  const personalAnswers = {};
+  const personalSequence = [
+    { id: 'ds9z9lnz3yayokyy8d81fudj', field: 'name', text: 'Max Vinicius', normalized: 'Max Vinicius' },
+    { id: 'ar8jtu7sa8gfndqeebrvyj15', field: 'birthDate', text: '09/02/1988', normalized: '09/02/1988' },
+    { id: 'dein7u2qnr8q32p2lv1krd5p', field: 'cpf', text: '52998224725', normalized: '52998224725' },
+    { id: 'tbla9w2i2kbeyzun88hai3s9', field: 'phone', text: '11985485777', normalized: '+5511985485777' },
+    { id: 'dwoaqosurlamebpra9yf7pm4', field: 'email', text: 'max@example.com', normalized: 'max@example.com' },
+    { id: 'blk_0oydu2f7', field: 'cep', text: '01209003', normalized: '01209003' },
+    { id: 'q78qjnk6ticwkeifl7xe2rju', field: 'address', text: 'Rua Aurora, 965', normalized: 'Rua Aurora, 965' }
+  ];
+  let personalExpectedInputId = personalSequence[0].id;
+  const personalCalls = [];
+  const personalBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    claimMetaMessage: async ({ messageId }) => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'personal-session',
+      metadata: { typebot_expected_input_id: personalExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { personalExpectedInputId = inputId; },
+    createIntegrationError: async () => {},
+    now: () => fixedNow,
+    callTypebot: async (path, body) => {
+      personalCalls.push({ path, body });
+      const current = personalSequence[personalCalls.length - 1];
+      personalAnswers[current.field] = body.message.text;
+      const next = personalSequence[personalCalls.length] || null;
+      return {
+        messages: next ? [{ type: 'text', content: { plainText: validatePersonalInput(next.id, 'x', { now: fixedNow }).question } }] : [],
+        input: next ? { id: next.id, type: 'text input' } : { id: 'next-group', type: 'choice input', items: [{ content: 'Sim' }] }
+      };
+    },
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'personal-seq' }),
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+
+  for (const [index, step] of personalSequence.entries()) {
+    personalExpectedInputId = step.id;
+    const result = await personalBridge({
+      messageId: `personal-seq-${index}`,
+      text: step.text,
+      identity,
+      whatsappSession: { id: 'wa-personal-seq', typebot_session_id: 'personal-session' }
+    });
+    assert.equal(result.validationFailed, undefined, `campo ${step.field} deve avançar`);
+    assert.equal(personalAnswers[step.field], step.normalized, `campo ${step.field} deve registrar valor normalizado`);
+    assert.equal(
+      personalExpectedInputId,
+      personalSequence[index + 1]?.id || 'next-group',
+      `campo ${step.field} deve apontar para o próximo input`
+    );
+  }
+  assert.deepEqual(Object.keys(personalAnswers).sort(), personalSequence.map((step) => step.field).sort());
+  assert.deepEqual(PERSONAL_INPUT_ORDER, personalSequence.map((step) => step.id));
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -385,6 +474,7 @@ async function main() {
     transientFailureRecoveredWithoutManualResend: retryCalls.length === 3 && retryFinishes[0]?.status === 'processed' ? 'ok' : 'failed',
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
+    personalSequenceMapsEachAnswerOnce: Object.keys(personalAnswers).length === 7 ? 'ok' : 'failed',
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
     textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed'
   }));
