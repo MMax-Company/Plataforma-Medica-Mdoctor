@@ -50,8 +50,43 @@ async function enqueueClinicalRejection({ atendimentoId, phone, message, doctorI
   }
 }
 
+// Idempotência do envio: só a requisição que mover a linha de
+// pending/failed para sending pode chamar a Meta; linhas já 'sent' nunca
+// voltam a ser reservadas.
+async function claimRejectionMessageForSend(messageId) {
+  const data = await dbQuery('reservar mensagem de reprovação para envio', (supabase) =>
+    supabase
+      .from(T.WHATSAPP_MESSAGES)
+      .update({ status: 'sending', updated_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .in('status', ['pending', 'failed'])
+      .select('*')
+  );
+  return Array.isArray(data) && data.length === 1 ? data[0] : null;
+}
+
+async function finishRejectionMessage({ messageId, status, providerMessageId = null, errorMessage = null, metadata = {} }) {
+  await dbQuery('finalizar mensagem de reprovação', (supabase) =>
+    supabase
+      .from(T.WHATSAPP_MESSAGES)
+      .update({
+        status,
+        provider_message_id: providerMessageId,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...(metadata || {}),
+          ...(status === 'sent' ? { sent_at: new Date().toISOString(), send_error: null } : {}),
+          ...(errorMessage ? { send_error: String(errorMessage).slice(0, 500) } : {})
+        }
+      })
+      .eq('id', messageId)
+  );
+}
+
 module.exports = {
   REJECTION_MESSAGE_KIND,
   enqueueClinicalRejection,
-  findPendingRejectionMessage
+  findPendingRejectionMessage,
+  claimRejectionMessageForSend,
+  finishRejectionMessage
 };
