@@ -135,10 +135,13 @@ const triagemWebhookRateLimit = makeRateLimit({
 });
 
 app.use('/api/webhook', triagemWebhookRateLimit);
+// Meta Cloud API envia sent/delivered/read de cada mensagem pelo mesmo IP:
+// um fluxo completo ultrapassa 20 req/min e o webhook com a mídia do paciente
+// era descartado com 429. Limite próprio, folgado o bastante para os bursts.
 app.use('/api/whatsapp/webhook', makeRateLimit({
   name: 'whatsapp_webhook',
-  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 20),
-  windowMs: Number(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  max: Number(process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX || 300),
+  windowMs: Number(process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
   errorMessage: 'Webhook temporariamente limitado. Tente novamente em instantes.',
   onLimit: async (req, meta) => {
     await createAuditLog({
