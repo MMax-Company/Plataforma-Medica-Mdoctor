@@ -368,6 +368,41 @@ function isActiveTypebotFlow(session = {}) {
   return Boolean(session?.typebot_session_id && session?.metadata?.typebot_expected_input_id);
 }
 
+// Blocos do Typebot (grupo "42 — Atendimento concluído" e "Suporte (fora do
+// fluxo)") que, apesar de já existirem no fluxo do bot, não acionavam nenhuma
+// ação real no backend — o paciente escolhia "Falar com o suporte" e ninguém
+// via o pedido no painel. Ver docs/typebot backup 20260718-1404.
+const POST_ATTENDANCE_CHOICE_INPUT_ID = 'blk_pos_atend_choice';
+const SUPPORT_SUBFLOW_CHOICE_INPUT_ID = 'blk_suporte_choice';
+
+function matchesTypebotChoice(text, ...labels) {
+  const norm = String(text || '').trim().toLowerCase();
+  return labels.some((label) => norm === String(label).toLowerCase());
+}
+
+async function handleTypebotSupportChoice({ phone, expectedInputId, text, correlationId }) {
+  if (expectedInputId === POST_ATTENDANCE_CHOICE_INPUT_ID) {
+    if (matchesTypebotChoice(text, 'Falar com o suporte', 'item_pos_suporte')) {
+      const result = await createWhatsAppSupportEntry({ phone, correlationId });
+      return { action: 'support_created', duplicate: result.duplicate };
+    }
+    if (matchesTypebotChoice(text, 'Encerrar atendimento', 'item_pos_encerrar')) {
+      return { action: 'clear_session' };
+    }
+    return null;
+  }
+
+  if (expectedInputId === SUPPORT_SUBFLOW_CHOICE_INPUT_ID) {
+    if (matchesTypebotChoice(text, 'Encerrar', 'item_suporte_encerrar')) {
+      const result = await closeWhatsAppSupportEntry({ phone, correlationId });
+      return { action: 'clear_session', closed: result.closed };
+    }
+    return null;
+  }
+
+  return null;
+}
+
 async function handleSupportQueueInput({ phone, textNorm }) {
   if (textNorm === 'ENCERRAR' || textNorm === '2') {
     const result = await closeWhatsAppSupportEntry({ phone });
@@ -554,6 +589,8 @@ module.exports = {
   SUPPORT_SUB,
   MENU_TEXT,
   SUPPORT_WAITING_TEXT,
+  POST_ATTENDANCE_CHOICE_INPUT_ID,
+  SUPPORT_SUBFLOW_CHOICE_INPUT_ID,
   normalizePhone,
   normalizeMenuText,
   isActiveTypebotFlow,
@@ -568,6 +605,7 @@ module.exports = {
   getPatientSupportContext,
   respondToFinalization,
   resolveMetaInboundRouting,
+  handleTypebotSupportChoice,
   processIncomingMessage,
   closeInactiveSessions
 };

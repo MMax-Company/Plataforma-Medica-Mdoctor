@@ -444,6 +444,90 @@ async function main() {
   assert.equal(menuCleared, true);
   assert(menuSent.some((item) => item.text === 'Typebot iniciado.' || item.body));
 
+  const supportChoiceCalls = [];
+  let supportSessionCleared = false;
+  const supportBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    clearTypebotSession: async () => { supportSessionCleared = true; return { id: 'wa-support', typebot_session_id: null, metadata: {} }; },
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'support-session',
+      metadata: { typebot_expected_input_id: 'blk_pos_atend_choice' }
+    }),
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    handleTypebotSupportChoice: async (args) => {
+      supportChoiceCalls.push(args);
+      if (args.text === 'Falar com o suporte') return { action: 'support_created' };
+      if (args.text === 'Encerrar atendimento') return { action: 'clear_session' };
+      return null;
+    },
+    callTypebot: async () => ({
+      messages: [{ type: 'text', content: { plainText: 'Você será atendido pela equipe de suporte.' } }],
+      input: { id: 'blk_suporte_choice', type: 'choice input', items: [{ content: 'Voltar ao menu principal' }, { content: 'Encerrar' }] }
+    }),
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'support-1' }),
+      sendButtonMessage: async () => ({ providerMessageId: 'support-1' }),
+      sendListMessage: async () => ({})
+    }
+  });
+
+  const supportChosen = await supportBridge({
+    messageId: 'support-suporte',
+    text: 'Falar com o suporte',
+    identity,
+    whatsappSession: { id: 'wa-support', typebot_session_id: 'support-session' }
+  });
+  assert.equal(supportChosen.duplicate, false);
+  assert.equal(supportChoiceCalls[0].expectedInputId, 'blk_pos_atend_choice');
+  assert.equal(supportChoiceCalls[0].text, 'Falar com o suporte');
+  assert.equal(supportSessionCleared, false, '"Falar com o suporte" não deve limpar a sessão do Typebot');
+
+  const supportEncerrar = await supportBridge({
+    messageId: 'support-encerrar',
+    text: 'Encerrar atendimento',
+    identity,
+    whatsappSession: { id: 'wa-support', typebot_session_id: 'support-session' }
+  });
+  assert.equal(supportEncerrar.duplicate, false);
+  assert.equal(supportSessionCleared, true, '"Encerrar atendimento" deve limpar a sessão do Typebot');
+
+  let supportErrorLogged = false;
+  const supportErrorBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'support-session-2',
+      metadata: { typebot_expected_input_id: 'blk_pos_atend_choice' }
+    }),
+    persistExpectedInput: async () => {},
+    createIntegrationError: async ({ integration }) => { if (integration === 'whatsapp_support') supportErrorLogged = true; },
+    handleTypebotSupportChoice: async () => { throw new Error('falha ao criar ticket'); },
+    callTypebot: async () => ({ messages: [{ type: 'text', content: { plainText: 'ok' } }] }),
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'support-err-1' }),
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const supportErrorResult = await supportErrorBridge({
+    messageId: 'support-error-1',
+    text: 'Falar com o suporte',
+    identity,
+    whatsappSession: { id: 'wa-support-2', typebot_session_id: 'support-session-2' }
+  });
+  assert.equal(supportErrorResult.duplicate, false, 'falha ao criar o ticket de suporte não pode quebrar a resposta ao paciente');
+  assert.equal(supportErrorLogged, true);
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -456,7 +540,9 @@ async function main() {
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
     textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed',
     menuShowsBeforeTypebot: menuOi.menuHandled ? 'ok' : 'failed',
-    menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed'
+    menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
+    postAttendanceSupportChoiceWiredToBackend: supportChoiceCalls.length === 2 && supportSessionCleared ? 'ok' : 'failed',
+    supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed'
   }));
 }
 

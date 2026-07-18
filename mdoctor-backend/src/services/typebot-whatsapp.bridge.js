@@ -10,7 +10,7 @@ const {
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
 const { validateTypebotInput } = require('./typebot-personal-data.validation');
-const { resolveMetaInboundRouting } = require('./whatsapp-support.service');
+const { resolveMetaInboundRouting, handleTypebotSupportChoice } = require('./whatsapp-support.service');
 
 function getConfig() {
   return {
@@ -200,6 +200,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const saveSessionId = deps.setTypebotSessionId || setTypebotSessionId;
   const resetTypebotSession = deps.clearTypebotSession || clearTypebotSession;
   const routeInbound = deps.resolveMetaInboundRouting || resolveMetaInboundRouting;
+  const routeSupportChoice = deps.handleTypebotSupportChoice || handleTypebotSupportChoice;
   const logError = deps.createIntegrationError || createIntegrationError;
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
@@ -467,6 +468,33 @@ function createTypebotWhatsAppBridge(deps = {}) {
             request: { message_id: messageId, whatsapp_session_id: currentSession?.id || null, phase: 'create_link' }
           }).catch(() => {});
         }
+      }
+
+      // Efeito colateral, best-effort: conecta as escolhas do Typebot pós-
+      // atendimento ("Falar com o suporte" / "Encerrar atendimento" / grupo
+      // "Suporte (fora do fluxo)") à fila de suporte real do backend. O texto
+      // que o paciente já recebeu acima vem do próprio Typebot; aqui só
+      // criamos/fechamos o atendimento de suporte e, em encerramentos,
+      // limpamos a sessão para a próxima mensagem cair no menu inicial.
+      try {
+        const supportChoice = await routeSupportChoice({
+          phone: identity?.phone,
+          expectedInputId,
+          text,
+          correlationId: messageId
+        });
+        if (supportChoice?.action === 'clear_session' && currentSession?.id) {
+          await resetTypebotSession({ sessionId: currentSession.id });
+          expectedInputs.set(identityKey, null);
+          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
+        }
+      } catch (error) {
+        await logError({
+          integration: 'whatsapp_support',
+          correlationId: messageId,
+          error,
+          request: { message_id: messageId, whatsapp_session_id: currentSession?.id || null, phase: 'post_attendance_support_choice' }
+        }).catch(() => {});
       }
 
       await finish({ messageId, status: 'processed', providerMessageIds });
