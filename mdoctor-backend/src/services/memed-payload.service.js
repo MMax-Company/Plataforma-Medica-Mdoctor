@@ -30,8 +30,11 @@ function dailyDosesFromFrequency(frequency = '') {
   const f = compactWhitespace(frequency).toLowerCase();
   if (f.includes('3x') || f.includes('8/8') || f.includes('8 em 8') || f.includes('8h')) return 3;
   if (f.includes('2x') || f.includes('12/12') || f.includes('12 em 12') || f.includes('12h')) return 2;
+  if (f.includes('1x') || f.includes('24/24') || f.includes('24h') || f.includes('1 vez')) return 1;
   return 1;
 }
+
+const BLOCKED_MEMED_UNITS = new Set(['embalagem', 'embalagens', 'caixa', 'caixas', 'frasco', 'frascos']);
 
 function quantityForFrequency(frequency = '') {
   return dailyDosesFromFrequency(frequency) * TREATMENT_DAYS;
@@ -159,6 +162,17 @@ function buildAddItemPayload(med = {}) {
   }
 
   const quantidade = quantityForFrequency(frequency);
+  const rawUnit = compactWhitespace(med.unidade || med.unit_dispense || '').toLowerCase();
+  if (rawUnit && BLOCKED_MEMED_UNITS.has(rawUnit)) {
+    const err = new Error(`Unidade de dispensação inválida para Memed: ${rawUnit}. Use comprimidos.`);
+    err.code = 'MEMED_PAYLOAD_UNIT_INVALID';
+    throw err;
+  }
+  if (!quantidade || quantidade < 1) {
+    const err = new Error('Quantidade Memed inválida ou vazia');
+    err.code = 'MEMED_PAYLOAD_QUANTITY_INVALID';
+    throw err;
+  }
 
   return {
     medicamento: name,

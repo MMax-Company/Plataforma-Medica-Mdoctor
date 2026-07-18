@@ -72,8 +72,13 @@ export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed, em
     triagemPaciente.data_nascimento ||
       String(clinical.data_nascimento || clinical.birth_date || ''),
   );
-  const endereco =
-    triagemPaciente.endereco || String(clinical.address || '') || undefined;
+  const structured = clinical.address_structured as
+    | { rua?: string; numero?: string; bairro?: string; cidade?: string; estado?: string }
+    | undefined;
+  const endereco = structured?.rua
+    ? `${structured.rua}, ${structured.numero || 's/n'}, ${structured.bairro || ''}`.replace(/,\s*$/, '').trim()
+    : triagemPaciente.endereco || String(clinical.address || '') || undefined;
+  const cidade = structured?.cidade || undefined;
   const cep = triagemPaciente.cep || String(clinical.cep || '') || undefined;
 
   const rawSexo = String(
@@ -91,6 +96,7 @@ export function buildPatientFromAtendimento(atendimento: AtendimentoForMemed, em
     ...(dataNascimento ? { data_nascimento: dataNascimento } : {}),
     ...(sexo ? { sexo } : {}),
     ...(endereco ? { endereco } : {}),
+    ...(cidade ? { cidade } : {}),
     ...(cep ? { cep } : {}),
     ...(cpf ? { cpf } : { withoutCpf: true }),
   };

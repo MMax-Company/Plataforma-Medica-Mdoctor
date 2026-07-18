@@ -69,11 +69,18 @@ function parseBrazilianAddress(value) {
   const commaParts = raw.split(',').map((part) => part.trim()).filter(Boolean);
   if (commaParts.length >= 5) {
     const estado = commaParts[commaParts.length - 1].replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2);
+    let bairro = commaParts[commaParts.length - 3];
+    let cidade = commaParts[commaParts.length - 2];
+    // "..., Santa Ifigenia Sao, Paulo, SP" → bairro + São Paulo
+    if (cidade === 'Paulo' && /\bSao$/i.test(bairro)) {
+      bairro = bairro.replace(/\s+Sao$/i, '').trim();
+      cidade = 'São Paulo';
+    }
     return {
       rua: commaParts[0],
       numero: commaParts[1],
-      bairro: commaParts[2],
-      cidade: commaParts[3],
+      bairro,
+      cidade,
       estado
     };
   }

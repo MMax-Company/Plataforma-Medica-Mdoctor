@@ -23,7 +23,11 @@ const { listRejectReasons } = require('../constants/clinical-reject-reasons');
 const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
-const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
+const {
+  buildInvalidatedPrescriptionClinical,
+  createViewSignedUrl,
+  resolvePreviousPrescriptionStoragePath
+} = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
 const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
 const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
@@ -298,44 +302,58 @@ router.get('/:id/previous-prescription/view-url', requireAuth, async (req, res) 
   if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
 
   const clinical = atendimento.dados_clinicos || {};
-  if (!hasStoredPreviousPrescription(clinical)) {
-    return res.status(404).json({ success: false, error: 'Nenhuma receita anterior anexada neste atendimento' });
+  let storagePath = await resolvePreviousPrescriptionStoragePath(atendimento.id, clinical);
+
+  if (!storagePath) {
+    const invalidatedClinical = buildInvalidatedPrescriptionClinical(clinical);
+    await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+      dados_clinicos: invalidatedClinical,
+      motivo: 'Upload de receita invalidado — arquivo ausente no storage'
+    });
+    return res.status(404).json({
+      success: false,
+      error: 'Nenhuma receita válida encontrada para este atendimento. Envie novamente pelo link de upload.',
+      code: 'PRESCRIPTION_STORAGE_NOT_FOUND'
+    });
   }
 
-  const storagePath = clinical.previous_prescription_storage_path;
-  if (storagePath) {
-    try {
-      const viewUrl = await createViewSignedUrl(storagePath);
-      return res.json({
-        success: true,
-        viewUrl,
-        mimeType: clinical.previous_prescription_mime_type || null,
-        uploadedAt: clinical.previous_prescription_uploaded_at || null
+  if (storagePath !== clinical.previous_prescription_storage_path) {
+    await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+      dados_clinicos: {
+        ...clinical,
+        previous_prescription_storage_path: storagePath,
+        previous_prescription_url: null,
+        previous_prescription_file: null,
+        foto_receita_url: null
+      }
+    });
+  }
+
+  try {
+    const viewUrl = await createViewSignedUrl(storagePath);
+    return res.json({
+      success: true,
+      viewUrl,
+      storagePath,
+      mimeType: clinical.previous_prescription_mime_type || null,
+      uploadedAt: clinical.previous_prescription_uploaded_at || null
+    });
+  } catch (error) {
+    if (error.code === 'PRESCRIPTION_STORAGE_NOT_FOUND') {
+      await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+        dados_clinicos: buildInvalidatedPrescriptionClinical(clinical)
       });
-    } catch (error) {
-      return res.status(502).json({
+      return res.status(404).json({
         success: false,
-        error: error.message || 'Falha ao gerar link de visualização'
+        error: 'Arquivo da receita anterior não encontrado. Upload invalidado.',
+        code: error.code
       });
     }
+    return res.status(502).json({
+      success: false,
+      error: error.message || 'Falha ao gerar link de visualização'
+    });
   }
-
-  const fallbackUrl =
-    clinical.previous_prescription_url ||
-    clinical.foto_receita_url ||
-    clinical.previous_prescription_file ||
-    null;
-
-  if (!fallbackUrl) {
-    return res.status(404).json({ success: false, error: 'URL da receita anterior indisponível' });
-  }
-
-  return res.json({
-    success: true,
-    viewUrl: fallbackUrl,
-    mimeType: clinical.previous_prescription_mime_type || null,
-    uploadedAt: clinical.previous_prescription_uploaded_at || null
-  });
 });
 
 router.get('/:id/decisoes', requireAuth, async (req, res) => {
