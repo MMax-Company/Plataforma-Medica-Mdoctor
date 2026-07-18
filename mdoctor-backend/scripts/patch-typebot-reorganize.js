@@ -741,16 +741,19 @@ function patchMedCountGroup(bot) {
   const countVar = ensureVariable(bot, 'medication_count');
   const txt = g.blocks.find((b) => b.type === 'text');
   if (txt?.content?.richText) {
-    txt.content.richText = [richParagraph('Quantos medicamentos deseja renovar?')];
+    txt.content.richText = [
+      richParagraph('Quantos medicamentos você deseja submeter à avaliação médica?'),
+      richParagraph('São permitidos até três medicamentos.')
+    ];
   }
   const choice = g.blocks.find((b) => b.type === 'choice input');
   if (choice) {
     choice.options = choice.options || {};
     choice.options.variableId = countVar.id;
     choice.items = [
-      { id: IDS.medCount1, content: '1', value: '1' },
-      { id: IDS.medCount2, content: '2', value: '2' },
-      { id: IDS.medCount3, content: '3', value: '3' }
+      { id: IDS.medCount1, content: '1 medicamento', value: '1' },
+      { id: IDS.medCount2, content: '2 medicamentos', value: '2' },
+      { id: IDS.medCount3, content: '3 medicamentos', value: '3' }
     ];
     choice.items.forEach((it) => {
       it.outgoingEdgeId = 'edge_medcount_to_med1';

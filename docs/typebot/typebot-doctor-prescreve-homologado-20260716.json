@@ -1520,7 +1520,16 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Quantos medicamentos deseja renovar?"
+                    "text": "Quantos medicamentos você deseja submeter à avaliação médica?"
+                  }
+                ]
+              },
+              {
+                "id": "p_medcount_limit",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "São permitidos até três medicamentos."
                   }
                 ]
               }
@@ -1534,19 +1543,19 @@
             {
               "id": "l6ckgiezhwfz71q9ghzbr60o",
               "outgoingEdgeId": "edge_medcount_to_med1",
-              "content": "1",
+              "content": "1 medicamento",
               "value": "1"
             },
             {
               "id": "a3tft76xm1j35grku3wi2wcr",
               "outgoingEdgeId": "edge_medcount_to_med1_b",
-              "content": "2",
+              "content": "2 medicamentos",
               "value": "2"
             },
             {
               "id": "tcxyvudqg1en4j05s0bby66i",
               "outgoingEdgeId": "edge_medcount_to_med1_c",
-              "content": "3",
+              "content": "3 medicamentos",
               "value": "3"
             }
           ],
