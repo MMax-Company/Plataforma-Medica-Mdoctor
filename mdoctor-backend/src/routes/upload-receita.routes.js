@@ -5,6 +5,7 @@ const { getAtendimento } = require('../store/atendimentos.store');
 const { hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { MAX_BYTES, formatIngestError } = require('../services/previous-prescription-storage.service');
 const { completeExternalPrescriptionUpload } = require('../services/prescription-upload.service');
+const { resumeTypebotAfterPrescriptionUpload } = require('../services/typebot-prescription-upload.service');
 const {
   assertTokenActive,
   resolveTokenRecord
@@ -114,14 +115,20 @@ router.get('/:token/status', async (req, res) => {
     }
     const clinical = atendimento.dados_clinicos || {};
     const uploaded = hasStoredPreviousPrescription(clinical);
+    const uploadStatus = uploaded ? 'completed' : (clinical.prescription_upload_session?.status || 'pending');
     return res.json({
       success: true,
       token_status: record.status,
       atendimento_id: atendimento.id,
       atendimento_status: atendimento.status,
       upload_completed: uploaded ? 'true' : 'false',
+      upload_status: uploadStatus,
+      foto_receita_url: clinical.foto_receita_url || clinical.previous_prescription_url || null,
       upload_url: clinical.prescription_upload_session?.upload_url || null,
-      expires_at: clinical.prescription_upload_session?.expires_at || new Date(record.expiresAt).toISOString()
+      expires_at: clinical.prescription_upload_session?.expires_at || new Date(record.expiresAt).toISOString(),
+      message: uploaded
+        ? 'Receita anterior vinculada ao atendimento'
+        : 'Aguardando envio da receita anterior nesta conversa do WhatsApp'
     });
   } catch (error) {
     return res.status(error.statusCode || 400).json({
@@ -149,6 +156,13 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       correlationId
     });
 
+    const whatsappResume = await resumeTypebotAfterPrescriptionUpload({
+      atendimentoId: result.atendimento?.id,
+      token,
+      correlationId,
+      phone: result.atendimento?.paciente_telefone
+    }).catch(() => ({ ok: false, code: 'RESUME_ERROR' }));
+
     const wantsHtml = String(req.headers.accept || '').includes('text/html');
     if (wantsHtml) {
       const html = renderUploadPage({
@@ -166,6 +180,7 @@ router.post('/:token', upload.single('file'), async (req, res) => {
       message: 'Receita anterior recebida com sucesso',
       atendimento_id: result.atendimento?.id,
       status: result.atendimento?.status,
+      whatsapp_resume: whatsappResume,
       prescription: {
         storage_path: result.prescriptionMeta?.previous_prescription_storage_path,
         mime_type: result.prescriptionMeta?.previous_prescription_mime_type,
