@@ -254,11 +254,11 @@
           "content": {
             "richText": [
               {
-                "id": "Op5YVf4beg",
+                "id": "p_sinais_gate_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Você teve algum destes eventos recentemente?"
+                    "text": "Você apresenta atualmente algum sintoma importante ou alguma piora recente do seu estado de saúde?"
                   }
                 ]
               }
@@ -270,61 +270,21 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_og22qc8c",
-              "content": "Dor no peito",
-              "value": "dor_peito"
+              "id": "it_warn_sim",
+              "outgoingEdgeId": "edge_warn_sim_to_lista",
+              "content": "Sim",
+              "value": "true"
             },
             {
-              "id": "it_wbbj4nvy",
-              "content": "Falta de ar",
-              "value": "falta_ar"
-            },
-            {
-              "id": "it_mnd00o3r",
-              "content": "Desmaio",
-              "value": "desmaio"
-            },
-            {
-              "id": "it_im14r5sw",
-              "content": "Febre alta persistente",
-              "value": "febre"
-            },
-            {
-              "id": "it_dbk5a6g7",
-              "content": "Sangramento",
-              "value": "sangramento"
-            },
-            {
-              "id": "it_l4dxjewc",
-              "content": "Nenhum destes",
-              "value": "NAO"
+              "id": "it_warn_nao",
+              "outgoingEdgeId": "edge_warn_nao_to_tele",
+              "content": "Não",
+              "value": "false"
             }
           ],
           "options": {
-            "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
-            "isMultipleChoice": true
+            "variableId": "var_7wa4675j"
           }
-        },
-        {
-          "id": "m8z8uqbq019x172jv0hev99r",
-          "outgoingEdgeId": "z5cxy70co8qqk7o4a6abmx39",
-          "type": "Condition",
-          "items": [
-            {
-              "id": "a9scc91xjc7798d5pc0jxjc6",
-              "outgoingEdgeId": "o51d9l56lzldmzcuvc0jdg6y",
-              "content": {
-                "comparisons": [
-                  {
-                    "id": "qf5sqyzuy963qmgulzj6uwru",
-                    "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
-                    "comparisonOperator": "Equal to",
-                    "value": "\"NAO\""
-                  }
-                ]
-              }
-            }
-          ]
         }
       ]
     },
@@ -2144,6 +2104,69 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_sinais_lista",
+      "title": "11B — Lista de sinais de alerta",
+      "graphCoordinates": {
+        "x": -2820,
+        "y": -3470
+      },
+      "blocks": [
+        {
+          "id": "blk_sinais_lista_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_sinais_lista_q",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Quais destes sinais de alerta você apresenta? Selecione todos que se aplicam."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_sinais_lista_choice",
+          "outgoingEdgeId": "edge_sinais_lista_to_presencial",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "it_og22qc8c",
+              "content": "Dor no peito",
+              "value": "dor_peito"
+            },
+            {
+              "id": "it_wbbj4nvy",
+              "content": "Falta de ar",
+              "value": "falta_ar"
+            },
+            {
+              "id": "it_mnd00o3r",
+              "content": "Desmaio",
+              "value": "desmaio"
+            },
+            {
+              "id": "it_im14r5sw",
+              "content": "Febre alta persistente",
+              "value": "febre"
+            },
+            {
+              "id": "it_dbk5a6g7",
+              "content": "Sangramento",
+              "value": "sangramento"
+            }
+          ],
+          "options": {
+            "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
+            "isMultipleChoice": true
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -2305,15 +2328,6 @@
       }
     },
     {
-      "id": "z5cxy70co8qqk7o4a6abmx39",
-      "from": {
-        "blockId": "m8z8uqbq019x172jv0hev99r"
-      },
-      "to": {
-        "groupId": "y3vfu7p0f987fe6f1n2zx2t4"
-      }
-    },
-    {
       "id": "edge_elegivel_to_dados",
       "from": {
         "blockId": "xus8mt3l0wv32b84gv9tkihm"
@@ -2380,17 +2394,6 @@
       },
       "to": {
         "groupId": "mulxehkwbcrynjfjnji1g2jx"
-      }
-    },
-    {
-      "id": "edge_sinais_to_telemedicine",
-      "from": {
-        "blockId": "m8z8uqbq019x172jv0hev99r",
-        "itemId": "a9scc91xjc7798d5pc0jxjc6"
-      },
-      "to": {
-        "groupId": "grp_telemedicina_consent",
-        "blockId": "blk_tele_intro"
       }
     },
     {
@@ -2600,6 +2603,36 @@
       },
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_warn_sim_to_lista",
+      "from": {
+        "blockId": "s5VQGsVF4hQgziQsXVdwPDW",
+        "itemId": "it_warn_sim"
+      },
+      "to": {
+        "groupId": "grp_sinais_lista"
+      }
+    },
+    {
+      "id": "edge_warn_nao_to_tele",
+      "from": {
+        "blockId": "s5VQGsVF4hQgziQsXVdwPDW",
+        "itemId": "it_warn_nao"
+      },
+      "to": {
+        "groupId": "grp_telemedicina_consent",
+        "blockId": "blk_tele_intro"
+      }
+    },
+    {
+      "id": "edge_sinais_lista_to_presencial",
+      "from": {
+        "blockId": "blk_sinais_lista_choice"
+      },
+      "to": {
+        "groupId": "y3vfu7p0f987fe6f1n2zx2t4"
       }
     }
   ],
