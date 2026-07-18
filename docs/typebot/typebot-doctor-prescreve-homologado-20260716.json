@@ -1939,11 +1939,38 @@
           "content": {
             "richText": [
               {
-                "id": "p_bgngz4j5",
+                "id": "p_tele_intro_0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Este atendimento é uma teleconsulta assíncrona para avaliação de renovação de receita. Não substitui atendimento presencial em casos de urgência ou emergência."
+                    "text": "Este atendimento é realizado por telemedicina assíncrona para avaliação de renovação de receita. Não substitui atendimento presencial em casos de urgência ou emergência."
+                  }
+                ]
+              },
+              {
+                "id": "p_tele_intro_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Após o envio das informações e documentos, um médico analisará sua solicitação posteriormente."
+                  }
+                ]
+              },
+              {
+                "id": "p_tele_intro_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Sua solicitação poderá ser aprovada, reprovada, devolvida para complementação ou direcionada para avaliação presencial."
+                  }
+                ]
+              },
+              {
+                "id": "p_tele_intro_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Leia os documentos abaixo:"
                   }
                 ]
               }
@@ -1956,7 +1983,7 @@
           "content": {
             "richText": [
               {
-                "id": "p_u5038ms6",
+                "id": "p_tele_doc_0",
                 "type": "p",
                 "children": [
                   {
@@ -1975,7 +2002,7 @@
                 ]
               },
               {
-                "id": "p_yglzbpta",
+                "id": "p_tele_doc_1",
                 "type": "p",
                 "children": [
                   {
@@ -2003,7 +2030,7 @@
             {
               "id": "tele_sim",
               "outgoingEdgeId": "edge_tele_to_accept",
-              "content": "Estou ciente e desejo continuar",
+              "content": "Li, estou ciente e desejo continuar",
               "value": "sim"
             },
             {

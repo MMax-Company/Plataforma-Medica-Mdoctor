@@ -323,9 +323,18 @@ function patchTelemedicineGroup(bot) {
       content: {
         richText: [
           richPlainParagraph(
-            'Este atendimento é uma teleconsulta assíncrona para avaliação de renovação de receita. Não substitui atendimento presencial em casos de urgência ou emergência.',
+            'Este atendimento é realizado por telemedicina assíncrona para avaliação de renovação de receita. Não substitui atendimento presencial em casos de urgência ou emergência.',
             uid
-          )
+          ),
+          richPlainParagraph(
+            'Após o envio das informações e documentos, um médico analisará sua solicitação posteriormente.',
+            uid
+          ),
+          richPlainParagraph(
+            'Sua solicitação poderá ser aprovada, reprovada, devolvida para complementação ou direcionada para avaliação presencial.',
+            uid
+          ),
+          richPlainParagraph('Leia os documentos abaixo:', uid)
         ]
       }
     },
@@ -343,7 +352,7 @@ function patchTelemedicineGroup(bot) {
         {
           id: 'tele_sim',
           outgoingEdgeId: 'edge_tele_to_accept',
-          content: 'Estou ciente e desejo continuar',
+          content: 'Li, estou ciente e desejo continuar',
           value: 'sim'
         },
         {
