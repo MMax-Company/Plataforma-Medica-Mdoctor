@@ -72,14 +72,20 @@ function convertTypebotResponse(response = {}) {
   const input = response.input || {};
   const items = Array.isArray(input.items) ? input.items.filter((item) => item?.content || item?.value) : [];
   if (input.type === 'choice input' && items.length) {
-    const choices = items.map((item, index) => ({
-      id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-      title: String(item.content || item.value).slice(0, 24),
-      value: String(item.content || item.value)
-    }));
-    outputs.push(choices.length <= 3
-      ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
-      : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
+    const choices = items.map((item, index) => {
+      const value = String(item.content || item.value || item.id || `choice-${index + 1}`);
+      const needsDescription = value.length > 20;
+      return {
+        id: value.slice(0, 200),
+        title: needsDescription ? `${index + 1}.` : value.slice(0, 20),
+        description: needsDescription ? value.slice(0, 72) : undefined,
+        value
+      };
+    });
+    const useList = choices.some((choice) => choice.description) || choices.length > 3;
+    outputs.push(useList
+      ? { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) }
+      : { kind: 'buttons', body: 'Escolha uma opção:', choices });
   }
 
   const hasTextOutput = outputs.some((output) => output.kind === 'text');

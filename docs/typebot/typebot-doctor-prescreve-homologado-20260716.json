@@ -1560,8 +1560,8 @@
       "id": "grp_receita_anterior",
       "title": "Receita anterior",
       "graphCoordinates": {
-        "x": -3880,
-        "y": -2102.5
+        "x": -2700,
+        "y": -1550
       },
       "blocks": [
         {
@@ -1570,11 +1570,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_q7bp6aca",
+                "id": "p_e4n7ezwj",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Você possui uma receita médica anterior e a foto dela disponível para envio agora pelo WhatsApp?"
+                    "text": "Você possui uma receita médica anterior, emitida para você, e consegue enviar agora uma foto legível ou um arquivo em PDF?"
                   }
                 ]
               }
@@ -1586,16 +1586,22 @@
           "type": "choice input",
           "items": [
             {
-              "id": "rec_sim",
-              "outgoingEdgeId": "edge_rec_sim",
-              "content": "Sim, tenho a receita e a foto",
-              "value": "sim"
+              "id": "rec_available_now",
+              "outgoingEdgeId": "edge_rec_available_now",
+              "content": "Sim, tenho e consigo enviar agora",
+              "value": "available_now"
             },
             {
-              "id": "rec_nao",
-              "outgoingEdgeId": "edge_rec_nao",
-              "content": "Não",
-              "value": "nao"
+              "id": "rec_not_available_now",
+              "outgoingEdgeId": "edge_rec_not_available_now",
+              "content": "Tenho a receita, mas não consigo enviar agora",
+              "value": "not_available_now"
+            },
+            {
+              "id": "rec_none",
+              "outgoingEdgeId": "edge_rec_none",
+              "content": "Não tenho receita anterior",
+              "value": "none"
             }
           ],
           "options": {
@@ -2427,6 +2433,323 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_receita_data",
+      "title": "Data da receita anterior",
+      "graphCoordinates": {
+        "x": -2500,
+        "y": -1400
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_data_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_7hyts9bt",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "A receita anterior foi emitida há quanto tempo?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_receita_data_choice",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "rec_age_within_180",
+              "outgoingEdgeId": "edge_rec_age_within_180",
+              "content": "Há até 180 dias",
+              "value": "within_180_days"
+            },
+            {
+              "id": "rec_age_over_180",
+              "outgoingEdgeId": "edge_rec_age_over_180",
+              "content": "Há mais de 180 dias",
+              "value": "over_180_days"
+            },
+            {
+              "id": "rec_age_unknown",
+              "outgoingEdgeId": "edge_rec_age_unknown",
+              "content": "Não sei informar",
+              "value": "unknown"
+            }
+          ],
+          "options": {
+            "variableId": "var_previous_prescription_age"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_receita_continue_terms",
+      "title": "Receita válida — continuar",
+      "graphCoordinates": {
+        "x": -2300,
+        "y": -1700
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_set_eligible",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_vuymu8y8",
+            "expressionToEvaluate": "eligible"
+          }
+        },
+        {
+          "id": "blk_receita_continue_txt",
+          "outgoingEdgeId": "edge_receita_continue_to_terms",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_jqk5m9o0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Triagem aprovada. Leia os termos antes do pagamento da taxa de avaliação médica."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_receita_continue_unknown",
+      "title": "Receita — data incerta",
+      "graphCoordinates": {
+        "x": -2300,
+        "y": -1550
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_unknown_set_eligible",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_vuymu8y8",
+            "expressionToEvaluate": "eligible"
+          }
+        },
+        {
+          "id": "blk_receita_unknown_set_review",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_prescription_date_requires_review",
+            "expressionToEvaluate": "true"
+          }
+        },
+        {
+          "id": "blk_receita_unknown_txt",
+          "outgoingEdgeId": "edge_receita_unknown_to_terms",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_5c3e41fk",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Triagem aprovada. Leia os termos antes do pagamento da taxa de avaliação médica."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_receita_pending_doc",
+      "title": "Receita indisponível agora",
+      "graphCoordinates": {
+        "x": -3000,
+        "y": -1250
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_pending_status",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_vuymu8y8",
+            "expressionToEvaluate": "pending_document"
+          }
+        },
+        {
+          "id": "blk_receita_pending_photo",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_rb0uqixe",
+            "expressionToEvaluate": "false"
+          }
+        },
+        {
+          "id": "blk_receita_pending_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_oiszmle4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Para concluir a solicitação, será necessário enviar a receita anterior."
+                  }
+                ]
+              },
+              {
+                "id": "p_fxt0jlk2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Você poderá iniciar um novo atendimento quando estiver com a imagem ou o arquivo disponível."
+                  }
+                ]
+              },
+              {
+                "id": "p_ko5o7t9f",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhuma cobrança foi realizada."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_receita_none",
+      "title": "Sem receita anterior",
+      "graphCoordinates": {
+        "x": -3300,
+        "y": -1250
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_none_status",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_vuymu8y8",
+            "expressionToEvaluate": "ineligible"
+          }
+        },
+        {
+          "id": "blk_receita_none_reason",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_3qdmrwpx",
+            "expressionToEvaluate": "\"ausência de receita anterior\""
+          }
+        },
+        {
+          "id": "blk_receita_none_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_orzawcqv",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "A receita anterior é necessária para esta modalidade de atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_gqd2ygv6",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Sem esse documento, não será possível continuar neste momento. Recomendamos avaliação médica presencial ou contato com o profissional que acompanha seu tratamento."
+                  }
+                ]
+              },
+              {
+                "id": "p_0gg2leyv",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhuma cobrança foi realizada."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_receita_over_180",
+      "title": "Receita fora do prazo",
+      "graphCoordinates": {
+        "x": -3000,
+        "y": -1400
+      },
+      "blocks": [
+        {
+          "id": "blk_receita_over_180_status",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_vuymu8y8",
+            "expressionToEvaluate": "ineligible"
+          }
+        },
+        {
+          "id": "blk_receita_over_180_reason",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_3qdmrwpx",
+            "expressionToEvaluate": "\"receita anterior emitida há mais de 180 dias\""
+          }
+        },
+        {
+          "id": "blk_receita_over_180_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_s9eox751",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "A receita informada foi emitida há mais de 180 dias e está fora do período aceito para esta modalidade de atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_ean8t3sw",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Recomendamos nova avaliação médica presencial."
+                  }
+                ]
+              },
+              {
+                "id": "p_nklou21o",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhuma cobrança foi realizada."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -2584,27 +2907,6 @@
       },
       "to": {
         "groupId": "grp_receita_anterior"
-      }
-    },
-    {
-      "id": "edge_rec_sim",
-      "from": {
-        "blockId": "blk_receita_choice",
-        "itemId": "rec_sim"
-      },
-      "to": {
-        "groupId": "grp_gate_pagamento",
-        "blockId": "blk_gate_set"
-      }
-    },
-    {
-      "id": "edge_rec_nao",
-      "from": {
-        "blockId": "blk_receita_choice",
-        "itemId": "rec_nao"
-      },
-      "to": {
-        "groupId": "grp_inelegivel_presencial"
       }
     },
     {
@@ -2932,6 +3234,87 @@
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
       }
+    },
+    {
+      "id": "edge_rec_available_now",
+      "from": {
+        "blockId": "blk_receita_choice",
+        "itemId": "rec_available_now"
+      },
+      "to": {
+        "groupId": "grp_receita_data",
+        "blockId": "blk_receita_data_txt"
+      }
+    },
+    {
+      "id": "edge_rec_not_available_now",
+      "from": {
+        "blockId": "blk_receita_choice",
+        "itemId": "rec_not_available_now"
+      },
+      "to": {
+        "groupId": "grp_receita_pending_doc"
+      }
+    },
+    {
+      "id": "edge_rec_none",
+      "from": {
+        "blockId": "blk_receita_choice",
+        "itemId": "rec_none"
+      },
+      "to": {
+        "groupId": "grp_receita_none"
+      }
+    },
+    {
+      "id": "edge_rec_age_within_180",
+      "from": {
+        "blockId": "blk_receita_data_choice",
+        "itemId": "rec_age_within_180"
+      },
+      "to": {
+        "groupId": "grp_receita_continue_terms"
+      }
+    },
+    {
+      "id": "edge_rec_age_over_180",
+      "from": {
+        "blockId": "blk_receita_data_choice",
+        "itemId": "rec_age_over_180"
+      },
+      "to": {
+        "groupId": "grp_receita_over_180"
+      }
+    },
+    {
+      "id": "edge_rec_age_unknown",
+      "from": {
+        "blockId": "blk_receita_data_choice",
+        "itemId": "rec_age_unknown"
+      },
+      "to": {
+        "groupId": "grp_receita_continue_unknown"
+      }
+    },
+    {
+      "id": "edge_receita_continue_to_terms",
+      "from": {
+        "blockId": "blk_receita_continue_txt"
+      },
+      "to": {
+        "groupId": "grp_termos_uso",
+        "blockId": "blk_terms_intro"
+      }
+    },
+    {
+      "id": "edge_receita_unknown_to_terms",
+      "from": {
+        "blockId": "blk_receita_unknown_txt"
+      },
+      "to": {
+        "groupId": "grp_termos_uso",
+        "blockId": "blk_terms_intro"
+      }
     }
   ],
   "variables": [
@@ -3222,6 +3605,16 @@
     {
       "id": "var_atendimento_id",
       "name": "atendimentoId",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_previous_prescription_age",
+      "name": "previous_prescription_age",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_prescription_date_requires_review",
+      "name": "prescription_date_requires_review",
       "isSessionVariable": false
     }
   ],

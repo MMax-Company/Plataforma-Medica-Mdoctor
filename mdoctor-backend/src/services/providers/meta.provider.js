@@ -182,7 +182,8 @@ async function sendListMessage({ to, bsuid, recipientId, body, button, rows, cor
           title: 'Opções',
           rows: (rows || []).slice(0, 10).map((item) => ({
             id: String(item.id).slice(0, 200),
-            title: String(item.title || item.value).slice(0, 24)
+            title: String(item.title || item.value).slice(0, 24),
+            ...(item.description ? { description: String(item.description).slice(0, 72) } : {})
           }))
         }]
       }
