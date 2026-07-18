@@ -614,13 +614,48 @@
       },
       "blocks": [
         {
+          "id": "blk_pay_intro",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_pay_intro_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O valor da consulta médica e da análise das informações enviadas é de R$ 69,90."
+                  }
+                ]
+              },
+              {
+                "id": "p_pay_intro_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O pagamento corresponde à consulta e não garante a emissão da receita."
+                  }
+                ]
+              },
+              {
+                "id": "p_pay_intro_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Após a confirmação do pagamento, o atendimento continuará automaticamente."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "rapfykn1f1uno89ypqmwi43f",
           "outgoingEdgeId": "xxpw9p5hptmv7u7qlatptirp",
           "type": "payment input",
           "options": {
             "labels": {
-              "button": "Pagamento",
-              "success": "✅ Pagamento confirmado!  Agora vamos a coleta de dados Avaliação Médica."
+              "button": "Pagar R$ 69,90",
+              "success": "Pagamento confirmado.\n\nAgora vamos coletar as informações dos medicamentos e concluir o envio da sua receita anterior."
             },
             "additionalInformation": {
               "description": "Renovação de receita - Doctor Prescreve",

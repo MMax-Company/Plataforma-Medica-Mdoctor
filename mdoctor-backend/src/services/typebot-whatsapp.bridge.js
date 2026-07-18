@@ -216,6 +216,24 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const createPaymentLink = deps.createPaymentLink || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').createPaymentLinkForSession(args));
+  const sendPaymentIntro = deps.sendPaymentIntro || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').sendPaymentIntro(args));
+  const sendPaymentPendingMenu = deps.sendPaymentPendingMenu || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').sendPaymentPendingMenu(args));
+  const handlePaymentChoice = deps.handlePaymentChoice || ((args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').handlePaymentChoice(args));
+  const isPaymentStageInput = deps.isPaymentStageInput || ((inputId) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').isPaymentStageInput(inputId));
+  const sessionHasPendingPayment = deps.sessionHasPendingPayment || ((session) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').sessionHasPendingPayment(session));
+  const completePaymentFlow = deps.completePaymentByToken || ((token, args) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-payment-link.service').completePaymentByToken(token, args));
   const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').findUploadContextForPhone(phone));
@@ -308,6 +326,43 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       }
 
+      const paymentStageActive = isPaymentStageInput(expectedInputId)
+        || isPaymentStageInput(currentSession?.metadata?.typebot_expected_input_id)
+        || sessionHasPendingPayment(currentSession);
+      if (paymentStageActive && existingSessionId) {
+        const paymentChoice = await handlePaymentChoice({
+          text,
+          session: currentSession,
+          correlationId: messageId,
+          provider
+        });
+        if (paymentChoice.handled) {
+          await finish({ messageId, status: 'processed', providerMessageIds: [] });
+          return {
+            duplicate: false,
+            responsesSent: paymentChoice.action === 'completed' || paymentChoice.action === 'already_paid' ? 2 : 1,
+            sessionId: existingSessionId,
+            sessionIdReused: true,
+            paymentHandled: paymentChoice.action
+          };
+        }
+        if (sessionHasPendingPayment(currentSession)) {
+          const pendingSent = await sendPaymentPendingMenu({
+            session: currentSession,
+            correlationId: messageId,
+            provider
+          });
+          await finish({ messageId, status: 'processed', providerMessageIds: pendingSent });
+          return {
+            duplicate: false,
+            responsesSent: pendingSent.length,
+            sessionId: existingSessionId,
+            sessionIdReused: true,
+            paymentPending: true
+          };
+        }
+      }
+
       const path = existingSessionId
         ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
         : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
@@ -369,24 +424,34 @@ function createTypebotWhatsAppBridge(deps = {}) {
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
 
-      // Payment input não tem representação nativa no WhatsApp: gera um link
-      // seguro que abre o pagamento web da MESMA sessão Typebot. Best-effort —
-      // se falhar, o paciente reenvia a última resposta e o link é retentado.
-      if (typebot.input?.type === 'payment input' && typebot.input.runtimeOptions?.paymentIntentSecret) {
+      // Payment input no WhatsApp: mensagem institucional + botão CTA ocultando URL técnica.
+      if (typebot.input?.type === 'payment input') {
         try {
           const link = await createPaymentLink({
             identity,
             typebotSessionId: sessionId,
-            runtimeOptions: typebot.input.runtimeOptions
+            runtimeOptions: typebot.input.runtimeOptions || {},
+            existingSession: currentSession
           });
-          const sent = await provider.sendTextMessage({
-            to: identity.phone,
-            bsuid: identity.bsuid,
+          if (link.alreadyPaid) {
+            const completed = await completePaymentFlow(link.token, { session: currentSession, provider });
+            await finish({ messageId, status: 'processed', providerMessageIds: [] });
+            return {
+              duplicate: false,
+              responsesSent: completed.responsesSent || 0,
+              sessionId,
+              sessionIdReused: Boolean(existingSessionId),
+              paymentAlreadyPaid: true
+            };
+          }
+          const introSent = await sendPaymentIntro({
+            session: currentSession,
+            checkoutRedirectUrl: link.checkoutRedirectUrl,
             correlationId: messageId,
-            idempotencyKey: `${messageId}:payment-link`,
-            text: `💳 Para concluir o pagamento${link.amountLabel ? ` (${link.amountLabel})` : ''}, acesse o link seguro:\n${link.url}\n\nApós a confirmação, o atendimento continua automaticamente aqui no WhatsApp.`
+            provider,
+            idempotencyPrefix: `${messageId}:payment-intro`
           });
-          if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
+          providerMessageIds.push(...introSent);
         } catch (error) {
           await logError({
             integration: 'typebot_payment_link',

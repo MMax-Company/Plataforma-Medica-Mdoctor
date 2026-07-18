@@ -8,6 +8,11 @@ const {
 const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
 const { isExternalUploadEnabled } = require('./prescription-upload-token.service');
+const {
+  applyCheckoutWebhook,
+  completePaymentByToken,
+  findSessionByPaymentIntentId
+} = require('./typebot-payment-link.service');
 
 function extractAtendimentoId(event) {
   const object = event?.data?.object || {};
@@ -22,6 +27,71 @@ function extractAtendimentoId(event) {
 
 function isPaidStripeEvent(type) {
   return type === 'checkout.session.completed' || type === 'payment_intent.succeeded';
+}
+
+async function handleTypebotPaymentWebhook(event) {
+  const object = event?.data?.object || {};
+
+  if (event.type === 'checkout.session.completed') {
+    const token = String(object.metadata?.payment_token || '').trim();
+    const typebotSessionId = String(object.metadata?.typebot_session_id || '').trim();
+    if (!token && !typebotSessionId) return null;
+    const applied = await applyCheckoutWebhook(event);
+    if (!applied.ok) {
+      if (applied.code === 'SESSION_NOT_FOUND') return null;
+      logger.warn('stripe_webhook_typebot_checkout_rejected', {
+        eventId: event.id,
+        code: applied.code
+      });
+      return { status: 200, body: { success: true, ignored: true, reason: applied.code } };
+    }
+    try {
+      const result = await completePaymentByToken(applied.token, { session: applied.session });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          typebot_payment: true,
+          duplicate: Boolean(result.alreadyCompleted),
+          responsesSent: result.responsesSent ?? 0
+        }
+      };
+    } catch (error) {
+      logger.error('stripe_webhook_typebot_payment_resume_failed', {
+        token_suffix: String(applied.token).slice(-8),
+        error: error.message
+      });
+      return { status: 500, body: { success: false, error: error.message } };
+    }
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const intentId = String(object.payment_intent || object.id || '').trim();
+    if (!intentId) return null;
+    const session = await findSessionByPaymentIntentId(intentId);
+    const paymentToken = session?.metadata?.typebot_payment?.token;
+    if (!paymentToken) return null;
+    try {
+      const result = await completePaymentByToken(paymentToken, { session });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          typebot_payment: true,
+          duplicate: Boolean(result.alreadyCompleted),
+          responsesSent: result.responsesSent ?? 0
+        }
+      };
+    } catch (error) {
+      logger.error('stripe_webhook_typebot_payment_resume_failed', {
+        intentId,
+        error: error.message
+      });
+      return { status: 500, body: { success: false, error: error.message } };
+    }
+  }
+
+  return null;
 }
 
 async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
@@ -108,6 +178,9 @@ async function handleStripeWebhookEvent(event) {
   if (!isPaidStripeEvent(event.type)) {
     return { status: 200, body: { success: true, ignored: true, type: event.type } };
   }
+
+  const typebotResult = await handleTypebotPaymentWebhook(event);
+  if (typebotResult) return typebotResult;
 
   const atendimentoId = extractAtendimentoId(event);
   if (!atendimentoId) {
