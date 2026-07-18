@@ -1110,7 +1110,7 @@
     },
     {
       "id": "e84h0bt9n8hgrj4ut48h245l",
-      "title": "Solicitação Elegível",
+      "title": "Solicitação inicialmente elegível",
       "graphCoordinates": {
         "x": -1727.91,
         "y": -2300.27
@@ -1127,7 +1127,43 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Sua solicitação é elegível para continuidade do fluxo. Após a etapa de pagamento (quando aplicável), seguiremos para coleta de dados clínicos e avaliação médica.{{solicitacao_elegivel_pagamento}}"
+                    "text": "Sua triagem inicial atende aos critérios para continuar."
+                  }
+                ]
+              },
+              {
+                "id": "p_sol_eleg_blank_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_sol_eleg_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Agora precisamos coletar seus dados e confirmar a existência de uma receita anterior."
+                  }
+                ]
+              },
+              {
+                "id": "p_sol_eleg_blank_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_sol_eleg_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "A aprovação definitiva e a emissão da receita dependerão da análise médica."
                   }
                 ]
               }
