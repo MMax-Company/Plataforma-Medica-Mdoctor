@@ -80,46 +80,12 @@ function renderUploadPage({ token, patientName, expiresAt, errorMessage = null, 
       ${
         success
           ? ''
-          : `<form id="uploadForm" enctype="multipart/form-data">
+          : `<form method="post" action="/api/upload-receita/${encodedToken}" enctype="multipart/form-data">
         <label for="file">Arquivo (JPG, PNG ou PDF — máx. 10 MB)</label>
         <input id="file" name="file" type="file" accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" required />
         <button type="submit" id="btn">${errorMessage ? 'Tentar novamente' : 'Enviar foto da receita'}</button>
-        <p id="status">Enviando arquivo…</p>
       </form>
-      <p class="hint">Seu arquivo é armazenado de forma segura e usado apenas para análise da renovação.</p>
-      <script>
-        (function () {
-          var form = document.getElementById('uploadForm');
-          if (!form) return;
-          form.addEventListener('submit', function (event) {
-            event.preventDefault();
-            var fileInput = document.getElementById('file');
-            var btn = document.getElementById('btn');
-            var status = document.getElementById('status');
-            if (!fileInput || !fileInput.files || !fileInput.files.length) return;
-            btn.disabled = true;
-            status.style.display = 'block';
-            status.textContent = 'Enviando arquivo…';
-            var body = new FormData();
-            body.append('file', fileInput.files[0]);
-            fetch('/api/upload-receita/${encodedToken}', {
-              method: 'POST',
-              body: body,
-              headers: { Accept: 'text/html' }
-            }).then(function (res) {
-              return res.text().then(function (text) {
-                document.open();
-                document.write(text);
-                document.close();
-              });
-            }).catch(function () {
-              btn.disabled = false;
-              status.style.display = 'none';
-              alert('Falha no envio. Verifique sua conexão e tente novamente.');
-            });
-          });
-        })();
-      </script>`
+      <p class="hint">Seu arquivo é armazenado de forma segura e usado apenas para análise da renovação.</p>`
       }
     </div>
   </div>
