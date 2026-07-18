@@ -431,7 +431,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "De acordo com o protocolo clínico do Doctor Prescreve, a renovação online é elegível para pacientes que:"
+                    "text": "De acordo com o protocolo clínico do Doctor Prescreve, para prosseguir com a consulta médica assíncrona, confirme que:"
                   }
                 ]
               },
@@ -440,7 +440,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "• Possuem diagnóstico prévio de doença crônica\n• Estão em uso contínuo da medicação\n• Possuem receita anterior dentro do período aceito para triagem"
+                    "text": "• Possui diagnóstico prévio\n• Está em uso contínuo há pelo menos 30 dias\n• Não apresenta sinais de alerta\n• As informações prestadas são verdadeiras\n• Tem ciência de que a emissão da receita depende da avaliação médica"
                   }
                 ]
               },
@@ -450,15 +450,6 @@
                 "children": [
                   {
                     "text": ""
-                  }
-                ]
-              },
-              {
-                "id": "Sbwzbf8f3c",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Você confirma que atende aos critérios acima?"
                   }
                 ]
               },
@@ -481,13 +472,13 @@
             {
               "id": "bknghkx2o6o7415qlyvv1v2t",
               "outgoingEdgeId": "sozjhxmnxly3ybh3jju1awa1",
-              "content": "Sim",
+              "content": "Sim, confirmo",
               "value": "sim"
             },
             {
               "id": "uve39ku5lajo21x78dl7i335",
               "outgoingEdgeId": "obe3sg61navcvru4wpy68uan",
-              "content": "Não",
+              "content": "Não confirmo",
               "value": "nao"
             }
           ]
