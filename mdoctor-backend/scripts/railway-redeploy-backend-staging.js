@@ -19,12 +19,15 @@ function resolveToken() {
 }
 
 async function gql(token, query, variables) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (/^[0-9a-f-]{36}$/i.test(token)) {
+    headers['Project-Access-Token'] = token;
+  } else {
+    headers.Authorization = `Bearer ${token}`;
+  }
   const res = await fetch('https://backboard.railway.app/graphql/v2', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
+    headers,
     body: JSON.stringify({ query, variables })
   });
   const data = await res.json();
