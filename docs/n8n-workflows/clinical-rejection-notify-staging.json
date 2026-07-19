@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-webhook-secret'] || headers['X-Webhook-Secret'] || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst phone = String(body.phone || body.paciente_telefone || '').replace(/\\D/g, '');\nif (!phone) throw new Error('phone required');\n\nconst message = String(body.message || 'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.');\nconst dryRun = body.dryRun === true || String($env.WHATSAPP_DRY_RUN || 'true') === 'true';\n\nconst evoUrl = String($env.EVOLUTION_API_URL || '').replace(/\\/$/, '').replace(/\\.railway\\.internal.*/, '.up.railway.app');\nconst evoKey = String($env.EVOLUTION_API_KEY || $env.AUTHENTICATION_API_KEY || '').trim();\nconst instance = String($env.EVOLUTION_INSTANCE || 'mdoctor-staging').trim();\n\nreturn [{ json: { phone, message, dryRun, evoUrl, evoKey, instance, atendimentoId: body.atendimentoId, correlationId: body.correlationId || `reject-${Date.now()}` } }];"
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-webhook-secret'] || headers['X-Webhook-Secret'] || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst phone = String(body.phone || body.paciente_telefone || '').replace(/\\D/g, '');\nif (!phone) throw new Error('phone required');\n\nconst message = String(body.message || 'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.');\nconst dryRun = body.dryRun === true || String($env.WHATSAPP_DRY_RUN || 'false') === 'true';\n\nreturn [{ json: {\n  phone,\n  message,\n  dryRun,\n  provider: 'meta',\n  atendimentoId: body.atendimentoId,\n  correlationId: body.correlationId || `reject-${Date.now()}`,\n  note: 'Evolution removido. Envio real pela Meta ocorre no backend (clinical-decision.service) ao reprovar no painel.'\n} }];"
       },
       "id": "validate-payload",
       "name": "Validate Payload",
@@ -27,58 +27,14 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "boolean": [
-            {
-              "value1": "={{ $json.dryRun }}",
-              "value2": true
-            }
-          ]
-        }
-      },
-      "id": "if-dry-run",
-      "name": "Dry Run?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [520, 0]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "={{ $json.evoUrl }}/message/sendText/{{ $json.instance }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "apikey",
-              "value": "={{ $json.evoKey }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ number: $json.phone, text: $json.message }) }}"
-      },
-      "id": "evolution-send",
-      "name": "Evolution Send Text",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [780, 120]
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, dryRun: $json.dryRun, atendimentoId: $json.atendimentoId, correlationId: $json.correlationId, sent: !$json.dryRun }) }}"
+        "responseBody": "={{ JSON.stringify({ success: true, provider: 'meta', dryRun: $json.dryRun, atendimentoId: $json.atendimentoId, correlationId: $json.correlationId, sent: false, delegatedToBackend: true, note: $json.note }) }}"
       },
       "id": "respond-ok",
       "name": "Respond OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1040, 0]
+      "position": [520, 0]
     }
   ],
   "connections": {
@@ -86,15 +42,6 @@
       "main": [[{ "node": "Validate Payload", "type": "main", "index": 0 }]]
     },
     "Validate Payload": {
-      "main": [[{ "node": "Dry Run?", "type": "main", "index": 0 }]]
-    },
-    "Dry Run?": {
-      "main": [
-        [{ "node": "Respond OK", "type": "main", "index": 0 }],
-        [{ "node": "Evolution Send Text", "type": "main", "index": 0 }]
-      ]
-    },
-    "Evolution Send Text": {
       "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     }
   },
@@ -102,6 +49,7 @@
     "executionOrder": "v1"
   },
   "meta": {
-    "template": "clinical-rejection-notify-staging"
+    "template": "clinical-rejection-notify-staging",
+    "provider": "meta"
   }
 }

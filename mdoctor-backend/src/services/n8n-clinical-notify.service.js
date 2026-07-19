@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { sendWhatsAppText } = require('../delivery/delivery.service');
 
 const DEFAULT_REJECT_MESSAGE = [
   'Infelizmente, neste momento não foi possível realizar a renovação da sua receita pelo Doctor Prescreve.',
@@ -11,21 +11,11 @@ const DEFAULT_REJECT_MESSAGE = [
   '*2* - Falar com o suporte'
 ].join('\n');
 
-function resolveWebhookUrl() {
-  return String(
-    process.env.N8N_CLINICAL_REJECT_WEBHOOK_URL ||
-      process.env.N8N_WEBHOOK_URL?.replace(/typebot-webhook\/?$/, 'clinical-rejection-notify') ||
-      ''
-  ).trim();
-}
-
 function isDryRun() {
   return String(process.env.WHATSAPP_DRY_RUN || 'false') === 'true';
 }
 
 async function notifyClinicalRejection({ atendimentoId, phone, message, correlationId, pacienteNome }) {
-  const webhookUrl = resolveWebhookUrl();
-  const secret = String(process.env.N8N_WEBHOOK_SECRET || '').trim();
   const payload = {
     atendimentoId,
     phone,
@@ -35,34 +25,31 @@ async function notifyClinicalRejection({ atendimentoId, phone, message, correlat
     dryRun: isDryRun()
   };
 
-  if (!webhookUrl) {
-    return {
-      sent: false,
-      skipped: true,
-      reason: 'N8N_CLINICAL_REJECT_WEBHOOK_URL not configured',
-      payload
-    };
+  if (!phone) {
+    return { sent: false, skipped: true, reason: 'telefone_ausente', payload };
+  }
+
+  if (payload.dryRun) {
+    return { sent: false, skipped: true, reason: 'dry_run', provider: 'meta', payload };
   }
 
   try {
-    const response = await axios.post(webhookUrl, payload, {
-      timeout: Number(process.env.N8N_WEBHOOK_TIMEOUT_MS || 12000),
-      headers: {
-        'Content-Type': 'application/json',
-        ...(secret ? { 'X-Webhook-Secret': secret } : {})
-      },
-      validateStatus: () => true
+    const result = await sendWhatsAppText({
+      to: phone,
+      text: payload.message,
+      correlationId: payload.correlationId,
+      idempotencyKey: `clinical-reject-notify:${atendimentoId || payload.correlationId}`
     });
-
     return {
-      sent: response.status >= 200 && response.status < 300,
-      status: response.status,
-      data: response.data,
+      sent: true,
+      provider: 'meta',
+      providerMessageId: result?.providerMessageId || null,
       payload
     };
   } catch (error) {
     return {
       sent: false,
+      provider: 'meta',
       error: error.message,
       payload
     };

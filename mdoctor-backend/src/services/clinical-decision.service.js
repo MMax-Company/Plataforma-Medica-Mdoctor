@@ -4,7 +4,12 @@ const { refundRejectedAtendimento } = require('./stripe-refund.service');
 const { buildRejectMotivoText, validateRejectPayload } = require('../constants/clinical-reject-reasons');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
-const { enqueueClinicalRejection } = require('../store/whatsapp-outbox.store');
+const {
+  enqueueClinicalRejection,
+  findPendingRejectionMessage,
+  claimRejectionMessageForSend,
+  finishRejectionMessage
+} = require('../store/whatsapp-outbox.store');
 
 const CLINICAL_REJECT_WHATSAPP_MESSAGE =
   'Após análise médica, sua solicitação não foi aprovada. O estorno do pagamento será processado e poderá ser concluído em até 72 horas, conforme os prazos da instituição financeira.';
@@ -284,6 +289,58 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
   };
 }
 
+// Envia pela Meta a mensagem já registrada em whatsapp_messages. A reserva
+// (pending/failed -> sending) garante que requisições concorrentes não enviem
+// duas vezes; linha 'sent' devolve o resultado anterior sem novo envio.
+async function dispatchQueuedRejection({ queuedMessage, correlationId }) {
+  if (!queuedMessage) return { sent: false, status: 'sem_linha', queueId: null, providerMessageId: null };
+  if (queuedMessage.status === 'sent') {
+    return {
+      sent: true,
+      status: 'sent',
+      queueId: queuedMessage.id,
+      providerMessageId: queuedMessage.provider_message_id || null
+    };
+  }
+
+  const claimed = await claimRejectionMessageForSend(queuedMessage.id);
+  if (!claimed) {
+    const current = await findPendingRejectionMessage(queuedMessage.appointment_id);
+    return {
+      sent: current?.status === 'sent',
+      status: current?.status || 'sending',
+      queueId: queuedMessage.id,
+      providerMessageId: current?.provider_message_id || null
+    };
+  }
+
+  try {
+    // eslint-disable-next-line global-require
+    const { sendWhatsAppText } = require('../delivery/delivery.service');
+    const result = await sendWhatsAppText({
+      to: claimed.phone,
+      text: claimed.body,
+      correlationId,
+      idempotencyKey: claimed.metadata?.idempotency_key || `clinical-reject:${claimed.appointment_id}`
+    });
+    await finishRejectionMessage({
+      messageId: claimed.id,
+      status: 'sent',
+      providerMessageId: result?.providerMessageId || null,
+      metadata: claimed.metadata
+    });
+    return { sent: true, status: 'sent', queueId: claimed.id, providerMessageId: result?.providerMessageId || null };
+  } catch (error) {
+    await finishRejectionMessage({
+      messageId: claimed.id,
+      status: 'failed',
+      errorMessage: error.message,
+      metadata: claimed.metadata
+    }).catch(() => {});
+    return { sent: false, status: 'failed', queueId: claimed.id, providerMessageId: null, error: error.message };
+  }
+}
+
 async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
   const doctorId = meta.doctorId || null;
   const correlationId = meta.correlationId || `reject-${Date.now()}`;
@@ -299,21 +356,30 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
   const previousRejection = previous.dados_clinicos?.motivo_rejeicao || null;
   if ((previousStatus === 'rejected' || previousStatus === 'recusado') && previousRejection) {
     let notification = previous.dados_clinicos?.notificacao_reprovacao || null;
-    if (!notification?.queued && previous.paciente_telefone) {
-      const queued = await enqueueClinicalRejection({
-        atendimentoId,
-        phone: previous.paciente_telefone,
-        message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
-        doctorId: previousRejection.rejected_by || doctorId,
-        correlationId
-      });
+    if (!notification?.sent && previous.paciente_telefone) {
+      let queueRow = await findPendingRejectionMessage(atendimentoId);
+      let duplicateRow = true;
+      if (!queueRow) {
+        const queued = await enqueueClinicalRejection({
+          atendimentoId,
+          phone: previous.paciente_telefone,
+          message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
+          doctorId: previousRejection.rejected_by || doctorId,
+          correlationId
+        });
+        queueRow = queued.message;
+        duplicateRow = queued.duplicate;
+      }
+      const dispatch = await dispatchQueuedRejection({ queuedMessage: queueRow, correlationId });
       notification = {
-        sent: false,
+        sent: dispatch.sent,
         queued: true,
-        status: queued.message.status,
-        queueId: queued.message.id,
-        duplicate: queued.duplicate,
-        queued_at: queued.message.created_at || new Date().toISOString()
+        status: dispatch.status,
+        queueId: dispatch.queueId || queueRow.id,
+        providerMessageId: dispatch.providerMessageId || null,
+        error: dispatch.error || null,
+        duplicate: duplicateRow,
+        queued_at: queueRow.created_at || new Date().toISOString()
       };
       await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
         motivo: previous.motivo_decisao,
@@ -432,11 +498,14 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       doctorId,
       correlationId
     });
+    const dispatch = await dispatchQueuedRejection({ queuedMessage: queued.message, correlationId });
     notification = {
-      sent: false,
+      sent: dispatch.sent,
       queued: true,
-      status: queued.message.status,
-      queueId: queued.message.id,
+      status: dispatch.status,
+      queueId: dispatch.queueId || queued.message.id,
+      providerMessageId: dispatch.providerMessageId || null,
+      error: dispatch.error || null,
       duplicate: queued.duplicate
     };
   } else {
@@ -464,7 +533,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       reason_code: reasonCode,
       reason_label: reasonMeta.label,
       motivo_resumido: motivo,
-      whatsappSent: false,
+      whatsappSent: notification.sent || false,
       whatsappQueued: notification.queued || false,
       whatsappQueueId: notification.queueId || null,
       whatsappSkipped: notification.skipped || false,
