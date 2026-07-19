@@ -31,9 +31,12 @@ const uploadToken = uploadUrl
 const backendBase = String($env.BACKEND_BASE_URL || '').replace(/\/$/, '');
 const uploadStatusUrl =
   body?.upload_status_url ||
-  (uploadToken && backendBase
-    ? `${backendBase}/api/upload-receita/${encodeURIComponent(uploadToken)}/status`
-    : null);
+  (atendimentoId && backendBase
+    ? `${backendBase}/api/atendimentos/${encodeURIComponent(atendimentoId)}/prescription-upload/status`
+    : uploadToken && backendBase
+      ? `${backendBase}/api/upload-receita/${encodeURIComponent(uploadToken)}/status`
+      : null);
+const uploadStatus = body?.upload_status || (uploadUrl ? 'pending' : 'pending');
 
 return [
   {
@@ -47,7 +50,8 @@ return [
             message: body?.message || 'Triagem recebida com sucesso',
             atendimentoId,
             upload_url: uploadUrl,
-            upload_status_url: uploadStatusUrl
+            upload_status_url: uploadStatusUrl,
+            upload_status: uploadStatus
           }
         : {
             success: false,

@@ -1051,17 +1051,22 @@
               {
                 "id": "map_upload_url",
                 "variableId": "var_upload_url",
-                "bodyPath": "upload_url"
+                "bodyPath": "data.upload_url"
               },
               {
                 "id": "map_upload_status_url",
                 "variableId": "var_upload_status_url",
-                "bodyPath": "upload_status_url"
+                "bodyPath": "data.upload_status_url"
               },
               {
                 "id": "map_atendimento_id",
                 "variableId": "var_atendimento_id",
-                "bodyPath": "atendimentoId"
+                "bodyPath": "data.atendimentoId"
+              },
+              {
+                "id": "map_upload_status",
+                "variableId": "var_upload_status",
+                "bodyPath": "data.upload_status"
               }
             ],
             "isCustomBody": true,
@@ -1504,23 +1509,49 @@
     },
     {
       "id": "grp_foto_receita",
-      "title": "ENVIO DA RECEITA ANTERIOR",
+      "title": "Aguardando envio da receita",
       "graphCoordinates": {
         "x": -2960,
         "y": -1047.5
       },
       "blocks": [
         {
+          "id": "blk_set_upload_pending",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "pending"
+          }
+        },
+        {
           "id": "blk_foto_txt",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_upload_intro",
+                "id": "p_upload_intro_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Para concluir sua solicitação, envie agora a foto da sua receita anterior. Seu atendimento só será encaminhado para análise médica após o envio da imagem."
+                    "text": "Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_intro_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O documento deve mostrar o nome do paciente, os medicamentos, as doses, a identificação do profissional e, quando disponível, a data de emissão."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_intro_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Envie o arquivo diretamente nesta conversa do WhatsApp. Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB)."
                   }
                 ]
               }
@@ -1533,26 +1564,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_upload_btn",
+                "id": "p_upload_whatsapp_hint",
                 "type": "p",
                 "children": [
                   {
-                    "url": "{{upload_url}}",
-                    "type": "a",
-                    "children": [
-                      {
-                        "text": "Enviar foto da receita"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "p_upload_hint",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Formatos: JPG, PNG ou PDF (até 10 MB)."
+                    "text": "Quando terminar o envio, toque em \"Conferir novamente\" para validarmos o recebimento."
                   }
                 ]
               }
@@ -1566,14 +1582,8 @@
             {
               "id": "upload_check_yes",
               "outgoingEdgeId": "edge_upload_check_request",
-              "content": "Já enviei a receita",
+              "content": "Conferir novamente",
               "value": "check"
-            },
-            {
-              "id": "upload_check_no",
-              "outgoingEdgeId": "edge_upload_check_wait",
-              "content": "Ainda não enviei",
-              "value": "wait"
             }
           ],
           "options": {
@@ -2136,7 +2146,7 @@
     },
     {
       "id": "grp_upload_status_check",
-      "title": "Conferir upload da receita",
+      "title": "Conferir novamente",
       "graphCoordinates": {
         "x": -3385,
         "y": -1605
@@ -2151,17 +2161,22 @@
               {
                 "id": "map_status_upload_completed",
                 "variableId": "var_upload_completed",
-                "bodyPath": "upload_completed"
+                "bodyPath": "data.upload_completed"
               },
               {
                 "id": "map_status_upload_message",
                 "variableId": "var_upload_check_message",
-                "bodyPath": "message"
+                "bodyPath": "data.message"
               },
               {
                 "id": "map_status_upload_url",
                 "variableId": "var_upload_url",
-                "bodyPath": "upload_url"
+                "bodyPath": "data.foto_receita_url"
+              },
+              {
+                "id": "map_status_upload_status",
+                "variableId": "var_upload_status",
+                "bodyPath": "data.upload_status"
               }
             ],
             "isCustomBody": true,
@@ -2235,17 +2250,42 @@
       },
       "blocks": [
         {
+          "id": "blk_set_upload_completed",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "completed"
+          }
+        },
+        {
+          "id": "blk_set_upload_completed_flag",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_completed",
+            "expressionToEvaluate": "true"
+          }
+        },
+        {
           "id": "blk_upload_confirmed_txt",
           "outgoingEdgeId": "edge_upload_confirmed_to_end",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_upload_confirmed",
+                "id": "p_upload_confirmed_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Receita localizada com sucesso. Sua triagem foi encaminhada para análise médica."
+                    "text": "Receita anterior recebida e vinculada ao seu atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_confirmed_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Estamos realizando a conferência final das informações antes do encaminhamento para análise médica."
                   }
                 ]
               }
@@ -2272,7 +2312,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Ainda não localizamos o envio da receita."
+                    "text": "Ainda não localizamos o envio da receita neste atendimento."
                   }
                 ]
               },
@@ -2281,7 +2321,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Use novamente o link abaixo e depois clique em \"Já enviei a receita\" para conferir."
+                    "text": "Envie agora uma foto legível ou um PDF da receita anterior nesta conversa do WhatsApp."
                   }
                 ]
               },
@@ -2290,13 +2330,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "url": "{{upload_url}}",
-                    "type": "a",
-                    "children": [
-                      {
-                        "text": "Enviar foto da receita"
-                      }
-                    ]
+                    "text": "Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB). Depois, toque em \"Conferir novamente\"."
                   }
                 ]
               }
@@ -2310,18 +2344,78 @@
             {
               "id": "pending_retry",
               "outgoingEdgeId": "edge_pending_retry_to_status",
-              "content": "Já enviei a receita",
+              "content": "Conferir novamente",
               "value": "check"
             },
             {
-              "id": "pending_back",
-              "outgoingEdgeId": "edge_pending_back_to_upload",
-              "content": "Ainda não enviei",
-              "value": "wait"
+              "id": "pending_resend",
+              "outgoingEdgeId": "edge_pending_resend_to_upload",
+              "content": "Enviar novamente",
+              "value": "retry"
+            },
+            {
+              "id": "pending_continue_later",
+              "outgoingEdgeId": "edge_pending_continue_later",
+              "content": "Continuar depois",
+              "value": "later"
             }
           ],
           "options": {
             "variableId": "var_upload_check_action"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_continue_later",
+      "title": "Continuar depois",
+      "graphCoordinates": {
+        "x": -4705,
+        "y": -1257.5
+      },
+      "blocks": [
+        {
+          "id": "blk_continue_set_pending",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "pending"
+          }
+        },
+        {
+          "id": "blk_continue_txt",
+          "outgoingEdgeId": "edge_continue_later_to_end",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_continue_later_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Seu atendimento {{atendimentoId}} foi salvo com status de envio pendente."
+                  }
+                ]
+              },
+              {
+                "id": "p_continue_later_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Quando estiver pronto, envie a foto ou PDF da receita anterior nesta mesma conversa do WhatsApp."
+                  }
+                ]
+              },
+              {
+                "id": "p_continue_later_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB). Depois, retome pelo botão \"Conferir novamente\"."
+                  }
+                ]
+              }
+            ]
           }
         }
       ]
@@ -2758,17 +2852,6 @@
       }
     },
     {
-      "id": "edge_upload_check_wait",
-      "from": {
-        "blockId": "blk_upload_check",
-        "itemId": "upload_check_no"
-      },
-      "to": {
-        "groupId": "grp_foto_receita",
-        "blockId": "blk_foto_link"
-      }
-    },
-    {
       "id": "edge_status_to_condition",
       "from": {
         "blockId": "blk_upload_status_webhook"
@@ -2812,23 +2895,43 @@
       }
     },
     {
-      "id": "edge_pending_back_to_upload",
-      "from": {
-        "blockId": "blk_upload_pending_choice",
-        "itemId": "pending_back"
-      },
-      "to": {
-        "groupId": "grp_foto_receita",
-        "blockId": "blk_foto_link"
-      }
-    },
-    {
       "id": "edge_upload_confirmed_to_end",
       "from": {
         "blockId": "blk_upload_confirmed_txt"
       },
       "to": {
         "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_pending_resend_to_upload",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_resend"
+      },
+      "to": {
+        "groupId": "grp_foto_receita",
+        "blockId": "blk_foto_txt"
+      }
+    },
+    {
+      "id": "edge_pending_continue_later",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_continue_later"
+      },
+      "to": {
+        "groupId": "grp_upload_continue_later",
+        "blockId": "blk_continue_set_pending"
+      }
+    },
+    {
+      "id": "edge_continue_later_to_end",
+      "from": {
+        "blockId": "blk_continue_txt"
+      },
+      "to": {
+        "groupId": "jnbvtyzr1ffz4ff5n05a999k"
       }
     }
   ],
@@ -3120,6 +3223,11 @@
     {
       "id": "var_atendimento_id",
       "name": "atendimentoId",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_upload_status",
+      "name": "upload_status",
       "isSessionVariable": false
     }
   ],

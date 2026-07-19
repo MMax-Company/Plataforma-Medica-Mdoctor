@@ -8,9 +8,7 @@ const {
 const { convertTypebotResponse } = require('../src/services/typebot-whatsapp.bridge');
 
 function main() {
-  const uploadUrl = 'https://painel.example/upload-receita/token-abc';
-
-  assert.equal(isUploadConfirmationText('Já enviei a receita'), true);
+  assert.equal(isUploadConfirmationText('Conferir novamente'), true);
   assert.equal(isUploadConfirmationText('check'), true);
 
   const richTextOutputs = convertTypebotResponse({
@@ -19,45 +17,41 @@ function main() {
       content: {
         richText: [{
           type: 'p',
-          children: [{
-            type: 'a',
-            url: uploadUrl,
-            children: [{ text: 'Enviar foto da receita' }]
-          }]
+          children: [{ text: 'Envie a receita anterior nesta conversa do WhatsApp.' }]
         }, {
           type: 'p',
-          children: [{ text: 'Formatos: JPG, PNG ou PDF (até 10 MB).' }]
+          children: [{ text: 'Formatos: JPG, JPEG, PNG ou PDF (até 10 MB).' }]
         }]
       }
     }],
-    input: { id: 'blk_upload_check', type: 'choice input', items: [{ content: 'Já enviei a receita' }] }
+    input: { id: 'blk_upload_check', type: 'choice input', items: [{ content: 'Conferir novamente' }] }
   });
-  assert(outputsContainUrl(richTextOutputs, uploadUrl), 'richText deve expor URL clicável');
-  assert(richTextOutputs.some((item) => item.text?.includes('Enviar foto da receita')));
+  assert(richTextOutputs.some((item) => /WhatsApp/i.test(String(item.text || ''))));
 
-  const emptyLinkOutputs = convertTypebotResponse({
+  const linkOutputs = convertTypebotResponse({
     messages: [{
       type: 'text',
       content: {
         richText: [{
           type: 'p',
-          children: [{ text: 'Use novamente o link abaixo e depois clique em "Já enviei a receita" para conferir.' }]
+          children: [{ text: 'Use novamente o link abaixo e depois clique em "Conferir novamente".' }]
         }, {
           type: 'p',
-          children: [{ type: 'a', url: '', children: [{ text: 'Enviar foto da receita' }] }]
+          children: [{ type: 'a', url: 'https://painel.example/upload-receita/token-abc', children: [{ text: 'Enviar foto da receita' }] }]
         }]
       }
     }],
-    input: { id: 'blk_upload_pending_choice', type: 'choice input', items: [{ content: 'Já enviei a receita' }] }
+    input: { id: 'blk_upload_pending_choice', type: 'choice input', items: [{ content: 'Conferir novamente' }] }
   });
-  const augmented = augmentOutputsWithUploadLink(emptyLinkOutputs, { uploadUrl }, { force: true });
-  assert(outputsContainUrl(augmented, uploadUrl), 'link vazio do Typebot deve ser substituído pelo upload_url real');
-  assert(responseLooksLikeUploadStage({ messages: emptyLinkOutputs }, 'blk_upload_pending_choice'));
+  const augmented = augmentOutputsWithUploadLink(linkOutputs, { uploadUrl: 'https://painel.example/upload-receita/token-abc' });
+  assert(!outputsContainUrl(augmented, 'https://painel.example/upload-receita/token-abc'), 'link externo não deve ser reenviado no WhatsApp');
+  assert(augmented.some((item) => /WhatsApp/i.test(String(item.text || ''))));
+  assert(responseLooksLikeUploadStage({ messages: linkOutputs }, 'blk_upload_pending_choice'));
 
   console.log(JSON.stringify({
     uploadConfirmationDetected: 'ok',
-    richTextLinkExported: outputsContainUrl(richTextOutputs, uploadUrl) ? 'ok' : 'failed',
-    emptyTypebotLinkReplaced: outputsContainUrl(augmented, uploadUrl) ? 'ok' : 'failed'
+    whatsAppInstructionsExported: 'ok',
+    externalLinkStripped: 'ok'
   }));
 }
 

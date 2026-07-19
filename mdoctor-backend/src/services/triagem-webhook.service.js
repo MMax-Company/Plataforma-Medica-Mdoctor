@@ -21,6 +21,7 @@ const {
   createPrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
+const { buildUploadStatusUrlByAtendimento } = require('./typebot-prescription-upload.service');
 const { persistTriagemFlow } = require('./clinical-persistence.service');
 const {
   validateNestedTriagemPayload,
@@ -284,7 +285,9 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
       message: 'Triagem recebida com sucesso',
       atendimentoId: atendimento.id,
       correlationId,
-      upload_url: uploadSession?.uploadUrl || null
+      upload_url: uploadSession?.uploadUrl || null,
+      upload_status_url: uploadSession ? buildUploadStatusUrlByAtendimento(atendimento.id) : null,
+      upload_status: uploadSession ? 'pending' : null
     }
   };
 }
