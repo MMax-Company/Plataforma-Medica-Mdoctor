@@ -436,6 +436,14 @@ router.post('/webhook', async (req, res) => {
                     whatsappSession
                   });
 
+                  if (inboundRoute.clearTypebotSession) {
+                    await setTypebotSessionId({
+                      sessionId: whatsappSession.id,
+                      typebotSessionId: null
+                    });
+                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
+                  }
+
                   if (inboundRoute.action === 'reply') {
                     const claimed = await claimMetaMessage({
                       messageId: msg.id,

@@ -34,15 +34,24 @@ async function main() {
     assert.equal(support.action, 'reply');
     assert.equal(support.reply, 'Aguarde suporte');
 
-    const ongoing = await routeMetaWhatsAppInbound({
-      phone: '5511999999999',
-      text: 'Max Matos',
-      whatsappSession: { typebot_session_id: 'session-abc' }
-    });
-    assert.equal(ongoing.action, 'typebot');
-    assert.equal(ongoing.text, 'Max Matos');
+  const ongoing = await routeMetaWhatsAppInbound({
+    phone: '5511999999999',
+    text: 'Max Matos',
+    whatsappSession: { typebot_session_id: 'session-abc' }
+  });
+  assert.equal(ongoing.action, 'typebot');
+  assert.equal(ongoing.text, 'Max Matos');
 
-    console.log(JSON.stringify({ ok: true, metaMenuRouting: 'ok' }, null, 2));
+  const backToMenu = await routeMetaWhatsAppInbound({
+    phone: '5511999999999',
+    text: 'Oi',
+    whatsappSession: { typebot_session_id: 'session-abc' }
+  });
+  assert.equal(backToMenu.action, 'reply');
+  assert.equal(backToMenu.reply, MAIN_MENU_TEXT);
+  assert.equal(backToMenu.clearTypebotSession, true);
+
+  console.log(JSON.stringify({ ok: true, metaMenuRouting: 'ok' }, null, 2));
 }
 
 main().catch((error) => {

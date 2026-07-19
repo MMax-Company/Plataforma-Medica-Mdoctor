@@ -12,6 +12,11 @@ const logger = require('../config/logger');
 const MAIN_MENU_TEXT =
   'Olá, sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar sua avaliação para renovação de receita.\n*2* - Falar com o suporte.';
 
+function isMainMenuTrigger(text) {
+  const normalized = String(text || '').trim().toUpperCase();
+  return ['OI', 'OLÁ', 'OLA', 'MENU', '0', 'ENCERRAR'].includes(normalized);
+}
+
 async function routeMetaWhatsAppInbound({ phone, text, whatsappSession }) {
   try {
     const surveyResult = await handleSurveyInbound({ phone, text });
@@ -59,20 +64,20 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession }) {
     };
   }
 
-  if (whatsappSession?.typebot_session_id) {
-    return { action: 'typebot', text };
-  }
-
   if (textNorm === '1') {
-    return { action: 'typebot_bootstrap' };
+    return { action: 'typebot_bootstrap', clearTypebotSession: true };
   }
 
   if (textNorm === '2') {
     const result = await createWhatsAppSupportEntry({ phone });
-    return { action: 'reply', reply: result.reply };
+    return { action: 'reply', reply: result.reply, clearTypebotSession: true };
   }
 
-  return { action: 'reply', reply: MAIN_MENU_TEXT };
+  if (isMainMenuTrigger(text) || !whatsappSession?.typebot_session_id) {
+    return { action: 'reply', reply: MAIN_MENU_TEXT, clearTypebotSession: Boolean(whatsappSession?.typebot_session_id) };
+  }
+
+  return { action: 'typebot', text };
 }
 
 module.exports = {
