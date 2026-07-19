@@ -241,7 +241,7 @@ async function getPatientSupportContext(phone) {
   };
 }
 
-async function respondToFinalization(phone, choice) {
+async function respondToFinalization(phone, choice, { inlineTypebot = false } = {}) {
   const digits = normalizePhone(phone);
   const rows = await listAtendimentos();
   const match = rows.find((item) => {
@@ -286,6 +286,9 @@ async function respondToFinalization(phone, choice) {
       action: 'support_converted_to_renewal', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
+    if (inlineTypebot) {
+      return { handled: true, sub_status: SUPPORT_SUB.CONVERTED, startTypebot: true };
+    }
     return {
       handled: true, sub_status: SUPPORT_SUB.CONVERTED,
       reply: `Ótimo! Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções. Um médico irá analisar e emitir sua receita em breve.`
@@ -460,6 +463,7 @@ module.exports = {
   finalizeSupportAttendance,
   getPatientSupportContext,
   respondToFinalization,
+  handleRejectionResponse,
   processIncomingMessage,
   closeInactiveSessions
 };

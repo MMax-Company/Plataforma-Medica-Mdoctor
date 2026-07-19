@@ -25,9 +25,11 @@ const {
   processIncomingMessage
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
-const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const { upsertSessionIdentity, setTypebotSessionId } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
+const { routeMetaWhatsAppInbound } = require('../services/whatsapp-meta-inbound.service');
+const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
 const {
   findPendingUploadContext,
   ingestWhatsAppPrescriptionMedia,
@@ -428,11 +430,52 @@ router.post('/webhook', async (req, res) => {
                     text = 'Conferir novamente';
                   }
 
+                  const inboundRoute = await routeMetaWhatsAppInbound({
+                    phone: identity.phone,
+                    text,
+                    whatsappSession
+                  });
+
+                  if (inboundRoute.action === 'reply') {
+                    const claimed = await claimMetaMessage({
+                      messageId: msg.id,
+                      whatsappSessionId: whatsappSession.id
+                    });
+                    if (!claimed.claimed) continue;
+
+                    const sent = await metaProvider.sendTextMessage({
+                      to: identity.phone,
+                      bsuid: identity.bsuid,
+                      correlationId: msg.id,
+                      idempotencyKey: `${msg.id}:menu`,
+                      text: inboundRoute.reply
+                    });
+                    await finishMetaMessage({
+                      messageId: msg.id,
+                      status: 'processed',
+                      providerMessageIds: sent?.providerMessageId ? [sent.providerMessageId] : []
+                    });
+                    logger.info('WhatsApp business menu reply sent', {
+                      from: maskedFrom,
+                      messageId: msg.id
+                    });
+                    continue;
+                  }
+
+                  if (inboundRoute.action === 'typebot_bootstrap') {
+                    await setTypebotSessionId({
+                      sessionId: whatsappSession.id,
+                      typebotSessionId: null
+                    });
+                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
+                  }
+
                   const result = await handleTypebotWhatsAppInbound({
                     messageId: msg.id,
-                    text,
+                    text: inboundRoute.text ?? text,
                     identity,
-                    whatsappSession
+                    whatsappSession,
+                    menuBootstrap: inboundRoute.action === 'typebot_bootstrap'
                   });
                   logger.info('WhatsApp business message processed', {
                     from: maskedFrom,
