@@ -13,11 +13,16 @@ function getConfig() {
   return {
     viewerUrl: String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, ''),
     publicId: String(process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim(),
+    welcomeChoiceInputId: String(process.env.TYPEBOT_WELCOME_CHOICE_INPUT_ID || 'sbjZWLJGVkHAkDqS4JQeGow').trim(),
     timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
     retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
     retryBaseDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_BASE_DELAY_MS || 300)),
     retryMaxDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_MAX_DELAY_MS || 2500))
   };
+}
+
+function isConversationGreeting(text) {
+  return /^(oi|olá|ola|hey|hello|bom dia|boa tarde|boa noite)$/i.test(String(text || '').trim());
 }
 
 function richTextToPlainText(nodes = []) {
@@ -370,8 +375,20 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       }
 
-      const path = existingSessionId
-        ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
+      let sessionIdForChat = existingSessionId;
+      if (
+        sessionIdForChat
+        && expectedInputId === config.welcomeChoiceInputId
+        && isConversationGreeting(text)
+      ) {
+        await saveSessionId({ sessionId: currentSession.id, typebotSessionId: null });
+        sessionIdForChat = null;
+        expectedInputs.set(identityKey, null);
+        await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
+      }
+
+      const path = sessionIdForChat
+        ? `/sessions/${encodeURIComponent(sessionIdForChat)}/continueChat`
         : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
       const message = {
         type: 'text',
@@ -404,9 +421,9 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       );
 
-      const sessionId = existingSessionId || typebot.sessionId;
+      const sessionId = sessionIdForChat || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
-      if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
+      if (!sessionIdForChat) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
       const nextInputId = typebot.input?.id || null;
       expectedInputs.set(identityKey, nextInputId);
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
@@ -472,7 +489,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         duplicate: false,
         responsesSent: providerMessageIds.length,
         sessionId,
-        sessionIdReused: Boolean(existingSessionId),
+        sessionIdReused: Boolean(sessionIdForChat),
         retryAttempts: typebot.retryAttempts || undefined
       };
     } catch (error) {

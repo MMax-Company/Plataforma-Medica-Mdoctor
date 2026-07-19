@@ -122,6 +122,50 @@ async function main() {
   assert(rapidCalls[0].path.includes('/startChat'));
   assert(rapidCalls[1].path.includes('/sessions/rapid-session/continueChat'));
 
+  let clearedSessionId = 'stale-session';
+  const greetingCalls = [];
+  const greetingBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async ({ typebotSessionId }) => { clearedSessionId = typebotSessionId; },
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: clearedSessionId,
+      metadata: { typebot_expected_input_id: 'sbjZWLJGVkHAkDqS4JQeGow' }
+    }),
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    callTypebot: async (path, body) => {
+      greetingCalls.push({ path, body });
+      if (path.includes('/startChat')) {
+        return {
+          sessionId: 'fresh-session',
+          messages: [{ type: 'text', content: { plainText: 'Olá 👋 Bem-vindo ao Doctor Prescreve.' } }],
+          input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Iniciar Atendimento' }] }
+        };
+      }
+      return {
+        messages: [{ type: 'text', content: { plainText: 'Invalid message. Please, try again.' } }],
+        input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Iniciar Atendimento' }] }
+      };
+    },
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'meta-greeting-text' }),
+      sendButtonMessage: async () => ({ providerMessageId: 'meta-greeting-buttons' }),
+      sendListMessage: async () => ({ providerMessageId: 'meta-greeting-list' })
+    }
+  });
+  const greetingResult = await greetingBridge({
+    messageId: 'wamid-greeting',
+    text: 'Oi',
+    identity: { phone: '5511999999999', bsuid: null },
+    whatsappSession: { id: 'wa-greeting', typebot_session_id: 'stale-session' }
+  });
+  assert.equal(greetingResult.sessionIdReused, false);
+  assert(greetingCalls.some((call) => call.path.includes('/startChat')));
+  assert(!greetingCalls.some((call) => call.path.includes('/sessions/stale-session/continueChat')));
+
   const retryCalls = [];
   const retryFinishes = [];
   const retryLogs = [];
