@@ -604,7 +604,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Como voçê gostaria de ser chamado? E sua idade?{{nome_social}}"
+                    "text": "Como você gostaria de ser chamado durante o atendimento?"
                   }
                 ]
               }
@@ -617,7 +617,7 @@
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Exemplo: José Souza, 38 anos.",
+              "placeholder": "Exemplo: José Souza.",
               "button": "Enviar"
             },
             "variableId": "vou30coxarhyas9y5q07k78k9"

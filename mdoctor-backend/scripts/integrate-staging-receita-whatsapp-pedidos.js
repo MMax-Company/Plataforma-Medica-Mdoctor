@@ -4,8 +4,9 @@
  *
  * Ordem recomendada antes de publicar:
  *   1. node mdoctor-backend/scripts/patch-typebot-resumo-dados.js docs/typebot/typebot-doctor-prescreve-staging-safe.json
- *   2. node mdoctor-backend/scripts/integrate-staging-receita-whatsapp-pedidos.js
- *   3. node mdoctor-backend/scripts/validate-typebot-staging-safe.js
+ *   2. node mdoctor-backend/scripts/patch-typebot-bloco05-nome-social.js
+ *   3. node mdoctor-backend/scripts/integrate-staging-receita-whatsapp-pedidos.js
+ *   4. node mdoctor-backend/scripts/validate-typebot-staging-safe.js
  *
  * Uso: node mdoctor-backend/scripts/integrate-staging-receita-whatsapp-pedidos.js
  */

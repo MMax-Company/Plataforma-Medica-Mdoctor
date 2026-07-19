@@ -121,6 +121,19 @@ const gateToTerms = (bot.edges || []).find((e) => e.id === 'edge_gate_to_terms')
 if (!termsEdge) errors.push('terms acceptance must route to payment');
 if (!gateToTerms) errors.push('gate must route to terms before payment');
 
+const nomeSocialGroup = (bot.groups || []).find((g) => g.id === 'mulxehkwbcrynjfjnji1g2jx');
+const nomeSocialSerialized = JSON.stringify(nomeSocialGroup || {});
+if (!nomeSocialSerialized.includes('Como você gostaria de ser chamado durante o atendimento?')) {
+  errors.push('bloco 05 must ask nome social only (PR #13)');
+}
+if (/idade|anos/i.test(nomeSocialSerialized)) {
+  errors.push('bloco 05 must not ask for idade');
+}
+const nomeToGroup06 = (bot.edges || []).find((e) => e.from?.blockId === 'oq3zsok0c2tdl3qamma8tush');
+if (nomeToGroup06?.to?.groupId !== 'vo62j813iek8fjy0uoq0ttrc') {
+  errors.push('bloco 05 must route directly to group 06 after nome social');
+}
+
 console.log(
   JSON.stringify(
     {
