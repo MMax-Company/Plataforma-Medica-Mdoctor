@@ -502,6 +502,7 @@ async function completePaymentByToken(token, deps = {}) {
 async function handlePaymentChoice({ text, session, correlationId, provider = metaProvider, deps = {} }) {
   const payment = paymentFromSession(session);
   if (!payment) return { handled: false };
+  const markStatus = deps.markPaymentStatus || markPaymentStatus;
   const normalized = String(text || '').trim().toLowerCase();
   const isCheck = normalized.includes('conferir pagamento') || normalized === 'payment_check';
   const isReopen = normalized.includes('abrir pagamento') || normalized === 'payment_reopen';
@@ -509,7 +510,7 @@ async function handlePaymentChoice({ text, session, correlationId, provider = me
   if (!isCheck && !isReopen && !isCancel) return { handled: false };
 
   if (isCancel) {
-    await markPaymentStatus(session, 'cancelled');
+    await markStatus(session, 'cancelled');
     await provider.sendTextMessage({
       to: session.phone,
       bsuid: session.bsuid,
