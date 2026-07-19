@@ -1,9 +1,14 @@
-const { STATUS, listAtendimentos } = require('../store/atendimentos.store');
-const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const T = require('../db/tables');
+const { STATUS, listAtendimentos, getAtendimento } = require('../store/atendimentos.store');
+const { getSessionByPhone, upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
+const { dbQuery } = require('../db/persistence');
+const { createIntegrationError } = require('../store/integration-logs.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
 const { resolveTokenRecord } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
+
+const UPLOAD_SUCCESS_REPLY = 'Conferir novamente';
 
 const UPLOAD_CHOICE_INPUT_IDS = new Set([
   'blk_upload_check',
@@ -13,7 +18,8 @@ const UPLOAD_CHOICE_INPUT_IDS = new Set([
 const UPLOAD_CONFIRM_VALUES = new Set([
   'já enviei a receita',
   'ja enviei a receita',
-  'check'
+  'check',
+  'conferir novamente'
 ]);
 
 function normalizePhone(value = '') {
@@ -42,17 +48,65 @@ function buildUploadStatusUrl(token) {
   return `${base}/api/upload-receita/${encodeURIComponent(token)}/status`;
 }
 
+function buildUploadStatusUrlByAtendimento(atendimentoId) {
+  const base = getPublicBackendBaseUrl();
+  if (!base || !atendimentoId) return null;
+  return `${base}/api/atendimentos/${encodeURIComponent(atendimentoId)}/prescription-upload/status`;
+}
+
+function resolveUploadStatus(clinical = {}) {
+  const uploaded = hasStoredPreviousPrescription(clinical);
+  if (uploaded) {
+    return {
+      upload_completed: true,
+      upload_status: 'completed',
+      foto_receita_url:
+        clinical.foto_receita_url ||
+        clinical.previous_prescription_url ||
+        clinical.previous_prescription_file ||
+        null
+    };
+  }
+  const sessionStatus = clinical.prescription_upload_session?.status;
+  return {
+    upload_completed: false,
+    upload_status: sessionStatus === 'completed' ? 'completed' : 'pending',
+    foto_receita_url: null
+  };
+}
+
+async function getPrescriptionUploadStatusByAtendimentoId(atendimentoId) {
+  const id = String(atendimentoId || '').trim();
+  if (!id) return { found: false, upload_completed: false, upload_status: 'pending' };
+
+  const atendimento = await getAtendimento(id);
+  if (!atendimento) return { found: false, upload_completed: false, upload_status: 'pending' };
+
+  const clinical = atendimento.dados_clinicos || {};
+  const status = resolveUploadStatus(clinical);
+  return {
+    found: true,
+    atendimento_id: atendimento.id,
+    atendimento_status: atendimento.status,
+    upload_completed: status.upload_completed ? 'true' : 'false',
+    upload_status: status.upload_status,
+    foto_receita_url: status.foto_receita_url,
+    message: status.upload_completed
+      ? 'Receita anterior vinculada ao atendimento'
+      : 'Aguardando envio da receita anterior nesta conversa do WhatsApp'
+  };
+}
+
 function extractUploadSession(atendimento = {}) {
   const clinical = atendimento.dados_clinicos || atendimento.clinical_data || {};
   const session = clinical.prescription_upload_session || {};
   const token = session.token || null;
-  const uploadUrl = session.upload_url || null;
-  if (!token || !uploadUrl) return null;
+  if (!token) return null;
   return {
     atendimentoId: atendimento.id,
     token,
-    uploadUrl,
-    uploadStatusUrl: buildUploadStatusUrl(token),
+    uploadUrl: session.upload_url || null,
+    uploadStatusUrl: buildUploadStatusUrlByAtendimento(atendimento.id) || buildUploadStatusUrl(token),
     status: atendimento.status
   };
 }
@@ -95,12 +149,15 @@ async function persistUploadContext({ identity, uploadContext }) {
 
 function uploadContextFromSession(whatsappSession = {}, fallback = null) {
   const stored = whatsappSession?.metadata?.typebot_prescription_upload;
-  if (stored?.upload_url && stored?.token) {
+  if (stored?.token && stored?.atendimento_id) {
     return {
-      atendimentoId: stored.atendimento_id || null,
+      atendimentoId: stored.atendimento_id,
       token: stored.token,
-      uploadUrl: stored.upload_url,
-      uploadStatusUrl: stored.upload_status_url || buildUploadStatusUrl(stored.token)
+      uploadUrl: stored.upload_url || null,
+      uploadStatusUrl:
+        stored.upload_status_url ||
+        buildUploadStatusUrlByAtendimento(stored.atendimento_id) ||
+        buildUploadStatusUrl(stored.token)
     };
   }
   return fallback;
@@ -108,19 +165,8 @@ function uploadContextFromSession(whatsappSession = {}, fallback = null) {
 
 async function getUploadStatus(token) {
   const record = await resolveTokenRecord(token);
-  if (!record) return { found: false, upload_completed: false };
-  const { getAtendimento } = require('../store/atendimentos.store');
-  const atendimento = await getAtendimento(record.atendimentoId);
-  if (!atendimento) return { found: false, upload_completed: false };
-  const clinical = atendimento.dados_clinicos || {};
-  const uploaded = hasStoredPreviousPrescription(clinical);
-  return {
-    found: true,
-    upload_completed: uploaded,
-    atendimento_id: atendimento.id,
-    atendimento_status: atendimento.status,
-    upload_url: clinical.prescription_upload_session?.upload_url || null
-  };
+  if (!record) return { found: false, upload_completed: false, upload_status: 'pending' };
+  return getPrescriptionUploadStatusByAtendimentoId(record.atendimentoId);
 }
 
 function isUploadConfirmationText(text = '') {
@@ -140,24 +186,150 @@ function outputsContainUrl(outputs = [], url = '') {
 function responseLooksLikeUploadStage(typebot = {}, expectedInputId = null) {
   if (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(typebot.input?.id)) return true;
   const blob = JSON.stringify(typebot.messages || []);
-  return /receita|upload|enviar foto/i.test(blob);
+  return /receita|upload|enviar foto|aguardando envio/i.test(blob);
 }
 
-function augmentOutputsWithUploadLink(outputs = [], uploadContext = null, { force = false } = {}) {
-  if (!uploadContext?.uploadUrl) return outputs;
-  if (!force && outputsContainUrl(outputs, uploadContext.uploadUrl)) return outputs;
-
-  const linkBlock = {
+function augmentOutputsWithUploadLink(outputs = [], uploadContext = null) {
+  if (!uploadContext) return outputs;
+  const whatsappHint = {
     kind: 'text',
-    text: `📄 Envie a foto da receita anterior pelo link:\n${uploadContext.uploadUrl}\n\nFormatos: JPG, PNG ou PDF (até 10 MB).`
+    text: 'Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior nesta conversa do WhatsApp.\n\nFormatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB).'
   };
-
-  const hasRetryHint = outputs.some((output) => /link abaixo|enviar foto da receita|não localizamos/i.test(String(output.text || '')));
-  if (hasRetryHint || force) {
-    return [...outputs, linkBlock];
+  const mentionsExternalLink = outputs.some((output) =>
+    /link abaixo|upload-receita|http/i.test(String(output.text || ''))
+  );
+  if (mentionsExternalLink) {
+    return outputs
+      .filter((output) => !(output.kind === 'text' && /upload-receita|http/i.test(String(output.text || ''))))
+      .concat([whatsappHint]);
   }
-  if (!outputs.length) return [linkBlock];
   return outputs;
+}
+
+async function findWhatsAppSessionForPrescriptionUpload({ atendimentoId, phone = null, whatsappSession = null } = {}) {
+  if (whatsappSession?.typebot_session_id) return whatsappSession;
+
+  const digits = phone ? normalizePhone(phone) : '';
+  if (digits) {
+    const byPhone = await getSessionByPhone(digits);
+    if (byPhone?.typebot_session_id) return byPhone;
+  }
+
+  if (!atendimentoId) return null;
+
+  const byAtendimento = await dbQuery('buscar whatsapp session por atendimento de upload', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .select('*')
+      .filter('metadata->typebot_prescription_upload->>atendimento_id', 'eq', String(atendimentoId))
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+  return byAtendimento || null;
+}
+
+async function sendTypebotOutputs({ session, outputs, correlationId, provider = metaProvider }) {
+  const providerMessageIds = [];
+  for (const output of outputs) {
+    const common = {
+      to: session.phone,
+      bsuid: session.bsuid,
+      correlationId,
+      idempotencyKey: `${correlationId}:${providerMessageIds.length}`
+    };
+    let sent;
+    if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+    else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+    else sent = await provider.sendTextMessage({ ...common, text: output.text });
+    if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
+  }
+  return providerMessageIds;
+}
+
+async function resumeTypebotAfterPrescriptionUpload(
+  { atendimentoId, token, correlationId = null, whatsappSession = null, phone = null },
+  deps = {}
+) {
+  if (process.env.WHATSAPP_ENABLED !== 'true') {
+    return { ok: false, code: 'WHATSAPP_DISABLED' };
+  }
+
+  const provider = deps.provider || metaProvider;
+  if (!provider.isConfigured || !provider.isConfigured()) {
+    return { ok: false, code: 'WHATSAPP_NOT_CONFIGURED' };
+  }
+
+  let resolvedPhone = phone || whatsappSession?.phone || null;
+  if (!resolvedPhone && atendimentoId) {
+    const atendimento = await getAtendimento(atendimentoId);
+    resolvedPhone = atendimento?.paciente_telefone || null;
+  }
+
+  const session = await findWhatsAppSessionForPrescriptionUpload({
+    atendimentoId,
+    phone: resolvedPhone,
+    whatsappSession
+  });
+
+  if (!session?.typebot_session_id) {
+    return { ok: false, code: 'NO_TYPEBOT_SESSION' };
+  }
+
+  const uploadMeta = session.metadata?.typebot_prescription_upload || {};
+  if (uploadMeta.resumed_for_token === token && uploadMeta.resumed_at) {
+    return { ok: true, alreadyResumed: true, responsesSent: 0 };
+  }
+
+  const bridge = require('./typebot-whatsapp.bridge');
+  const callTypebot = deps.callTypebot || bridge.fetchTypebot;
+  const convertResponse = deps.convertTypebotResponse || bridge.convertTypebotResponse;
+  const upsertSession = deps.upsertSessionIdentity || upsertSessionIdentity;
+  const logError = deps.createIntegrationError || createIntegrationError;
+  const correlation = correlationId || `prescription-upload-${String(token || atendimentoId).slice(-12)}`;
+
+  try {
+    const typebot = await callTypebot(
+      `/sessions/${encodeURIComponent(session.typebot_session_id)}/continueChat`,
+      { message: { type: 'text', text: UPLOAD_SUCCESS_REPLY, metadata: { replyId: correlation } } }
+    );
+
+    const providerMessageIds = await sendTypebotOutputs({
+      session,
+      outputs: convertResponse(typebot),
+      correlationId: correlation,
+      provider
+    });
+
+    await upsertSession({
+      phone: session.phone,
+      bsuid: session.bsuid,
+      metadataPatch: {
+        typebot_expected_input_id: typebot.input?.id || null,
+        typebot_prescription_upload: {
+          ...uploadMeta,
+          atendimento_id: uploadMeta.atendimento_id || atendimentoId || null,
+          token: uploadMeta.token || token || null,
+          resumed_at: new Date().toISOString(),
+          resumed_for_token: token || uploadMeta.token || null
+        }
+      }
+    }).catch(() => {});
+
+    return { ok: true, responsesSent: providerMessageIds.length, typebotSessionId: session.typebot_session_id };
+  } catch (error) {
+    await logError({
+      integration: 'typebot_prescription_upload',
+      correlationId: correlation,
+      error,
+      request: {
+        atendimento_id: atendimentoId || null,
+        token_suffix: token ? String(token).slice(-8) : null,
+        phase: 'continue_after_upload'
+      }
+    }).catch(() => {});
+    return { ok: false, code: 'RESUME_FAILED', error: error.message };
+  }
 }
 
 async function ingestWhatsAppPrescriptionMedia({
@@ -176,6 +348,26 @@ async function ingestWhatsAppPrescriptionMedia({
     throw err;
   }
 
+  const atendimento = await getAtendimento(uploadContext.atendimentoId);
+  if (hasStoredPreviousPrescription(atendimento?.dados_clinicos || {})) {
+    const resume = await resumeTypebotAfterPrescriptionUpload(
+      {
+        atendimentoId: uploadContext.atendimentoId,
+        token: uploadContext.token,
+        correlationId: messageId,
+        whatsappSession,
+        phone: identity?.phone
+      },
+      { provider }
+    );
+    return {
+      handled: true,
+      uploadContext,
+      duplicate: true,
+      whatsappResume: resume
+    };
+  }
+
   const downloadMedia = provider.downloadMedia || metaProvider.downloadMedia;
   const media = await downloadMedia(mediaId);
   await completeExternalPrescriptionUpload({
@@ -188,33 +380,43 @@ async function ingestWhatsAppPrescriptionMedia({
 
   await persistUploadContext({ identity, uploadContext });
 
-  const sent = await provider.sendTextMessage({
-    to: identity.phone,
-    bsuid: identity.bsuid,
-    correlationId: messageId,
-    idempotencyKey: `${messageId}:upload-ack`,
-    text: '✅ Receita recebida com sucesso! Aguarde enquanto confirmamos o envio...'
-  });
+  const resume = await resumeTypebotAfterPrescriptionUpload(
+    {
+      atendimentoId: uploadContext.atendimentoId,
+      token: uploadContext.token,
+      correlationId: messageId,
+      whatsappSession,
+      phone: identity?.phone
+    },
+    { provider }
+  );
 
   return {
     handled: true,
     uploadContext,
-    providerMessageId: sent?.providerMessageId || null
+    whatsappResume: resume
   };
 }
 
 module.exports = {
   UPLOAD_CHOICE_INPUT_IDS,
+  UPLOAD_SUCCESS_REPLY,
   augmentOutputsWithUploadLink,
   buildUploadStatusUrl,
+  buildUploadStatusUrlByAtendimento,
   findPendingUploadContext,
   findUploadContextForPhone,
+  findWhatsAppSessionForPrescriptionUpload,
+  getPrescriptionUploadStatusByAtendimentoId,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
   isUploadChoiceInput,
   isUploadConfirmationText,
   outputsContainUrl,
   persistUploadContext,
+  resolveUploadStatus,
   responseLooksLikeUploadStage,
+  resumeTypebotAfterPrescriptionUpload,
+  sendTypebotOutputs,
   uploadContextFromSession
 };

@@ -30,7 +30,8 @@ const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
 const {
   findPendingUploadContext,
-  ingestWhatsAppPrescriptionMedia
+  ingestWhatsAppPrescriptionMedia,
+  buildUploadStatusUrlByAtendimento
 } = require('../services/typebot-prescription-upload.service');
 const {
   applyPrescriptionMetadataToClinical,
@@ -424,7 +425,7 @@ router.post('/webhook', async (req, res) => {
                       }).catch(() => {});
                       continue;
                     }
-                    text = 'Já enviei a receita';
+                    text = 'Conferir novamente';
                   }
 
                   const result = await handleTypebotWhatsAppInbound({
@@ -818,7 +819,7 @@ router.post('/webhook', async (req, res) => {
   const reply = canEnterMedicalQueueAfterIngest
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
     : uploadSession?.uploadUrl
-      ? `Para concluir sua solicitação, envie agora a foto da sua receita anterior pelo link seguro: ${uploadSession.uploadUrl} Seu atendimento só será encaminhado para análise médica após o envio da imagem.`
+      ? 'Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior nesta conversa do WhatsApp. Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB).'
       : !paymentConfirmed
         ? 'Pagamento não confirmado. Sua solicitação não entrou na fila médica.'
         : `${INELIGIBLE_USER_MESSAGE} ${getRefusalMessage(decision.reasonCode)}`.trim();
@@ -866,6 +867,8 @@ router.post('/webhook', async (req, res) => {
     atendimento,
     decision,
     upload_url: uploadSession?.uploadUrl || null,
+    upload_status_url: uploadSession ? buildUploadStatusUrlByAtendimento(atendimento.id) : null,
+    upload_status: uploadSession ? 'pending' : null,
     upload_expires_at: uploadSession?.expiresAt || null,
     awaiting_prescription_upload: atendimento.status === STATUS.AWAITING_PRESCRIPTION_UPLOAD
   });
