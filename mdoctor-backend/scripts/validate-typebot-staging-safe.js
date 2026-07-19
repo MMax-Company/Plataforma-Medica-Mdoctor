@@ -43,6 +43,8 @@ const requiredVars = [
   'med3_nome',
   'medication_count',
   'upload_url',
+  'upload_status_url',
+  'upload_status',
   'has_prescription_photo_ready',
   'has_previous_prescription',
   'eligibility_status',
@@ -70,7 +72,9 @@ const consentPayloadFields = [
 const missingConsentFields = consentPayloadFields.filter((f) => !serialized.includes(f));
 const bareSupabaseUrls = collectBareSupabaseUrlsInTextBlocks(bot);
 
-const fotoGroup = (bot.groups || []).find((g) => String(g.title).includes('ENVIO DA RECEITA'));
+const fotoGroup = (bot.groups || []).find(
+  (g) => g.id === 'grp_foto_receita' || /ENVIO DA RECEITA|Aguardando envio da receita/i.test(String(g.title))
+);
 const fotoBeforePayment = (bot.edges || []).some(
   (e) => e.to?.groupId === fotoGroup?.id && e.from?.blockId === 'q78qjnk6ticw'
 );
@@ -91,13 +95,22 @@ if (missingConsentFields.length) errors.push(`webhook missing consent fields: ${
 if (bareSupabaseUrls.length) errors.push(`bare supabase URLs in patient text: ${bareSupabaseUrls.join('; ')}`);
 if (serialized.includes('file input')) errors.push('file input block must not exist (Typebot free plan)');
 const webhookBlock = webhookBlocks[0];
-if (!webhookBlock?.options?.responseVariableMapping?.some((m) => m.bodyPath === 'upload_url')) {
-  errors.push('webhook must map response upload_url to variable');
-}
+const mapsUploadUrl = webhookBlock?.options?.responseVariableMapping?.some(
+  (m) => m.bodyPath === 'upload_url' || m.bodyPath === 'data.upload_url'
+);
+if (!mapsUploadUrl) errors.push('webhook must map response upload_url to variable');
+const mapsUploadStatusUrl = webhookBlock?.options?.responseVariableMapping?.some(
+  (m) => m.bodyPath === 'upload_status_url' || m.bodyPath === 'data.upload_status_url'
+);
+if (!mapsUploadStatusUrl) errors.push('webhook must map response upload_status_url to variable');
 const webhookBeforeFoto = (bot.edges || []).some(
   (e) => e.id === 'vgmrhkywl7kagoaeaq2ybdmg' && e.to?.groupId === fotoGroup?.id
 );
-if (!webhookBeforeFoto) errors.push('webhook must route to ENVIO DA RECEITA ANTERIOR before end');
+if (!webhookBeforeFoto) errors.push('webhook must route to upload receita group before end');
+const uploadCheckEdge = (bot.edges || []).some((e) => e.id === 'edge_upload_check_request');
+if (!uploadCheckEdge) errors.push('upload flow must include edge_upload_check_request (Conferir novamente)');
+const uploadConfirmedEdge = (bot.edges || []).some((e) => e.id === 'edge_upload_confirmed_to_end');
+if (!uploadConfirmedEdge) errors.push('upload flow must include edge_upload_confirmed_to_end');
 
 const termsEdge = (bot.edges || []).find((e) => e.id === 'edge_terms_accept_to_payment');
 const gateToTerms = (bot.edges || []).find((e) => e.id === 'edge_gate_to_terms');

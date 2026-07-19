@@ -14,7 +14,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const file = path.join(__dirname, '../../docs/typebot/typebot-doctor-prescreve-production.json');
+const file =
+  process.env.TYPEBOT_FILE ||
+  path.join(__dirname, '../../docs/typebot/typebot-doctor-prescreve-production.json');
 const t = JSON.parse(fs.readFileSync(file, 'utf8'));
 const changes = [];
 
