@@ -10,7 +10,7 @@
  *   WHATSAPP_BUSINESS_ACCOUNT_ID=1293601975703284 \
  *   node mdoctor-backend/scripts/railway-sync-whatsapp-staging-env.js
  *
- * Requer: RAILWAY_TOKEN (Project Access Token) ou ~/.railway/config.json (railway login).
+ * Requer: RAILWAY_TOKEN (Project Access Token do ambiente staging) ou railway login.
  * Opcional: REDEPLOY=1 para disparar redeploy após setar variáveis.
  */
 require('./load-dotenv');
@@ -63,20 +63,40 @@ async function gql(token, query, variables) {
   return data.data;
 }
 
-async function upsertVars(token, vars) {
-  const variables = Object.entries(vars).map(([name, value]) => ({ name, value: String(value) }));
-  const query = `
-    mutation variableCollectionUpsert($projectId: String!, $environmentId: String!, $serviceId: String!, $variables: [VariableUpsertInput!]!) {
-      variableCollectionUpsert(input: { projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId, variables: $variables }) {
-        id
+async function assertStagingAccess(token) {
+  try {
+    await gql(token, `
+      query($projectId: String!, $environmentId: String!, $serviceId: String!) {
+        variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
       }
+    `, { projectId: PROJECT, environmentId: STAGING_ENV, serviceId: STAGING_SERVICE });
+  } catch (error) {
+    const message = String(error.message || error);
+    if (/Not Authorized/i.test(message)) {
+      throw new Error(
+        'RAILWAY_TOKEN sem acesso ao ambiente staging. Gere um Project Access Token ' +
+        'em Backend-Mdoctor → environment staging → Settings → Tokens (nao use token so de production).'
+      );
+    }
+    throw error;
+  }
+}
+
+async function upsertVar(token, name, value) {
+  const query = `
+    mutation variableUpsert($input: VariableUpsertInput!) {
+      variableUpsert(input: $input)
     }
   `;
   return gql(token, query, {
-    projectId: PROJECT,
-    environmentId: STAGING_ENV,
-    serviceId: STAGING_SERVICE,
-    variables
+    input: {
+      projectId: PROJECT,
+      environmentId: STAGING_ENV,
+      serviceId: STAGING_SERVICE,
+      name,
+      value: String(value),
+      skipDeploys: process.env.REDEPLOY !== '1'
+    }
   });
 }
 
@@ -113,9 +133,12 @@ async function main() {
     process.exit(1);
   }
 
-  await upsertVars(token, vars);
+  await assertStagingAccess(token);
+  for (const [key, value] of Object.entries(vars)) {
+    await upsertVar(token, key, value);
+  }
 
-  const result = { ok: true, applied, service: 'mdoctor-backend-staging' };
+  const result = { ok: true, applied, service: 'mdoctor-backend-staging', environmentId: STAGING_ENV };
   if (process.env.REDEPLOY === '1') {
     await triggerDeploy(token);
     result.redeploy = true;
