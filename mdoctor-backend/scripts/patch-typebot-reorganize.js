@@ -96,7 +96,7 @@ const IDS = {
   paymentBlock: 'rapfykn1f1uno89ypqmwi43f',
   paymentEdge: 'xxpw9p5hptmv7u7qlatptirp',
   confirmChoice: 'plhspmybxbhylbfbsvqyhlmj',
-  confirmItem: 'nmhyrnorx68pd9jrp98esvli',
+  confirmItem: 'resumo_confirm',
   elegivelText: 'xus8mt3l0wv32b84gv9tkihm',
   webhookBlock: 'axuwb907imxr22bqbnugj3ab',
   webhookEdge: 'vgmrhkywl7kagoaeaq2ybdmg',
@@ -840,14 +840,8 @@ function patchWebhook(bot) {
 }
 
 function patchConfirmacao(bot) {
-  const g = findGroup(bot, 'Confirmação de dados');
-  const txt = g?.blocks?.find((b) => b.type === 'text');
-  if (txt?.content?.richText) {
-    txt.content.richText = [
-      richParagraph('Revise os dados informados.'),
-      richParagraph('Confirma que estão corretos para envio à avaliação médica?')
-    ];
-  }
+  const { patchResumoDados } = require('./patch-typebot-resumo-dados');
+  patchResumoDados(bot);
 }
 
 function patchFinalMessage(bot) {

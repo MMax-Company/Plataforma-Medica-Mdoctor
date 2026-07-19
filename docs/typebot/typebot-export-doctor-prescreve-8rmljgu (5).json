@@ -195,32 +195,39 @@
     },
     {
       "id": "wupo36l29a2x66rh0bwf5yex",
-      "title": "Confirmação de dados",
+      "title": "Resumo dos dados",
       "graphCoordinates": {
         "x": -3671.31,
         "y": -919.63
       },
       "blocks": [
         {
+          "id": "blk_resumo_clear_flag",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_corrigindo_secao",
+            "expressionToEvaluate": "\"\""
+          }
+        },
+        {
+          "id": "blk_resumo_build",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_resumo_dados",
+            "expressionToEvaluate": "const mapCondicao = (raw) => {\n  const map = {\n    has: 'Hipertensão arterial',\n    hipertensao: 'Hipertensão arterial',\n    dm: 'Diabetes mellitus',\n    dlp: 'Dislipidemia',\n    hipotireoidismo: 'Hipotireoidismo'\n  };\n  const label = (code) => {\n    const key = String(code || '').trim().toLowerCase();\n    return map[key] || '';\n  };\n  if (Array.isArray(raw)) {\n    const labels = raw.map(label).filter(Boolean);\n    return labels.length ? labels.join('; ') : '—';\n  }\n  const text = String(raw || '').trim();\n  if (!text) return '—';\n  if (text.startsWith('[')) {\n    try {\n      const parsed = JSON.parse(text);\n      if (Array.isArray(parsed)) return mapCondicao(parsed);\n    } catch (_) {}\n  }\n  if (text.includes(',')) {\n    const labels = text.split(',').map((part) => label(part)).filter(Boolean);\n    return labels.length ? labels.join('; ') : '—';\n  }\n  return label(text) || '—';\n};\n\nconst mapReceitaStatus = (raw) => {\n  const map = {\n    sim: 'Receita disponível para envio',\n    available_now: 'Receita disponível para envio',\n    not_available_now: 'Receita indisponível no momento',\n    none: 'Sem receita anterior',\n    nao: 'Sem receita anterior'\n  };\n  const key = String(raw || '').trim().toLowerCase();\n  return map[key] || '—';\n};\n\nconst mapReceitaEmissao = (raw) => {\n  const map = {\n    within_180_days: 'Receita emitida há até 180 dias',\n    over_180_days: 'Receita emitida há mais de 180 dias',\n    unknown: 'Data da receita não informada'\n  };\n  const key = String(raw || '').trim().toLowerCase();\n  return map[key] || '';\n};\n\nconst calcIdade = (rawBirth) => {\n  const raw = String(rawBirth || '').trim();\n  if (!raw) return '—';\n  let day;\n  let month;\n  let year;\n  const digits = raw.replace(/\\D/g, '');\n  if (digits.length === 8) {\n    day = Number(digits.slice(0, 2));\n    month = Number(digits.slice(2, 4));\n    year = Number(digits.slice(4, 8));\n  } else {\n    const match = raw.match(/^(\\d{1,2})[\\/\\-.](\\d{1,2})[\\/\\-.](\\d{4})$/);\n    if (!match) return '—';\n    day = Number(match[1]);\n    month = Number(match[2]);\n    year = Number(match[3]);\n  }\n  const birth = new Date(year, month - 1, day);\n  if (Number.isNaN(birth.getTime())) return '—';\n  const today = new Date();\n  let age = today.getFullYear() - birth.getFullYear();\n  const monthDiff = today.getMonth() - birth.getMonth();\n  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;\n  return age >= 0 && age <= 130 ? String(age) : '—';\n};\n\nconst count = Math.min(3, Math.max(1, Number({{medication_count}}) || 1));\nconst slots = [\n  { nome: {{med1_nome}}, dose: {{med1_dose}}, freq: {{med1_frequencia}}, via: {{med1_via}} },\n  { nome: {{med2_nome}}, dose: {{med2_dose}}, freq: {{med2_frequencia}}, via: {{med2_via}} },\n  { nome: {{med3_nome}}, dose: {{med3_dose}}, freq: {{med3_frequencia}}, via: {{med3_via}} }\n];\nconst meds = [];\nfor (let i = 0; i < count; i += 1) {\n  const slot = slots[i] || {};\n  const nome = String(slot.nome || '').trim();\n  if (!nome) continue;\n  const dose = String(slot.dose || '').trim();\n  const freq = String(slot.freq || '').trim();\n  const via = String(slot.via || '').trim();\n  const parts = [nome];\n  if (dose) parts.push(dose);\n  if (freq) parts.push(freq);\n  if (via) parts.push('via ' + via);\n  meds.push((i + 1) + '. ' + parts.join(' — '));\n}\n\nconst receitaStatus = mapReceitaStatus({{has_previous_prescription}});\nconst receitaEmissao = mapReceitaEmissao({{previous_prescription_age}});\n\nconst lines = [\n  '📋 RESUMO DOS DADOS',\n  '',\n  'Nome: ' + String({{Nome_Completo}} || '—').trim(),\n  'Idade: ' + calcIdade({{data_nascimento}}) + ' anos',\n  'CPF: ' + String({{cpf_paciente}} || '—').trim(),\n  'WhatsApp: ' + String({{whatsapp}} || '—').trim(),\n  'E-mail: ' + String({{Email}} || '—').trim(),\n  'Endereço: ' + String({{Endereco}} || '—').trim(),\n  'CEP: ' + String({{cep}} || '—').trim(),\n  'Condição: ' + mapCondicao({{doenca_cronica}}),\n  'Receita: ' + receitaStatus\n];\nif (receitaEmissao) lines.push('Emissão: ' + receitaEmissao);\nlines.push('', 'Medicamentos:');\nlines.push(meds.length ? meds.join('\\n') : '—');\nlines.push('', 'Confira se está tudo correto antes de continuar.');\nlines.push('', 'Escolha uma opção:');\nlines.push('• Sim, confirmar e continuar');\nlines.push('• Corrigir dados pessoais');\nlines.push('• Corrigir medicamentos');\nreturn lines.join('\\n');"
+          }
+        },
+        {
           "id": "k0i76xzc7cs84de90o94oy9i",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_n5phxcec",
+                "id": "p_resumo_body",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Revise os dados informados."
-                  }
-                ]
-              },
-              {
-                "id": "p_dch357f7",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Confirma que estão corretos para envio à avaliação médica?"
+                    "text": "{{resumo_dados}}"
                   }
                 ]
               }
@@ -232,9 +239,22 @@
           "type": "choice input",
           "items": [
             {
-              "id": "nmhyrnorx68pd9jrp98esvli",
-              "outgoingEdgeId": "qdbm3l4g51y98mq9cyysegzw",
-              "content": "Confirmar dados"
+              "id": "resumo_confirm",
+              "content": "Sim, confirmar e continuar",
+              "value": "confirmar",
+              "outgoingEdgeId": "edge_confirm_to_webhook"
+            },
+            {
+              "id": "resumo_corr_dados",
+              "content": "Corrigir dados pessoais",
+              "value": "corrigir_dados",
+              "outgoingEdgeId": "edge_resumo_to_prep_dados"
+            },
+            {
+              "id": "resumo_corr_meds",
+              "content": "Corrigir medicamentos",
+              "value": "corrigir_meds",
+              "outgoingEdgeId": "edge_resumo_to_medcount"
             }
           ]
         }
@@ -842,7 +862,8 @@
             },
             "variableId": "var_9lceldd5",
             "inputMode": "numeric"
-          }
+          },
+          "outgoingEdgeId": "edge_dados_to_route"
         },
         {
           "id": "q78qjnk6ticwkeifl7xe2rju",
@@ -2495,6 +2516,86 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_resumo_prep_dados",
+      "title": "Resumo — preparar correção de dados",
+      "graphCoordinates": {
+        "x": -3400,
+        "y": 120
+      },
+      "blocks": [
+        {
+          "id": "blk_resumo_set_corr_dados",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_corrigindo_secao",
+            "expressionToEvaluate": "\"dados\""
+          }
+        },
+        {
+          "id": "blk_resumo_prep_dados_done",
+          "outgoingEdgeId": "edge_prep_dados_to_dados",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_resumo_prep_dados",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Vamos corrigir seus dados pessoais."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_dados_route",
+      "title": "Rota após dados pessoais",
+      "graphCoordinates": {
+        "x": -1900,
+        "y": -2100
+      },
+      "blocks": [
+        {
+          "id": "blk_dados_route_cond",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_dados_to_resumo",
+              "outgoingEdgeId": "edge_dados_to_resumo",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_dados_corr_resumo",
+                    "variableId": "var_corrigindo_secao",
+                    "comparisonOperator": "Equal to",
+                    "value": "\"dados\""
+                  }
+                ]
+              }
+            },
+            {
+              "id": "cond_dados_to_receita",
+              "outgoingEdgeId": "edge_dados_to_receita",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_dados_to_receita",
+                    "variableId": "var_corrigindo_secao",
+                    "comparisonOperator": "Not equal",
+                    "value": "\"dados\""
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "edges": [
@@ -2671,15 +2772,6 @@
       },
       "to": {
         "groupId": "od03hfeq73l5xvs0lj9xrox3"
-      }
-    },
-    {
-      "id": "edge_dados_to_receita",
-      "from": {
-        "blockId": "q78qjnk6ticw"
-      },
-      "to": {
-        "groupId": "grp_receita_anterior"
       }
     },
     {
@@ -2928,7 +3020,7 @@
       "id": "edge_confirm_to_webhook",
       "from": {
         "blockId": "plhspmybxbhylbfbsvqyhlmj",
-        "itemId": "nmhyrnorx68pd9jrp98esvli"
+        "itemId": "resumo_confirm"
       },
       "to": {
         "groupId": "g60uvyvi39v47j4ahnoxkxzn",
@@ -3036,6 +3128,70 @@
       },
       "to": {
         "groupId": "jnbvtyzr1ffz4ff5n05a999k"
+      }
+    },
+    {
+      "id": "edge_dados_to_route",
+      "from": {
+        "blockId": "blk_0oydu2f7"
+      },
+      "to": {
+        "groupId": "grp_dados_route",
+        "blockId": "blk_dados_route_cond"
+      }
+    },
+    {
+      "id": "edge_dados_to_resumo",
+      "from": {
+        "blockId": "blk_dados_route_cond",
+        "itemId": "cond_dados_to_resumo"
+      },
+      "to": {
+        "groupId": "wupo36l29a2x66rh0bwf5yex",
+        "blockId": "blk_resumo_clear_flag"
+      }
+    },
+    {
+      "id": "edge_dados_to_receita",
+      "from": {
+        "blockId": "blk_dados_route_cond",
+        "itemId": "cond_dados_to_receita"
+      },
+      "to": {
+        "groupId": "grp_receita_anterior",
+        "blockId": "blk_receita_txt"
+      }
+    },
+    {
+      "id": "edge_resumo_to_prep_dados",
+      "from": {
+        "blockId": "plhspmybxbhylbfbsvqyhlmj",
+        "itemId": "resumo_corr_dados"
+      },
+      "to": {
+        "groupId": "grp_resumo_prep_dados",
+        "blockId": "blk_resumo_set_corr_dados"
+      }
+    },
+    {
+      "id": "edge_prep_dados_to_dados",
+      "from": {
+        "blockId": "blk_resumo_prep_dados_done"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "emdb1ofb3knx8py3jc4ed13h"
+      }
+    },
+    {
+      "id": "edge_resumo_to_medcount",
+      "from": {
+        "blockId": "plhspmybxbhylbfbsvqyhlmj",
+        "itemId": "resumo_corr_meds"
+      },
+      "to": {
+        "groupId": "huh6fmizvv701t9u7hc2mult",
+        "blockId": "ng82dao2u8yp3cyr8oopz1tt"
       }
     }
   ],
@@ -3333,6 +3489,21 @@
     {
       "id": "var_upload_status",
       "name": "upload_status",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_resumo_dados",
+      "name": "resumo_dados",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_corrigindo_secao",
+      "name": "corrigindo_secao",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_previous_prescription_age",
+      "name": "previous_prescription_age",
       "isSessionVariable": false
     }
   ],

@@ -72,14 +72,47 @@ function convertTypebotResponse(response = {}) {
   const input = response.input || {};
   const items = Array.isArray(input.items) ? input.items.filter((item) => item?.content || item?.value) : [];
   if (input.type === 'choice input' && items.length) {
-    const choices = items.map((item, index) => ({
-      id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-      title: String(item.content || item.value).slice(0, 24),
-      value: String(item.content || item.value)
-    }));
-    outputs.push(choices.length <= 3
-      ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
-      : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
+    const META_BUTTON_TITLE_MAX = 20;
+    const META_LIST_TITLE_MAX = 24;
+    const truncateAtWord = (text, max) => {
+      const value = String(text || '');
+      if (value.length <= max) return value;
+      const sliced = value.slice(0, max);
+      const trimmed = sliced.replace(/\s+\S*$/, '').trim();
+      return trimmed || sliced.trim();
+    };
+    const choices = items.map((item, index) => {
+      const content = String(item.content || item.value || item.id || `choice-${index + 1}`);
+      return {
+        id: content.slice(0, 200),
+        title: content,
+        description: content.length > META_LIST_TITLE_MAX ? content : undefined,
+        value: content
+      };
+    });
+    const longestTitle = Math.max(...choices.map((choice) => choice.title.length));
+    const useList = choices.length > 3 || longestTitle > META_BUTTON_TITLE_MAX;
+    if (useList) {
+      outputs.push({
+        kind: 'list',
+        body: 'Escolha uma opção:',
+        button: 'Ver opções',
+        choices: choices.slice(0, 10).map((choice) => ({
+          ...choice,
+          title: truncateAtWord(choice.title, META_LIST_TITLE_MAX),
+          description: choice.description || (choice.title.length > META_LIST_TITLE_MAX ? choice.title : undefined)
+        }))
+      });
+    } else {
+      outputs.push({
+        kind: 'buttons',
+        body: 'Escolha uma opção:',
+        choices: choices.map((choice) => ({
+          ...choice,
+          title: choice.title.slice(0, META_BUTTON_TITLE_MAX)
+        }))
+      });
+    }
   }
 
   const hasTextOutput = outputs.some((output) => output.kind === 'text');

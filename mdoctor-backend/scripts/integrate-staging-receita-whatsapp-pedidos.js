@@ -2,6 +2,11 @@
  * Integra pedidos 1–5 (PR #24) no export staging-safe a partir do production.json,
  * preservando webhook n8n staging e URLs Supabase staging.
  *
+ * Ordem recomendada antes de publicar:
+ *   1. node mdoctor-backend/scripts/patch-typebot-resumo-dados.js docs/typebot/typebot-doctor-prescreve-staging-safe.json
+ *   2. node mdoctor-backend/scripts/integrate-staging-receita-whatsapp-pedidos.js
+ *   3. node mdoctor-backend/scripts/validate-typebot-staging-safe.js
+ *
  * Uso: node mdoctor-backend/scripts/integrate-staging-receita-whatsapp-pedidos.js
  */
 

@@ -94,15 +94,19 @@ if (!paymentToMedCount) errors.push('payment must route to medication count grou
 if (missingConsentFields.length) errors.push(`webhook missing consent fields: ${missingConsentFields.join(', ')}`);
 if (bareSupabaseUrls.length) errors.push(`bare supabase URLs in patient text: ${bareSupabaseUrls.join('; ')}`);
 if (serialized.includes('file input')) errors.push('file input block must not exist (Typebot free plan)');
-const webhookBlock = webhookBlocks[0];
-const mapsUploadUrl = webhookBlock?.options?.responseVariableMapping?.some(
+const triagemWebhookBlock = blocks.find((b) => b.id === 'axuwb907imxr22bqbnugj3ab') || webhookBlocks[0];
+const mapsUploadUrl = triagemWebhookBlock?.options?.responseVariableMapping?.some(
   (m) => m.bodyPath === 'upload_url' || m.bodyPath === 'data.upload_url'
 );
 if (!mapsUploadUrl) errors.push('webhook must map response upload_url to variable');
-const mapsUploadStatusUrl = webhookBlock?.options?.responseVariableMapping?.some(
+const mapsUploadStatusUrl = triagemWebhookBlock?.options?.responseVariableMapping?.some(
   (m) => m.bodyPath === 'upload_status_url' || m.bodyPath === 'data.upload_status_url'
 );
 if (!mapsUploadStatusUrl) errors.push('webhook must map response upload_status_url to variable');
+const resumoGroup = (bot.groups || []).find((g) => g.id === 'wupo36l29a2x66rh0bwf5yex');
+if (!resumoGroup || !/Resumo dos dados/i.test(String(resumoGroup.title))) {
+  errors.push('resumo group must be titled Resumo dos dados');
+}
 const webhookBeforeFoto = (bot.edges || []).some(
   (e) => e.id === 'vgmrhkywl7kagoaeaq2ybdmg' && e.to?.groupId === fotoGroup?.id
 );
