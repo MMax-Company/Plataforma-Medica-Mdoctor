@@ -168,6 +168,31 @@ async function sendButtonMessage({ to, bsuid, recipientId, body, buttons, correl
   }, { correlationId, idempotencyKey });
 }
 
+async function sendCtaUrlMessage({ to, bsuid, recipientId, body, displayText, url, correlationId, idempotencyKey }) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const targetUrl = String(url || '').trim();
+  if (!targetUrl) {
+    const error = new Error('URL do botão de pagamento ausente');
+    error.code = 'META_MISSING_CTA_URL';
+    throw error;
+  }
+  return postMessage({
+    ...recipient,
+    type: 'interactive',
+    interactive: {
+      type: 'cta_url',
+      body: { text: String(body || 'Toque no botão abaixo para continuar.').slice(0, 1024) },
+      action: {
+        name: 'cta_url',
+        parameters: {
+          display_text: String(displayText || 'Abrir').slice(0, 20),
+          url: targetUrl
+        }
+      }
+    }
+  }, { correlationId, idempotencyKey });
+}
+
 async function sendListMessage({ to, bsuid, recipientId, body, button, rows, correlationId, idempotencyKey }) {
   const recipient = resolveRecipient({ to, bsuid, recipientId });
   return postMessage({
@@ -441,6 +466,7 @@ module.exports = {
   deleteMessageTemplate,
   sendTextMessage,
   sendButtonMessage,
+  sendCtaUrlMessage,
   sendListMessage,
   sendDocumentMessage,
   downloadMedia,

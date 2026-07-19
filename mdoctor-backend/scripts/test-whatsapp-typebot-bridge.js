@@ -346,11 +346,29 @@ async function main() {
     createIntegrationError: async () => {},
     createPaymentLink: async (args) => {
       paymentLinks.push(args);
-      return { token: 'tok', url: 'https://staging.example/api/typebot-payment/tok', amountLabel: 'R$69.90' };
+      return {
+        token: 'tok',
+        checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout',
+        amountLabel: 'R$ 69,90',
+        paymentStatus: 'pending'
+      };
+    },
+    sendPaymentIntro: async ({ session, checkoutRedirectUrl, correlationId, provider }) => {
+      const text = await provider.sendTextMessage({ to: session.phone, text: 'intro', correlationId, idempotencyKey: `${correlationId}:0` });
+      const cta = await provider.sendCtaUrlMessage({
+        to: session.phone,
+        body: 'cta',
+        displayText: 'Pagar R$ 69,90',
+        url: checkoutRedirectUrl,
+        correlationId,
+        idempotencyKey: `${correlationId}:1`
+      });
+      paymentSent.push(text, cta);
+      return [text?.providerMessageId, cta?.providerMessageId].filter(Boolean);
     },
     callTypebot: async () => ({
       sessionId: 'pay-session',
-      messages: [{ type: 'text', content: { plainText: 'Termos aceitos. Você será direcionado ao pagamento.' } }],
+      messages: [],
       input: {
         id: 'rapfykn1f1uno89ypqmwi43f',
         type: 'payment input',
@@ -359,6 +377,7 @@ async function main() {
     }),
     provider: {
       sendTextMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
+      sendCtaUrlMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
       sendButtonMessage: async () => ({}),
       sendListMessage: async () => ({})
     }
@@ -369,12 +388,12 @@ async function main() {
     identity,
     whatsappSession: { id: 'wa-pay', typebot_session_id: 'pay-session' }
   });
-  assert.equal(payResult.responsesSent, 2, 'texto do bot + link de pagamento');
+  assert.equal(payResult.responsesSent, 2, 'intro + botão CTA de pagamento');
   assert.equal(paymentLinks.length, 1);
   assert.equal(paymentLinks[0].typebotSessionId, 'pay-session');
-  assert.equal(paymentLinks[0].runtimeOptions.paymentIntentSecret, 'pi_123_secret_abc');
-  assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok'));
-  assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-link');
+  assert.equal(paymentSent.some((item) => item.displayText === 'Pagar R$ 69,90'), true);
+  assert.equal(paymentSent.some((item) => String(item.url || '').includes('/checkout')), true);
+  assert.equal(paymentSent.every((item) => !String(item.text || item.url || '').includes('railway')), true);
 
   console.log(JSON.stringify({
     patientSendsOi: 'ok',

@@ -1,6 +1,5 @@
-/* Página de pagamento da sessão Typebot (WhatsApp -> web).
-   Mesmo PaymentIntent criado pelo bloco Stripe do Typebot: nenhuma cobrança
-   nova é criada aqui; a confirmação server-side acontece no /complete. */
+/* Página auxiliar do pagamento Typebot/WhatsApp.
+   A confirmação real ocorre via webhook Stripe; esta página apenas orienta o paciente. */
 (function () {
   const token = window.location.pathname.split('/').filter(Boolean).pop();
   const statusEl = document.getElementById('status');
@@ -12,110 +11,59 @@
     statusEl.className = 'status' + (cls ? ' ' + cls : '');
   }
 
-  function paymentReturnUrl() {
-    return window.location.origin + window.location.pathname;
-  }
-
-  async function completeOnServer() {
-    const res = await fetch(`/api/typebot-payment/${encodeURIComponent(token)}/complete`, { method: 'POST' });
+  async function loadStatus() {
+    const res = await fetch(`/api/typebot-payment/${encodeURIComponent(token)}/status`);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      throw new Error(data.code === 'NOT_PAID' ? 'Pagamento ainda não confirmado pelo Stripe.' : 'Falha ao retomar o atendimento.');
-    }
-    return data;
-  }
-
-  async function finalizeAfterPayment() {
-    setStatus('Pagamento aprovado. Retomando seu atendimento…');
-    await completeOnServer();
-    payButton.style.display = 'none';
-    setStatus('✅ Pagamento confirmado! Volte ao WhatsApp para continuar o atendimento.', 'ok');
-  }
-
-  async function recoverAfterClientError(stripeError) {
-    try {
-      await completeOnServer();
-      payButton.style.display = 'none';
-      setStatus('✅ Pagamento confirmado! Volte ao WhatsApp para continuar o atendimento.', 'ok');
-      return true;
-    } catch (_) {
-      setStatus(stripeError.message || 'Não foi possível processar o pagamento.', 'error');
-      payButton.disabled = false;
-      return false;
-    }
+    return { res, data };
   }
 
   async function init() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('redirect_status') === 'succeeded') {
-      payButton.disabled = true;
-      try {
-        await finalizeAfterPayment();
-      } catch (err) {
-        setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
-        payButton.disabled = false;
-      }
-      return;
-    }
+    amountEl.textContent = 'R$ 69,90';
 
-    const res = await fetch(`/api/typebot-payment/${encodeURIComponent(token)}/config`);
-    const config = await res.json().catch(() => ({}));
-    if (!res.ok || !config.success) {
-      setStatus(res.status === 410 ? 'Este link de pagamento expirou. Volte ao WhatsApp e reenvie sua última resposta.' : 'Link de pagamento inválido.', 'error');
-      return;
-    }
-    amountEl.textContent = config.amountLabel || '';
-
-    if (config.status === 'completed') {
+    if (params.get('cancelled') === '1') {
+      setStatus('Pagamento cancelado. Volte ao WhatsApp para tentar novamente ou continuar depois.', 'error');
       payButton.style.display = 'none';
-      setStatus('✅ Pagamento já confirmado. Continue seu atendimento no WhatsApp.', 'ok');
       return;
     }
 
-    if (config.intentAlreadyPaid) {
-      payButton.disabled = true;
-      try {
-        await finalizeAfterPayment();
-      } catch (err) {
-        setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
-        payButton.disabled = false;
-      }
+    const { res, data } = await loadStatus();
+    if (!res.ok) {
+      setStatus(res.status === 410 ? 'Este link expirou. Volte ao WhatsApp e selecione Abrir pagamento novamente.' : 'Link de pagamento inválido.', 'error');
+      payButton.style.display = 'none';
       return;
     }
 
-    const stripe = Stripe(config.publicKey);
-    const elements = stripe.elements({ clientSecret: config.clientSecret, locale: 'pt-BR' });
-    const paymentElement = elements.create('payment');
-    paymentElement.mount('#payment-element');
-    paymentElement.on('ready', function () {
+    if (data.payment_status === 'paid') {
+      payButton.style.display = 'none';
+      setStatus('Pagamento confirmado. Volte ao WhatsApp para continuar o atendimento.', 'ok');
+      return;
+    }
+
+    if (params.get('session_id')) {
+      setStatus('Recebemos seu pagamento. Aguarde a confirmação automática e volte ao WhatsApp para selecionar Conferir pagamento.', 'ok');
+      payButton.textContent = 'Atualizar status';
       payButton.disabled = false;
-      setStatus('');
-    });
+      payButton.onclick = async function () {
+        payButton.disabled = true;
+        const refreshed = await loadStatus();
+        if (refreshed.data.payment_status === 'paid') {
+          setStatus('Pagamento confirmado. Volte ao WhatsApp para continuar o atendimento.', 'ok');
+          payButton.style.display = 'none';
+          return;
+        }
+        setStatus('Ainda não recebemos a confirmação do pagamento. Aguarde alguns instantes e tente novamente.', 'error');
+        payButton.disabled = false;
+      };
+      return;
+    }
 
-    payButton.addEventListener('click', async function () {
-      payButton.disabled = true;
-      setStatus('Processando pagamento…');
-      const result = await stripe.confirmPayment({
-        elements,
-        redirect: 'if_required',
-        confirmParams: { return_url: paymentReturnUrl() }
-      });
-      if (result.error) {
-        await recoverAfterClientError(result.error);
-        return;
-      }
-      if (result.paymentIntent && result.paymentIntent.status === 'processing') {
-        setStatus('Pagamento em processamento. Aguarde a confirmação…');
-        payButton.disabled = false;
-        return;
-      }
-      try {
-        await finalizeAfterPayment();
-      } catch (err) {
-        setStatus(err.message + ' Recarregue a página para tentar novamente.', 'error');
-        payButton.disabled = false;
-      }
-    });
+    payButton.textContent = 'Ir para pagamento';
+    payButton.disabled = false;
+    payButton.onclick = function () {
+      window.location.href = `/api/typebot-payment/${encodeURIComponent(token)}/checkout`;
+    };
+    setStatus('Toque no botão abaixo para abrir o checkout seguro do Stripe.');
   }
 
   init().catch(function () {
