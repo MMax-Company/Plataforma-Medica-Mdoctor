@@ -13,11 +13,16 @@ function getConfig() {
   return {
     viewerUrl: String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, ''),
     publicId: String(process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim(),
+    welcomeChoiceInputId: String(process.env.TYPEBOT_WELCOME_CHOICE_INPUT_ID || 'sbjZWLJGVkHAkDqS4JQeGow').trim(),
     timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
     retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
     retryBaseDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_BASE_DELAY_MS || 300)),
     retryMaxDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_MAX_DELAY_MS || 2500))
   };
+}
+
+function isConversationGreeting(text) {
+  return /^(oi|olá|ola|hey|hello|bom dia|boa tarde|boa noite)$/i.test(String(text || '').trim());
 }
 
 function richTextToPlainText(nodes = []) {
@@ -264,7 +269,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
-  async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
+  async function processInbound({ messageId, text, identity, whatsappSession, menuBootstrap = false }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
     if (!claimed.claimed) return { duplicate: true, responsesSent: 0, sessionIdReused: Boolean(whatsappSession?.typebot_session_id) };
 
@@ -370,43 +375,99 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       }
 
-      const path = existingSessionId
-        ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
-        : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
-      const message = {
-        type: 'text',
-        text: validation.isPersonal ? validation.value : String(text || ''),
-        metadata: { replyId: messageId }
-      };
-      const typebot = await callWithRetry(
-        () => callTypebot(path, { message }, { config }),
-        {
-          attempts: config.retryAttempts,
-          baseDelayMs: config.retryBaseDelayMs,
-          maxDelayMs: config.retryMaxDelayMs,
-          sleep,
-          onRetry: async (error, retry) => {
-            const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
-            await logError({
-              integration: 'typebot_runtime',
-              correlationId: messageId,
-              error: detailedError,
-              request: {
-                message_id: messageId,
-                whatsapp_session_id: currentSession?.id || null,
-                phase: 'retry',
-                attempt: retry.attempt,
-                next_attempt: retry.nextAttempt,
-                backoff_ms: retry.delayMs
-              }
-            }).catch(() => {});
+      let typebot;
+      let sessionIdForChat = existingSessionId;
+      let sessionIdReused = false;
+      if (menuBootstrap) {
+        const startResponse = await callWithRetry(
+          () => callTypebot(
+            `/typebots/${encodeURIComponent(config.publicId)}/startChat`,
+            { message: { type: 'text', text: '1', metadata: { replyId: messageId } } },
+            { config }
+          ),
+          {
+            attempts: config.retryAttempts,
+            baseDelayMs: config.retryBaseDelayMs,
+            maxDelayMs: config.retryMaxDelayMs,
+            sleep
           }
+        );
+        const bootstrapSessionId = startResponse.sessionId;
+        if (!bootstrapSessionId) throw new Error('Typebot não retornou sessionId');
+        await saveSessionId({ sessionId: currentSession.id, typebotSessionId: bootstrapSessionId });
+        sessionIdForChat = bootstrapSessionId;
+        typebot = await callWithRetry(
+          () => callTypebot(
+            `/sessions/${encodeURIComponent(bootstrapSessionId)}/continueChat`,
+            {
+              message: {
+                type: 'text',
+                text: 'Iniciar Atendimento',
+                metadata: { replyId: messageId }
+              }
+            },
+            { config }
+          ),
+          {
+            attempts: config.retryAttempts,
+            baseDelayMs: config.retryBaseDelayMs,
+            maxDelayMs: config.retryMaxDelayMs,
+            sleep
+          }
+        );
+      } else {
+        if (
+          sessionIdForChat
+          && expectedInputId === config.welcomeChoiceInputId
+          && isConversationGreeting(text)
+        ) {
+          await saveSessionId({ sessionId: currentSession.id, typebotSessionId: null });
+          sessionIdForChat = null;
+          expectedInputs.set(identityKey, null);
+          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
         }
-      );
 
-      const sessionId = existingSessionId || typebot.sessionId;
+        const path = sessionIdForChat
+          ? `/sessions/${encodeURIComponent(sessionIdForChat)}/continueChat`
+          : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
+        sessionIdReused = Boolean(sessionIdForChat);
+        const message = {
+          type: 'text',
+          text: validation.isPersonal ? validation.value : String(text || ''),
+          metadata: { replyId: messageId }
+        };
+        typebot = await callWithRetry(
+          () => callTypebot(path, { message }, { config }),
+          {
+            attempts: config.retryAttempts,
+            baseDelayMs: config.retryBaseDelayMs,
+            maxDelayMs: config.retryMaxDelayMs,
+            sleep,
+            onRetry: async (error, retry) => {
+              const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
+              await logError({
+                integration: 'typebot_runtime',
+                correlationId: messageId,
+                error: detailedError,
+                request: {
+                  message_id: messageId,
+                  whatsapp_session_id: currentSession?.id || null,
+                  phase: 'retry',
+                  attempt: retry.attempt,
+                  next_attempt: retry.nextAttempt,
+                  backoff_ms: retry.delayMs
+                }
+              }).catch(() => {});
+            }
+          }
+        );
+      }
+
+      const sessionId = sessionIdForChat || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
-      if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
+      if (!existingSessionId || menuBootstrap) {
+        await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
+      }
       const nextInputId = typebot.input?.id || null;
       expectedInputs.set(identityKey, nextInputId);
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
@@ -472,7 +533,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         duplicate: false,
         responsesSent: providerMessageIds.length,
         sessionId,
-        sessionIdReused: Boolean(existingSessionId),
+        sessionIdReused: sessionIdReused && !menuBootstrap,
         retryAttempts: typebot.retryAttempts || undefined
       };
     } catch (error) {

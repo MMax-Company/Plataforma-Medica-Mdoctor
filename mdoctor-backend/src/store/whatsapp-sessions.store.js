@@ -148,11 +148,11 @@ async function clearSurveySession(phone) {
 }
 
 async function setTypebotSessionId({ sessionId, typebotSessionId }) {
-  if (!sessionId || !typebotSessionId) return null;
+  if (!sessionId) return null;
   const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
-      .update({ typebot_session_id: typebotSessionId, updated_at: new Date().toISOString() })
+      .update({ typebot_session_id: typebotSessionId || null, updated_at: new Date().toISOString() })
       .eq('id', sessionId)
       .select('*')
       .single()
