@@ -9,8 +9,8 @@ const {
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const logger = require('../config/logger');
 
-const MAIN_MENU_TEXT =
-  'Olá, sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar sua avaliação para renovação de receita.\n*2* - Falar com o suporte.';
+// Menu 1/2 é exclusivo do backend (porta de entrada Meta). Não duplicar no Typebot.
+const MAIN_MENU_TEXT = '1 - Iniciar atendimento\n2 - Suporte';
 
 function isMainMenuTrigger(text) {
   const normalized = String(text || '').trim().toUpperCase();
