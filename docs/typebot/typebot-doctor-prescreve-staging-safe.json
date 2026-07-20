@@ -833,11 +833,12 @@
         },
         {
           "id": "q78qjnk6ticwkeifl7xe2rju",
-          "outgoingEdgeId": "b0xx8xgpeppttigdubv0bm9a",
+          "outgoingEdgeId": "edge_dados_to_receita",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Endereço com CEP"
+              "placeholder": "Logradouro, número e bairro (sem CEP)",
+              "button": "Enviar"
             },
             "variableId": "vi35p4gd73v2cuk9ai4jw2irs",
             "isLong": false
@@ -2613,7 +2614,7 @@
     {
       "id": "edge_dados_to_receita",
       "from": {
-        "blockId": "q78qjnk6ticw"
+        "blockId": "q78qjnk6ticwkeifl7xe2rju"
       },
       "to": {
         "groupId": "grp_receita_anterior"
