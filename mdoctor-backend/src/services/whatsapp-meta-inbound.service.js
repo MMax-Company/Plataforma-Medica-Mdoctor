@@ -4,20 +4,24 @@ const {
   getPatientSupportContext,
   respondToFinalization,
   handleRejectionResponse,
+  logSupportInboundMessage,
+  SUPPORT_IN_QUEUE_REPLY,
   SUPPORT_SUB
 } = require('./whatsapp-support.service');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const logger = require('../config/logger');
 
-const MAIN_MENU_TEXT =
-  'Olá, sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar sua avaliação para renovação de receita.\n*2* - Falar com o suporte.';
+// Menu 1/2 é exclusivo do backend (porta de entrada Meta). Não duplicar no Typebot.
+const MAIN_MENU_TEXT = '1 - Iniciar atendimento\n2 - Suporte';
 
 function isMainMenuTrigger(text) {
   const normalized = String(text || '').trim().toUpperCase();
   return ['OI', 'OLÁ', 'OLA', 'MENU', '0', 'ENCERRAR'].includes(normalized);
 }
 
-async function routeMetaWhatsAppInbound({ phone, text, whatsappSession }) {
+async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageId = null }) {
+  const idempotencyKey = messageId ? `meta:${String(messageId).trim()}` : null;
+
   try {
     const surveyResult = await handleSurveyInbound({ phone, text });
     if (surveyResult.handled) {
@@ -30,7 +34,11 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession }) {
   try {
     const rejectionResult = await handleRejectionResponse({ phone, text });
     if (rejectionResult.handled) {
-      return { action: 'reply', reply: rejectionResult.reply };
+      return {
+        action: 'reply',
+        reply: rejectionResult.reply,
+        clearClinicalMetadata: Boolean(rejectionResult.enteredSupport)
+      };
     }
   } catch (error) {
     logger.warn('meta_inbound_rejection_check_failed', { error: error.message });
@@ -57,20 +65,32 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession }) {
       const result = await closeWhatsAppSupportEntry({ phone });
       return { action: 'reply', reply: result.reply };
     }
+    await logSupportInboundMessage({
+      phone,
+      text,
+      atendimentoId: ctx?.atendimento_id || null
+    });
     return {
       action: 'reply',
-      reply:
-        'Você está na fila de suporte. Nossa equipe entrará em contato em breve.\n\n*0* - Cancelar e voltar ao menu inicial\n*ENCERRAR* - Encerrar atendimento'
+      reply: SUPPORT_IN_QUEUE_REPLY
     };
   }
 
   if (textNorm === '1') {
-    return { action: 'typebot_bootstrap', clearTypebotSession: true };
+    return { action: 'typebot_bootstrap', clearTypebotSession: true, clearClinicalMetadata: true };
   }
 
   if (textNorm === '2') {
-    const result = await createWhatsAppSupportEntry({ phone });
-    return { action: 'reply', reply: result.reply, clearTypebotSession: true };
+    const result = await createWhatsAppSupportEntry({
+      phone,
+      idempotencyKey
+    });
+    return {
+      action: 'reply',
+      reply: result.reply,
+      clearTypebotSession: true,
+      clearClinicalMetadata: true
+    };
   }
 
   if (isMainMenuTrigger(text) || !whatsappSession?.typebot_session_id) {

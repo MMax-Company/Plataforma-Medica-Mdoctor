@@ -37,9 +37,14 @@ assert('med name', med.name === 'Metformina');
 assert('med dose', med.dose === '850');
 assert('med frequency', med.frequency === '12/12h');
 
-const eligible = normalizeTypebotPayload(base);
+// FASE 4B: paid textual do Typebot NÃO confirma sozinho
+const claimedOnly = normalizeTypebotPayload(base);
+assert('typebot paid alone does not confirm', claimedOnly.normalized.payment_confirmed === false);
+assert('typebot paid alone cannot queue', claimedOnly.normalized.validation.can_enter_medical_queue === false);
+
+const eligible = normalizeTypebotPayload({ ...base, stripe_payment_verified: true });
 assert('eligible status', eligible.normalized.eligibility_status === 'eligible');
-assert('payment paid', eligible.normalized.payment_confirmed === true);
+assert('payment paid with stripe verified', eligible.normalized.payment_confirmed === true);
 assert('can queue', eligible.normalized.validation.can_enter_medical_queue === true);
 
 const decision = engine.evaluate(toPatientEvaluationShape(eligible.normalized));
@@ -48,7 +53,7 @@ assert('engine eligible', decision.eligible === true);
 const unpaid = normalizeTypebotPayload({ ...base, pagamento_status: 'pending' });
 assert('unpaid blocked', unpaid.normalized.validation.can_enter_medical_queue === false);
 
-const noPhoto = normalizeTypebotPayload({ ...base, previous_prescription_file: '' });
+const noPhoto = normalizeTypebotPayload({ ...base, previous_prescription_file: '', stripe_payment_verified: true });
 assert('no photo awaits external upload', noPhoto.normalized.validation.awaiting_prescription_upload === true);
 assert('no photo not in medical queue yet', noPhoto.normalized.validation.can_enter_medical_queue === false);
 

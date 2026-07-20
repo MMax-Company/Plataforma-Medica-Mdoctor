@@ -127,7 +127,8 @@ async function createPaymentLinkForSession({ identity, typebotSessionId, runtime
   if (checkoutSessionId) {
     try {
       const current = await stripe.checkout.sessions.retrieve(checkoutSessionId);
-      if (current.payment_status === 'paid' || current.status === 'complete') {
+      // FASE 4B: só payment_status=paid confirma; status=complete sozinho não basta.
+      if (stripeSessionIsPaid(current)) {
         return { alreadyPaid: true, token, checkoutSessionId };
       }
       if (current.status === 'open' && current.url) {
@@ -148,13 +149,15 @@ async function createPaymentLinkForSession({ identity, typebotSessionId, runtime
     checkoutUrl = created.url;
   }
 
+  // FASE 4B: WhatsApp usa somente Checkout Session. Não vincular PaymentIntent
+  // do bloco payment input do Typebot (runtimeOptions.paymentIntentSecret).
   const record = normalizePaymentRecord({
     token,
     payment_status: 'pending',
     status: 'pending',
     checkout_session_id: checkoutSessionId,
     checkout_url: checkoutUrl,
-    intent_id: extractIntentId(runtimeOptions.paymentIntentSecret) || existing?.intent_id || null,
+    intent_id: existing?.intent_id || null,
     typebot_session_id: typebotSessionId,
     amount_cents: PAYMENT_AMOUNT_CENTS,
     amount_label: PAYMENT_AMOUNT_LABEL,
@@ -243,7 +246,7 @@ async function resolveCheckoutRedirect(token, deps = {}) {
   let checkoutUrl = state.payment.checkout_url;
   if (checkoutSessionId) {
     const current = await stripeClient.checkout.sessions.retrieve(checkoutSessionId);
-    if (current.payment_status === 'paid' || current.status === 'complete') {
+    if (stripeSessionIsPaid(current)) {
       return { ok: false, code: 'ALREADY_PAID' };
     }
     if (current.status === 'open' && current.url) {
@@ -305,24 +308,97 @@ async function markPaymentStatus(session, paymentStatus, extra = {}) {
   await persistPaymentRecord(session, { payment_status: paymentStatus, ...extra });
 }
 
+/**
+ * FASE 4B — confirmação só com prova Stripe:
+ * payment_status=paid + valor + moeda BRL.
+ * status=complete sem payment_status=paid NÃO confirma.
+ */
 function stripeSessionIsPaid(stripeSession = {}) {
-  if (stripeSession.payment_status === 'paid') return true;
-  if (stripeSession.status === 'complete' && stripeSession.amount_total === PAYMENT_AMOUNT_CENTS) return true;
-  return false;
+  if (String(stripeSession.payment_status || '').toLowerCase() !== 'paid') return false;
+  if (Number(stripeSession.amount_total) !== PAYMENT_AMOUNT_CENTS) return false;
+  const currency = String(stripeSession.currency || 'brl').toLowerCase();
+  if (currency !== 'brl') return false;
+  return true;
 }
 
 async function verifyStripeCheckoutPaid(payment, deps = {}) {
   const stripeClient = deps.stripe || getStripe();
-  if (!stripeClient || !payment.checkout_session_id) return { paid: false, reason: 'missing_checkout' };
+  if (!stripeClient || !payment?.checkout_session_id) return { paid: false, reason: 'missing_checkout' };
   const checkout = await stripeClient.checkout.sessions.retrieve(payment.checkout_session_id);
   if (!stripeSessionIsPaid(checkout)) {
     if (checkout.status === 'expired') return { paid: false, reason: 'expired', checkout };
+    if (checkout.status === 'complete' && checkout.payment_status !== 'paid') {
+      return { paid: false, reason: 'complete_without_paid', checkout };
+    }
     return { paid: false, reason: 'not_paid', checkout };
   }
-  if (Number(checkout.amount_total) !== PAYMENT_AMOUNT_CENTS) {
-    return { paid: false, reason: 'invalid_amount', checkout };
-  }
   return { paid: true, checkout };
+}
+
+/**
+ * Confirma pagamento WhatsApp apenas com Checkout Stripe da mesma sessão/token.
+ * payment_status="paid" vindo do Typebot NÃO confirma.
+ */
+async function resolveConfirmedWhatsAppPayment({ phone = null, paymentToken = null, deps = {} } = {}) {
+  const findByToken = deps.findSessionByPaymentToken || findSessionByPaymentToken;
+  const verify = deps.verifyStripeCheckoutPaid || verifyStripeCheckoutPaid;
+
+  let session = null;
+  const token = String(paymentToken || '').trim();
+  if (token) session = await findByToken(token);
+  if (!session && phone) {
+    // eslint-disable-next-line global-require
+    const getByPhone = deps.getSessionByPhone || require('../store/whatsapp-sessions.store').getSessionByPhone;
+    session = await getByPhone(phone);
+  }
+
+  const payment = paymentFromSession(session);
+  if (!payment?.token || !payment?.checkout_session_id) {
+    return { confirmed: false, reason: 'missing_payment_record', payment: null, session };
+  }
+
+  // Sessão já marcada paid pelo webhook Stripe assinado (com event id) — aceitar
+  // se a consulta Stripe confirmar, ou se o client Stripe não estiver disponível
+  // mas houver stripe_event_id (prova de que veio do webhook).
+  const verified = await verify(payment, deps);
+  if (verified.paid) {
+    return {
+      confirmed: true,
+      reason: 'stripe_checkout_paid',
+      payment_token: payment.token,
+      checkout_session_id: verified.checkout?.id || payment.checkout_session_id,
+      payment,
+      session,
+      checkout: verified.checkout || null
+    };
+  }
+
+  if (
+    payment.payment_status === 'paid'
+    && payment.stripe_event_id
+    && verified.reason === 'missing_checkout'
+  ) {
+    // Stripe client ausente em ambiente de teste; webhook já validou amount/paid.
+    return {
+      confirmed: true,
+      reason: 'webhook_marked_paid',
+      payment_token: payment.token,
+      checkout_session_id: payment.checkout_session_id,
+      payment,
+      session,
+      checkout: null
+    };
+  }
+
+  return {
+    confirmed: false,
+    reason: verified.reason || 'not_paid',
+    payment_token: payment.token,
+    checkout_session_id: payment.checkout_session_id,
+    payment,
+    session,
+    checkout: verified.checkout || null
+  };
 }
 
 async function refreshPaymentStatus(token, deps = {}) {
@@ -363,10 +439,17 @@ async function applyCheckoutWebhook(event, deps = {}) {
     return { ok: true, alreadyPaid: true, token: payment.token, session };
   }
   if (!stripeSessionIsPaid(object)) {
+    if (object.status === 'complete' && object.payment_status !== 'paid') {
+      return { ok: false, code: 'COMPLETE_WITHOUT_PAID' };
+    }
+    if (Number(object.amount_total) !== PAYMENT_AMOUNT_CENTS) {
+      return { ok: false, code: 'INVALID_AMOUNT' };
+    }
+    const currency = String(object.currency || '').toLowerCase();
+    if (currency && currency !== 'brl') {
+      return { ok: false, code: 'INVALID_CURRENCY' };
+    }
     return { ok: false, code: 'NOT_PAID' };
-  }
-  if (Number(object.amount_total) !== PAYMENT_AMOUNT_CENTS) {
-    return { ok: false, code: 'INVALID_AMOUNT' };
   }
 
   const markStatus = deps.markPaymentStatus || markPaymentStatus;
@@ -588,7 +671,10 @@ module.exports = {
   paymentFromSession,
   refreshPaymentStatus,
   resolveCheckoutRedirect,
+  resolveConfirmedWhatsAppPayment,
   sendPaymentIntro,
   sendPaymentPendingMenu,
-  sessionHasPendingPayment
+  sessionHasPendingPayment,
+  stripeSessionIsPaid,
+  verifyStripeCheckoutPaid
 };
