@@ -1271,11 +1271,28 @@
           "items": [
             {
               "id": "it_tb0ztjb3",
-              "content": "Via oral"
+              "content": "Oral",
+              "value": "oral"
+            },
+            {
+              "id": "it_via_sublingual_m1",
+              "content": "Sublingual",
+              "value": "sublingual"
+            },
+            {
+              "id": "it_via_topica_m1",
+              "content": "Tópica",
+              "value": "topica"
+            },
+            {
+              "id": "it_via_inalatoria_m1",
+              "content": "Inalatória",
+              "value": "inalatoria"
             },
             {
               "id": "it_gmrbtntk",
-              "content": "Outra via"
+              "content": "Outra",
+              "value": "outra"
             }
           ],
           "options": {
@@ -1363,11 +1380,28 @@
           "items": [
             {
               "id": "it_eoecc509",
-              "content": "Via oral"
+              "content": "Oral",
+              "value": "oral"
+            },
+            {
+              "id": "it_via_sublingual_m2",
+              "content": "Sublingual",
+              "value": "sublingual"
+            },
+            {
+              "id": "it_via_topica_m2",
+              "content": "Tópica",
+              "value": "topica"
+            },
+            {
+              "id": "it_via_inalatoria_m2",
+              "content": "Inalatória",
+              "value": "inalatoria"
             },
             {
               "id": "it_voklo6yu",
-              "content": "Outra via"
+              "content": "Outra",
+              "value": "outra"
             }
           ],
           "options": {
@@ -1455,11 +1489,28 @@
           "items": [
             {
               "id": "it_ax7l7jfr",
-              "content": "Via oral"
+              "content": "Oral",
+              "value": "oral"
+            },
+            {
+              "id": "it_via_sublingual_m3",
+              "content": "Sublingual",
+              "value": "sublingual"
+            },
+            {
+              "id": "it_via_topica_m3",
+              "content": "Tópica",
+              "value": "topica"
+            },
+            {
+              "id": "it_via_inalatoria_m3",
+              "content": "Inalatória",
+              "value": "inalatoria"
             },
             {
               "id": "it_u51kf052",
-              "content": "Outra via"
+              "content": "Outra",
+              "value": "outra"
             }
           ],
           "options": {
