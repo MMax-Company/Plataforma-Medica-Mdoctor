@@ -302,7 +302,8 @@
           ],
           "options": {
             "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
-            "isMultipleChoice": true
+            "isMultipleChoice": true,
+            "buttonLabel": "Confirmo"
           }
         },
         {
@@ -666,25 +667,21 @@
           "items": [
             {
               "id": "vjzl8ufgtda0h2tg4gvxvx2p",
-              "outgoingEdgeId": "pgeux31kjg8b7ss8ykbe3ch2",
               "content": "Hipertensão Arterial",
               "value": "has"
             },
             {
               "id": "wvstylkrlny8u28zzuv2dixb",
-              "outgoingEdgeId": "nyirwftbyq8aj8qajdnpkwmi",
               "content": "Diabetes Melitus",
               "value": "dm"
             },
             {
               "id": "nrpsd9wjyynm4gkalizc5p65",
-              "outgoingEdgeId": "p0kmk7gs6uzib9r19os3cgau",
               "content": "Dislipidemia",
               "value": "dlp"
             },
             {
               "id": "s6jrm608stgtegacomrr2q1a",
-              "outgoingEdgeId": "demyok91pa8xb0b2v2ocf37i",
               "content": "Hipotireidismo",
               "value": "hipotireoidismo"
             }
@@ -693,18 +690,8 @@
             "variableId": "icaxqctv4r7b4du941d9qs46",
             "isMultipleChoice": true,
             "buttonLabel": "Confirmo"
-          }
-        },
-        {
-          "id": "pkodixot7oiiya9iknntuvz2",
-          "type": "choice input",
-          "items": [
-            {
-              "id": "yfbtqhnb8u3wtz9b0fh59dfj",
-              "outgoingEdgeId": "tgxhrqdcze7k4enyrn4sqzqz",
-              "content": "Enviar"
-            }
-          ]
+          },
+          "outgoingEdgeId": "edge_doenca_to_tempo"
         }
       ]
     },
@@ -2453,62 +2440,12 @@
       }
     },
     {
-      "id": "pgeux31kjg8b7ss8ykbe3ch2",
-      "from": {
-        "blockId": "b156nm008xh7gb52n7w3egzn",
-        "itemId": "vjzl8ufgtda0h2tg4gvxvx2p"
-      },
-      "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
-      }
-    },
-    {
-      "id": "nyirwftbyq8aj8qajdnpkwmi",
-      "from": {
-        "blockId": "b156nm008xh7gb52n7w3egzn",
-        "itemId": "wvstylkrlny8u28zzuv2dixb"
-      },
-      "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
-      }
-    },
-    {
-      "id": "p0kmk7gs6uzib9r19os3cgau",
-      "from": {
-        "blockId": "b156nm008xh7gb52n7w3egzn",
-        "itemId": "nrpsd9wjyynm4gkalizc5p65"
-      },
-      "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
-      }
-    },
-    {
-      "id": "demyok91pa8xb0b2v2ocf37i",
-      "from": {
-        "blockId": "b156nm008xh7gb52n7w3egzn",
-        "itemId": "s6jrm608stgtegacomrr2q1a"
-      },
-      "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
-      }
-    },
-    {
       "id": "whhjc7rr0vzetkkpuxlgr57d",
       "from": {
         "blockId": "oq3zsok0c2tdl3qamma8tush"
       },
       "to": {
         "groupId": "vo62j813iek8fjy0uoq0ttrc"
-      }
-    },
-    {
-      "id": "tgxhrqdcze7k4enyrn4sqzqz",
-      "from": {
-        "blockId": "pkodixot7oiiya9iknntuvz2",
-        "itemId": "yfbtqhnb8u3wtz9b0fh59dfj"
-      },
-      "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
       }
     },
     {
@@ -2932,6 +2869,15 @@
       },
       "to": {
         "groupId": "jnbvtyzr1ffz4ff5n05a999k"
+      }
+    },
+    {
+      "id": "edge_doenca_to_tempo",
+      "from": {
+        "blockId": "b156nm008xh7gb52n7w3egzn"
+      },
+      "to": {
+        "groupId": "wb0gci4696hfx2s63brqetda"
       }
     }
   ],
