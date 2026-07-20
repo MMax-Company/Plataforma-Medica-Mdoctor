@@ -42,6 +42,7 @@ const {
   isAlreadyStoredInBucket,
   isHttpUrl
 } = require('../services/previous-prescription-storage.service');
+const { resolveConfirmedWhatsAppPayment } = require('../services/typebot-payment-link.service');
 
 const { verifyN8nWebhookSecret } = require('../middlewares/n8n-webhook-auth');
 
@@ -654,21 +655,62 @@ router.post('/webhook', async (req, res) => {
   });
   const originalPayload = mapped.original;
   const normalized = mapped.normalized;
+
+  // FASE 4B: pagamento confirmado somente via Checkout Stripe da sessão WhatsApp.
+  // payment_status="paid" do Typebot NÃO confirma o atendimento.
+  const stripePayment = await resolveConfirmedWhatsAppPayment({
+    phone: normalized.whatsapp || from,
+    paymentToken: req.body?.payment_token || originalPayload?.payment_token || null
+  });
+  const paymentConfirmed = stripePayment.confirmed === true;
+  const pagamentoStatus = paymentConfirmed ? 'CONFIRMADO' : 'PENDENTE';
+  const paymentStatus = paymentConfirmed ? 'paid' : 'unpaid';
+
+  if (paymentConfirmed) {
+    normalized.payment_status = paymentStatus;
+    normalized.pagamento_status = pagamentoStatus;
+    normalized.payment_confirmed = true;
+    if (normalized.validation) {
+      normalized.validation.payment_confirmed = true;
+      const hasPreviousRx = normalized.has_previous_prescription === true;
+      const prescriptionFile = String(normalized.previous_prescription_file || '').trim();
+      const requiredOk = normalized.validation.required?.ok !== false;
+      const awaitingAfterPay =
+        isExternalUploadEnabled() && hasPreviousRx && !prescriptionFile && requiredOk;
+      normalized.validation.awaiting_prescription_upload = awaitingAfterPay;
+      normalized.validation.can_enter_medical_queue =
+        normalized.eligibility_status === 'eligible' &&
+        requiredOk &&
+        Boolean(prescriptionFile) &&
+        !awaitingAfterPay;
+    }
+  } else {
+    normalized.payment_status = paymentStatus;
+    normalized.pagamento_status = pagamentoStatus;
+    normalized.payment_confirmed = false;
+    if (normalized.validation) {
+      normalized.validation.payment_confirmed = false;
+      normalized.validation.awaiting_prescription_upload = false;
+      normalized.validation.can_enter_medical_queue = false;
+    }
+  }
+
   const patientData = {
     ...mapped.patientData,
     rawMessage,
     idempotency_key: idempotencyKey || null,
     protocol_version: PROTOCOL_VERSION,
-    pagamento_status: normalized.pagamento_status,
-    payment_status: normalized.payment_status,
-    payment_confirmed: normalized.payment_confirmed,
+    pagamento_status: pagamentoStatus,
+    payment_status: paymentStatus,
+    payment_confirmed: paymentConfirmed,
+    payment_token: paymentConfirmed ? stripePayment.payment_token : null,
+    checkout_session_id: paymentConfirmed ? stripePayment.checkout_session_id : null,
     queue_type: 'medical',
     validation: normalized.validation,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
-  const paymentConfirmed = normalized.payment_confirmed === true;
   const canEnterMedicalQueue =
     normalized.validation?.can_enter_medical_queue === true && decision.eligible === true && paymentConfirmed;
 
@@ -791,6 +833,17 @@ router.post('/webhook', async (req, res) => {
     foto_receita_url: prescriptionMeta?.foto_receita_url || normalized.previous_prescription_file || null,
     queue_type: 'medical',
     protocol_version: PROTOCOL_VERSION,
+    payment_token: paymentConfirmed ? stripePayment.payment_token : null,
+    checkout_session_id: paymentConfirmed ? stripePayment.checkout_session_id : null,
+    stripe_payment: paymentConfirmed
+      ? {
+          checkout_session_id: stripePayment.checkout_session_id,
+          payment_token: stripePayment.payment_token,
+          confirmed_at: new Date().toISOString(),
+          source: 'stripe_checkout',
+          reason: stripePayment.reason || null
+        }
+      : null,
     clinical_summary: clinicalNarrative.summary,
     queixa_principal: clinicalNarrative.chiefComplaint,
     historico_clinico: clinicalNarrative.clinicalHistory,
@@ -853,7 +906,7 @@ router.post('/webhook', async (req, res) => {
     paciente_cpf: normalized.cpf,
     paciente_email: normalized.email,
     condicao: normalized.chronic_condition_label || normalized.chronic_condition,
-    pagamento_status: normalized.pagamento_status,
+    pagamento_status: pagamentoStatus,
     status: atendimentoStatus,
     risco: canEnterMedicalQueueAfterIngest || atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,

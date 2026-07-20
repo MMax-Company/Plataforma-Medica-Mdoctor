@@ -122,6 +122,11 @@ function normalizeConsentAcceptance(payload = {}) {
   };
 }
 
+/**
+ * FASE 4B: payment_status="paid" (ou equivalentes) vindos do Typebot NÃO confirmam
+ * o atendimento sozinhos. Só confirma com prova Stripe injetada pelo backend
+ * (stripe_payment_verified === true após validar Checkout Session).
+ */
 function normalizePaymentStatus(payload = {}) {
   const raw = String(
     pickFirst(payload.payment_status, payload.pagamento_status, payload.pagamento, payload.paymentStatus) || ''
@@ -129,8 +134,17 @@ function normalizePaymentStatus(payload = {}) {
     .trim()
     .toLowerCase();
 
-  if (PAID_VALUES.has(raw) || raw === 'confimed') return { payment_status: 'paid', pagamento_status: 'CONFIRMADO', paid: true };
-  return { payment_status: 'unpaid', pagamento_status: 'PENDENTE', paid: false };
+  const claimedPaid = PAID_VALUES.has(raw) || raw === 'confimed';
+  if (payload.stripe_payment_verified === true) {
+    return { payment_status: 'paid', pagamento_status: 'CONFIRMADO', paid: true };
+  }
+
+  return {
+    payment_status: claimedPaid ? 'unverified' : (raw || 'unpaid'),
+    pagamento_status: 'PENDENTE',
+    paid: false,
+    payment_claimed_by_typebot: claimedPaid
+  };
 }
 
 function capitalizeMedicationName(name = '') {

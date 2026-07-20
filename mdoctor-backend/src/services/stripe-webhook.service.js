@@ -66,29 +66,27 @@ async function handleTypebotPaymentWebhook(event) {
   }
 
   if (event.type === 'payment_intent.succeeded') {
+    // FASE 4B: cobrança ativa do WhatsApp é somente Checkout Session.
+    // PaymentIntent legado (bloco payment input do Typebot) não confirma nem retoma o fluxo.
     const intentId = String(object.payment_intent || object.id || '').trim();
-    if (!intentId) return null;
-    const session = await findSessionByPaymentIntentId(intentId);
-    const paymentToken = session?.metadata?.typebot_payment?.token;
-    if (!paymentToken) return null;
-    try {
-      const result = await completePaymentByToken(paymentToken, { session });
+    const session = intentId ? await findSessionByPaymentIntentId(intentId) : null;
+    if (session?.metadata?.typebot_payment?.token) {
+      logger.info('stripe_webhook_typebot_pi_ignored', {
+        eventId: event.id,
+        intentId,
+        reason: 'whatsapp_checkout_only'
+      });
       return {
         status: 200,
         body: {
           success: true,
-          typebot_payment: true,
-          duplicate: Boolean(result.alreadyCompleted),
-          responsesSent: result.responsesSent ?? 0
+          ignored: true,
+          reason: 'whatsapp_checkout_only',
+          typebot_payment: true
         }
       };
-    } catch (error) {
-      logger.error('stripe_webhook_typebot_payment_resume_failed', {
-        intentId,
-        error: error.message
-      });
-      return { status: 500, body: { success: false, error: error.message } };
     }
+    return null;
   }
 
   return null;

@@ -113,6 +113,7 @@ async function main() {
         payment_status: 'paid',
         status: 'complete',
         amount_total: PAYMENT_AMOUNT_CENTS,
+        currency: 'brl',
         metadata: { payment_token: 'tok-1' }
       }
     }
@@ -124,6 +125,24 @@ async function main() {
   assert.equal(webhookApplied.ok, true);
   assert.equal(webhookApplied.justPaid, true);
 
+  const completeWithoutPaid = await applyCheckoutWebhook({
+    id: 'evt_complete_only',
+    data: {
+      object: {
+        id: 'cs_test_123',
+        payment_status: 'unpaid',
+        status: 'complete',
+        amount_total: PAYMENT_AMOUNT_CENTS,
+        currency: 'brl',
+        metadata: { payment_token: 'tok-1' }
+      }
+    }
+  }, {
+    findSessionByPaymentToken: async () => makeSession()
+  });
+  assert.equal(completeWithoutPaid.ok, false);
+  assert.equal(completeWithoutPaid.code, 'COMPLETE_WITHOUT_PAID');
+
   const duplicateWebhook = await applyCheckoutWebhook({
     id: 'evt_2',
     data: {
@@ -132,6 +151,7 @@ async function main() {
         payment_status: 'paid',
         status: 'complete',
         amount_total: PAYMENT_AMOUNT_CENTS,
+        currency: 'brl',
         metadata: { payment_token: 'tok-1' }
       }
     }
@@ -147,6 +167,7 @@ async function main() {
     raceLoserDoesNotDuplicate: 'ok',
     failureAfterClaimRevertsFlowResume: 'ok',
     webhookMarksPaidWithAmountValidation: 'ok',
+    completeWithoutPaidRejected: 'ok',
     duplicateWebhookIsIdempotent: 'ok'
   }));
 }

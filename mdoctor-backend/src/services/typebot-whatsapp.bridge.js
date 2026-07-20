@@ -752,7 +752,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
           const link = await createPaymentLink({
             identity,
             typebotSessionId: sessionId,
-            runtimeOptions: typebot.input.runtimeOptions || {},
+            // FASE 4B: payment input é só gatilho — não usar PaymentIntent do Typebot.
+            runtimeOptions: {},
             existingSession: currentSession
           });
           if (link.alreadyPaid) {
