@@ -1,0 +1,340 @@
+{
+  "alreadyDone": [
+    "Linha \"Idade: {{idade_paciente}}\" já não existe no resumo (removida em pedido anterior)",
+    "Variáveis idade_paciente e idade_divergente já não existem (removidas em pedido anterior)",
+    "blk_flag_idade_divergente já não existe (removido em pedido anterior)",
+    "grp_route_idade e grp_end_idade já não existem (removidos em pedido anterior)"
+  ],
+  "changed": [
+    "edges whhjc7rr0vzetkkpuxlgr57d e/ou edge_idade_block removidas",
+    "placeholder de \"nome completo\" (ds9z9lnz3yayokyy8d81fudj): \"Qual seu nome completo?\" -> \"Nome completo\"",
+    "pergunta de texto inserida antes de \"nome completo\": \"Qual é o seu nome completo?\" (bloco blk_pergunta_nome)",
+    "placeholder de \"data de nascimento\" (ar8jtu7sa8gfndqeebrvyj15): \"Nascimento (dd/mm/aaaa ou 8 dígitos)\" -> \"DD/MM/AAAA\"",
+    "pergunta de texto inserida antes de \"data de nascimento\": \"Qual é a sua data de nascimento?\" (bloco blk_pergunta_nascimento)",
+    "placeholder de \"cpf\" (dein7u2qnr8q32p2lv1krd5p): \"Qual número do seu CPF?\" -> \"00000000000\"",
+    "pergunta de texto inserida antes de \"cpf\": \"Qual é o seu CPF?\" (bloco blk_pergunta_cpf)",
+    "placeholder de \"whatsapp\" (tbla9w2i2kbeyzun88hai3s9): \"(11) 99999-9999\" -> \"11999999999\"",
+    "pergunta de texto inserida antes de \"whatsapp\": \"Qual é o seu número de WhatsApp com DDD?\" (bloco blk_pergunta_whatsapp)",
+    "placeholder de \"email\" (dwoaqosurlamebpra9yf7pm4): \"seuemail@exemplo.com\" -> \"nome@dominio.com\"",
+    "pergunta de texto inserida antes de \"email\": \"Qual é o seu e-mail?\" (bloco blk_pergunta_email)",
+    "placeholder de \"cep\" (blk_0oydu2f7): \"CEP (somente números)\" -> \"00000000\"",
+    "pergunta de texto inserida antes de \"cep\": \"Qual é o seu CEP?\" (bloco blk_pergunta_cep)",
+    "placeholder de \"endereço\" (q78qjnk6ticwkeifl7xe2rju): \"Logradouro, número e bairro (sem CEP)\" -> \"Rua, número e bairro\"",
+    "pergunta de texto inserida antes de \"endereço\": \"Qual é o seu endereço?\" (bloco blk_pergunta_endereco)"
+  ],
+  "assertions": [
+    {
+      "name": "grupo de resumo existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "resumo sem idade_paciente após este passo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo Dados Pessoais existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "idade_paciente não aparece em nenhuma variável",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "idade_divergente não aparece em nenhuma variável",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "blk_flag_idade_divergente removido/ausente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_route_idade removido/ausente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_end_idade removido/ausente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "edge whhjc7rr0vzetkkpuxlgr57d removida/ausente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "edge_idade_block removida/ausente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo nome completo encontrado",
+      "ok": true,
+      "detail": "ds9z9lnz3yayokyy8d81fudj"
+    },
+    {
+      "name": "options.labels presente em nome completo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo data de nascimento encontrado",
+      "ok": true,
+      "detail": "ar8jtu7sa8gfndqeebrvyj15"
+    },
+    {
+      "name": "options.labels presente em data de nascimento",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo cpf encontrado",
+      "ok": true,
+      "detail": "dein7u2qnr8q32p2lv1krd5p"
+    },
+    {
+      "name": "options.labels presente em cpf",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo whatsapp encontrado",
+      "ok": true,
+      "detail": "tbla9w2i2kbeyzun88hai3s9"
+    },
+    {
+      "name": "options.labels presente em whatsapp",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo email encontrado",
+      "ok": true,
+      "detail": "dwoaqosurlamebpra9yf7pm4"
+    },
+    {
+      "name": "options.labels presente em email",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo cep encontrado",
+      "ok": true,
+      "detail": "blk_0oydu2f7"
+    },
+    {
+      "name": "options.labels presente em cep",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo do campo endereço encontrado",
+      "ok": true,
+      "detail": "q78qjnk6ticwkeifl7xe2rju"
+    },
+    {
+      "name": "options.labels presente em endereço",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"nome completo\" correto",
+      "ok": true,
+      "detail": "Nome completo"
+    },
+    {
+      "name": "pergunta de \"nome completo\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"nome completo\" correto",
+      "ok": true,
+      "detail": "Qual é o seu nome completo?"
+    },
+    {
+      "name": "pergunta de \"nome completo\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"data de nascimento\" correto",
+      "ok": true,
+      "detail": "DD/MM/AAAA"
+    },
+    {
+      "name": "pergunta de \"data de nascimento\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"data de nascimento\" correto",
+      "ok": true,
+      "detail": "Qual é a sua data de nascimento?"
+    },
+    {
+      "name": "pergunta de \"data de nascimento\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"cpf\" correto",
+      "ok": true,
+      "detail": "00000000000"
+    },
+    {
+      "name": "pergunta de \"cpf\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"cpf\" correto",
+      "ok": true,
+      "detail": "Qual é o seu CPF?"
+    },
+    {
+      "name": "pergunta de \"cpf\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"whatsapp\" correto",
+      "ok": true,
+      "detail": "11999999999"
+    },
+    {
+      "name": "pergunta de \"whatsapp\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"whatsapp\" correto",
+      "ok": true,
+      "detail": "Qual é o seu número de WhatsApp com DDD?"
+    },
+    {
+      "name": "pergunta de \"whatsapp\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"email\" correto",
+      "ok": true,
+      "detail": "nome@dominio.com"
+    },
+    {
+      "name": "pergunta de \"email\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"email\" correto",
+      "ok": true,
+      "detail": "Qual é o seu e-mail?"
+    },
+    {
+      "name": "pergunta de \"email\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"cep\" correto",
+      "ok": true,
+      "detail": "00000000"
+    },
+    {
+      "name": "pergunta de \"cep\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"cep\" correto",
+      "ok": true,
+      "detail": "Qual é o seu CEP?"
+    },
+    {
+      "name": "pergunta de \"cep\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "placeholder de \"endereço\" correto",
+      "ok": true,
+      "detail": "Rua, número e bairro"
+    },
+    {
+      "name": "pergunta de \"endereço\" presente e completa",
+      "ok": true,
+      "detail": "ausente"
+    },
+    {
+      "name": "texto da pergunta de \"endereço\" correto",
+      "ok": true,
+      "detail": "Qual é o seu endereço?"
+    },
+    {
+      "name": "pergunta de \"endereço\" está imediatamente antes do input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "CEP só é perguntado no bloco dedicado (pergunta + input)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "endereço não usa \"Endereço com CEP\"",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "CEP e endereço permanecem em variáveis distintas",
+      "ok": true,
+      "detail": "var_9lceldd5 vs vi35p4gd73v2cuk9ai4jw2irs"
+    },
+    {
+      "name": "placeholder do endereço é o oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "nenhuma NOVA edge quebrada foi introduzida por esta correção",
+      "ok": true,
+      "detail": "{\"preExistentes\":[\"gxvgai6wl7iwwc41d6lrrx6z\",\"fu2odekdi7zmcs9na14bkaks\",\"oeuocbgqpa3fmza0z9jrorm5\"],\"novas\":[]}"
+    },
+    {
+      "name": "nenhum grupo extra foi removido (só grp_route_idade/grp_end_idade, se existentes)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "nenhuma edge extra foi removida (só as 2 de idade, se existentes)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "nenhuma variável extra foi removida (só as 2 de idade, se existentes)",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "blkCalcIdadeNascimentoStatus": "AUSENTE — já não existia no GET feito antes desta execução; não foi removido por este script (não fazia parte do pedido 2, apenas preservá-lo caso existisse). Divergência a confirmar com Dr. Max.",
+  "blkCheckIdadeStatus": "já não existia (fora de escopo, não tocado)",
+  "preExistingDanglingEdges": [
+    "gxvgai6wl7iwwc41d6lrrx6z",
+    "fu2odekdi7zmcs9na14bkaks",
+    "oeuocbgqpa3fmza0z9jrorm5"
+  ],
+  "groupsBefore": 39,
+  "edgesBefore": 49,
+  "varsBefore": 58,
+  "groupsAfter": 39,
+  "edgesAfter": 48,
+  "varsAfter": 58
+}
