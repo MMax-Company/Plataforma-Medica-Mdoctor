@@ -7,7 +7,7 @@ const {
 } = require('../store/atendimentos.store');
 const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
-const { isExternalUploadEnabled } = require('./prescription-upload-token.service');
+const { isExternalUploadEnabled, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const {
   applyCheckoutWebhook,
   completePaymentByToken,
@@ -131,6 +131,20 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
       }
     }
   });
+
+  // FASE 5B: AWAITING sempre com prescription_upload_session.
+  if (nextStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
+    await ensurePrescriptionUploadSession({
+      atendimentoId,
+      patientId: atendimento.patient_id || null,
+      correlationId: stripeMeta.eventId || null
+    }).catch((error) => {
+      logger.warn('stripe_webhook_upload_session_ensure_failed', {
+        atendimentoId,
+        error: error.message
+      });
+    });
+  }
 
   if (stripeMeta.eventId) {
     await recordStripePaymentEvent({

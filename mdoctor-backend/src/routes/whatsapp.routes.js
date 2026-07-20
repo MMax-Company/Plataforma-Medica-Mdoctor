@@ -16,7 +16,7 @@ const {
 const { mapTypebotPayload, INELIGIBLE_USER_MESSAGE } = require('../services/typebot-payload.mapper');
 const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
 const {
-  createPrescriptionUploadSession,
+  ensurePrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('../services/prescription-upload-token.service');
 const {
@@ -401,34 +401,107 @@ router.post('/webhook', async (req, res) => {
                   }
 
                   if (mediaPayload) {
-                    const pendingUpload = await findPendingUploadContext(identity.phone);
-                    if (!pendingUpload) {
-                      logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                    // FASE 5B: claim Meta antes do ingest — mesma messageId não processa duas vezes.
+                    const mediaClaimed = await claimMetaMessage({
+                      messageId: msg.id,
+                      whatsappSessionId: whatsappSession.id
+                    });
+                    if (!mediaClaimed.claimed) {
+                      logger.info('whatsapp_business_media_duplicate_skipped', { messageId: msg.id });
                       continue;
                     }
+
+                    let pendingUpload = null;
                     try {
-                      await ingestWhatsAppPrescriptionMedia({
+                      pendingUpload = await findPendingUploadContext(identity.phone, { whatsappSession });
+                    } catch (lookupError) {
+                      logger.error('whatsapp_business_media_upload_lookup_failed', {
+                        messageId: msg.id,
+                        error: lookupError.message,
+                        code: lookupError.code || null,
+                        atendimentoIds: lookupError.atendimentoIds || null
+                      });
+                      await finishMetaMessage({
+                        messageId: msg.id,
+                        status: 'failed',
+                        errorMessage: lookupError.message
+                      });
+                      await metaProvider.sendTextMessage({
+                        to: identity.phone,
+                        bsuid: identity.bsuid,
+                        correlationId: msg.id,
+                        idempotencyKey: `${msg.id}:upload-ambiguous`,
+                        text: lookupError.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
+                          ? 'Encontramos mais de um atendimento aguardando receita neste número. Nossa equipe vai revisar — não envie o arquivo novamente por enquanto.'
+                          : `Não foi possível receber a foto da receita: ${lookupError.message}`
+                      }).catch(() => {});
+                      continue;
+                    }
+
+                    if (!pendingUpload) {
+                      logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                      await finishMetaMessage({
+                        messageId: msg.id,
+                        status: 'failed',
+                        errorMessage: 'no_upload_session'
+                      });
+                      continue;
+                    }
+
+                    try {
+                      const ingestResult = await ingestWhatsAppPrescriptionMedia({
                         ...mediaPayload,
                         identity,
                         whatsappSession,
                         messageId: msg.id
                       });
+                      await finishMetaMessage({
+                        messageId: msg.id,
+                        status: 'processed',
+                        providerMessageIds: []
+                      });
+
+                      // FASE 5B: um único continueChat por upload — não reenviar "Conferir novamente" no bridge.
+                      const resume = ingestResult?.whatsappResume || {};
+                      if (resume.ok === true || resume.alreadyResumed === true || ingestResult?.alreadyProcessed) {
+                        logger.info('WhatsApp business prescription media processed', {
+                          from: maskedFrom,
+                          messageId: msg.id,
+                          duplicate: Boolean(ingestResult.duplicate),
+                          alreadyProcessed: Boolean(ingestResult.alreadyProcessed),
+                          resumeOk: resume.ok === true,
+                          alreadyResumed: Boolean(resume.alreadyResumed)
+                        });
+                        continue;
+                      }
+
+                      logger.warn('whatsapp_business_media_resume_incomplete', {
+                        messageId: msg.id,
+                        resumeCode: resume.code || null
+                      });
+                      continue;
                     } catch (error) {
                       logger.error('whatsapp_business_prescription_media_failed', {
                         messageId: msg.id,
                         error: error.message,
                         code: error.code || null
                       });
+                      await finishMetaMessage({
+                        messageId: msg.id,
+                        status: 'failed',
+                        errorMessage: error.message
+                      });
                       await metaProvider.sendTextMessage({
                         to: identity.phone,
                         bsuid: identity.bsuid,
                         correlationId: msg.id,
                         idempotencyKey: `${msg.id}:upload-error`,
-                        text: `Não foi possível receber a foto da receita: ${error.message}`
+                        text: error.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
+                          ? 'Encontramos mais de um atendimento aguardando receita neste número. Nossa equipe vai revisar — não envie o arquivo novamente por enquanto.'
+                          : `Não foi possível receber a foto da receita: ${error.message}`
                       }).catch(() => {});
                       continue;
                     }
-                    text = 'Conferir novamente';
                   }
 
                   const inboundRoute = await routeMetaWhatsAppInbound({
@@ -914,7 +987,7 @@ router.post('/webhook', async (req, res) => {
   });
 
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
-    uploadSession = await createPrescriptionUploadSession({
+    uploadSession = await ensurePrescriptionUploadSession({
       atendimentoId: atendimento.id,
       correlationId
     });

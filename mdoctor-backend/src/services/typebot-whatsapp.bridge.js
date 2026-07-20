@@ -370,9 +370,9 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const completePaymentFlow = deps.completePaymentByToken || ((token, args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').completePaymentByToken(token, args));
-  const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone) =>
+  const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone, opts) =>
     // eslint-disable-next-line global-require
-    require('./typebot-prescription-upload.service').findUploadContextForPhone(phone));
+    require('./typebot-prescription-upload.service').findUploadContextForPhone(phone, opts));
   const persistUploadContext = deps.persistUploadContext || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').persistUploadContext(args));
@@ -556,7 +556,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
       const uploadContextBeforeChat = uploadContextFromSession(
         currentSession,
-        await findUploadContext(identity?.phone)
+        await findUploadContext(identity?.phone, { whatsappSession: currentSession })
       );
       if (
         uploadContextBeforeChat
@@ -723,7 +723,10 @@ function createTypebotWhatsAppBridge(deps = {}) {
       });
 
       const providerMessageIds = [];
-      let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));
+      let uploadContext = uploadContextFromSession(
+        currentSession,
+        await findUploadContext(identity?.phone, { whatsappSession: currentSession })
+      );
       if (uploadContext) await persistUploadContext({ identity, uploadContext });
 
       let outputs = convertTypebotResponse(typebot);

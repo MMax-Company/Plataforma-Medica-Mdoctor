@@ -1128,6 +1128,21 @@
                 "id": "map_upload_url",
                 "variableId": "var_upload_url",
                 "bodyPath": "upload_url"
+              },
+              {
+                "id": "map_upload_status_url",
+                "variableId": "var_upload_status_url",
+                "bodyPath": "upload_status_url"
+              },
+              {
+                "id": "map_upload_status",
+                "variableId": "var_upload_status",
+                "bodyPath": "upload_status"
+              },
+              {
+                "id": "map_atendimento_id",
+                "variableId": "var_atendimento_id",
+                "bodyPath": "atendimento.id"
               }
             ]
           }
@@ -1557,23 +1572,49 @@
     },
     {
       "id": "grp_foto_receita",
-      "title": "ENVIO DA RECEITA ANTERIOR",
+      "title": "Aguardando envio da receita",
       "graphCoordinates": {
-        "x": -2500,
-        "y": -1450
+        "x": -2960,
+        "y": -1047.5
       },
       "blocks": [
+        {
+          "id": "blk_set_upload_pending",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "pending"
+          }
+        },
         {
           "id": "blk_foto_txt",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_upload_intro",
+                "id": "p_upload_intro_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Para concluir sua solicitação, envie agora a foto da sua receita anterior. Seu atendimento só será encaminhado para análise médica após o envio da imagem."
+                    "text": "Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_intro_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O documento deve mostrar o nome do paciente, os medicamentos, as doses, a identificação do profissional e, quando disponível, a data de emissão."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_intro_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Envie o arquivo diretamente nesta conversa do WhatsApp. Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB)."
                   }
                 ]
               }
@@ -1583,34 +1624,33 @@
         {
           "id": "blk_foto_link",
           "type": "text",
-          "outgoingEdgeId": "edge_foto_link_to_end",
           "content": {
             "richText": [
               {
-                "id": "p_upload_btn",
+                "id": "p_upload_whatsapp_hint",
                 "type": "p",
                 "children": [
                   {
-                    "type": "a",
-                    "url": "{{upload_url}}",
-                    "children": [
-                      {
-                        "text": "Enviar foto da receita"
-                      }
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "p_upload_hint",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Formatos: JPG, PNG ou PDF (até 10 MB)."
+                    "text": "Quando terminar o envio, toque em \"Conferir novamente\" para validarmos o recebimento."
                   }
                 ]
               }
             ]
+          }
+        },
+        {
+          "id": "blk_upload_check",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "upload_check_yes",
+              "outgoingEdgeId": "edge_upload_check_request",
+              "content": "Conferir novamente",
+              "value": "check"
+            }
+          ],
+          "options": {
+            "variableId": "var_upload_check_action"
           }
         }
       ]
@@ -2166,6 +2206,282 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_upload_status_check",
+      "title": "Conferir novamente",
+      "graphCoordinates": {
+        "x": -3385,
+        "y": -1605
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_status_webhook",
+          "outgoingEdgeId": "edge_status_to_condition",
+          "type": "Webhook",
+          "options": {
+            "responseVariableMapping": [
+              {
+                "id": "map_status_upload_completed",
+                "variableId": "var_upload_completed",
+                "bodyPath": "data.upload_completed"
+              },
+              {
+                "id": "map_status_upload_message",
+                "variableId": "var_upload_check_message",
+                "bodyPath": "data.message"
+              },
+              {
+                "id": "map_status_upload_url",
+                "variableId": "var_upload_url",
+                "bodyPath": "data.foto_receita_url"
+              },
+              {
+                "id": "map_status_upload_status",
+                "variableId": "var_upload_status",
+                "bodyPath": "data.upload_status"
+              }
+            ],
+            "isCustomBody": true,
+            "webhook": {
+              "queryParams": [],
+              "headers": [
+                {
+                  "id": "hdr_upload_status_ct",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "url": "{{upload_status_url}}",
+              "body": "{}",
+              "method": "GET"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_status_result",
+      "title": "Resultado conferência upload",
+      "graphCoordinates": {
+        "x": -3867.5,
+        "y": -1677.5
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_status_condition",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_upload_done_true",
+              "outgoingEdgeId": "edge_status_done",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_upload_true",
+                    "variableId": "var_upload_completed",
+                    "comparisonOperator": "Equal to",
+                    "value": "true"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "cond_upload_done_false",
+              "outgoingEdgeId": "edge_status_pending",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_upload_not_true",
+                    "variableId": "var_upload_completed",
+                    "comparisonOperator": "Not equal",
+                    "value": "true"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_confirmed",
+      "title": "Upload confirmado",
+      "graphCoordinates": {
+        "x": -4305,
+        "y": -1757.5
+      },
+      "blocks": [
+        {
+          "id": "blk_set_upload_completed",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "completed"
+          }
+        },
+        {
+          "id": "blk_set_upload_completed_flag",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_completed",
+            "expressionToEvaluate": "true"
+          }
+        },
+        {
+          "id": "blk_upload_confirmed_txt",
+          "outgoingEdgeId": "edge_upload_confirmed_to_end",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_upload_confirmed_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Receita anterior recebida e vinculada ao seu atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_confirmed_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Estamos realizando a conferência final das informações antes do encaminhamento para análise médica."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_pending_retry",
+      "title": "Upload pendente",
+      "graphCoordinates": {
+        "x": -4305,
+        "y": -1507.5
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_pending_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_upload_pending_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Ainda não localizamos o envio da receita neste atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_pending_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Envie agora uma foto legível ou um PDF da receita anterior nesta conversa do WhatsApp."
+                  }
+                ]
+              },
+              {
+                "id": "p_upload_pending_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB). Depois, toque em \"Conferir novamente\"."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_upload_pending_choice",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "pending_retry",
+              "outgoingEdgeId": "edge_pending_retry_to_status",
+              "content": "Conferir novamente",
+              "value": "check"
+            },
+            {
+              "id": "pending_resend",
+              "outgoingEdgeId": "edge_pending_resend_to_upload",
+              "content": "Enviar novamente",
+              "value": "retry"
+            },
+            {
+              "id": "pending_continue_later",
+              "outgoingEdgeId": "edge_pending_continue_later",
+              "content": "Continuar depois",
+              "value": "later"
+            }
+          ],
+          "options": {
+            "variableId": "var_upload_check_action"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_continue_later",
+      "title": "Continuar depois",
+      "graphCoordinates": {
+        "x": -4705,
+        "y": -1257.5
+      },
+      "blocks": [
+        {
+          "id": "blk_continue_set_pending",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_upload_status",
+            "expressionToEvaluate": "pending"
+          }
+        },
+        {
+          "id": "blk_continue_txt",
+          "outgoingEdgeId": "edge_continue_later_to_end",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_continue_later_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Seu atendimento {{atendimentoId}} foi salvo com status de envio pendente."
+                  }
+                ]
+              },
+              {
+                "id": "p_continue_later_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Quando estiver pronto, envie a foto ou PDF da receita anterior nesta mesma conversa do WhatsApp."
+                  }
+                ]
+              },
+              {
+                "id": "p_continue_later_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB). Depois, retome pelo botão \"Conferir novamente\"."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "edges": [
@@ -2566,21 +2882,97 @@
       }
     },
     {
-      "id": "edge_foto_link_to_end",
-      "from": {
-        "blockId": "blk_foto_link"
-      },
-      "to": {
-        "groupId": "bhrt6it0ud0teq3tw26q40ba"
-      }
-    },
-    {
       "id": "edge_doenca_to_tempo",
       "from": {
         "blockId": "b156nm008xh7gb52n7w3egzn"
       },
       "to": {
         "groupId": "wb0gci4696hfx2s63brqetda"
+      }
+    },
+    {
+      "id": "edge_upload_check_request",
+      "from": {
+        "blockId": "blk_upload_check",
+        "itemId": "upload_check_yes"
+      },
+      "to": {
+        "groupId": "grp_upload_status_check",
+        "blockId": "blk_upload_status_webhook"
+      }
+    },
+    {
+      "id": "edge_status_to_condition",
+      "from": {
+        "blockId": "blk_upload_status_webhook"
+      },
+      "to": {
+        "groupId": "grp_upload_status_result",
+        "blockId": "blk_upload_status_condition"
+      }
+    },
+    {
+      "id": "edge_status_done",
+      "from": {
+        "blockId": "blk_upload_status_condition",
+        "itemId": "cond_upload_done_true"
+      },
+      "to": {
+        "groupId": "grp_upload_confirmed",
+        "blockId": "blk_upload_confirmed_txt"
+      }
+    },
+    {
+      "id": "edge_status_pending",
+      "from": {
+        "blockId": "blk_upload_status_condition",
+        "itemId": "cond_upload_done_false"
+      },
+      "to": {
+        "groupId": "grp_upload_pending_retry",
+        "blockId": "blk_upload_pending_txt"
+      }
+    },
+    {
+      "id": "edge_pending_retry_to_status",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_retry"
+      },
+      "to": {
+        "groupId": "grp_upload_status_check",
+        "blockId": "blk_upload_status_webhook"
+      }
+    },
+    {
+      "id": "edge_upload_confirmed_to_end",
+      "from": {
+        "blockId": "blk_upload_confirmed_txt"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_pending_resend_to_upload",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_resend"
+      },
+      "to": {
+        "groupId": "grp_foto_receita",
+        "blockId": "blk_foto_txt"
+      }
+    },
+    {
+      "id": "edge_pending_continue_later",
+      "from": {
+        "blockId": "blk_upload_pending_choice",
+        "itemId": "pending_continue_later"
+      },
+      "to": {
+        "groupId": "grp_upload_continue_later",
+        "blockId": "blk_continue_set_pending"
       }
     }
   ],
@@ -2844,6 +3236,36 @@
       "id": "var_upload_url",
       "name": "upload_url",
       "sampleValue": "https://painel-medico-staging-staging.up.railway.app/upload-receita/token-exemplo"
+    },
+    {
+      "id": "var_upload_check_action",
+      "name": "upload_check_action",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_upload_check_message",
+      "name": "upload_check_message",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_upload_completed",
+      "name": "upload_completed",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_upload_status_url",
+      "name": "upload_status_url",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_atendimento_id",
+      "name": "atendimentoId",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_upload_status",
+      "name": "upload_status",
+      "isSessionVariable": false
     }
   ],
   "theme": {},
