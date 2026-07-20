@@ -20,12 +20,15 @@ const {
   isExternalUploadEnabled
 } = require('../services/prescription-upload-token.service');
 const {
-  createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry,
-  processIncomingMessage
+  createWhatsAppSupportEntry
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
-const { upsertSessionIdentity, setTypebotSessionId } = require('../store/whatsapp-sessions.store');
+const {
+  upsertSessionIdentity,
+  setTypebotSessionId,
+  clearTransientClinicalSessionMetadata
+} = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
 const { routeMetaWhatsAppInbound } = require('../services/whatsapp-meta-inbound.service');
@@ -192,32 +195,14 @@ router.post('/support', async (req, res) => {
   const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  const requestId = req.requestId || 'unknown';
-  const correlationId = auth.correlationId;
-  const { from, phone } = req.body || {};
-  const idempotencyKey = String(req.get('Idempotency-Key') || req.body?.messageId || '').trim();
-
-  try {
-    const result = await createWhatsAppSupportEntry({
-      phone: from || phone,
-      correlationId,
-      idempotencyKey,
-      requestId
-    });
-    return res.json({
-      success: true,
-      correlationId,
-      duplicate: result.duplicate,
-      reply: result.reply,
-      atendimento: result.atendimento
-    });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      correlationId,
-      error: error.message
-    });
-  }
+  logger.warn('whatsapp_legacy_support_endpoint_blocked', { correlationId: auth.correlationId });
+  return res.status(410).json({
+    success: false,
+    deprecated: true,
+    official_entry: 'POST /api/whatsapp/webhook',
+    error: 'Endpoint legado desativado. Entrada oficial: Meta Cloud API webhook.',
+    correlationId: auth.correlationId
+  });
 });
 
 router.post('/support/close', async (req, res) => {
@@ -254,19 +239,14 @@ router.post('/process-message', async (req, res) => {
   const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  const { phone, from, text } = req.body || {};
-  const resolvedPhone = phone || from;
-  if (!resolvedPhone || !text) {
-    return res.status(400).json({ success: false, error: 'phone e text obrigatórios' });
-  }
-
-  try {
-    const result = await processIncomingMessage({ phone: resolvedPhone, text });
-    return res.json({ success: true, reply: result.reply });
-  } catch (error) {
-    logger.warn('process_message_failed', { error: error.message });
-    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
+  logger.warn('whatsapp_legacy_process_message_blocked', { correlationId: auth.correlationId });
+  return res.status(410).json({
+    success: false,
+    deprecated: true,
+    official_entry: 'POST /api/whatsapp/webhook',
+    error: 'Endpoint legado desativado. Entrada oficial: Meta Cloud API webhook.',
+    correlationId: auth.correlationId
+  });
 });
 
 router.get('/webhook', (req, res) => {
@@ -507,10 +487,16 @@ router.post('/webhook', async (req, res) => {
                   const inboundRoute = await routeMetaWhatsAppInbound({
                     phone: identity.phone,
                     text,
-                    whatsappSession
+                    whatsappSession,
+                    messageId: msg.id
                   });
 
-                  if (inboundRoute.clearTypebotSession) {
+                  if (inboundRoute.clearClinicalMetadata) {
+                    const cleared = await clearTransientClinicalSessionMetadata({ whatsappSession });
+                    if (cleared) {
+                      whatsappSession = cleared;
+                    }
+                  } else if (inboundRoute.clearTypebotSession) {
                     await setTypebotSessionId({
                       sessionId: whatsappSession.id,
                       typebotSessionId: null
