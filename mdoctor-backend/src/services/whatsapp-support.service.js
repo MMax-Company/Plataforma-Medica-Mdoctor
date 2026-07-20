@@ -6,7 +6,6 @@ const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
-const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
 const SUPPORT_SUB = {
   WAITING: 'waiting',
@@ -289,9 +288,12 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
     if (inlineTypebot) {
       return { handled: true, sub_status: SUPPORT_SUB.CONVERTED, startTypebot: true };
     }
+    // Legado sem inline: não envia link público — atendimento só via WhatsApp.
     return {
-      handled: true, sub_status: SUPPORT_SUB.CONVERTED,
-      reply: `Ótimo! Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções. Um médico irá analisar e emitir sua receita em breve.`
+      handled: true,
+      sub_status: SUPPORT_SUB.CONVERTED,
+      startTypebot: true,
+      reply: 'Digite *1* para iniciar o atendimento médico pelo WhatsApp.'
     };
   }
 
@@ -401,7 +403,11 @@ async function processIncomingMessage({ phone, text }) {
 
   // No active support — main menu
   if (textNorm === '1') {
-    return { reply: `✅ Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções e preencha suas informações. Um médico irá analisar e emitir sua receita em breve.` };
+    // Sem publicUrl: o Typebot oficial só inicia pelo bridge Meta (menu 1 → typebot_bootstrap).
+    return {
+      reply: 'Digite *1* no WhatsApp do Doctor Prescreve para iniciar o atendimento (sem link externo).',
+      startTypebot: true
+    };
   }
   if (textNorm === '2') {
     const result = await createWhatsAppSupportEntry({ phone });

@@ -8,11 +8,13 @@ const {
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
 const { validatePersonalInput } = require('./typebot-personal-data.validation');
+const { getWhatsAppTypebotOfficialConfig } = require('../constants/typebot-whatsapp.official');
 
 function getConfig() {
+  const official = getWhatsAppTypebotOfficialConfig();
   return {
-    viewerUrl: String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, ''),
-    publicId: String(process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim(),
+    viewerUrl: official.viewerUrl,
+    publicId: official.publicId,
     welcomeChoiceInputId: String(process.env.TYPEBOT_WELCOME_CHOICE_INPUT_ID || 'sbjZWLJGVkHAkDqS4JQeGow').trim(),
     timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
     retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
