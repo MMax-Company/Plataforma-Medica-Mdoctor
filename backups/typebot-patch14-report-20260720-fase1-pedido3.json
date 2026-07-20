@@ -1,0 +1,461 @@
+{
+  "changed": [
+    "PARTE 1: texto e values de \"Tempo de Uso\" (wb0gci4696hfx2s63brqetda)",
+    "PARTE 2: texto da pergunta, label de \"Nenhum desses sinais ou sintomas\" e remoção do buttonLabel \"Confirmo\" em Sinais de Alerta",
+    "PARTE 3: botões e values de Telemedicina (grp_telemedicina_consent)",
+    "PARTE 4: texto da Declaração de elegibilidade (sem receita anterior) e values true/false",
+    "PARTE 5: pergunta/botões oficiais de Receita anterior + nova opção \"Enviar depois\" (novo grupo grp_receita_enviar_depois, terminal)",
+    "PARTE 7: texto oficial + tipo de value normalizado nas condições de rota (antes: [\"\\\"1\\\"\",\"\\\"2\\\"\",\"\\\"3\\\"\",\"\\\"2\\\"\",\"\\\"3\\\"\"] -> \"1\"/\"2\"/\"2\"/\"3\"/\"3\")",
+    "PARTES 8/9/10: medicamento 1 — perguntas completas, placeholder de dose, frequências (4 opções + conversão interna) e vias (4 opções oficiais)",
+    "PARTES 8/9/10: medicamento 2 — perguntas completas, placeholder de dose, frequências (4 opções + conversão interna) e vias (4 opções oficiais)",
+    "PARTES 8/9/10: medicamento 3 — perguntas completas, placeholder de dose, frequências (4 opções + conversão interna) e vias (4 opções oficiais)",
+    "PARTE 11: pergunta e botões oficiais de Confirmação dos dados, novo menu de correção (grp_correcao_menu) com 4 grupos, e roteamento de retorno para Dados pessoais/Endereço e Condições clínicas",
+    "PARTE 12: pergunta explícita dos termos + botão \"Não concordo\" (novo grupo grp_termos_decline, terminal). Pagamento e Stripe não foram tocados.",
+    "PARTE 13: textos oficiais de \"receita recebida\" (grp_upload_confirmed) e \"entrada na fila\" (Group #23)"
+  ],
+  "notes": [
+    "PARTE 6 já estava satisfeita antes desta execução (subsistema de idade da receita removido em pedido anterior) — nenhuma ação necessária.",
+    "PARTE 11: bug pré-existente encontrado e corrigido — o botão \"Confirmar dados\" apontava para a edge inexistente \"qdbm3l4g51y98mq9cyysegzw\" (fluxo travava aí). Reaproveitada a edge \"edge_confirm_to_webhook\", já existente mas órfã, que aponta corretamente para o webhook de criação do atendimento.",
+    "PARTE 11: \"Medicamentos\" não precisou de ponto de retorno dedicado — os 3 percursos de medicamento (1, 2 ou 3 itens) já convergem diretamente para \"Confirmação de dados\", que agora sempre limpa a flag de correção ao ser reaberta."
+  ],
+  "assertions": [
+    {
+      "name": "PARTE 2 pré-condição: grupo Sinais de Alerta já é pergunta única (1 choice input)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 3: variableId de telemedicina não foi alterado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 4: declaração não cita receita anterior/prazo/período",
+      "ok": true,
+      "detail": "\n📋 CRITÉRIOS DE ELEGIBILIDADE\n\nPara continuar, confirme que:\n• possui diagnóstico prévio de pelo menos uma das condições selecionadas\n• utiliza continuamente a medicação\n• não apresenta sinais de alerta neste momento\n• as informações fornecidas são verdadeiras\n• compreende que a emissão da receita depende da avaliação médica\n\nVocê confirma essas informações?"
+    },
+    {
+      "name": "PARTE 5: \"Sim, possuo\" não teve seu roteamento alterado (continua no caminho existente até quantidade de medicamentos)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 5: \"Não possuo\" não teve seu roteamento alterado (encerramento sem cobrança já existente)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 6: pergunta de idade da receita já ausente (grp_receita_idade)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 6: \"emitida há quanto tempo\" já ausente do Typebot",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 6: previous_prescription_age já ausente do Typebot",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 7: item \"1\" já usa value tipo string simples",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "PARTE 7: item \"2\" já usa value tipo string simples",
+      "ok": true,
+      "detail": "2"
+    },
+    {
+      "name": "PARTE 7: item \"3\" já usa value tipo string simples",
+      "ok": true,
+      "detail": "3"
+    },
+    {
+      "name": "PARTE 8: placeholder de nome do medicamento 1 já é o oficial",
+      "ok": true,
+      "detail": "Nome do medicamento"
+    },
+    {
+      "name": "PARTE 10: roteamento de saída da via do medicamento 1 preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 8: placeholder de nome do medicamento 2 já é o oficial",
+      "ok": true,
+      "detail": "Nome do medicamento"
+    },
+    {
+      "name": "PARTE 10: roteamento de saída da via do medicamento 2 preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 8: placeholder de nome do medicamento 3 já é o oficial",
+      "ok": true,
+      "detail": "Nome do medicamento"
+    },
+    {
+      "name": "PARTE 10: roteamento de saída da via do medicamento 3 preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: edge_confirm_to_webhook (pré-existente, órfã) está disponível para reaproveitar",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: bloco de endereço ainda aponta para edge_dados_to_receita (pré-condição)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: edge_dados_to_receita existe (pré-condição)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: destino original de edge_dados_to_receita preservado após reaproveitar a edge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: bloco de condições ainda aponta para edge_doenca_to_tempo (pré-condição)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: edge_doenca_to_tempo existe (pré-condição)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 11: destino original de edge_doenca_to_tempo preservado após reaproveitar a edge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 12: roteamento de \"Li e concordo\" não foi alterado (continua para o pagamento já existente)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "PARTE 13: grupo da fila médica já não tem pergunta \"O que deseja fazer agora?\" nem botões (pré-condição já satisfeita em pedido anterior)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1. Tempo de uso possui três opções e values oficiais",
+      "ok": true,
+      "detail": [
+        [
+          "Menos de 1 mês",
+          "menos_1_mes"
+        ],
+        [
+          "De 1 a 6 meses",
+          "1_a_6_meses"
+        ],
+        [
+          "Mais de 6 meses",
+          "mais_6_meses"
+        ]
+      ]
+    },
+    {
+      "name": "2. Sinais de alerta possui uma única pergunta",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3. \"Nenhum desses\" é exclusivo (rota só continua com value exatamente NAO)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4. Não existe gate Sim/Não dos sinais antes da lista",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "5. Telemedicina possui os dois botões oficiais",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "6. Declaração não cita receita anterior/prazo/período",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "7. Receita anterior possui três botões curtos com values oficiais",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "8. \"Enviar depois\" não alcança termos nem pagamento (grupo terminal, sem outgoing edge)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "9. Pergunta de idade da receita foi removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "10. previous_prescription_age não aparece no resumo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "11. Percurso com 1 medicamento chega ao resumo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "12. Percurso com 2 medicamentos chega ao resumo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "13. Percurso com 3 medicamentos chega ao resumo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "14. Frequências do medicamento 1 possuem somente quatro opções",
+      "ok": true,
+      "detail": [
+        "Uma vez ao dia",
+        "Duas vezes ao dia",
+        "Três vezes ao dia",
+        "Outra frequência"
+      ]
+    },
+    {
+      "name": "15. Vias do medicamento 1 possuem somente quatro opções oficiais e label===value",
+      "ok": true,
+      "detail": [
+        [
+          "Via oral",
+          "Via oral"
+        ],
+        [
+          "Via sublingual",
+          "Via sublingual"
+        ],
+        [
+          "Via tópica",
+          "Via tópica"
+        ],
+        [
+          "Via inalatória",
+          "Via inalatória"
+        ]
+      ]
+    },
+    {
+      "name": "14. Frequências do medicamento 2 possuem somente quatro opções",
+      "ok": true,
+      "detail": [
+        "Uma vez ao dia",
+        "Duas vezes ao dia",
+        "Três vezes ao dia",
+        "Outra frequência"
+      ]
+    },
+    {
+      "name": "15. Vias do medicamento 2 possuem somente quatro opções oficiais e label===value",
+      "ok": true,
+      "detail": [
+        [
+          "Via oral",
+          "Via oral"
+        ],
+        [
+          "Via sublingual",
+          "Via sublingual"
+        ],
+        [
+          "Via tópica",
+          "Via tópica"
+        ],
+        [
+          "Via inalatória",
+          "Via inalatória"
+        ]
+      ]
+    },
+    {
+      "name": "14. Frequências do medicamento 3 possuem somente quatro opções",
+      "ok": true,
+      "detail": [
+        "Uma vez ao dia",
+        "Duas vezes ao dia",
+        "Três vezes ao dia",
+        "Outra frequência"
+      ]
+    },
+    {
+      "name": "15. Vias do medicamento 3 possuem somente quatro opções oficiais e label===value",
+      "ok": true,
+      "detail": [
+        [
+          "Via oral",
+          "Via oral"
+        ],
+        [
+          "Via sublingual",
+          "Via sublingual"
+        ],
+        [
+          "Via tópica",
+          "Via tópica"
+        ],
+        [
+          "Via inalatória",
+          "Via inalatória"
+        ]
+      ]
+    },
+    {
+      "name": "16. Confirmação possui dois botões",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "17. Correção \"grp_corr_prep_dados\" retorna somente ao grupo escolhido",
+      "ok": true,
+      "detail": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "emdb1ofb3knx8py3jc4ed13h"
+      }
+    },
+    {
+      "name": "17. Correção \"grp_corr_prep_endereco\" retorna somente ao grupo escolhido",
+      "ok": true,
+      "detail": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "blk_pergunta_cep"
+      }
+    },
+    {
+      "name": "17. Correção \"grp_corr_prep_condicoes\" retorna somente ao grupo escolhido",
+      "ok": true,
+      "detail": {
+        "groupId": "vo62j813iek8fjy0uoq0ttrc",
+        "blockId": "hda2dcvh33856qga899drcfi"
+      }
+    },
+    {
+      "name": "17. Correção \"grp_corr_prep_medicamentos\" retorna somente ao grupo escolhido",
+      "ok": true,
+      "detail": {
+        "groupId": "huh6fmizvv701t9u7hc2mult",
+        "blockId": "ng82dao2u8yp3cyr8oopz1tt"
+      }
+    },
+    {
+      "name": "18. Pergunta dos termos está presente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "19. Mensagem da fila corresponde ao texto oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "20. Nenhuma edge ficou quebrada (nenhuma nova, além das 3 pré-existentes já conhecidas)",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    },
+    {
+      "name": "21. Grupo novo \"grp_receita_enviar_depois\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_med1_freq_outra\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_med2_freq_outra\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_med3_freq_outra\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_correcao_menu\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_corr_prep_dados\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_corr_prep_endereco\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_corr_prep_condicoes\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_corr_prep_medicamentos\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_dados_route_end\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_condicoes_route_end\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "21. Grupo novo \"grp_termos_decline\" não ficou órfão (possui edge de entrada)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "22a. grp_route_idade/grp_end_idade continuam ausentes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "22b. Placeholders de Dados pessoais do pedido 2 continuam corretos",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "22c. Edge Nome social -> Doença Cronica continua intacta",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}
