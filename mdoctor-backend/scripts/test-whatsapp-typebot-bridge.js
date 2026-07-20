@@ -142,12 +142,12 @@ async function main() {
         return {
           sessionId: 'fresh-session',
           messages: [{ type: 'text', content: { plainText: 'Olá 👋 Bem-vindo ao Doctor Prescreve.' } }],
-          input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Iniciar Atendimento' }] }
+          input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Vamos Começar' }] }
         };
       }
       return {
         messages: [{ type: 'text', content: { plainText: 'Invalid message. Please, try again.' } }],
-        input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Iniciar Atendimento' }] }
+        input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Vamos Começar' }] }
       };
     },
     provider: {
@@ -439,6 +439,68 @@ async function main() {
   assert.equal(paymentSent.some((item) => String(item.url || '').includes('/checkout')), true);
   assert.equal(paymentSent.every((item) => !String(item.text || item.url || '').includes('railway')), true);
 
+  const bootstrapCalls = [];
+  const bootstrapSent = [];
+  let bootstrapSessionId = null;
+  let bootstrapExpectedInputId = null;
+  const bootstrapBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async ({ typebotSessionId }) => { bootstrapSessionId = typebotSessionId; },
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: bootstrapSessionId,
+      metadata: { typebot_expected_input_id: bootstrapExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { bootstrapExpectedInputId = inputId; },
+    createIntegrationError: async () => {},
+    callTypebot: async (path, body) => {
+      bootstrapCalls.push({ path, body });
+      assert.equal(path, '/typebots/doctor-prescreve-8rmljgu/startChat');
+      assert.deepEqual(body, {});
+      return {
+        sessionId: 'bootstrap-session',
+        messages: [{ type: 'text', content: { plainText: 'Olá 👋 Bem-vindo ao Doctor Prescreve.' } }],
+        input: {
+          id: 'sbjZWLJGVkHAkDqS4JQeGow',
+          type: 'choice input',
+          items: [{ content: 'Vamos Começar' }]
+        }
+      };
+    },
+    provider: {
+      sendTextMessage: async (payload) => {
+        bootstrapSent.push({ type: 'text', payload });
+        return { providerMessageId: 'meta-bootstrap-text' };
+      },
+      sendButtonMessage: async (payload) => {
+        bootstrapSent.push({ type: 'buttons', payload });
+        return { providerMessageId: 'meta-bootstrap-buttons' };
+      },
+      sendListMessage: async () => ({})
+    }
+  });
+  const bootstrapResult = await bootstrapBridge({
+    messageId: 'wamid-bootstrap-1',
+    text: '1',
+    identity,
+    whatsappSession: { id: 'wa-bootstrap', typebot_session_id: null },
+    menuBootstrap: true
+  });
+  assert.equal(bootstrapResult.duplicate, false);
+  assert.equal(bootstrapSessionId, 'bootstrap-session');
+  assert.equal(bootstrapCalls.length, 1, 'bootstrap não deve continueChat / auto-clicar Vamos Começar');
+  assert.equal(bootstrapExpectedInputId, 'sbjZWLJGVkHAkDqS4JQeGow');
+  assert.equal(bootstrapSent[0].payload.text, 'Olá 👋 Bem-vindo ao Doctor Prescreve.');
+  assert.equal(bootstrapSent[1].type, 'buttons');
+  assert.equal(bootstrapSent[1].payload.buttons[0].title, 'Vamos Começar');
+  assert.equal(
+    bootstrapSent.every((item) => !/typebot\.(io|co)\//i.test(JSON.stringify(item.payload))),
+    true,
+    'não deve enviar link público do Typebot'
+  );
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -449,7 +511,8 @@ async function main() {
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
-    textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed'
+    textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed',
+    menuOneBootstrapsOfficialTypebotWelcome: bootstrapResult.responsesSent === 2 ? 'ok' : 'failed'
   }));
 }
 

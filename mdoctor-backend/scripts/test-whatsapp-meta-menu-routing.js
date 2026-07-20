@@ -33,6 +33,16 @@ async function main() {
     });
     assert.equal(support.action, 'reply');
     assert.equal(support.reply, 'Aguarde suporte');
+    assert.notEqual(support.action, 'typebot_bootstrap');
+    assert.notEqual(support.action, 'typebot');
+
+  const other = await routeMetaWhatsAppInbound({
+    phone: '5511999999999',
+    text: 'xyz',
+    whatsappSession: { typebot_session_id: null }
+  });
+  assert.equal(other.action, 'reply');
+  assert.equal(other.reply, MAIN_MENU_TEXT);
 
   const ongoing = await routeMetaWhatsAppInbound({
     phone: '5511999999999',

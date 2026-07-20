@@ -379,10 +379,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
       let sessionIdForChat = existingSessionId;
       let sessionIdReused = false;
       if (menuBootstrap) {
-        const startResponse = await callWithRetry(
+        // Menu 1/2 é do backend. Aqui só inicia o Typebot oficial e apresenta
+        // o primeiro bloco interno (Bem-Vindo / "Vamos Começar"), sem auto-avançar.
+        typebot = await callWithRetry(
           () => callTypebot(
             `/typebots/${encodeURIComponent(config.publicId)}/startChat`,
-            { message: { type: 'text', text: '1', metadata: { replyId: messageId } } },
+            {},
             { config }
           ),
           {
@@ -392,29 +394,10 @@ function createTypebotWhatsAppBridge(deps = {}) {
             sleep
           }
         );
-        const bootstrapSessionId = startResponse.sessionId;
+        const bootstrapSessionId = typebot.sessionId;
         if (!bootstrapSessionId) throw new Error('Typebot não retornou sessionId');
         await saveSessionId({ sessionId: currentSession.id, typebotSessionId: bootstrapSessionId });
         sessionIdForChat = bootstrapSessionId;
-        typebot = await callWithRetry(
-          () => callTypebot(
-            `/sessions/${encodeURIComponent(bootstrapSessionId)}/continueChat`,
-            {
-              message: {
-                type: 'text',
-                text: 'Iniciar Atendimento',
-                metadata: { replyId: messageId }
-              }
-            },
-            { config }
-          ),
-          {
-            attempts: config.retryAttempts,
-            baseDelayMs: config.retryBaseDelayMs,
-            maxDelayMs: config.retryMaxDelayMs,
-            sleep
-          }
-        );
       } else {
         if (
           sessionIdForChat
