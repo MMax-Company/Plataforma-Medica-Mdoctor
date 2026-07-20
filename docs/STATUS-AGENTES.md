@@ -118,3 +118,4 @@ Principais commits: `9465ab9`, `db5742d`, `721d959`, `fb53088`, `5b15e71`, `ab94
 1. Confirmar na sessão viva `bqinu71o81n1xvn27uxwfohk` qual texto/value o choice `blk_nggi0xs0` aceita de fato.
 2. Destravar só o bloco de via, sem reiniciar o fluxo e sem perder variáveis.
 3. Só depois: publicar / alinhar schema se ainda necessário.
+4. Consultar `docs/typebot/FLUXO-OFICIAL-PERGUNTAS-RESPOSTAS.md` antes de qualquer correção de bloco/edge (lista divergências e edges quebradas).
