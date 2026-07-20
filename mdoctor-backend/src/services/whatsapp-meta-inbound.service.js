@@ -19,6 +19,17 @@ function isMainMenuTrigger(text) {
   return ['OI', 'OLÁ', 'OLA', 'MENU', '0', 'ENCERRAR'].includes(normalized);
 }
 
+/** Sessão clínica Typebot em andamento — menu 1/2 não deve interceptar respostas numéricas. */
+function hasActiveTypebotClinicalSession(whatsappSession) {
+  const sessionId = String(whatsappSession?.typebot_session_id || '').trim();
+  const expectedInputId = String(whatsappSession?.metadata?.typebot_expected_input_id || '').trim();
+  return Boolean(sessionId && expectedInputId);
+}
+
+function isAwaitingMainMenu(whatsappSession) {
+  return whatsappSession?.metadata?.awaiting_main_menu === true;
+}
+
 async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageId = null }) {
   const idempotencyKey = messageId ? `meta:${String(messageId).trim()}` : null;
 
@@ -76,6 +87,40 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageI
     };
   }
 
+  const activeClinicalSession = hasActiveTypebotClinicalSession(whatsappSession);
+
+  if (isMainMenuTrigger(text)) {
+    return {
+      action: 'reply',
+      reply: MAIN_MENU_TEXT,
+      clearTypebotSession: Boolean(whatsappSession?.typebot_session_id),
+      clearClinicalMetadata: Boolean(activeClinicalSession)
+    };
+  }
+
+  if (activeClinicalSession) {
+    return { action: 'typebot', text };
+  }
+
+  if (isAwaitingMainMenu(whatsappSession)) {
+    if (textNorm === '1') {
+      return { action: 'typebot_bootstrap', clearTypebotSession: true, clearClinicalMetadata: true };
+    }
+    if (textNorm === '2') {
+      const result = await createWhatsAppSupportEntry({
+        phone,
+        idempotencyKey
+      });
+      return {
+        action: 'reply',
+        reply: result.reply,
+        clearTypebotSession: true,
+        clearClinicalMetadata: true
+      };
+    }
+    return { action: 'reply', reply: MAIN_MENU_TEXT };
+  }
+
   if (textNorm === '1') {
     return { action: 'typebot_bootstrap', clearTypebotSession: true, clearClinicalMetadata: true };
   }
@@ -93,8 +138,8 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageI
     };
   }
 
-  if (isMainMenuTrigger(text) || !whatsappSession?.typebot_session_id) {
-    return { action: 'reply', reply: MAIN_MENU_TEXT, clearTypebotSession: Boolean(whatsappSession?.typebot_session_id) };
+  if (!whatsappSession?.typebot_session_id) {
+    return { action: 'reply', reply: MAIN_MENU_TEXT };
   }
 
   return { action: 'typebot', text };
@@ -102,5 +147,7 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageI
 
 module.exports = {
   MAIN_MENU_TEXT,
+  hasActiveTypebotClinicalSession,
+  isMainMenuTrigger,
   routeMetaWhatsAppInbound
 };
