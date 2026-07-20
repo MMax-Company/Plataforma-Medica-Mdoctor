@@ -1,14 +1,38 @@
 # Typebot Webhook → Triagem (Doctor Prescreve)
 
+## Fluxo oficial (pós-consolidação WhatsApp + Typebot)
+
+```
+Meta Cloud API
+  → POST /api/whatsapp/webhook (backend: menu 1/2, Typebot, suporte, upload)
+Typebot (finalização)
+  → n8n /webhook/typebot-webhook
+  → POST {BACKEND_BASE_URL}/api/webhook/triagem
+Stripe
+  → POST /api/webhooks/stripe (backend — n8n NÃO confirma pagamento)
+Notificações (ex.: reprovação)
+  → n8n clinical-rejection-notify
+  → POST /api/whatsapp/notify-text (Meta via backend)
+```
+
 ## Fluxo
 
 ```
 Typebot (POST)
   → n8n /webhook/typebot-webhook
-  → Build Payload (paciente + triagem)
+  → Build Payload (paciente + triagem + Idempotency-Key estável)
   → POST {BACKEND_BASE_URL}/api/webhook/triagem
   → Resposta JSON ao Typebot
 ```
+
+## Bloqueado no n8n
+
+- `POST /api/whatsapp/support`
+- `POST /api/whatsapp/process-message`
+- menus iniciais / Evolution / Baileys / `TYPEBOT_PUBLIC_URL`
+- confirmação por `payment_status="paid"` sem Stripe
+- workflow `typebot-webhook-staging-COPIAR.json` (histórico, `active: false`)
+- workflow `stripe-payment-staging.json` (stub 410, `active: false`)
 
 ## Webhook n8n
 
@@ -101,8 +125,9 @@ Campos exigidos pelo backend de triagem: `paciente.nome`, `triagem.doencas`.
 ## Headers repassados
 
 - `X-Correlation-Id` (gerado se ausente)
-- `Idempotency-Key` (gerado se ausente)
+- `Idempotency-Key` estável: `typebot-result:{resultId}` → `typebot-session:{sessionId}:{phone}` → `triagem:{phone}:{cpf}` (sem `Date.now()` quando há id)
 - `X-N8N-Workflow: typebot-webhook-staging`
+- `X-MDoctor-Webhook-Secret`
 
 ## Respostas ao Typebot
 

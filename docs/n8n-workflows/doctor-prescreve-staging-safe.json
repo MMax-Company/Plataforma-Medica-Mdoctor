@@ -365,9 +365,10 @@
   "meta": {
     "template": "doctor-prescreve-staging-safe",
     "secretsPolicy": "env-only",
+    "active": false,
+    "notes": "Histórico inativo. Entrada oficial WhatsApp: Meta Cloud API → POST /api/whatsapp/webhook (backend). Não reativar para menu/suporte.",
     "environments": [
-      "staging",
-      "production"
+      "staging"
     ]
   },
   "pinData": {},

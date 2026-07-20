@@ -7,7 +7,12 @@ const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const { requireAuth } = require('../auth/auth.middleware');
-const { getWhatsAppProviderStatus, sendPrescription, isSandboxMode } = require('../delivery/delivery.service');
+const {
+  getWhatsAppProviderStatus,
+  sendPrescription,
+  sendWhatsAppText,
+  isSandboxMode
+} = require('../delivery/delivery.service');
 const {
   buildClinicalNarrative,
   getRefusalMessage,
@@ -187,6 +192,75 @@ router.post('/test-send', requireAuth, async (req, res) => {
       correlationId,
       error: error.message,
       code: error.code || 'TEST_SEND_FAILED'
+    });
+  }
+});
+
+/**
+ * n8n → Meta: notificação textual (ex.: reprovação clínica).
+ * Não é entrada de menu/suporte/Typebot — só envio outbound via provider Meta.
+ */
+router.post('/notify-text', async (req, res) => {
+  const auth = verifyN8nWebhookSecret(req);
+  if (!auth.ok) return res.status(auth.status).json(auth.body);
+
+  const requestId = req.requestId || 'unknown';
+  const correlationId = auth.correlationId || req.get('X-Correlation-Id') || requestId;
+  const idempotencyKey = String(
+    req.get('Idempotency-Key') || req.body?.idempotency_key || ''
+  ).trim();
+  const to = String(req.body?.phone || req.body?.to || req.body?.telefone || '').replace(/\D/g, '');
+  const text = String(req.body?.message || req.body?.text || '').trim();
+  const atendimentoId = String(req.body?.atendimentoId || req.body?.atendimento_id || '').trim() || null;
+
+  if (!to || !text) {
+    return res.status(400).json({
+      success: false,
+      correlationId,
+      error: 'Campos obrigatórios: phone (ou to) e message (ou text)'
+    });
+  }
+
+  try {
+    const delivery = await sendWhatsAppText({
+      to,
+      text,
+      correlationId,
+      idempotencyKey: idempotencyKey || `notify-text:${atendimentoId || to}:${text.slice(0, 24)}`
+    });
+
+    await createAuditLog({
+      entity_type: 'whatsapp_notify_text',
+      entity_id: atendimentoId,
+      action: 'n8n_notify_text_sent',
+      actor: 'n8n',
+      payload: {
+        requestId,
+        correlationId,
+        atendimento_id: atendimentoId,
+        phone: to.replace(/\d(?=\d{4})/g, '*'),
+        provider: delivery?.provider || 'meta'
+      }
+    });
+
+    return res.json({
+      success: true,
+      correlationId,
+      atendimentoId,
+      delivery
+    });
+  } catch (error) {
+    logger.warn('whatsapp_notify_text_failed', {
+      correlationId,
+      atendimentoId,
+      error: error.message,
+      code: error.code || null
+    });
+    return res.status(error.statusCode || 502).json({
+      success: false,
+      correlationId,
+      error: error.message,
+      code: error.code || 'NOTIFY_TEXT_FAILED'
     });
   }
 });
