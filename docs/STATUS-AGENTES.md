@@ -3,6 +3,9 @@
 **Atualizado:** 2026-07-20  
 **Uso:** memória operacional para continuidade (Cláudio / Cursor). Não duplicar este conteúdo em `CLAUDE.md` (lá ficam só regras permanentes).
 
+**Fonte oficial do fluxo (perguntas/respostas/ordem/controladores):**  
+`docs/typebot/FLUXO-OFICIAL-PERGUNTAS-RESPOSTAS.md`
+
 ---
 
 ## 1. Arquitetura oficial
