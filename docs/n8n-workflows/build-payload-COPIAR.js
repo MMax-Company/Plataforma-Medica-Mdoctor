@@ -1,6 +1,7 @@
 /**
- * n8n Code node: normaliza payload Typebot -> backend /api/whatsapp/webhook
- * Espelha clinical-payload-normalizer.service.js (subset executável no n8n)
+ * LEGADO — não usar em workflows ativos.
+ * Normalizava Typebot → POST /api/whatsapp/webhook com payment_status=paid.
+ * Oficial: lib/typebot-webhook-triagem.code.js → POST /api/webhook/triagem
  */
 const input = $input.first().json || {};
 const headers = input.headers || {};

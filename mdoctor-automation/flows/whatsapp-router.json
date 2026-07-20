@@ -1,6 +1,6 @@
 {
   "name": "Doctor Prescreve - WhatsApp Router",
-  "active": true,
+  "active": false,
   "nodes": [
     {
       "name": "Webhook WhatsApp",
@@ -28,5 +28,9 @@
   "connections": {
     "Webhook WhatsApp": { "main": [[{ "node": "Encaminhar Backend", "type": "main", "index": 0 }]] }
   },
-  "meta": { "spec_compliance": "§6 Automation, §11 Regras só no Backend" }
+  "meta": {
+    "spec_compliance": "§6 Automation, §11 Regras só no Backend",
+    "active": false,
+    "notes": "Histórico inativo. Entrada oficial WhatsApp: Meta Cloud API → POST /api/whatsapp/webhook (backend). Não reativar como proxy paralelo."
+  }
 }
