@@ -48,7 +48,11 @@ function isSurveyEnabled() {
 }
 
 function isSurveyComplete(outcome = {}) {
-  return Boolean(outcome.q1_access_alternative && outcome.q2_avoided_interruption && outcome.q3_would_use_again);
+  return Boolean(
+    outcome.final_question_access_alternative &&
+      outcome.final_question_avoided_interruption &&
+      outcome.final_question_use_again
+  );
 }
 
 async function sendSurveyWhatsApp({ phone, text, correlationId, idempotencyKey }) {
@@ -109,18 +113,23 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     return { skipped: true, reason: 'missing_attendance_or_phone' };
   }
 
+  // Fase 3 pedido 3: evento repetido (retry, novo webhook de entrega) nunca
+  // reinicia o survey — uma vez que a linha existe (completa ou em
+  // andamento), as mensagens de abertura já foram enviadas uma vez.
   const existing = await getOutcomeByAttendance(attendanceId, SURVEY_VERSION);
-  if (existing && isSurveyComplete(existing)) {
-    return { skipped: true, reason: 'already_completed', outcome: existing };
+  if (existing) {
+    return {
+      skipped: true,
+      reason: isSurveyComplete(existing) ? 'already_completed' : 'already_in_progress',
+      outcome: existing
+    };
   }
 
-  const outcome =
-    existing ||
-    (await createPendingOutcome({
-      attendanceId,
-      patientId: patientId || null,
-      surveyVersion: SURVEY_VERSION
-    }));
+  const outcome = await createPendingOutcome({
+    attendanceId,
+    patientId: patientId || null,
+    surveyVersion: SURVEY_VERSION
+  });
 
   await setSurveySession({
     phone: digits,
@@ -250,7 +259,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q1_MESSAGE}`;
     } else {
-      patch.q1_access_alternative = answer;
+      patch.final_question_access_alternative = answer;
       nextStep = 'q2';
       reply = Q2_MESSAGE;
     }
@@ -259,7 +268,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q2_MESSAGE}`;
     } else {
-      patch.q2_avoided_interruption = answer;
+      patch.final_question_avoided_interruption = answer;
       nextStep = 'q3';
       reply = Q3_MESSAGE;
     }
@@ -268,7 +277,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q3_MESSAGE}`;
     } else {
-      patch.q3_would_use_again = answer;
+      patch.final_question_use_again = answer;
       nextStep = 'done';
       reply = THANK_YOU_MESSAGE;
     }

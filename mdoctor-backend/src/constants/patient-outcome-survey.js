@@ -42,7 +42,7 @@ const SURVEY_OPT_IN_DECLINED_MESSAGE = 'Tudo bem! Qualquer dúvida, estamos aqui
 
 const Q1_MESSAGE = [
   '*Pergunta 1 de 3*',
-  'Sem o Doctor Prescreve, como você obteria sua renovação terapêutica?',
+  'Sem o Doctor Prescreve, o que você faria para conseguir sua receita?',
   '',
   '*1* - Pronto-socorro',
   '*2* - UBS',
@@ -53,7 +53,7 @@ const Q1_MESSAGE = [
 
 const Q2_MESSAGE = [
   '*Pergunta 2 de 3*',
-  'O Doctor Prescreve ajudou a evitar a interrupção do seu tratamento?',
+  'O Doctor Prescreve ajudou a evitar que você ficasse sem a medicação?',
   '',
   '*1* - Sim',
   '*2* - Não'

@@ -191,9 +191,9 @@ async function runFullSurveyFlow(attendanceId) {
   }
 
   const outcome = await getOutcome(attendanceId);
-  step('full_persistence_q1', outcome?.q1_access_alternative === 'ubs', { q1: outcome?.q1_access_alternative });
-  step('full_persistence_q2', outcome?.q2_avoided_interruption === 'sim', { q2: outcome?.q2_avoided_interruption });
-  step('full_persistence_q3', outcome?.q3_would_use_again === 'sim', { q3: outcome?.q3_would_use_again });
+  step('full_persistence_q1', outcome?.final_question_access_alternative === 'ubs', { q1: outcome?.final_question_access_alternative });
+  step('full_persistence_q2', outcome?.final_question_avoided_interruption === 'sim', { q2: outcome?.final_question_avoided_interruption });
+  step('full_persistence_q3', outcome?.final_question_use_again === 'sim', { q3: outcome?.final_question_use_again });
   step('full_no_typebot_at_end', !(await getWaSession())?.typebot_session_id);
 }
 

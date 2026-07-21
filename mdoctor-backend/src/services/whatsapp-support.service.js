@@ -14,7 +14,10 @@ const MENU_TEXT =
   'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte';
 
 const SUPPORT_WAITING_TEXT =
-  'Aguarde, em breve nossa equipe realizará seu atendimento.\n\n*1* - Aguardar atendimento\n*ENCERRAR* - Encerrar atendimento\n*3* - Iniciar chatbot novamente';
+  'Seu atendimento foi encaminhado para o suporte.\n\nAguarde. Nossa equipe responderá assim que possível.\n\nPara encerrar o suporte, envie 0 ou ENCERRAR.';
+
+const SUPPORT_CLOSED_TEXT =
+  'Atendimento de suporte encerrado.\n\nQuando precisar, envie uma nova mensagem para acessar o menu do Doctor Prescreve.';
 
 const SUPPORT_SUB = {
   WAITING: 'waiting',
@@ -136,6 +139,7 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
     motivo: 'Encerrado pelo paciente via WhatsApp',
     dados_clinicos: {
       ...(existing.dados_clinicos || {}),
+      support_sub_status: SUPPORT_SUB.CLOSED_PATIENT,
       support_closed_at: new Date().toISOString(),
       support_closed_by: 'patient'
     }
@@ -156,7 +160,7 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
   return {
     closed: true,
     atendimento: updated,
-    reply: 'Atendimento de suporte encerrado. Obrigado pelo contato.'
+    reply: SUPPORT_CLOSED_TEXT
   };
 }
 
@@ -403,8 +407,12 @@ async function handleTypebotSupportChoice({ phone, expectedInputId, text, correl
   return null;
 }
 
+// Fase 3 pedido 3: só "0" ou "ENCERRAR" encerram o suporte, sempre com a
+// mesma mensagem única (SUPPORT_CLOSED_TEXT) e sem anexar o menu na mesma
+// resposta — o menu volta a aparecer sozinho na PRÓXIMA mensagem do
+// paciente, já que o atendimento deixa de estar "aberto" (supportIsOpen).
 async function handleSupportQueueInput({ phone, textNorm }) {
-  if (textNorm === 'ENCERRAR' || textNorm === '2') {
+  if (textNorm === 'ENCERRAR' || textNorm === '0') {
     const result = await closeWhatsAppSupportEntry({ phone });
     return { handled: true, action: 'reply', reply: result.reply };
   }
@@ -412,13 +420,11 @@ async function handleSupportQueueInput({ phone, textNorm }) {
     await closeWhatsAppSupportEntry({ phone });
     return { handled: true, action: 'typebot_clean' };
   }
-  if (textNorm === '0') {
-    const result = await closeWhatsAppSupportEntry({ phone });
-    return { handled: true, action: 'reply', reply: `${result.reply}\n\n${MENU_TEXT}` };
-  }
   if (textNorm === '1' || textNorm === 'AGUARDAR' || textNorm === 'AGUARDAR ATENDIMENTO') {
     return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
   }
+  // Qualquer outra mensagem (incluindo números como "2", "5"...) apenas
+  // reapresenta o aviso de espera — nunca inicia triagem/Typebot.
   return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
 }
 
@@ -592,6 +598,7 @@ module.exports = {
   SUPPORT_SUB,
   MENU_TEXT,
   SUPPORT_WAITING_TEXT,
+  SUPPORT_CLOSED_TEXT,
   POST_ATTENDANCE_CHOICE_INPUT_ID,
   SUPPORT_SUBFLOW_CHOICE_INPUT_ID,
   normalizePhone,
