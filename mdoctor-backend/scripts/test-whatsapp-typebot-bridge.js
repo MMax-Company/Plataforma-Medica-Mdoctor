@@ -648,10 +648,11 @@ async function main() {
   // Nenhum texto intermediário pode aparecer antes do botão -- nem o nome do
   // documento repetido, nem o texto padrão de fallback ("Toque no botão
   // abaixo para continuar."). A introdução do grupo (enviada antes, como
-  // mensagem de texto própria) já dá o contexto. Como a Meta exige
-  // `body.text` não-vazio em toda mensagem cta_url, o corpo fica só com um
-  // espaço em branco -- nunca com texto visível.
-  assert(legalDocsSent.every((d) => d.body === ' '), 'corpo do botão deve ser branco, sem repetir o nome nem usar o texto padrão');
+  // mensagem de texto própria) já dá o contexto. A Meta exige `body.text`
+  // não-vazio em toda mensagem cta_url e rejeita um corpo só de espaço em
+  // branco com erro 131008 (confirmado ao vivo) -- o mínimo aceito é um
+  // único ícone neutro, sem palavras.
+  assert(legalDocsSent.every((d) => d.body === '📄'), 'corpo do botão deve ser só o ícone neutro, sem repetir o nome nem usar o texto padrão');
   assert(legalDocsSent.every((d) => !String(d.body || '').includes('Toque no botão')), 'texto padrão de fallback não pode aparecer nos botões jurídicos');
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);

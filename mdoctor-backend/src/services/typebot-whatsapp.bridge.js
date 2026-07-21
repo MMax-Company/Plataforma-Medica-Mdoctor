@@ -507,12 +507,14 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
-        // Corpo em branco (só um espaço): a Meta exige `body.text` não-vazio
-        // em toda mensagem cta_url, então não dá para omitir — mas nenhum
-        // texto (nem o padrão "Toque no botão abaixo...") pode aparecer
-        // antes do botão do documento; a introdução do grupo já foi enviada
-        // como mensagem própria logo antes.
-        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: ' ', displayText: docButtonLabel(output.label), url: output.url });
+        // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
+        // espaço em branco é rejeitado com erro 131008 "Required parameter
+        // is missing" — testado ao vivo). Não há como enviar um botão sem
+        // nenhum caractere visível; o mínimo tecnicamente aceito é um único
+        // ícone neutro, sem repetir o nome do documento nem usar frase de
+        // instrução. A introdução do grupo já foi enviada como mensagem
+        // própria logo antes.
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: '📄', displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
