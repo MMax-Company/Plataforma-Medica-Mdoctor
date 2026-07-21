@@ -88,6 +88,29 @@ async function main() {
   assert.equal(choicePrompts[0].body, 'Escolha uma opção:');
   results.escolhaUmaOpcaoUmaUnicaVez = 'ok';
 
+  // 7) Sessão travada num expected_input antigo (ex.: upload de receita
+  //    abandonado) não pode sequestrar uma nova conversa: "Oi"/"Olá" sempre
+  //    volta ao menu oficial, mesmo com typebot_session_id/expected_input_id
+  //    presentes. Regressão do bug observado em 2026-07-21 ("Invalid message.
+  //    Please, try again." + botão "Conferir novamente" ao enviar "Oi").
+  const staleUploadSession = {
+    typebot_session_id: 'sess-stale-upload',
+    metadata: { typebot_expected_input_id: 'blk_upload_check' }
+  };
+  for (const text of ['Oi', 'oi', 'Olá', 'OLA']) {
+    const r = await support.resolveMetaInboundRouting({ phone: '5511999990001', text, session: staleUploadSession });
+    assert.equal(r.handled, true, `"${text}" com sessão travada em blk_upload_check deveria ser tratado pelo menu (handled:true)`);
+    assert.equal(r.action, 'reply', `"${text}" deveria retornar o menu, não seguir para o Typebot`);
+    assert.equal(r.reply, support.MENU_TEXT);
+  }
+  // Confirma que a sessão travada continua indo ao Typebot para qualquer
+  // outro texto (a correção é só para o gatilho de saudação, não remove a
+  // continuidade legítima do fluxo).
+  const rNonGreeting = await support.resolveMetaInboundRouting({ phone: '5511999990001', text: 'Já enviei', session: staleUploadSession });
+  assert.equal(rNonGreeting.handled, false);
+  assert.equal(rNonGreeting.action, 'typebot');
+  results.saudacaoSempreRompeSessaoTravada = 'ok';
+
   console.log(JSON.stringify(results));
 }
 

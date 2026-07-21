@@ -368,6 +368,18 @@ function normalizeMenuText(value = '') {
   return String(value || '').trim().toUpperCase();
 }
 
+const DIACRITICS_RANGE = String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f);
+const DIACRITICS_REGEX = new RegExp('[' + DIACRITICS_RANGE + ']', 'g');
+
+function isGreetingText(value = '') {
+  const norm = String(value || '')
+    .normalize('NFD')
+    .replace(DIACRITICS_REGEX, '')
+    .trim()
+    .toUpperCase();
+  return norm === 'OI' || norm === 'OLA';
+}
+
 function isActiveTypebotFlow(session = {}) {
   return Boolean(session?.typebot_session_id && session?.metadata?.typebot_expected_input_id);
 }
@@ -460,7 +472,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
   }
 
-  if (isActiveTypebotFlow(resolvedSession || session)) {
+  if (isActiveTypebotFlow(resolvedSession || session) && !isGreetingText(text)) {
     return { handled: false, action: 'typebot' };
   }
 
