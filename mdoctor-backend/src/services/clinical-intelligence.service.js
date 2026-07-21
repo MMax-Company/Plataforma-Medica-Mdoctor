@@ -64,6 +64,12 @@ function extractUsageDays(data = {}) {
 
   const text = normalizeText(data.tempo_uso || data.tempoUso || data.notes || '');
   if (!text) return null;
+  // Códigos exatos enviados pelo bloco de tempo de uso do Typebot
+  // (r0imrcgaiv1idzkykt891q4u) usam "_" em vez de espaços/"de", então não
+  // batiam com os textos livres abaixo — reconhecidos aqui antes do fallback.
+  if (text === 'mais_6_meses') return 180;
+  if (text === '1_a_6_meses' || text === 'de_1_a_6_meses') return 60;
+  if (text === 'menos_1_mes') return 15;
   if (text.includes('mais de 6')) return 180;
   if (text.includes('1 a 6') || text.includes('1-6')) return 60;
   if (text.includes('menos de 1')) return 15;
