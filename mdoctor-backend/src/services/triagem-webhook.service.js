@@ -169,7 +169,10 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   if (!decision.eligible || normalized.eligibility_status === 'ineligible') {
     atendimentoStatus = STATUS.REJECTED;
-  } else if (awaitingExternalUpload && externalUpload) {
+  } else if (paymentConfirmed && awaitingExternalUpload && externalUpload) {
+    // awaitingExternalUpload agora só reflete prontidão clínica/documental
+    // (normalizador não decide pagamento); o pagamento confirmado pela
+    // sessão do WhatsApp (paymentConfirmed) é quem autoriza aqui.
     atendimentoStatus = STATUS.AWAITING_PRESCRIPTION_UPLOAD;
   } else if (paymentConfirmed && decision.eligible) {
     atendimentoStatus = STATUS.WAITING;

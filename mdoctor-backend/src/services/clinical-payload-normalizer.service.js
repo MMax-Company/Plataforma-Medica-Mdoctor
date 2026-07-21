@@ -471,8 +471,14 @@ function normalizeTypebotPayload(body = {}) {
 
   const externalUpload = isExternalUploadMode();
   const requiredCheck = validateRequiredFields(base, { externalUpload });
+  // O normalizador não tem acesso à sessão do WhatsApp (fonte confiável do
+  // pagamento) — só ao payload bruto do Typebot, que nunca preenche a
+  // variável de pagamento nesta etapa. Por isso ele apenas normaliza
+  // "awaiting_prescription_upload" pela prontidão clínica/documental, sem
+  // decidir por pagamento; quem decide pagamento confirmado é
+  // triagem-webhook.service.js, usando resolveConfirmedPaymentFromSession().
   const awaitingExternalUpload =
-    externalUpload && hasPreviousRx === true && !prescriptionFile && requiredCheck.ok && payment.paid;
+    externalUpload && hasPreviousRx === true && !prescriptionFile && requiredCheck.ok;
   const clinicalFlags = [
     ...warnings.warning_flags,
     ...parseClinicalFlags([original.text, original.sinais_alerta].filter(Boolean).join(' ')),
@@ -485,7 +491,6 @@ function normalizeTypebotPayload(body = {}) {
 
   let validationReason = null;
   if (!requiredCheck.ok) validationReason = requiredCheck.reason;
-  else if (!payment.paid) validationReason = 'Pagamento não confirmado';
   else if (warnings.has_warning_signs) validationReason = 'Sinais de alerta relatados na triagem';
   else if (controlled) validationReason = 'Medicamento controlado ou fora do protocolo';
   else if (usageDays !== null && usageDays < 30) validationReason = 'Tempo de uso insuficiente para renovação remota';
