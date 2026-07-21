@@ -9,7 +9,6 @@ const {
   PAYMENT_AMOUNT_LABEL,
   PAYMENT_BUTTON_LABEL,
   PAYMENT_CANCELLED_MESSAGE,
-  PAYMENT_CONFIRMED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
   PAYMENT_PENDING_CHOICES,
@@ -546,18 +545,30 @@ async function completePaymentByToken(token, deps = {}) {
 
   const correlationId = `typebot-payment-${payment.checkout_session_id || payment.token}`;
   try {
-    await provider.sendTextMessage({
-      to: session.phone,
-      bsuid: session.bsuid,
-      correlationId,
-      idempotencyKey: `${correlationId}:confirmed`,
-      text: PAYMENT_CONFIRMED_MESSAGE
-    });
-
     const typebot = await callTypebot(
       `/sessions/${encodeURIComponent(payment.typebot_session_id)}/continueChat`,
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
     );
+
+    // O Typebot já envia o texto de pagamento confirmado/orientação (grupo
+    // "Aguardando envio da receita") — enviar PAYMENT_CONFIRMED_MESSAGE aqui
+    // duplicava essa mensagem. Antes de entregar a resposta do Typebot ao
+    // paciente, se o próximo passo já for a etapa de upload da receita
+    // (decisão do webhook de triagem, não alterada aqui), grava
+    // atomicamente o contexto de upload na sessão — fecha a janela em que a
+    // mídia podia chegar antes desse estado existir.
+    const uploadHelpers = deps.uploadHelpers || require('./typebot-prescription-upload.service');
+    if (uploadHelpers.responseLooksLikeUploadStage(typebot, typebot.input?.id)) {
+      const uploadContext = await uploadHelpers.findUploadContextForPhone(session.phone);
+      if (uploadContext) {
+        await uploadHelpers.persistUploadContext({
+          identity: { phone: session.phone, bsuid: session.bsuid },
+          uploadContext,
+          whatsappSession: session
+        });
+      }
+    }
+
     const providerMessageIds = await sendTypebotOutputs({
       session,
       outputs: convertResponse(typebot),
@@ -569,7 +580,7 @@ async function completePaymentByToken(token, deps = {}) {
       bsuid: session.bsuid,
       metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
     }).catch(() => {});
-    return { ok: true, responsesSent: providerMessageIds.length + 1 };
+    return { ok: true, responsesSent: providerMessageIds.length };
   } catch (error) {
     await revertFlowResume(session);
     await logError({
