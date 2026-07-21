@@ -644,9 +644,12 @@ async function main() {
   assert(legalDocsSent.every((d) => /^https:\/\//.test(d.url)), 'a URL real vai só no campo url do botão, nunca no texto');
   assert(legalDocsSent.every((d) => d.displayText.length <= 20), 'rótulo do botão respeita o limite de 20 caracteres da Meta');
   assert.equal(legalDocsSent[0].displayText, 'Consentimento LGPD');
-  assert.equal(legalDocsSent[0].body, '📄 Consentimento LGPD');
   assert.equal(legalDocsSent[1].displayText, 'Privacidade');
-  assert.equal(legalDocsSent[1].body, '📄 Política de Privacidade');
+  // O rótulo do documento não pode ser repetido no corpo da mensagem do
+  // botão — a introdução do grupo (enviada antes, como texto) já dá o
+  // contexto; o corpo de cada botão fica com o texto genérico padrão do
+  // provider (nunca undefined/vazio, mas também nunca repete o nome).
+  assert(legalDocsSent.every((d) => d.body === undefined), 'corpo do botão não deve repetir o nome do documento');
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);
 

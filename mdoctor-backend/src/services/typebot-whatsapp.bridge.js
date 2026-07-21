@@ -507,7 +507,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
-        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: `📄 ${output.label}`, displayText: docButtonLabel(output.label), url: output.url });
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
