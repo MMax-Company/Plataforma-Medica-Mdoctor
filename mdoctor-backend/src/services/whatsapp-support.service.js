@@ -381,7 +381,16 @@ function isGreetingText(value = '') {
 }
 
 function isActiveTypebotFlow(session = {}) {
-  return Boolean(session?.typebot_session_id && session?.metadata?.typebot_expected_input_id);
+  const expectedInputId = session?.metadata?.typebot_expected_input_id;
+  if (!session?.typebot_session_id || !expectedInputId) return false;
+  // Enquanto aguarda a confirmação real de upload (blk_upload_check /
+  // blk_upload_pending_choice), a sessão não conta como "fluxo ativo" para
+  // roteamento de menu — evita que texto comum (ex.: "1") fique preso
+  // encaminhado para esse input em vez de reiniciar a triagem via menu.
+  // eslint-disable-next-line global-require
+  const { isUploadChoiceInput } = require('./typebot-prescription-upload.service');
+  if (isUploadChoiceInput(expectedInputId)) return false;
+  return true;
 }
 
 // Blocos do Typebot (grupo "42 — Atendimento concluído" e "Suporte (fora do
