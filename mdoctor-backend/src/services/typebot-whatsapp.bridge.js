@@ -156,11 +156,20 @@ function convertTypebotResponse(response = {}) {
   // upstream (ex.: reprocessamento) já tiver deixado outro nos outputs, o
   // filtro abaixo garante que "Escolha uma opção:" seja enviado uma única vez.
   if (input.type === 'choice input' && items.length && !outputs.some((o) => o.kind === 'buttons' || o.kind === 'list')) {
-    const choices = items.map((item, index) => ({
-      id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-      title: String(item.content || item.value).slice(0, 24),
-      value: String(item.content || item.value)
-    }));
+    const choices = items.map((item, index) => {
+      const fullLabel = String(item.content || item.value);
+      // A Meta limita o título da linha de lista a 24 caracteres — quando o
+      // rótulo completo excede isso, a "description" (até 72 caracteres)
+      // carrega o texto integral abaixo do título truncado, sem alterar
+      // id/value usados no roteamento da resposta.
+      const truncated = fullLabel.slice(0, 24);
+      return {
+        id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
+        title: truncated,
+        ...(fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
+        value: fullLabel
+      };
+    });
     outputs.push(choices.length <= 3
       ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
       : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
