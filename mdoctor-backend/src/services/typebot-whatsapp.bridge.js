@@ -74,7 +74,11 @@ function convertTypebotResponse(response = {}) {
 
   const input = response.input || {};
   const items = Array.isArray(input.items) ? input.items.filter((item) => item?.content || item?.value) : [];
-  if (input.type === 'choice input' && items.length) {
+  // Um único response do Typebot só traz um "input" por pergunta, então só um
+  // bloco de escolha (buttons/list) deveria existir aqui — mas se algo
+  // upstream (ex.: reprocessamento) já tiver deixado outro nos outputs, o
+  // filtro abaixo garante que "Escolha uma opção:" seja enviado uma única vez.
+  if (input.type === 'choice input' && items.length && !outputs.some((o) => o.kind === 'buttons' || o.kind === 'list')) {
     const choices = items.map((item, index) => ({
       id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
       title: String(item.content || item.value).slice(0, 24),

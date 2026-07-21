@@ -11,7 +11,7 @@ const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 3
 const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
 const MENU_TEXT =
-  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite:\n*1* - Iniciar atendimento\n*2* - Suporte';
+  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte';
 
 const SUPPORT_WAITING_TEXT =
   'Aguarde, em breve nossa equipe realizará seu atendimento.\n\n*1* - Aguardar atendimento\n*ENCERRAR* - Encerrar atendimento\n*3* - Iniciar chatbot novamente';
@@ -486,6 +486,9 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     return { handled: true, action: 'reply', reply: result.reply };
   }
 
+  // Sem sessão clínica nem suporte ativo: mostra o menu oficial e NÃO inicia
+  // o Typebot sozinho. Só "1" (tratado acima) inicia o Typebot; qualquer
+  // outra entrada aqui apenas reapresenta o menu, sem tocar em sessão.
   return { handled: true, action: 'reply', reply: MENU_TEXT };
 }
 
