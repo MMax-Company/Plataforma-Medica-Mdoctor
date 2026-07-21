@@ -379,6 +379,7 @@ async function ingestWhatsAppPrescriptionMedia({
   const sendConfirmation = deps.sendPostUploadConfirmation || sendPostUploadConfirmation;
   const hasStored = deps.hasStoredPreviousPrescription || hasStoredPreviousPrescription;
   const isPaymentConfirmed = deps.isPaymentConfirmedByPedido2 || isPaymentConfirmedByPedido2;
+  const resumeTypebot = deps.resumeTypebotAfterPrescriptionUpload || resumeTypebotAfterPrescriptionUpload;
 
   const mediaKey = String(mediaId || '').trim();
   const messageKey = String(messageId || '').trim();
@@ -420,7 +421,9 @@ async function ingestWhatsAppPrescriptionMedia({
     buffer: media.buffer,
     mimeType: mimeType || media.mimeType,
     filename,
-    correlationId: messageId
+    correlationId: messageId,
+    mediaId: mediaKey || null,
+    messageId: messageKey || null
   });
 
   await persist({
@@ -433,6 +436,20 @@ async function ingestWhatsAppPrescriptionMedia({
 
   const atendimentoId = uploadResult.atendimento?.id || uploadContext.atendimentoId;
   await sendConfirmation({ session: whatsappSession, atendimentoId, correlationId: messageId, provider });
+
+  // Retoma o Typebot automaticamente — sem depender do paciente clicar em
+  // "Conferir novamente"/"Já enviei a receita". Reaproveita o mesmo mecanismo
+  // (com claim atômico próprio) já usado pela página externa de upload.
+  try {
+    await resumeTypebot({ token: uploadContext.token, atendimentoId, correlationId: messageId }, deps);
+  } catch (error) {
+    await createIntegrationError({
+      integration: 'typebot_prescription_upload',
+      correlationId: messageId,
+      error,
+      request: { atendimento_id: atendimentoId, phase: 'auto_resume_after_whatsapp_media' }
+    }).catch(() => {});
+  }
 
   return {
     handled: true,

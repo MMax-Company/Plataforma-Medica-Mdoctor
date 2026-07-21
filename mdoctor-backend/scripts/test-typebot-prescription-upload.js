@@ -15,6 +15,7 @@ const {
   readProcessedIds
 } = require('../src/services/typebot-prescription-upload.service');
 const { convertTypebotResponse } = require('../src/services/typebot-whatsapp.bridge');
+const { ALLOWED_MIME, MAX_BYTES, validateBuffer } = require('../src/services/previous-prescription-storage.service');
 
 async function main() {
   const results = {};
@@ -129,11 +130,14 @@ async function main() {
     results.semPagamentoNaoProcessa = 'ok';
   }
 
-  // ---- ingestWhatsAppPrescriptionMedia: sucesso -> exatamente 3 mensagens, uma vez ----
+  // ---- ingestWhatsAppPrescriptionMedia: sucesso -> exatamente 3 mensagens, uma vez,
+  //      e retoma o Typebot automaticamente (sem clique em "Conferir novamente") ----
   {
     const sentMessages = [];
     let downloadCalls = 0;
     let uploadCalls = 0;
+    let uploadArgs = null;
+    let resumeCalls = [];
     const session = { phone: '5511985485777', bsuid: null, metadata: { typebot_payment: { payment_status: 'paid' } } };
     const result = await ingestWhatsAppPrescriptionMedia({
       mediaId: 'media-ok-1',
@@ -148,8 +152,9 @@ async function main() {
       deps: {
         findPendingUploadContext: async () => ({ atendimentoId: 'at-3', token: 'tok-3' }),
         getAtendimento: async () => ({ dados_clinicos: {} }),
-        completeExternalPrescriptionUpload: async () => { uploadCalls += 1; return { atendimento: { id: 'at-3' } }; },
-        persistUploadContext: async () => {}
+        completeExternalPrescriptionUpload: async (args) => { uploadCalls += 1; uploadArgs = args; return { atendimento: { id: 'at-3' } }; },
+        persistUploadContext: async () => {},
+        resumeTypebotAfterPrescriptionUpload: async (args) => { resumeCalls.push(args); return { ok: true }; }
       }
     });
     assert.equal(result.handled, true);
@@ -164,6 +169,103 @@ async function main() {
     assert.equal(sentMessages[1].idempotencyKey, 'atendimento-created:at-3');
     assert.equal(sentMessages[2].idempotencyKey, 'queue-entry:at-3');
     results.tresMensagensUmaVez = 'ok';
+
+    assert.equal(resumeCalls.length, 1, 'retoma o Typebot automaticamente, sem depender de clique do paciente');
+    assert.equal(resumeCalls[0].token, 'tok-3');
+    assert.equal(resumeCalls[0].atendimentoId, 'at-3');
+    results.avancaAutomaticamenteSemClique = 'ok';
+
+    assert.equal(uploadArgs.mediaId, 'media-ok-1', 'media_id é registrado no armazenamento da receita');
+    assert.equal(uploadArgs.messageId, 'msg-ok-1', 'message_id é registrado no armazenamento da receita');
+    results.mediaIdEMessageIdRegistrados = 'ok';
+  }
+
+  // ---- ingestWhatsAppPrescriptionMedia: falha ao retomar o Typebot não derruba
+  //      a ingestão (mídia já está salva e vinculada; resume é best-effort) ----
+  {
+    const sentMessages = [];
+    const session = { phone: '5511985485777', metadata: { typebot_payment: { payment_status: 'paid' } } };
+    const result = await ingestWhatsAppPrescriptionMedia({
+      mediaId: 'media-resume-fail',
+      mimeType: 'image/jpeg',
+      identity: { phone: '5511985485777' },
+      whatsappSession: session,
+      messageId: 'msg-resume-fail',
+      provider: {
+        downloadMedia: async () => ({ buffer: Buffer.from('x'), mimeType: 'image/jpeg' }),
+        sendTextMessage: async (p) => { sentMessages.push(p); return {}; }
+      },
+      deps: {
+        findPendingUploadContext: async () => ({ atendimentoId: 'at-5', token: 'tok-5' }),
+        getAtendimento: async () => ({ dados_clinicos: {} }),
+        completeExternalPrescriptionUpload: async () => ({ atendimento: { id: 'at-5' } }),
+        persistUploadContext: async () => {},
+        resumeTypebotAfterPrescriptionUpload: async () => { throw new Error('typebot indisponível'); }
+      }
+    });
+    assert.equal(result.handled, true, 'a mídia continua vinculada mesmo se a retomada automática falhar');
+    assert.equal(sentMessages.length, 3, 'as confirmações já enviadas não são afetadas pela falha da retomada');
+    results.falhaNaRetomadaNaoDerrubaIngestao = 'ok';
+  }
+
+  // ---- ingestWhatsAppPrescriptionMedia: sem sessão de upload pendente (ex.:
+  //      atendimento já reprovado) — nunca aceita a mídia ----
+  {
+    const sentMessages = [];
+    let uploadCalled = false;
+    const session = { phone: '5511985485777', metadata: { typebot_payment: { payment_status: 'paid' } } };
+    await assert.rejects(
+      ingestWhatsAppPrescriptionMedia({
+        mediaId: 'media-rejected-atendimento',
+        mimeType: 'image/jpeg',
+        identity: { phone: '5511985485777' },
+        whatsappSession: session,
+        messageId: 'msg-rejected',
+        provider: {
+          downloadMedia: async () => { uploadCalled = true; return { buffer: Buffer.from('x'), mimeType: 'image/jpeg' }; },
+          sendTextMessage: async (p) => { sentMessages.push(p); return {}; }
+        },
+        deps: {
+          // Atendimento reprovado nunca fica com status AWAITING_PRESCRIPTION_UPLOAD
+          // (ver triagem-webhook.service.js) — findPendingUploadContext não encontra nada.
+          findPendingUploadContext: async () => null,
+          completeExternalPrescriptionUpload: async () => { throw new Error('não deveria ser chamado'); }
+        }
+      }),
+      (err) => err.code === 'WHATSAPP_UPLOAD_NO_SESSION'
+    );
+    assert.equal(uploadCalled, false, 'atendimento reprovado nunca aceita nova receita');
+    results.atendimentoReprovadoNaoAceitaMidia = 'ok';
+  }
+
+  // ---- validação de formato/tamanho (previous-prescription-storage.service.js,
+  //      reaproveitada sem alteração — confirma os limites exigidos) ----
+  {
+    assert(ALLOWED_MIME.has('image/jpeg') && ALLOWED_MIME.has('image/jpg') && ALLOWED_MIME.has('image/png') && ALLOWED_MIME.has('application/pdf'));
+    assert.equal(ALLOWED_MIME.has('text/plain'), false, 'texto simples não é tratado como receita');
+    assert.equal(MAX_BYTES, 10 * 1024 * 1024);
+
+    assert.throws(() => validateBuffer(Buffer.from('conteudo'), 'text/plain'), /PRESCRIPTION_MIME_INVALID|Tipo de arquivo/);
+    try {
+      validateBuffer(Buffer.from('x'), 'text/plain');
+      assert.fail('deveria ter lançado erro');
+    } catch (err) {
+      assert.equal(err.code, 'PRESCRIPTION_MIME_INVALID');
+      assert(err.message && err.message.length > 0, 'arquivo inválido é recusado com mensagem clara');
+    }
+    results.arquivoInvalidoRecusadoComMensagemClara = 'ok';
+
+    const oversized = Buffer.alloc(MAX_BYTES + 1);
+    try {
+      validateBuffer(oversized, 'image/jpeg');
+      assert.fail('deveria ter lançado erro');
+    } catch (err) {
+      assert.equal(err.code, 'PRESCRIPTION_FILE_TOO_LARGE');
+    }
+    results.arquivoAcimaDe10MbRecusado = 'ok';
+
+    validateBuffer(Buffer.from('conteudo pequeno'), 'image/jpeg'); // não lança — dentro do limite e tipo permitido
+    results.arquivoValidoAceito = 'ok';
   }
 
   // ---- ingestWhatsAppPrescriptionMedia: mesma mídia (media_id) reenviada não duplica ----
