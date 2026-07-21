@@ -645,11 +645,14 @@ async function main() {
   assert(legalDocsSent.every((d) => d.displayText.length <= 20), 'rótulo do botão respeita o limite de 20 caracteres da Meta');
   assert.equal(legalDocsSent[0].displayText, 'Consentimento LGPD');
   assert.equal(legalDocsSent[1].displayText, 'Privacidade');
-  // O rótulo do documento não pode ser repetido no corpo da mensagem do
-  // botão — a introdução do grupo (enviada antes, como texto) já dá o
-  // contexto; o corpo de cada botão fica com o texto genérico padrão do
-  // provider (nunca undefined/vazio, mas também nunca repete o nome).
-  assert(legalDocsSent.every((d) => d.body === undefined), 'corpo do botão não deve repetir o nome do documento');
+  // Nenhum texto intermediário pode aparecer antes do botão -- nem o nome do
+  // documento repetido, nem o texto padrão de fallback ("Toque no botão
+  // abaixo para continuar."). A introdução do grupo (enviada antes, como
+  // mensagem de texto própria) já dá o contexto. Como a Meta exige
+  // `body.text` não-vazio em toda mensagem cta_url, o corpo fica só com um
+  // espaço em branco -- nunca com texto visível.
+  assert(legalDocsSent.every((d) => d.body === ' '), 'corpo do botão deve ser branco, sem repetir o nome nem usar o texto padrão');
+  assert(legalDocsSent.every((d) => !String(d.body || '').includes('Toque no botão')), 'texto padrão de fallback não pode aparecer nos botões jurídicos');
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);
 
