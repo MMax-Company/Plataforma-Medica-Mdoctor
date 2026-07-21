@@ -10,6 +10,13 @@ const metaProvider = require('./providers/meta.provider');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
 
+// Fase 2 pedido 3 — mensagens oficiais enviadas diretamente pelo Backend
+// (não dependem do texto de retorno do Typebot, que não pode ser alterado
+// neste pedido) após receita válida armazenada e vinculada.
+const PRESCRIPTION_RECEIVED_MESSAGE = 'Receita anterior recebida com sucesso.\n\nEstamos concluindo sua solicitação.';
+const ATENDIMENTO_CREATED_MESSAGE = 'Recebemos suas informações e criamos seu atendimento.';
+const QUEUE_ENTRY_MESSAGE = 'Sua solicitação foi enviada para avaliação médica.\n\nVocê receberá uma mensagem por este WhatsApp quando houver uma decisão.';
+
 const UPLOAD_CHOICE_INPUT_IDS = new Set([
   'blk_upload_check',
   'blk_upload_pending_choice'
@@ -64,12 +71,21 @@ function extractUploadSession(atendimento = {}) {
 
 async function findPendingUploadContext(phone) {
   const rows = await listAtendimentos({ status: STATUS.AWAITING_PRESCRIPTION_UPLOAD });
-  const match = rows.find((row) => phonesMatch(row.paciente_telefone, phone));
-  if (!match) return null;
-  const ctx = extractUploadSession(match);
-  if (!ctx) return null;
-  if (hasStoredPreviousPrescription(match.dados_clinicos || {})) return null;
-  return ctx;
+  const matches = rows.filter(
+    (row) => phonesMatch(row.paciente_telefone, phone) && !hasStoredPreviousPrescription(row.dados_clinicos || {})
+  );
+  if (matches.length === 0) return null;
+  if (matches.length > 1) {
+    // Nunca adivinhar a qual atendimento a mídia pertence: mais de um
+    // atendimento aguardando receita para o mesmo telefone é tratado como
+    // erro explícito, para nunca vincular a mídia ao paciente errado.
+    const err = new Error('Mais de um atendimento aguardando receita anterior para este telefone.');
+    err.code = 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO';
+    err.statusCode = 409;
+    err.atendimentoIds = matches.map((row) => row.id);
+    throw err;
+  }
+  return extractUploadSession(matches[0]);
 }
 
 async function findUploadContextForPhone(phone) {
@@ -80,15 +96,43 @@ async function findUploadContextForPhone(phone) {
   return match ? extractUploadSession(match) : null;
 }
 
-async function persistUploadContext({ identity, uploadContext, whatsappSession = null, linkSentAt = null }) {
-  if (!uploadContext) return;
+// Rastreia media_id/message_id já processados na própria sessão (Fase 2
+// pedido 3): impede que a mesma mídia reenviada pela Meta (webhook
+// duplicado, reentrega) seja baixada/armazenada uma segunda vez.
+function readProcessedIds(whatsappSession = {}) {
+  const meta = whatsappSession?.metadata?.typebot_prescription_upload || {};
+  return {
+    mediaIds: Array.isArray(meta.processed_media_ids) ? meta.processed_media_ids.map(String) : [],
+    messageIds: Array.isArray(meta.processed_message_ids) ? meta.processed_message_ids.map(String) : []
+  };
+}
+
+async function persistUploadContext({
+  identity,
+  uploadContext,
+  whatsappSession = null,
+  linkSentAt = null,
+  processedMediaId = null,
+  processedMessageId = null
+}) {
+  if (!uploadContext && !processedMediaId && !processedMessageId) return;
   const existing = whatsappSession?.metadata?.typebot_prescription_upload || {};
+  const { mediaIds, messageIds } = readProcessedIds(whatsappSession);
+  if (processedMediaId && !mediaIds.includes(String(processedMediaId))) mediaIds.push(String(processedMediaId));
+  if (processedMessageId && !messageIds.includes(String(processedMessageId))) messageIds.push(String(processedMessageId));
+
   const patch = {
     ...existing,
-    atendimento_id: uploadContext.atendimentoId,
-    token: uploadContext.token,
-    upload_url: uploadContext.uploadUrl,
-    upload_status_url: uploadContext.uploadStatusUrl
+    ...(uploadContext
+      ? {
+          atendimento_id: uploadContext.atendimentoId,
+          token: uploadContext.token,
+          upload_url: uploadContext.uploadUrl,
+          upload_status_url: uploadContext.uploadStatusUrl
+        }
+      : {}),
+    processed_media_ids: mediaIds.slice(-20),
+    processed_message_ids: messageIds.slice(-20)
   };
   if (linkSentAt) patch.link_sent_at = linkSentAt;
   await upsertSessionIdentity({
@@ -153,24 +197,27 @@ function stripUploadChoiceOutputs(outputs = []) {
   return outputs.filter((output) => output.kind !== 'buttons' && output.kind !== 'list');
 }
 
-function augmentOutputsWithUploadLink(outputs = [], uploadContext = null, { force = false, linkAlreadySent = false } = {}) {
-  if (!uploadContext?.uploadUrl) return outputs;
-
-  const hasRetryHint = outputs.some((output) => /link abaixo|enviar foto da receita|não localizamos/i.test(String(output.text || '')));
-
-  if (linkAlreadySent && !hasRetryHint && !force) return outputs;
-  if (!force && !linkAlreadySent && outputsContainUrl(outputs, uploadContext.uploadUrl)) return outputs;
-
-  const linkBlock = {
+// Fase 2 pedido 3 — caminho oficial do WhatsApp nunca envia upload_url nem
+// qualquer link externo de upload: a mídia é recebida direto nesta
+// conversa. Qualquer saída do Typebot que mencione link/URL de upload é
+// substituída por uma instrução simples (sem link) para enviar a foto/PDF
+// aqui mesmo. Função legada mantida (mesmo nome/assinatura, ainda usada
+// pelo bridge) — só o conteúdo enviado ao paciente muda.
+function augmentOutputsWithUploadLink(outputs = [], uploadContext = null) {
+  const whatsappHint = {
     kind: 'text',
-    text: `📄 Envie a foto da receita anterior pelo link:\n${uploadContext.uploadUrl}\n\nFormatos: JPG, PNG ou PDF (até 10 MB).`
+    text: 'Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior nesta conversa do WhatsApp.\n\nFormatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB).'
   };
-
-  if (hasRetryHint || force) {
-    return [...outputs, linkBlock];
+  const stripped = (outputs || []).filter(
+    (output) => !(output.kind === 'text' && /upload-receita|upload_url|https?:\/\//i.test(String(output.text || '')))
+  );
+  const mentionsExternalLink = (outputs || []).some((output) =>
+    /link abaixo|upload-receita|http/i.test(String(output.text || ''))
+  );
+  if (uploadContext && (mentionsExternalLink || stripped.length === 0)) {
+    return stripped.concat([whatsappHint]);
   }
-  if (!outputs.length) return [linkBlock];
-  return outputs;
+  return stripped.length ? stripped : outputs;
 }
 
 async function claimPrescriptionUploadResume(session, { token, atendimentoId }) {
@@ -298,6 +345,23 @@ async function resumeTypebotAfterPrescriptionUpload({ token, atendimentoId, corr
   }
 }
 
+// Envia as 3 mensagens oficiais do Backend (Fase 2 pedido 3) uma única vez,
+// com idempotencyKey estável por atendimento — não depende do texto que o
+// Typebot devolveria (não pode ser alterado neste pedido).
+async function sendPostUploadConfirmation({ session, atendimentoId, correlationId, provider }) {
+  const common = { to: session.phone, bsuid: session.bsuid, correlationId };
+  await provider.sendTextMessage({ ...common, idempotencyKey: `prescription-received:${atendimentoId}`, text: PRESCRIPTION_RECEIVED_MESSAGE });
+  await provider.sendTextMessage({ ...common, idempotencyKey: `atendimento-created:${atendimentoId}`, text: ATENDIMENTO_CREATED_MESSAGE });
+  await provider.sendTextMessage({ ...common, idempotencyKey: `queue-entry:${atendimentoId}`, text: QUEUE_ENTRY_MESSAGE });
+}
+
+// Fase 2 pedido 2 já é a única fonte de verdade sobre pagamento confirmado
+// (whatsapp_sessions.metadata.typebot_payment). Aqui só LEMOS esse estado —
+// não criamos nova forma de verificar "paid" nem tocamos no pagamento.
+function isPaymentConfirmedByPedido2(whatsappSession = {}) {
+  return whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid';
+}
+
 async function ingestWhatsAppPrescriptionMedia({
   mediaId,
   mimeType,
@@ -305,18 +369,53 @@ async function ingestWhatsAppPrescriptionMedia({
   identity,
   whatsappSession,
   messageId,
-  provider = metaProvider
+  provider = metaProvider,
+  deps = {}
 }) {
-  const uploadContext = uploadContextFromSession(whatsappSession, await findPendingUploadContext(identity?.phone));
+  const findPending = deps.findPendingUploadContext || findPendingUploadContext;
+  const getAtend = deps.getAtendimento || getAtendimento;
+  const completeUpload = deps.completeExternalPrescriptionUpload || completeExternalPrescriptionUpload;
+  const persist = deps.persistUploadContext || persistUploadContext;
+  const sendConfirmation = deps.sendPostUploadConfirmation || sendPostUploadConfirmation;
+  const hasStored = deps.hasStoredPreviousPrescription || hasStoredPreviousPrescription;
+  const isPaymentConfirmed = deps.isPaymentConfirmedByPedido2 || isPaymentConfirmedByPedido2;
+
+  const mediaKey = String(mediaId || '').trim();
+  const messageKey = String(messageId || '').trim();
+  const processed = readProcessedIds(whatsappSession);
+
+  // Mídia (ou o envelope da mensagem) já processada nesta sessão: não baixa
+  // de novo, não reenvia confirmação — no-op idempotente.
+  if ((mediaKey && processed.mediaIds.includes(mediaKey)) || (messageKey && processed.messageIds.includes(messageKey))) {
+    return { handled: true, duplicate: true };
+  }
+
+  const uploadContext = uploadContextFromSession(whatsappSession, await findPending(identity?.phone));
   if (!uploadContext?.token) {
     const err = new Error('Nenhuma sessão de upload de receita pendente para este contato');
     err.code = 'WHATSAPP_UPLOAD_NO_SESSION';
     throw err;
   }
 
+  if (!isPaymentConfirmed(whatsappSession)) {
+    const err = new Error('Pagamento não confirmado para esta sessão — receita não pode ser vinculada a um atendimento definitivo ainda');
+    err.code = 'PRESCRIPTION_PAYMENT_NOT_CONFIRMED';
+    err.statusCode = 409;
+    throw err;
+  }
+
+  const existingAtendimento = await getAtend(uploadContext.atendimentoId);
+  if (hasStored(existingAtendimento?.dados_clinicos || {})) {
+    // Conteúdo já vinculado (ex.: outra entrega da mesma mídia com
+    // message_id diferente): registra o id novo para futuras deduplicações
+    // e não reprocessa nem reenvia as mensagens de confirmação.
+    await persist({ identity, uploadContext, whatsappSession, processedMediaId: mediaKey || null, processedMessageId: messageKey || null });
+    return { handled: true, duplicate: true, uploadContext };
+  }
+
   const downloadMedia = provider.downloadMedia || metaProvider.downloadMedia;
   const media = await downloadMedia(mediaId);
-  const uploadResult = await completeExternalPrescriptionUpload({
+  const uploadResult = await completeUpload({
     token: uploadContext.token,
     buffer: media.buffer,
     mimeType: mimeType || media.mimeType,
@@ -324,29 +423,29 @@ async function ingestWhatsAppPrescriptionMedia({
     correlationId: messageId
   });
 
-  await persistUploadContext({ identity, uploadContext, whatsappSession });
+  await persist({
+    identity,
+    uploadContext,
+    whatsappSession,
+    processedMediaId: mediaKey || null,
+    processedMessageId: messageKey || null
+  });
 
-  let resumeResult = { ok: false, code: 'NOT_ATTEMPTED' };
-  try {
-    resumeResult = await resumeTypebotAfterPrescriptionUpload({
-      token: uploadContext.token,
-      atendimentoId: uploadResult.atendimento?.id || uploadContext.atendimentoId,
-      correlationId: messageId,
-      session: whatsappSession
-    });
-  } catch (error) {
-    resumeResult = { ok: false, code: 'RESUME_FAILED', error: error.message };
-  }
+  const atendimentoId = uploadResult.atendimento?.id || uploadContext.atendimentoId;
+  await sendConfirmation({ session: whatsappSession, atendimentoId, correlationId: messageId, provider });
 
   return {
     handled: true,
     uploadContext,
-    resumeResult,
+    atendimentoId,
     providerMessageId: null
   };
 }
 
 module.exports = {
+  ATENDIMENTO_CREATED_MESSAGE,
+  PRESCRIPTION_RECEIVED_MESSAGE,
+  QUEUE_ENTRY_MESSAGE,
   UPLOAD_CHOICE_INPUT_IDS,
   UPLOAD_SUCCESS_REPLY,
   augmentOutputsWithUploadLink,
@@ -356,13 +455,16 @@ module.exports = {
   findUploadContextForPhone,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
+  isPaymentConfirmedByPedido2,
   isUploadChoiceInput,
   isUploadConfirmationText,
   outputsContainUrl,
   persistUploadContext,
+  readProcessedIds,
   responseLooksLikeUploadStage,
   resumeTypebotAfterPrescriptionUpload,
   revertPrescriptionUploadResume,
+  sendPostUploadConfirmation,
   stripUploadChoiceOutputs,
   uploadContextFromSession
 };
