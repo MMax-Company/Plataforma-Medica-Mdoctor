@@ -2,8 +2,6 @@ const assert = require('assert');
 const {
   UPLOAD_SUCCESS_REPLY,
   PRESCRIPTION_RECEIVED_MESSAGE,
-  ATENDIMENTO_CREATED_MESSAGE,
-  QUEUE_ENTRY_MESSAGE,
   augmentOutputsWithUploadLink,
   isUploadConfirmationText,
   isPaymentConfirmedByPedido2,
@@ -161,14 +159,14 @@ async function main() {
     assert.equal(result.duplicate, undefined);
     assert.equal(downloadCalls, 1);
     assert.equal(uploadCalls, 1);
-    assert.equal(sentMessages.length, 3, 'recebida + atendimento criado + fila, exatamente uma vez cada');
+    // Só a confirmação de recebimento -- o Typebot retomado em seguida já
+    // informa a entrada na fila médica (grupo final do fluxo oficial), sem
+    // repetir a mesma informação numa segunda mensagem do Backend.
+    assert.equal(sentMessages.length, 1, 'só a confirmação exata de recebimento, uma única vez');
     assert.equal(sentMessages[0].text, PRESCRIPTION_RECEIVED_MESSAGE);
-    assert.equal(sentMessages[1].text, ATENDIMENTO_CREATED_MESSAGE);
-    assert.equal(sentMessages[2].text, QUEUE_ENTRY_MESSAGE);
+    assert.equal(sentMessages[0].text, 'Recebemos sua receita anterior com sucesso.');
     assert.equal(sentMessages[0].idempotencyKey, 'prescription-received:at-3');
-    assert.equal(sentMessages[1].idempotencyKey, 'atendimento-created:at-3');
-    assert.equal(sentMessages[2].idempotencyKey, 'queue-entry:at-3');
-    results.tresMensagensUmaVez = 'ok';
+    results.confirmacaoUnicaSemMensagemDuplicada = 'ok';
 
     assert.equal(resumeCalls.length, 1, 'retoma o Typebot automaticamente, sem depender de clique do paciente');
     assert.equal(resumeCalls[0].token, 'tok-3');
@@ -204,7 +202,8 @@ async function main() {
       }
     });
     assert.equal(result.handled, true, 'a mídia continua vinculada mesmo se a retomada automática falhar');
-    assert.equal(sentMessages.length, 3, 'as confirmações já enviadas não são afetadas pela falha da retomada');
+    assert.equal(sentMessages.length, 1, 'a confirmação já enviada não é afetada pela falha da retomada');
+    assert.equal(sentMessages[0].text, 'Recebemos sua receita anterior com sucesso.');
     results.falhaNaRetomadaNaoDerrubaIngestao = 'ok';
   }
 

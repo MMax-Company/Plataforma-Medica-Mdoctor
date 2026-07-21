@@ -71,4 +71,21 @@ const panelBad = isVisibleInMedicalPanel({
 assert('panel visible paid+eligible', panelOk === true);
 assert('panel hidden unpaid', panelBad === false);
 
+// Pedido 2026-07-21 — blk_receita_choice (Typebot) usa os values
+// "available"/"none"/"send_later" para "Sim, possuo"/"Não possuo"/"Enviar
+// depois". Causa raiz do atendimento reprovado no teste humano: "available"
+// nunca virava true (só "sim"/"true"/... eram reconhecidos), então o
+// paciente respondendo "Sim, possuo" ainda assim era marcado como
+// has_previous_prescription=false e reprovado por dado obrigatório
+// incompleto.
+const available = normalizeTypebotPayload({ ...base, has_previous_prescription: 'available' });
+assert('"available" (Sim, possuo) mapeia para true', available.normalized.has_previous_prescription === true);
+assert('"available" não reprova por dado obrigatório incompleto', available.normalized.validation.required.ok === true);
+
+const none = normalizeTypebotPayload({ ...base, has_previous_prescription: 'none', previous_prescription_file: '' });
+assert('"none" (Não possuo) continua mapeando para false', none.normalized.has_previous_prescription === false);
+
+const sendLater = normalizeTypebotPayload({ ...base, has_previous_prescription: 'send_later', previous_prescription_file: '' });
+assert('"send_later" (Enviar depois) preservado como antes (false)', sendLater.normalized.has_previous_prescription === false);
+
 console.log('Done.');

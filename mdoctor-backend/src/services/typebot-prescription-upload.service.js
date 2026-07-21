@@ -10,12 +10,12 @@ const metaProvider = require('./providers/meta.provider');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
 
-// Fase 2 pedido 3 — mensagens oficiais enviadas diretamente pelo Backend
-// (não dependem do texto de retorno do Typebot, que não pode ser alterado
-// neste pedido) após receita válida armazenada e vinculada.
-const PRESCRIPTION_RECEIVED_MESSAGE = 'Receita anterior recebida com sucesso.\n\nEstamos concluindo sua solicitação.';
-const ATENDIMENTO_CREATED_MESSAGE = 'Recebemos suas informações e criamos seu atendimento.';
-const QUEUE_ENTRY_MESSAGE = 'Sua solicitação foi enviada para avaliação médica.\n\nVocê receberá uma mensagem por este WhatsApp quando houver uma decisão.';
+// Mensagem oficial enviada diretamente pelo Backend, assim que a receita
+// anterior é validada e vinculada ao atendimento correto. O Typebot é
+// retomado automaticamente em seguida (resumeTypebotAfterPrescriptionUpload)
+// e é ele quem informa a entrada na fila médica (grupo final do fluxo) —
+// por isso aqui só a confirmação do recebimento, sem repetir essa etapa.
+const PRESCRIPTION_RECEIVED_MESSAGE = 'Recebemos sua receita anterior com sucesso.';
 
 const UPLOAD_CHOICE_INPUT_IDS = new Set([
   'blk_upload_check',
@@ -184,7 +184,11 @@ function isUploadChoiceInput(inputId) {
 function outputsContainUrl(outputs = [], url = '') {
   const target = String(url || '').trim();
   if (!target) return false;
-  return outputs.some((output) => output.kind === 'text' && String(output.text || '').includes(target));
+  return outputs.some(
+    (output) =>
+      (output.kind === 'text' && String(output.text || '').includes(target)) ||
+      (output.kind === 'document' && String(output.url || '').includes(target))
+  );
 }
 
 function responseLooksLikeUploadStage(typebot = {}, expectedInputId = null) {
@@ -209,10 +213,14 @@ function augmentOutputsWithUploadLink(outputs = [], uploadContext = null) {
     text: 'Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior nesta conversa do WhatsApp.\n\nFormatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB).'
   };
   const stripped = (outputs || []).filter(
-    (output) => !(output.kind === 'text' && /upload-receita|upload_url|https?:\/\//i.test(String(output.text || '')))
+    (output) =>
+      !(output.kind === 'text' && /upload-receita|upload_url|https?:\/\//i.test(String(output.text || ''))) &&
+      !(output.kind === 'document' && /upload-receita|upload_url/i.test(String(output.url || '')))
   );
-  const mentionsExternalLink = (outputs || []).some((output) =>
-    /link abaixo|upload-receita|http/i.test(String(output.text || ''))
+  const mentionsExternalLink = (outputs || []).some(
+    (output) =>
+      /link abaixo|upload-receita|http/i.test(String(output.text || '')) ||
+      (output.kind === 'document' && /upload-receita|upload_url/i.test(String(output.url || '')))
   );
   if (uploadContext && (mentionsExternalLink || stripped.length === 0)) {
     return stripped.concat([whatsappHint]);
@@ -345,14 +353,13 @@ async function resumeTypebotAfterPrescriptionUpload({ token, atendimentoId, corr
   }
 }
 
-// Envia as 3 mensagens oficiais do Backend (Fase 2 pedido 3) uma única vez,
-// com idempotencyKey estável por atendimento — não depende do texto que o
-// Typebot devolveria (não pode ser alterado neste pedido).
+// Confirmação oficial do Backend, enviada uma única vez (idempotencyKey
+// estável por atendimento) assim que a receita é validada e vinculada. O
+// Typebot retomado logo em seguida já informa a entrada na fila médica —
+// evita repetir a mesma informação em duas mensagens seguidas.
 async function sendPostUploadConfirmation({ session, atendimentoId, correlationId, provider }) {
   const common = { to: session.phone, bsuid: session.bsuid, correlationId };
   await provider.sendTextMessage({ ...common, idempotencyKey: `prescription-received:${atendimentoId}`, text: PRESCRIPTION_RECEIVED_MESSAGE });
-  await provider.sendTextMessage({ ...common, idempotencyKey: `atendimento-created:${atendimentoId}`, text: ATENDIMENTO_CREATED_MESSAGE });
-  await provider.sendTextMessage({ ...common, idempotencyKey: `queue-entry:${atendimentoId}`, text: QUEUE_ENTRY_MESSAGE });
 }
 
 // Fase 2 pedido 2 já é a única fonte de verdade sobre pagamento confirmado
@@ -460,9 +467,7 @@ async function ingestWhatsAppPrescriptionMedia({
 }
 
 module.exports = {
-  ATENDIMENTO_CREATED_MESSAGE,
   PRESCRIPTION_RECEIVED_MESSAGE,
-  QUEUE_ENTRY_MESSAGE,
   UPLOAD_CHOICE_INPUT_IDS,
   UPLOAD_SUCCESS_REPLY,
   augmentOutputsWithUploadLink,

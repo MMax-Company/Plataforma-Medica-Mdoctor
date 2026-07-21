@@ -36,6 +36,20 @@ function asBool(value) {
   return null;
 }
 
+// blk_receita_choice (Typebot) usa os values "available"/"none"/"send_later"
+// para "Sim, possuo"/"Não possuo"/"Enviar depois" — asBool() genérico não
+// reconhece esse vocabulário (só sim/não), então "available" nunca virava
+// true e o atendimento era reprovado por "has_previous_prescription" mesmo
+// quando o paciente respondia que possuía a receita. Reconhece "available"
+// especificamente para este campo, sem alterar o comportamento de
+// "none"/"send_later" (preservados como já eram).
+function asPreviousPrescriptionBool(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'available') return true;
+  if (normalized === 'none') return false;
+  return asBool(value);
+}
+
 function normalizeDigits(value = '', maxLength = null) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return null;
@@ -394,8 +408,8 @@ function normalizeTypebotPayload(body = {}) {
   });
 
   const hasPreviousRx =
-    asBool(original.has_previous_prescription) ??
-    asBool(original.receita_anterior) ??
+    asPreviousPrescriptionBool(original.has_previous_prescription) ??
+    asPreviousPrescriptionBool(original.receita_anterior) ??
     hasPreviousPrescription({ has_previous_prescription: original.has_previous_prescription, receita_anterior: original.receita_anterior });
 
   const prescriptionFile = pickFirst(
