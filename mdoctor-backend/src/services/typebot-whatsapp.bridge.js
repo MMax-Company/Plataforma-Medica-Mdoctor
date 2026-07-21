@@ -1,3 +1,4 @@
+const logger = require('../config/logger');
 const metaProvider = require('./providers/meta.provider');
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
@@ -469,6 +470,17 @@ function createTypebotWhatsAppBridge(deps = {}) {
         text: (validation.isPersonal || validation.isClinical) ? validation.value : inboundText,
         metadata: { replyId: messageId }
       };
+      // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
+      // remover após confirmar a causa. Não altera nenhuma decisão, só
+      // registra o estado usado para escolher startChat x continueChat.
+      logger.info('typebot_bridge_call_diagnostic', {
+        messageId,
+        identityKey,
+        routingAction: routing?.action || null,
+        existingSessionId,
+        expectedInputIdBefore: expectedInputId,
+        callPath: existingSessionId ? 'continueChat' : 'startChat'
+      });
       const typebot = await callWithRetry(
         () => callTypebot(path, { message }, { config }),
         {
@@ -501,6 +513,15 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const nextInputId = typebot.input?.id || null;
       expectedInputs.set(identityKey, nextInputId);
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
+      // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+      logger.info('typebot_bridge_response_diagnostic', {
+        messageId,
+        typebotReturnedSessionId: typebot.sessionId || null,
+        sessionIdUsed: sessionId,
+        sessionIdWasSaved: !existingSessionId,
+        nextInputId,
+        messageTypes: (typebot.messages || []).map((m) => m.type)
+      });
 
       const providerMessageIds = [];
       let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));

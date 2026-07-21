@@ -380,6 +380,15 @@ function isGreetingText(value = '') {
   return norm === 'OI' || norm === 'OLA';
 }
 
+// DIAGNÓSTICO TEMPORÁRIO — mostra o texto só quando curto (comando de menu,
+// rótulo de botão, saudação); respostas longas (dados pessoais/clínicos) são
+// substituídas por um indicador de tamanho para não vazar PII no log.
+function maskDiagnosticText(value = '') {
+  const str = String(value || '');
+  if (str.length <= 40) return str;
+  return `[REDACTED ${str.length} chars]`;
+}
+
 function isActiveTypebotFlow(session = {}) {
   const expectedInputId = session?.metadata?.typebot_expected_input_id;
   if (!session?.typebot_session_id || !expectedInputId) return false;
@@ -481,13 +490,33 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
   }
 
-  if (isActiveTypebotFlow(resolvedSession || session) && !isGreetingText(text)) {
+  // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
+  // remover após confirmar a causa. Não altera nenhuma decisão de roteamento,
+  // só registra os componentes que a alimentam.
+  const diagSession = resolvedSession || session;
+  const diagActiveFlow = isActiveTypebotFlow(diagSession);
+  const diagGreeting = isGreetingText(text);
+  logger.info('typebot_routing_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    hasTypebotSessionId: Boolean(diagSession?.typebot_session_id),
+    expectedInputId: diagSession?.metadata?.typebot_expected_input_id || null,
+    isGreeting: diagGreeting,
+    activeFlow: diagActiveFlow,
+    textMasked: maskDiagnosticText(text)
+  });
+
+  if (diagActiveFlow && !diagGreeting) {
     return { handled: false, action: 'typebot' };
   }
 
   const textNorm = normalizeMenuText(text);
   const ctx = await getPatientSupportContext(phone);
   const sub = ctx?.support_sub_status || null;
+  logger.info('typebot_routing_fallthrough_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    textNorm,
+    supportSubStatus: sub
+  });
 
   if (sub === SUPPORT_SUB.AWAITING_DECISION) {
     if (textNorm === '1' || textNorm === '2') {
