@@ -99,6 +99,48 @@ const validAddress = validateTypebotInput(
 );
 assert('address validation accepts complete', validAddress.valid === true);
 
+// Pedido isolado 2026-07-21 — endereço em linguagem natural, sem exigir
+// vírgula/padrão rígido/ordem específica. Cobre os 4 formatos exigidos pelo
+// pedido, mais os casos que motivaram a correção anterior (hífen antes da
+// UF, rótulos explícitos "número"/"bairro"/"cidade"/"UF") e mensagens de
+// falta específicas (não genéricas) quando falta só bairro ou só UF.
+const enderecoCasos = [
+  { texto: 'Rua Augusta 123 Consolação São Paulo SP', esperado: 'Rua Augusta, 123, Consolação, São Paulo, SP' },
+  { texto: 'Rua Augusta, 123, Consolação, São Paulo - SP', esperado: 'Rua Augusta, 123, Consolação, São Paulo, SP' },
+  { texto: 'Rua X número 50 bairro Y cidade São Paulo UF SP', esperado: 'Rua X, 50, Y, São Paulo, SP' },
+  { texto: 'Rua Aurora, 965, Santa Efigenia, Sao Paulo SP', esperado: 'Rua Aurora, 965, Santa Efigenia, Sao Paulo, SP' },
+  { texto: 'R. Augusta, 123, Consolação, São Paulo, SP', esperado: 'R. Augusta, 123, Consolação, São Paulo, SP' },
+  { texto: 'Rua Teste 100 Centro Campinas SP', esperado: 'Rua Teste, 100, Centro, Campinas, SP' },
+  { texto: 'Avenida Paulista, nº 900, Bela Vista, São Paulo, SP', esperado: 'Avenida Paulista, 900, Bela Vista, São Paulo, SP' }
+];
+for (const caso of enderecoCasos) {
+  const resultado = validateStructuredAddress(caso.texto);
+  assert(`endereço avança de primeira: "${caso.texto}"`, resultado.valid === true && resultado.value === caso.esperado);
+}
+
+// "Av Paulista 1000 Bela Vista SP" (sem cidade explícita, exemplo do pedido)
+// avança sem loop — decisão deliberada de não adivinhar a cidade a partir
+// de um bairro composto; o dado fica preservado tal como digitado.
+const avPaulista = validateStructuredAddress('Av Paulista 1000 Bela Vista SP');
+assert('endereço sem cidade explícita avança sem loop', avPaulista.valid === true);
+
+// Falta só bairro OU só UF -> mensagem aponta exatamente o campo que falta,
+// não pede o endereço inteiro de novo.
+const faltaUf = validateStructuredAddress('Rua Augusta, 123, Consolação, São Paulo');
+assert('erro aponta exatamente "estado (UF)" quando só falta UF', faltaUf.valid === false && faltaUf.error === 'Endereço incompleto. Informe: estado (UF).');
+const faltaBairro = validateStructuredAddress('Rua Augusta, 123, São Paulo, SP');
+assert('erro aponta exatamente "bairro" quando só falta bairro', faltaBairro.valid === false && faltaBairro.error === 'Endereço incompleto. Informe: bairro.');
+
+// UF inválida (não é uma sigla real) continua sendo rejeitada.
+const ufInvalida = validateStructuredAddress('Rua Augusta 123 Consolação São Paulo XX');
+assert('UF inexistente é rejeitada', ufInvalida.valid === false);
+
+// Reenviar a MESMA resposta válida duas vezes produz o mesmo resultado
+// (idempotência do parser — nenhum estado interno, nenhuma duplicação).
+const parse1 = parseBrazilianAddress('Rua Augusta 123 Consolação São Paulo SP');
+const parse2 = parseBrazilianAddress('Rua Augusta 123 Consolação São Paulo SP');
+assert('parser é idempotente (mesma entrada -> mesmo resultado)', JSON.stringify(parse1) === JSON.stringify(parse2));
+
 const bundle = normalizeMedicationBundle(captoprilPayload);
 assert('bundle count', bundle.medication_count === 1);
 

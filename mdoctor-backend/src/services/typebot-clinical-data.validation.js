@@ -62,23 +62,65 @@ function validateMedicationDose(value) {
   return { valid: true, value: dose };
 }
 
+// Normaliza rótulos de campo ("bairro", "cidade", "uf"/"estado") e
+// separadores alternativos (hífen entre cidade e UF) em vírgulas, e remove
+// os marcadores de número ("número"/"nº"/"n.") mantendo só o dígito — assim
+// o mesmo parser por vírgula abaixo entende tanto texto livre quanto texto
+// com rótulos explícitos, sem precisar de dois parsers separados.
+function normalizeAddressSeparators(raw) {
+  let text = raw.replace(/\s+-\s+/g, ', ');
+  text = text.replace(/\bn[uú]mero\b\.?\s*/gi, '');
+  text = text.replace(/\bn[º°]\.?\s*/gi, '');
+  text = text.replace(/\bn\.\s*/gi, '');
+  text = text.replace(/\bbairro\b\s*:?\s*/gi, ', ');
+  text = text.replace(/\bcidade\b\s*:?\s*/gi, ', ');
+  text = text.replace(/\b(?:uf|estado)\b\s*:?\s*/gi, ', ');
+  text = text.replace(/,\s*,+/g, ',').replace(/^\s*,\s*/, '');
+  return compactWhitespace(text);
+}
+
+// Divide a primeira parte (antes de qualquer bairro/cidade) em rua + número
+// quando os dois ainda estiverem juntos (ex.: "Rua Augusta 123" sem vírgula
+// separando o número). Só atua quando já existe alguma estrutura por vírgula
+// — texto totalmente livre é tratado depois pelo fallback posicional.
+function splitRuaNumero(commaParts) {
+  if (commaParts.length < 2 || /^\d/.test(commaParts[0])) return commaParts;
+  const tokens = commaParts[0].split(/\s+/).filter(Boolean);
+  const numeroIndex = tokens.findIndex((token) => /^\d+[A-Za-z]?$/.test(token));
+  if (numeroIndex <= 0) return commaParts;
+  const rua = tokens.slice(0, numeroIndex).join(' ');
+  const numero = tokens[numeroIndex];
+  const resto = tokens.slice(numeroIndex + 1).join(' ');
+  return [rua, numero, ...(resto ? [resto] : []), ...commaParts.slice(1)];
+}
+
 function parseBrazilianAddress(value) {
   const raw = compactWhitespace(value).replace(/[.!]+$/, '').trim();
   if (!raw) return null;
 
-  const commaParts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  const text = normalizeAddressSeparators(raw);
+  let commaParts = text.split(',').map((part) => part.trim()).filter(Boolean);
+  commaParts = splitRuaNumero(commaParts);
 
   // "Rua X, 123, Bairro, Cidade UF" — cidade e estado no mesmo segmento, sem
   // vírgula entre eles (forma comum de digitar). Separa em 5 partes para
   // reaproveitar a lógica abaixo, sem duplicar o parsing.
   if (commaParts.length === 4) {
-    const cityStateMatch = commaParts[3].match(/^(.+?)\s+([A-Za-z]{2})$/);
-    if (cityStateMatch) {
-      const estadoCandidate = cityStateMatch[2].toUpperCase();
-      if (BRAZILIAN_STATES.has(estadoCandidate)) {
-        commaParts[3] = cityStateMatch[1].trim();
-        commaParts.push(estadoCandidate);
-      }
+    const last = commaParts[3];
+    const cityStateMatch = last.match(/^(.+?)\s+([A-Za-z]{2})$/);
+    const bareUf = last.replace(/[^A-Za-z]/g, '').toUpperCase();
+    if (cityStateMatch && BRAZILIAN_STATES.has(cityStateMatch[2].toUpperCase())) {
+      commaParts[3] = cityStateMatch[1].trim();
+      commaParts.push(cityStateMatch[2].toUpperCase());
+    } else if (bareUf.length === 2 && BRAZILIAN_STATES.has(bareUf)) {
+      // "Rua X, 123, Cidade, UF" — bairro não informado. Devolve parcial
+      // (em vez de null) para o validador apontar exatamente "bairro",
+      // sem pedir o endereço inteiro de novo.
+      return { rua: commaParts[0], numero: commaParts[1], bairro: '', cidade: commaParts[2], estado: bareUf };
+    } else {
+      // "Rua X, 123, Bairro, Cidade" — UF não informada. Mesma ideia: devolve
+      // parcial para o validador apontar exatamente "estado (UF)".
+      return { rua: commaParts[0], numero: commaParts[1], bairro: commaParts[2], cidade: commaParts[3], estado: '' };
     }
   }
 
@@ -100,10 +142,10 @@ function parseBrazilianAddress(value) {
     };
   }
 
-  const stateMatch = raw.match(/\b([A-Za-z]{2})\s*$/);
-  if (!stateMatch) return null;
+  const stateMatch = text.match(/\b([A-Za-z]{2})\s*$/);
+  if (!stateMatch || !BRAZILIAN_STATES.has(stateMatch[1].toUpperCase())) return null;
   const estado = stateMatch[1].toUpperCase();
-  const withoutState = raw.slice(0, stateMatch.index).trim();
+  const withoutState = text.slice(0, stateMatch.index).trim();
 
   const MULTI_WORD_CITIES = ['São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Porto Alegre'];
   for (const city of MULTI_WORD_CITIES) {
