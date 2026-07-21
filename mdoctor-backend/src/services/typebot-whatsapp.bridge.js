@@ -62,8 +62,21 @@ function typebotText(message = {}) {
 // WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
 // mensagem de texto simples — o link só fica clicável se aparecer por
 // extenso. Por isso, qualquer parágrafo do Typebot que contenha um link
-// (ex.: os 5 documentos jurídicos) é enviado como anexo de documento nativo
-// do WhatsApp (nome do arquivo curto, sem URL visível), em vez de texto.
+// (ex.: os 5 documentos jurídicos) vira um botão de URL (abre o link
+// externamente, sem baixar nada no WhatsApp e sem mostrar a URL), em vez de
+// texto simples.
+const DOC_BUTTON_LABELS = {
+  'Consentimento LGPD': 'Consentimento LGPD',
+  'Política de Privacidade': 'Privacidade',
+  'Consentimento para Telemedicina Assíncrona': 'Telemedicina',
+  'Aviso Importante — Não Urgência/Emergência': 'Não Urgência',
+  'Política e Termos de Uso': 'Termos de Uso'
+};
+
+function docButtonLabel(label) {
+  return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
+}
+
 function richTextContainsLink(nodes = []) {
   for (const item of nodes || []) {
     if (item?.type === 'a') return true;
@@ -494,7 +507,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
-        else if (output.kind === 'document') sent = await provider.sendDocumentMessage({ ...common, documentUrl: output.url, fileName: `${output.label}.pdf`, caption: `📄 ${output.label}` });
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: `📄 ${output.label}`, displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }

@@ -582,8 +582,9 @@ async function main() {
 
   // Documentos jurídicos (LGPD/Telemedicina/Termos): o Typebot manda um
   // parágrafo por documento com um link (type:'a', url + rótulo). WhatsApp
-  // não consegue esconder a URL numa mensagem de texto — precisa virar
-  // anexo de documento nativo (sendDocumentMessage), sem nenhuma URL visível.
+  // não consegue esconder a URL numa mensagem de texto — precisa virar botão
+  // de URL (sendCtaUrlMessage): abre o link externamente, sem baixar PDF
+  // nenhum no WhatsApp e sem mostrar a URL em lugar nenhum.
   const legalDocsSent = [];
   const legalTextsSent = [];
   const legalReceipts = new Set();
@@ -629,7 +630,8 @@ async function main() {
       sendTextMessage: async (payload) => { legalTextsSent.push(payload); return { providerMessageId: `legal-text-${legalTextsSent.length}` }; },
       sendButtonMessage: async () => ({}),
       sendListMessage: async () => ({}),
-      sendDocumentMessage: async (payload) => { legalDocsSent.push(payload); return { providerMessageId: `legal-doc-${legalDocsSent.length}` }; }
+      sendDocumentMessage: async () => { throw new Error('sendDocumentMessage não deve mais ser usado para documentos jurídicos'); },
+      sendCtaUrlMessage: async (payload) => { legalDocsSent.push(payload); return { providerMessageId: `legal-doc-${legalDocsSent.length}` }; }
     }
   });
   const legalResult = await legalBridge({
@@ -638,12 +640,13 @@ async function main() {
     identity,
     whatsappSession: { id: 'wa-legal', typebot_session_id: null }
   });
-  assert.equal(legalDocsSent.length, 2, 'os 2 documentos do parágrafo devem virar 2 mensagens de documento');
-  assert(legalDocsSent.every((d) => /^https:\/\//.test(d.documentUrl)), 'a URL real precisa ir só no campo de documento, nunca no texto');
-  assert.equal(legalDocsSent[0].fileName, 'Consentimento LGPD.pdf');
-  assert.equal(legalDocsSent[0].caption, '📄 Consentimento LGPD');
-  assert.equal(legalDocsSent[1].fileName, 'Política de Privacidade.pdf');
-  assert.equal(legalDocsSent[1].caption, '📄 Política de Privacidade');
+  assert.equal(legalDocsSent.length, 2, 'os 2 documentos do parágrafo devem virar 2 botões de URL');
+  assert(legalDocsSent.every((d) => /^https:\/\//.test(d.url)), 'a URL real vai só no campo url do botão, nunca no texto');
+  assert(legalDocsSent.every((d) => d.displayText.length <= 20), 'rótulo do botão respeita o limite de 20 caracteres da Meta');
+  assert.equal(legalDocsSent[0].displayText, 'Consentimento LGPD');
+  assert.equal(legalDocsSent[0].body, '📄 Consentimento LGPD');
+  assert.equal(legalDocsSent[1].displayText, 'Privacidade');
+  assert.equal(legalDocsSent[1].body, '📄 Política de Privacidade');
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);
 
@@ -663,7 +666,7 @@ async function main() {
     menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
     postAttendanceSupportChoiceWiredToBackend: supportChoiceCalls.length === 2 && supportSessionCleared ? 'ok' : 'failed',
     supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed',
-    legalDocsSentAsNativeAttachmentsNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed'
+    legalDocsSentAsUrlButtonsNoAttachmentNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed'
   }));
 }
 
