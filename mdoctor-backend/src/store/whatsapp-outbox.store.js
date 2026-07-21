@@ -3,6 +3,13 @@ const { dbQuery } = require('../db/persistence');
 
 const REJECTION_MESSAGE_KIND = 'clinical_rejection';
 const APPROVAL_MESSAGE_KIND = 'clinical_approval';
+const PRESCRIPTION_DELIVERY_MESSAGE_KIND = 'prescription_delivery';
+
+const IDEMPOTENCY_PREFIX_BY_KIND = {
+  [REJECTION_MESSAGE_KIND]: 'clinical-reject',
+  [APPROVAL_MESSAGE_KIND]: 'clinical-approve',
+  [PRESCRIPTION_DELIVERY_MESSAGE_KIND]: 'prescription-delivery'
+};
 
 // Núcleo genérico por trás de findPendingRejectionMessage/findPendingApprovalMessage —
 // mesma tabela whatsapp_messages, diferenciadas só pelo message_kind.
@@ -35,7 +42,7 @@ async function enqueueClinicalMessage({ atendimentoId, phone, message, doctorId,
   const existing = await findPendingMessageByKind(atendimentoId, kind);
   if (existing) return { message: existing, duplicate: true };
 
-  const idempotencyKey = `${kind === APPROVAL_MESSAGE_KIND ? 'clinical-approve' : 'clinical-reject'}:${atendimentoId}`;
+  const idempotencyKey = `${IDEMPOTENCY_PREFIX_BY_KIND[kind] || kind}:${atendimentoId}`;
   const row = {
     appointment_id: atendimentoId,
     direction: 'outbound',
@@ -70,6 +77,21 @@ async function enqueueClinicalRejection({ atendimentoId, phone, message, doctorI
 
 async function enqueueClinicalApproval({ atendimentoId, phone, message, doctorId, correlationId }) {
   return enqueueClinicalMessage({ atendimentoId, phone, message, doctorId, correlationId, kind: APPROVAL_MESSAGE_KIND });
+}
+
+async function findPendingPrescriptionDeliveryMessage(atendimentoId) {
+  return findPendingMessageByKind(atendimentoId, PRESCRIPTION_DELIVERY_MESSAGE_KIND);
+}
+
+async function enqueueClinicalPrescriptionDelivery({ atendimentoId, phone, message, doctorId, correlationId }) {
+  return enqueueClinicalMessage({
+    atendimentoId,
+    phone,
+    message,
+    doctorId,
+    correlationId,
+    kind: PRESCRIPTION_DELIVERY_MESSAGE_KIND
+  });
 }
 
 // Idempotência do envio: só a requisição que mover a linha de
@@ -108,10 +130,13 @@ async function finishRejectionMessage({ messageId, status, providerMessageId = n
 module.exports = {
   REJECTION_MESSAGE_KIND,
   APPROVAL_MESSAGE_KIND,
+  PRESCRIPTION_DELIVERY_MESSAGE_KIND,
   enqueueClinicalRejection,
   enqueueClinicalApproval,
+  enqueueClinicalPrescriptionDelivery,
   findPendingRejectionMessage,
   findPendingApprovalMessage,
+  findPendingPrescriptionDeliveryMessage,
   claimRejectionMessageForSend,
   finishRejectionMessage
 };

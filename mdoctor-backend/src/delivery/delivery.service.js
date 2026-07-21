@@ -44,7 +44,16 @@ function normalizePhone(phone = '') {
   return digits.startsWith('55') ? `+${digits}` : `+55${digits}`;
 }
 
+// Fase 3 pedido 2 — texto fixo exigido para a entrega da receita pelo WhatsApp
+// (só após emissão + validação). Demais canais (email/sms) mantêm o texto anterior.
+function buildPrescriptionDeliveryWhatsAppMessage(receiptUrl) {
+  return `Sua receita está pronta.\n\nAcesse o documento pelo link seguro abaixo:\n\n${receiptUrl}\n\nEm caso de dúvida, digite 2 para falar com o suporte.`;
+}
+
 function buildMessage({ pacienteNome, receiptUrl, channel }) {
+  if (channel === 'whatsapp') {
+    return buildPrescriptionDeliveryWhatsAppMessage(receiptUrl);
+  }
   const greeting = pacienteNome ? `Olá, ${pacienteNome}.` : 'Olá.';
   return `${greeting} Sua receita Doctor Prescreve foi validada pelo médico e está disponível neste link: ${receiptUrl}`;
 }
@@ -324,5 +333,6 @@ module.exports = {
   getWhatsAppProviderStatus,
   resolveWhatsAppProvider,
   isSandboxMode,
-  isDryRunMode
+  isDryRunMode,
+  buildPrescriptionDeliveryWhatsAppMessage
 };

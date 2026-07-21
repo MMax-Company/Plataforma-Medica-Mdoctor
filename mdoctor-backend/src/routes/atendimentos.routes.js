@@ -1,7 +1,19 @@
 const { randomUUID } = require('crypto');
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
-const { sendPrescription, sendWhatsAppText, resolveWhatsAppProvider, isDryRunMode } = require('../delivery/delivery.service');
+const {
+  sendPrescription,
+  sendWhatsAppText,
+  resolveWhatsAppProvider,
+  isDryRunMode,
+  buildPrescriptionDeliveryWhatsAppMessage
+} = require('../delivery/delivery.service');
+const {
+  enqueueClinicalPrescriptionDelivery,
+  findPendingPrescriptionDeliveryMessage,
+  claimRejectionMessageForSend,
+  finishRejectionMessage
+} = require('../store/whatsapp-outbox.store');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const { createAuditLog } = require('../store/audit.store');
@@ -72,10 +84,10 @@ function assertCanDeliverPrescription(atendimento = {}) {
     };
   }
 
+  // Fase 3 pedido 2: entrega exige emissão E validação médica confirmadas —
+  // sem exceção por status (receita_emitida sozinho não basta mais).
   const receipt = atendimento.dados_clinicos?.memed_receita || {};
-  // validated_at só é obrigatório quando o fluxo de validação explícita ocorreu (status ready/validated).
-  // Para receita_emitida (validate ainda não disparou), exigir apenas que a receita exista com URL.
-  if (status !== 'receita_emitida' && !receipt.validated_at && !receipt.validatedAt) {
+  if (!receipt.validated_at && !receipt.validatedAt) {
     return { ok: false, statusCode: 422, error: 'Receita ainda não foi validada pelo médico.' };
   }
 
@@ -638,6 +650,39 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
     });
   }
 
+  // Fase 3 pedido 2 — trava atômica (índice único em whatsapp_messages,
+  // mesmo mecanismo já usado para aprovação/reprovação clínica) contra
+  // clique repetido e retry concorrente do Backend: hasSuccessfulDelivery
+  // acima é leitura-antes-de-escrever (janela de corrida); esta reserva é
+  // quem garante "apenas uma vez" de fato para o canal WhatsApp.
+  let outboxClaim = null;
+  if (channel === 'whatsapp' && !isContingency) {
+    const enqueueResult = await enqueueClinicalPrescriptionDelivery({
+      atendimentoId: req.params.id,
+      phone: target,
+      message: buildPrescriptionDeliveryWhatsAppMessage(receiptUrl),
+      doctorId: authenticatedDoctorId,
+      correlationId
+    });
+    if (enqueueResult.duplicate && enqueueResult.message.status === 'sent') {
+      return res.status(409).json({
+        success: false,
+        error: `Receita já enviada por ${channel} para este atendimento.`,
+        code: 'DELIVERY_ALREADY_SENT',
+        correlationId
+      });
+    }
+    outboxClaim = await claimRejectionMessageForSend(enqueueResult.message.id);
+    if (!outboxClaim) {
+      return res.status(409).json({
+        success: false,
+        error: 'Envio da receita por WhatsApp já está em andamento.',
+        code: 'DELIVERY_IN_PROGRESS',
+        correlationId
+      });
+    }
+  }
+
   let delivery;
   try {
     if (isContingency) {
@@ -680,6 +725,15 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
       });
     }
   } catch (error) {
+    if (outboxClaim) {
+      await finishRejectionMessage({
+        messageId: outboxClaim.id,
+        status: 'failed',
+        errorMessage: error.message,
+        metadata: outboxClaim.metadata
+      }).catch(() => {});
+    }
+
     const failedDelivery = {
       id: randomUUID(),
       channel,
@@ -736,6 +790,15 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
       correlationId,
       atendimento,
       delivery: failedDelivery
+    });
+  }
+
+  if (outboxClaim) {
+    await finishRejectionMessage({
+      messageId: outboxClaim.id,
+      status: 'sent',
+      providerMessageId: delivery.providerMessageId || null,
+      metadata: outboxClaim.metadata
     });
   }
 
@@ -900,3 +963,7 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Exposto só para teste isolado (Fase 3 pedido 2) — não muda o comportamento da rota.
+module.exports.assertCanDeliverPrescription = assertCanDeliverPrescription;
+module.exports.hasSuccessfulDelivery = hasSuccessfulDelivery;
+module.exports.listPreviousDeliveries = listPreviousDeliveries;
