@@ -21,6 +21,20 @@
     },
     {
       "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "tb-wait-payment",
+      "name": "Aguardar confirmação de pagamento (3s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        300
+      ]
+    },
+    {
+      "parameters": {
         "mode": "runOnceForAllItems",
         "jsCode": "/**\n * n8n Code node: Typebot / webhook → POST /api/webhook/triagem (Doctor Prescreve)\n * Sync into typebot-webhook-staging.json when editing.\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nfunction pick(...values) {\n  for (const v of values) {\n    if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim();\n  }\n  return '';\n}\n\nfunction digits(v) {\n  return String(v || '').replace(/\\D/g, '');\n}\n\nconst correlationId =\n  headers['x-correlation-id'] ||\n  headers['X-Correlation-Id'] ||\n  body.correlation_id ||\n  `typebot-${Date.now()}`;\n\nconst idempotencyKey =\n  headers['idempotency-key'] ||\n  headers['Idempotency-Key'] ||\n  body.idempotency_key ||\n  `triagem-${digits(body.paciente?.telefone || body.telefone)}-${Date.now()}`;\n\nlet paciente;\nlet triagem;\n\nif (body.paciente && body.triagem) {\n  paciente = {\n    nome: pick(body.paciente.nome),\n    nome_social: pick(body.paciente.nome_social, body.paciente.social_name, body.nome_social, body.social_name),\n    telefone: pick(body.paciente.telefone),\n    cpf: pick(body.paciente.cpf),\n    email: pick(body.paciente.email)\n  };\n  triagem = {\n    doencas: pick(body.triagem.doencas),\n    medicacao_em_uso: pick(body.triagem.medicacao_em_uso),\n    tempo_uso: pick(body.triagem.tempo_uso),\n    receita_anterior: pick(body.triagem.receita_anterior),\n    sinais_alerta: pick(body.triagem.sinais_alerta),\n    observacoes: pick(body.triagem.observacoes)\n  };\n} else {\n  const telefone = digits(\n    pick(body.telefone, body.whatsapp, body.from, body.paciente_telefone, body.phone)\n  );\n  paciente = {\n    nome: pick(body.patient_name, body.nome, body.Nome_Completo, body.paciente_nome),\n    nome_social: pick(body.nome_social, body.social_name),\n    telefone: telefone || pick(body.telefone, body.whatsapp),\n    cpf: digits(pick(body.cpf, body.cpf_paciente)),\n    email: pick(body.email, body.Email, body.paciente_email)\n  };\n  triagem = {\n    doencas: pick(\n      body.triagem?.doencas,\n      body.doencas,\n      body.doenca_cronica,\n      body.chronic_condition,\n      body.condition\n    ),\n    medicacao_em_uso: pick(\n      body.triagem?.medicacao_em_uso,\n      body.medicacao_em_uso,\n      body.primeiro_medicamento,\n      body.medication_name\n    ),\n    tempo_uso: pick(body.triagem?.tempo_uso, body.tempo_uso),\n    receita_anterior: pick(\n      body.triagem?.receita_anterior,\n      body.receita_anterior,\n      body.has_previous_prescription\n    ),\n    sinais_alerta: pick(body.triagem?.sinais_alerta, body.sinais_alerta),\n    observacoes: pick(body.triagem?.observacoes, body.observacoes, body.text)\n  };\n}\n\nif (!paciente.nome) throw new Error('paciente.nome é obrigatório');\nif (!triagem.doencas) throw new Error('triagem.doencas é obrigatório');\nif (!paciente.telefone) throw new Error('paciente.telefone é obrigatório');\n\nconst typebot_context = {\n  patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),\n  nome_social: pick(body.nome_social, body.social_name, body.paciente?.nome_social, body.paciente?.social_name),\n  social_name: pick(body.social_name, body.nome_social, body.paciente?.social_name, body.paciente?.nome_social),\n  birth_date: pick(body.birth_date, body.data_nascimento),\n  address: pick(body.address, body.Endereco, body.endereco),\n  cep: pick(body.cep, body.CEP),\n  payment_status: pick(body.payment_status),\n  pagamento_status: pick(body.pagamento_status),\n  pagamento: pick(body.pagamento),\n  eligibility_status: pick(body.eligibility_status),\n  ineligibility_reason: pick(body.ineligibility_reason),\n  has_previous_prescription: body.has_previous_prescription,\n  has_prescription_photo_ready: body.has_prescription_photo_ready,\n  previous_prescription_file: pick(\n    body.previous_prescription_file,\n    body.foto_receita_url,\n    body.prescription_photo_url\n  ),\n  foto_receita_url: pick(body.foto_receita_url, body.previous_prescription_file),\n  medications: body.medications,\n  medication_1_name: body.medication_1_name,\n  medication_1_dose: body.medication_1_dose,\n  medication_1_frequency: body.medication_1_frequency,\n  medication_1_route: body.medication_1_route,\n  medication_2_name: body.medication_2_name,\n  medication_2_dose: body.medication_2_dose,\n  medication_2_frequency: body.medication_2_frequency,\n  medication_2_route: body.medication_2_route,\n  medication_3_name: body.medication_3_name,\n  medication_3_dose: body.medication_3_dose,\n  medication_3_frequency: body.medication_3_frequency,\n  medication_3_route: body.medication_3_route,\n  continuous_use_days: body.continuous_use_days,\n  tempo_uso: pick(body.tempo_uso, triagem.tempo_uso),\n  has_warning_signs: body.has_warning_signs,\n  sinais_alerta: pick(body.sinais_alerta, triagem.sinais_alerta),\n  protocol: pick(body.protocol),\n  source: pick(body.source),\n  typebot_public_id: pick(body.typebot_public_id),\n  lgpd_accepted: body.lgpd_accepted,\n  privacy_policy_accepted: body.privacy_policy_accepted,\n  telemedicine_consent_accepted: body.telemedicine_consent_accepted,\n  non_urgency_notice_accepted: body.non_urgency_notice_accepted,\n  terms_of_use_accepted: body.terms_of_use_accepted,\n  accepted_terms_at: body.accepted_terms_at,\n  accepted_terms_links: body.accepted_terms_links,\n  terms_presented: body.terms_presented,\n  terms_accepted: body.terms_accepted\n};\n\nconst triagemPayload = { paciente, triagem, typebot_context };\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      triagemPayload\n    }\n  }\n];\n"
       },
@@ -172,6 +186,17 @@
   ],
   "connections": {
     "Webhook Typebot": {
+      "main": [
+        [
+          {
+            "node": "Aguardar confirmação de pagamento (3s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aguardar confirmação de pagamento (3s)": {
       "main": [
         [
           {
