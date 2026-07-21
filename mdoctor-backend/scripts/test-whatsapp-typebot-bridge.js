@@ -601,29 +601,32 @@ async function main() {
     reloadSession: async ({ whatsappSession }) => whatsappSession,
     persistExpectedInput: async () => {},
     createIntegrationError: async () => {},
+    // Igual ao fluxo real: o Typebot manda a introdução do grupo como
+    // mensagem de texto própria (blk_lgpd_intro), ANTES da mensagem com os
+    // links (blk_lgpd_docs) — não junto no mesmo richText.
     callTypebot: async () => ({
       sessionId: 'legal-session',
-      messages: [{
-        type: 'text',
-        content: {
-          richText: [
-            {
-              type: 'p',
-              children: [
-                { text: '📄 ' },
-                { type: 'a', url: 'https://storage.example/Consentimento_LGPD_Doctor_Prescreve.pdf', children: [{ text: 'Consentimento LGPD' }] }
-              ]
-            },
-            {
-              type: 'p',
-              children: [
-                { text: '📄 ' },
-                { type: 'a', url: 'https://storage.example/Politica_de_Privacidade_Doctor_Prescreve.pdf', children: [{ text: 'Política de Privacidade' }] }
-              ]
-            }
-          ]
+      messages: [
+        {
+          type: 'text',
+          content: { richText: [{ type: 'p', children: [{ text: 'Antes de continuar, leia os documentos abaixo:' }] }] }
+        },
+        {
+          type: 'text',
+          content: {
+            richText: [
+              {
+                type: 'p',
+                children: [{ type: 'a', url: 'https://storage.example/Consentimento_LGPD_Doctor_Prescreve.pdf', children: [{ text: 'Consentimento LGPD' }] }]
+              },
+              {
+                type: 'p',
+                children: [{ type: 'a', url: 'https://storage.example/Politica_de_Privacidade_Doctor_Prescreve.pdf', children: [{ text: 'Política de Privacidade' }] }]
+              }
+            ]
+          }
         }
-      }],
+      ],
       input: { id: 'blk_lgpd_choice', type: 'choice input', items: [{ content: 'Autorizo' }, { content: 'Não autorizo' }] }
     }),
     provider: {
@@ -644,15 +647,19 @@ async function main() {
   assert(legalDocsSent.every((d) => /^https:\/\//.test(d.url)), 'a URL real vai só no campo url do botão, nunca no texto');
   assert(legalDocsSent.every((d) => d.displayText.length <= 20), 'rótulo do botão respeita o limite de 20 caracteres da Meta');
   assert.equal(legalDocsSent[0].displayText, 'Consentimento LGPD');
-  assert.equal(legalDocsSent[1].displayText, 'Privacidade');
-  // Nenhum texto intermediário pode aparecer antes do botão -- nem o nome do
-  // documento repetido, nem o texto padrão de fallback ("Toque no botão
-  // abaixo para continuar."). A introdução do grupo (enviada antes, como
-  // mensagem de texto própria) já dá o contexto. A Meta exige `body.text`
-  // não-vazio em toda mensagem cta_url e rejeita um corpo só de espaço em
-  // branco com erro 131008 (confirmado ao vivo) -- o mínimo aceito é um
-  // único ícone neutro, sem palavras.
-  assert(legalDocsSent.every((d) => d.body === '📄'), 'corpo do botão deve ser só o ícone neutro, sem repetir o nome nem usar o texto padrão');
+  assert.equal(legalDocsSent[1].displayText, 'Política Privacidade', 'rótulo completo (sem abreviar para "Privacidade"), dentro do limite de 20 caracteres');
+  // Primeiro botão do grupo: a introdução (enviada pelo Typebot como
+  // mensagem própria, ANTES da mensagem com os links) vira o corpo deste
+  // botão, em vez de virar uma mensagem de texto separada.
+  assert.equal(legalDocsSent[0].body, 'Antes de continuar, leia os documentos abaixo:', 'primeiro botão usa a introdução do grupo como corpo');
+  assert.equal(legalTextsSent.length, 0, 'a introdução não deve virar uma mensagem de texto separada');
+  // Segundo botão em diante: nenhum texto intermediário -- nem o nome do
+  // documento repetido, nem a introdução de novo, nem o texto padrão de
+  // fallback ("Toque no botão abaixo para continuar."). A Meta exige
+  // `body.text` não-vazio em toda mensagem cta_url e rejeita um corpo só de
+  // espaço em branco com erro 131008 (confirmado ao vivo) -- o mínimo
+  // aceito é um único ícone neutro, sem palavras.
+  assert.equal(legalDocsSent[1].body, '📄', 'segundo botão em diante usa só o ícone neutro, sem repetir texto');
   assert(legalDocsSent.every((d) => !String(d.body || '').includes('Toque no botão')), 'texto padrão de fallback não pode aparecer nos botões jurídicos');
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);

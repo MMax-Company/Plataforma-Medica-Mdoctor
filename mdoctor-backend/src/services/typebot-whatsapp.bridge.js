@@ -67,7 +67,7 @@ function typebotText(message = {}) {
 // texto simples.
 const DOC_BUTTON_LABELS = {
   'Consentimento LGPD': 'Consentimento LGPD',
-  'Política de Privacidade': 'Privacidade',
+  'Política de Privacidade': 'Política Privacidade',
   'Consentimento para Telemedicina Assíncrona': 'Telemedicina',
   'Aviso Importante — Não Urgência/Emergência': 'Não Urgência',
   'Política e Termos de Uso': 'Termos de Uso'
@@ -88,8 +88,10 @@ function richTextContainsLink(nodes = []) {
 function richTextToOutputs(nodes = []) {
   const outputs = [];
   let buffer = [];
+  let sawLink = false;
+  const bufferedText = () => buffer.join('').replace(/\n{3,}/g, '\n\n').trim();
   const flushText = () => {
-    const text = buffer.join('').replace(/\n{3,}/g, '\n\n').trim();
+    const text = bufferedText();
     if (text) outputs.push({ kind: 'text', text });
     buffer = [];
   };
@@ -101,8 +103,13 @@ function richTextToOutputs(nodes = []) {
       const label = (anchor.children || []).map((c) => (typeof c?.text === 'string' ? c.text : '')).join('').trim();
       const url = String(anchor.url || '').trim();
       if (url && label) {
-        flushText();
-        outputs.push({ kind: 'document', url, label });
+        // O primeiro link do bloco reaproveita o texto introdutório do grupo
+        // (se houver) como corpo do próprio botão, em vez de mandá-lo numa
+        // mensagem de texto separada. Links seguintes não repetem esse texto.
+        const introText = !sawLink ? bufferedText() : null;
+        buffer = [];
+        outputs.push({ kind: 'document', url, label, introText: introText || null });
+        sawLink = true;
         continue;
       }
     }
@@ -124,7 +131,18 @@ function convertTypebotResponse(response = {}) {
     if (message?.type !== 'text') continue;
     const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
     if (richText && richTextContainsLink(richText)) {
-      outputs.push(...richTextToOutputs(richText));
+      const linkOutputs = richTextToOutputs(richText);
+      // O Typebot manda a introdução do grupo (ex.: "Antes de continuar,
+      // leia os documentos abaixo:") como uma mensagem de texto própria,
+      // logo ANTES da mensagem com os links — não junto no mesmo richText.
+      // Se o output anterior é só esse texto puro, ele vira o corpo do
+      // primeiro botão de documento, em vez de ficar como mensagem separada.
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text' && linkOutputs[0]?.kind === 'document' && !linkOutputs[0].introText) {
+        linkOutputs[0].introText = previous.text;
+        outputs.pop();
+      }
+      outputs.push(...linkOutputs);
       continue;
     }
     const text = typebotText(message);
@@ -509,12 +527,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
         // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
         // espaço em branco é rejeitado com erro 131008 "Required parameter
-        // is missing" — testado ao vivo). Não há como enviar um botão sem
-        // nenhum caractere visível; o mínimo tecnicamente aceito é um único
-        // ícone neutro, sem repetir o nome do documento nem usar frase de
-        // instrução. A introdução do grupo já foi enviada como mensagem
-        // própria logo antes.
-        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: '📄', displayText: docButtonLabel(output.label), url: output.url });
+        // is missing" — testado ao vivo). O primeiro botão do grupo usa a
+        // introdução do próprio grupo como corpo (nenhuma mensagem de texto
+        // separada antes dele); os botões seguintes usam só um ícone neutro,
+        // sem repetir o nome do documento nem usar frase de instrução.
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: output.introText || '📄', displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
