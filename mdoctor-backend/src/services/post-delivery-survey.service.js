@@ -97,8 +97,15 @@ async function setSurveySession({ phone, patientId, outcomeId, attendanceId, ste
     }
   });
 
+  // Sempre limpa os marcadores de fluxo do Typebot (typebot_session_id e as
+  // TYPEBOT_METADATA_KEYS, incluindo typebot_prescription_upload) ao entrar
+  // no survey — mesmo quando typebot_session_id já está null, essas outras
+  // chaves podem ter sobrado de uma etapa anterior (ex.: link de upload já
+  // usado) e ficariam presas na sessão indefinidamente, sem outro ponto do
+  // código que as limpe. clearTypebotSession já é seguro/idempotente quando
+  // não há nada para limpar.
   const waSession = await getSessionByPhone(digits);
-  if (waSession?.id && waSession.typebot_session_id) {
+  if (waSession?.id) {
     await clearTypebotSession({ sessionId: waSession.id });
   }
 }
