@@ -400,6 +400,13 @@ router.post('/webhook', async (req, res) => {
                     const pendingUpload = await findPendingUploadContext(identity.phone);
                     if (!pendingUpload) {
                       logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                      await metaProvider.sendTextMessage({
+                        to: identity.phone,
+                        bsuid: identity.bsuid,
+                        correlationId: msg.id,
+                        idempotencyKey: `${msg.id}:no-upload-session`,
+                        text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
+                      }).catch(() => {});
                       continue;
                     }
                     try {

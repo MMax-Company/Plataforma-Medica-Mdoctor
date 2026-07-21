@@ -63,10 +63,25 @@ function validateMedicationDose(value) {
 }
 
 function parseBrazilianAddress(value) {
-  const raw = compactWhitespace(value);
+  const raw = compactWhitespace(value).replace(/[.!]+$/, '').trim();
   if (!raw) return null;
 
   const commaParts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+
+  // "Rua X, 123, Bairro, Cidade UF" — cidade e estado no mesmo segmento, sem
+  // vírgula entre eles (forma comum de digitar). Separa em 5 partes para
+  // reaproveitar a lógica abaixo, sem duplicar o parsing.
+  if (commaParts.length === 4) {
+    const cityStateMatch = commaParts[3].match(/^(.+?)\s+([A-Za-z]{2})$/);
+    if (cityStateMatch) {
+      const estadoCandidate = cityStateMatch[2].toUpperCase();
+      if (BRAZILIAN_STATES.has(estadoCandidate)) {
+        commaParts[3] = cityStateMatch[1].trim();
+        commaParts.push(estadoCandidate);
+      }
+    }
+  }
+
   if (commaParts.length >= 5) {
     const estado = commaParts[commaParts.length - 1].replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2);
     let bairro = commaParts[commaParts.length - 3];
