@@ -59,6 +59,47 @@ function typebotText(message = {}) {
   return richTextToPlainText(message.content?.richText || message.content || []);
 }
 
+// WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
+// mensagem de texto simples — o link só fica clicável se aparecer por
+// extenso. Por isso, qualquer parágrafo do Typebot que contenha um link
+// (ex.: os 5 documentos jurídicos) é enviado como anexo de documento nativo
+// do WhatsApp (nome do arquivo curto, sem URL visível), em vez de texto.
+function richTextContainsLink(nodes = []) {
+  for (const item of nodes || []) {
+    if (item?.type === 'a') return true;
+    if (Array.isArray(item?.children) && richTextContainsLink(item.children)) return true;
+  }
+  return false;
+}
+
+function richTextToOutputs(nodes = []) {
+  const outputs = [];
+  let buffer = [];
+  const flushText = () => {
+    const text = buffer.join('').replace(/\n{3,}/g, '\n\n').trim();
+    if (text) outputs.push({ kind: 'text', text });
+    buffer = [];
+  };
+  for (const node of nodes || []) {
+    const anchor = node?.type === 'p' && Array.isArray(node.children)
+      ? node.children.find((child) => child?.type === 'a')
+      : null;
+    if (anchor) {
+      const label = (anchor.children || []).map((c) => (typeof c?.text === 'string' ? c.text : '')).join('').trim();
+      const url = String(anchor.url || '').trim();
+      if (url && label) {
+        flushText();
+        outputs.push({ kind: 'document', url, label });
+        continue;
+      }
+    }
+    buffer.push(richTextToPlainText([node]));
+    buffer.push('\n');
+  }
+  flushText();
+  return outputs;
+}
+
 function textInputPrompt(input = {}) {
   const labels = input.options?.labels || input.options || {};
   return String(labels.placeholder || labels.label || '').trim();
@@ -68,6 +109,11 @@ function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
     if (message?.type !== 'text') continue;
+    const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
+    if (richText && richTextContainsLink(richText)) {
+      outputs.push(...richTextToOutputs(richText));
+      continue;
+    }
     const text = typebotText(message);
     if (text) outputs.push({ kind: 'text', text });
   }
@@ -448,6 +494,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+        else if (output.kind === 'document') sent = await provider.sendDocumentMessage({ ...common, documentUrl: output.url, fileName: `${output.label}.pdf`, caption: `📄 ${output.label}` });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }

@@ -580,6 +580,73 @@ async function main() {
   assert.equal(supportErrorResult.duplicate, false, 'falha ao criar o ticket de suporte não pode quebrar a resposta ao paciente');
   assert.equal(supportErrorLogged, true);
 
+  // Documentos jurídicos (LGPD/Telemedicina/Termos): o Typebot manda um
+  // parágrafo por documento com um link (type:'a', url + rótulo). WhatsApp
+  // não consegue esconder a URL numa mensagem de texto — precisa virar
+  // anexo de documento nativo (sendDocumentMessage), sem nenhuma URL visível.
+  const legalDocsSent = [];
+  const legalTextsSent = [];
+  const legalReceipts = new Set();
+  const legalBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async ({ messageId }) => {
+      if (legalReceipts.has(messageId)) return { claimed: false };
+      legalReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    callTypebot: async () => ({
+      sessionId: 'legal-session',
+      messages: [{
+        type: 'text',
+        content: {
+          richText: [
+            {
+              type: 'p',
+              children: [
+                { text: '📄 ' },
+                { type: 'a', url: 'https://storage.example/Consentimento_LGPD_Doctor_Prescreve.pdf', children: [{ text: 'Consentimento LGPD' }] }
+              ]
+            },
+            {
+              type: 'p',
+              children: [
+                { text: '📄 ' },
+                { type: 'a', url: 'https://storage.example/Politica_de_Privacidade_Doctor_Prescreve.pdf', children: [{ text: 'Política de Privacidade' }] }
+              ]
+            }
+          ]
+        }
+      }],
+      input: { id: 'blk_lgpd_choice', type: 'choice input', items: [{ content: 'Autorizo' }, { content: 'Não autorizo' }] }
+    }),
+    provider: {
+      sendTextMessage: async (payload) => { legalTextsSent.push(payload); return { providerMessageId: `legal-text-${legalTextsSent.length}` }; },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({}),
+      sendDocumentMessage: async (payload) => { legalDocsSent.push(payload); return { providerMessageId: `legal-doc-${legalDocsSent.length}` }; }
+    }
+  });
+  const legalResult = await legalBridge({
+    messageId: 'legal-1',
+    text: 'Oi',
+    identity,
+    whatsappSession: { id: 'wa-legal', typebot_session_id: null }
+  });
+  assert.equal(legalDocsSent.length, 2, 'os 2 documentos do parágrafo devem virar 2 mensagens de documento');
+  assert(legalDocsSent.every((d) => /^https:\/\//.test(d.documentUrl)), 'a URL real precisa ir só no campo de documento, nunca no texto');
+  assert.equal(legalDocsSent[0].fileName, 'Consentimento LGPD.pdf');
+  assert.equal(legalDocsSent[0].caption, '📄 Consentimento LGPD');
+  assert.equal(legalDocsSent[1].fileName, 'Política de Privacidade.pdf');
+  assert.equal(legalDocsSent[1].caption, '📄 Política de Privacidade');
+  assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
+  assert.equal(legalResult.responsesSent, 2);
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -595,7 +662,8 @@ async function main() {
     menuShowsBeforeTypebot: menuOi.menuHandled ? 'ok' : 'failed',
     menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
     postAttendanceSupportChoiceWiredToBackend: supportChoiceCalls.length === 2 && supportSessionCleared ? 'ok' : 'failed',
-    supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed'
+    supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed',
+    legalDocsSentAsNativeAttachmentsNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed'
   }));
 }
 
