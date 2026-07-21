@@ -8,6 +8,11 @@ const {
 const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
 const { isExternalUploadEnabled } = require('./prescription-upload-token.service');
+const {
+  applyCheckoutWebhook,
+  completePaymentByToken,
+  findSessionByPaymentIntentId
+} = require('./typebot-payment-link.service');
 
 function extractAtendimentoId(event) {
   const object = event?.data?.object || {};
@@ -100,6 +105,73 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
   return { ok: true, duplicate: false, atendimento: updated || atendimento };
 }
 
+// Pagamento WhatsApp/Typebot (Fase 2 pedido 2): Checkout Session criado
+// pelo Backend, confirmado somente pelo webhook Stripe. checkout.session.completed
+// é o evento oficial dessa cobrança; payment_intent.succeeded é ignorado
+// aqui de propósito — o Typebot nunca confirma pagamento sozinho, e usar o
+// PaymentIntent para confirmar abriria uma segunda via de confirmação sem
+// prova de Checkout Session paga (valor/moeda) desta sessão.
+async function handleTypebotPaymentWebhook(event) {
+  const object = event?.data?.object || {};
+
+  if (event.type === 'checkout.session.completed') {
+    const token = String(object.metadata?.payment_token || '').trim();
+    const typebotSessionId = String(object.metadata?.typebot_session_id || '').trim();
+    if (!token && !typebotSessionId) return null;
+    const applied = await applyCheckoutWebhook(event);
+    if (!applied.ok) {
+      if (applied.code === 'SESSION_NOT_FOUND') return null;
+      logger.warn('stripe_webhook_typebot_checkout_rejected', {
+        eventId: event.id,
+        code: applied.code
+      });
+      return { status: 200, body: { success: true, ignored: true, reason: applied.code } };
+    }
+    try {
+      const result = await completePaymentByToken(applied.token, { session: applied.session });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          typebot_payment: true,
+          duplicate: Boolean(result.alreadyCompleted),
+          responsesSent: result.responsesSent ?? 0
+        }
+      };
+    } catch (error) {
+      logger.error('stripe_webhook_typebot_payment_resume_failed', {
+        token_suffix: String(applied.token).slice(-8),
+        error: error.message
+      });
+      return { status: 500, body: { success: false, error: error.message } };
+    }
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const intentId = String(object.payment_intent || object.id || '').trim();
+    const session = intentId ? await findSessionByPaymentIntentId(intentId) : null;
+    if (session?.metadata?.typebot_payment?.token) {
+      logger.info('stripe_webhook_typebot_pi_ignored', {
+        eventId: event.id,
+        intentId,
+        reason: 'whatsapp_checkout_only'
+      });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          ignored: true,
+          reason: 'whatsapp_checkout_only',
+          typebot_payment: true
+        }
+      };
+    }
+    return null;
+  }
+
+  return null;
+}
+
 async function handleStripeWebhookEvent(event) {
   if (!event?.type) {
     return { status: 400, body: { success: false, error: 'Evento Stripe inválido' } };
@@ -109,40 +181,16 @@ async function handleStripeWebhookEvent(event) {
     return { status: 200, body: { success: true, ignored: true, type: event.type } };
   }
 
+  // Fluxo WhatsApp/Typebot (Checkout Session + payment_token/typebot_session_id
+  // no metadata) é tratado à parte, antes do fluxo por atendimento_id abaixo
+  // (usado pelo painel/Memed com client_reference_id direto). Não altera nem
+  // duplica esse segundo fluxo — só sai mais cedo quando o evento é typebot.
+  const typebotResult = await handleTypebotPaymentWebhook(event);
+  if (typebotResult) return typebotResult;
+
   const object = event.data?.object || {};
   const atendimentoId = extractAtendimentoId(event);
   if (!atendimentoId) {
-    if (event.type === 'payment_intent.succeeded') {
-      const intentId = String(object.payment_intent || object.id || '').trim();
-      if (intentId) {
-        const {
-          completePaymentByToken,
-          findSessionByPaymentIntentId
-        } = require('./typebot-payment-link.service');
-        const session = await findSessionByPaymentIntentId(intentId);
-        const token = session?.metadata?.typebot_payment?.token;
-        if (token) {
-          try {
-            const result = await completePaymentByToken(token, { session });
-            return {
-              status: 200,
-              body: {
-                success: true,
-                typebot_payment: true,
-                duplicate: Boolean(result.alreadyCompleted),
-                responsesSent: result.responsesSent ?? 0
-              }
-            };
-          } catch (error) {
-            logger.error('stripe_webhook_typebot_payment_resume_failed', {
-              intentId,
-              error: error.message
-            });
-            return { status: 500, body: { success: false, error: error.message } };
-          }
-        }
-      }
-    }
     logger.warn('stripe_webhook_missing_atendimento_id', { type: event.type, id: event.id });
     return { status: 200, body: { success: true, ignored: true, reason: 'missing_atendimento_id' } };
   }
@@ -174,5 +222,6 @@ async function handleStripeWebhookEvent(event) {
 module.exports = {
   applyStripePaymentConfirmed,
   extractAtendimentoId,
-  handleStripeWebhookEvent
+  handleStripeWebhookEvent,
+  handleTypebotPaymentWebhook
 };

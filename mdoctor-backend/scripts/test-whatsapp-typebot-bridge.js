@@ -336,6 +336,7 @@ async function main() {
 
   const paymentSent = [];
   const paymentLinks = [];
+  const paymentIntros = [];
   const paymentReceipts = new Set();
   const paymentBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
@@ -350,18 +351,27 @@ async function main() {
     reloadSession: async ({ whatsappSession }) => whatsappSession,
     persistExpectedInput: async () => {},
     createIntegrationError: async () => {},
+    // Checkout Stripe (Fase 2 pedido 2): createPaymentLink não recebe mais
+    // PaymentIntent do Typebot (runtimeOptions vazio) e devolve checkoutRedirectUrl.
     createPaymentLink: async (args) => {
       paymentLinks.push(args);
-      return { token: 'tok', url: 'https://staging.example/api/typebot-payment/tok', amountLabel: 'R$69.90' };
+      return { token: 'tok', checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout', amountLabel: 'R$69.90' };
+    },
+    sendPaymentIntro: async ({ session, checkoutRedirectUrl, correlationId, provider, idempotencyPrefix }) => {
+      paymentIntros.push({ session, checkoutRedirectUrl, correlationId });
+      const sent = await provider.sendTextMessage({
+        to: session.phone,
+        bsuid: session.bsuid,
+        correlationId,
+        idempotencyKey: `${idempotencyPrefix}:0`,
+        text: `Pagamento: ${checkoutRedirectUrl}`
+      });
+      return sent?.providerMessageId ? [sent.providerMessageId] : [];
     },
     callTypebot: async () => ({
       sessionId: 'pay-session',
       messages: [{ type: 'text', content: { plainText: 'Termos aceitos. Você será direcionado ao pagamento.' } }],
-      input: {
-        id: 'rapfykn1f1uno89ypqmwi43f',
-        type: 'payment input',
-        runtimeOptions: { paymentIntentSecret: 'pi_123_secret_abc', publicKey: 'pk_test_x', amountLabel: 'R$69.90' }
-      }
+      input: { id: 'rapfykn1f1uno89ypqmwi43f', type: 'payment input' }
     }),
     provider: {
       sendTextMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
@@ -375,12 +385,54 @@ async function main() {
     identity,
     whatsappSession: { id: 'wa-pay', typebot_session_id: 'pay-session' }
   });
-  assert.equal(payResult.responsesSent, 2, 'texto do bot + link de pagamento');
+  assert.equal(payResult.responsesSent, 2, 'texto do bot + convite de pagamento (Checkout)');
   assert.equal(paymentLinks.length, 1);
   assert.equal(paymentLinks[0].typebotSessionId, 'pay-session');
-  assert.equal(paymentLinks[0].runtimeOptions.paymentIntentSecret, 'pi_123_secret_abc');
-  assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok'));
-  assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-link');
+  assert.deepEqual(paymentLinks[0].runtimeOptions, {}, 'Typebot não fornece mais PaymentIntent — Checkout é só do Backend');
+  assert.equal(paymentLinks[0].existingSession.id, 'wa-pay', 'Checkout reaproveita a sessão clínica existente');
+  assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok/checkout'));
+  assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-intro:0');
+
+  // Retomada quando o pagamento já foi confirmado (ex.: paciente reenvia
+  // resposta antes do webhook resolver, ou reabre o link já pago): não
+  // reabre Checkout nem reenvia o convite — só retoma o fluxo uma vez.
+  const alreadyPaidSent = [];
+  const alreadyPaidCompletions = [];
+  const alreadyPaidBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    createPaymentLink: async () => ({ alreadyPaid: true, token: 'tok-paid' }),
+    completePaymentByToken: async (token, args) => {
+      alreadyPaidCompletions.push({ token, session: args.session });
+      return { ok: true, responsesSent: 1 };
+    },
+    callTypebot: async () => ({
+      sessionId: 'pay-session-2',
+      messages: [{ type: 'text', content: { plainText: 'Confirme os termos.' } }],
+      input: { id: 'rapfykn1f1uno89ypqmwi43f', type: 'payment input' }
+    }),
+    provider: {
+      sendTextMessage: async (payload) => { alreadyPaidSent.push(payload); return { providerMessageId: `already-${alreadyPaidSent.length}` }; },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const alreadyPaidResult = await alreadyPaidBridge({
+    messageId: 'pay-already-1',
+    text: 'oi',
+    identity,
+    whatsappSession: { id: 'wa-pay-2', typebot_session_id: 'pay-session-2' }
+  });
+  assert.equal(alreadyPaidResult.paymentAlreadyPaid, true);
+  assert.equal(alreadyPaidCompletions.length, 1, 'retomada acionada exatamente uma vez');
+  assert.equal(alreadyPaidCompletions[0].token, 'tok-paid');
+  assert.equal(alreadyPaidResult.responsesSent, 1 + 1, 'texto do bot + retomada');
 
   const menuSent = [];
   let menuCleared = false;
@@ -538,6 +590,7 @@ async function main() {
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
+    paymentAlreadyPaidResumesOnce: alreadyPaidCompletions.length === 1 && alreadyPaidResult.paymentAlreadyPaid ? 'ok' : 'failed',
     textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed',
     menuShowsBeforeTypebot: menuOi.menuHandled ? 'ok' : 'failed',
     menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
