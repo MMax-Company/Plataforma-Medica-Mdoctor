@@ -429,9 +429,11 @@ router.post('/:id/clinical/approve', requireRole('admin', 'doctor'), async (req,
   return res.json({
     success: true,
     correlationId,
+    duplicate: result.duplicate === true,
     atendimento: result.atendimento,
     decisao: result.decisao,
-    memed: result.memed
+    memed: result.memed,
+    notification: result.notification
   });
 });
 
@@ -451,7 +453,7 @@ router.post('/:id/clinical/reject', requireRole('admin', 'doctor'), async (req, 
     atendimento: result.atendimento,
     decisao: result.decisao,
     notification: result.notification,
-    estorno: result.estorno || null,
+    pendencia_pagamento: result.pendencia_pagamento || null,
     reason_code: result.reason_code,
     reason_label: result.reason_label
   });
