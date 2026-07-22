@@ -11,7 +11,10 @@ async function main() {
 
   const { routeMetaWhatsAppInbound, MAIN_MENU_TEXT } = require('../src/services/whatsapp-meta-inbound.service');
 
-  assert.equal(MAIN_MENU_TEXT, '1 - Iniciar atendimento\n2 - Suporte');
+  assert.equal(
+    MAIN_MENU_TEXT,
+    'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte'
+  );
   assert(!MAIN_MENU_TEXT.includes('Iniciar Atendimento'));
   assert(!/typebot\.(io|co)\//i.test(MAIN_MENU_TEXT));
 

@@ -68,6 +68,73 @@ function textInputPrompt(input = {}) {
   return String(labels.placeholder || labels.label || '').trim();
 }
 
+// WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
+// mensagem de texto simples — o link só fica clicável se aparecer por
+// extenso. Por isso, qualquer parágrafo do Typebot que contenha um link
+// (ex.: os documentos jurídicos de LGPD/Telemedicina/Termos) vira um botão
+// de URL (abre o link externamente, sem baixar nada no WhatsApp e sem
+// mostrar a URL), em vez de texto simples.
+const DOC_BUTTON_LABELS = {
+  'Consentimento LGPD': 'Consentimento LGPD',
+  'Política de Privacidade': 'Política Privacidade',
+  'Consentimento para Telemedicina Assíncrona': 'Telemedicina',
+  'Aviso Importante — Não Urgência/Emergência': 'Não Urgência',
+  'Política e Termos de Uso': 'Termos de Uso'
+};
+
+function docButtonLabel(label) {
+  return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
+}
+
+function richTextContainsLink(nodes = []) {
+  for (const item of nodes || []) {
+    if (item?.type === 'a') return true;
+    if (Array.isArray(item?.children) && richTextContainsLink(item.children)) return true;
+  }
+  return false;
+}
+
+function richTextToOutputs(nodes = []) {
+  const outputs = [];
+  let buffer = [];
+  let sawLink = false;
+  const bufferedText = () => buffer.join('').replace(/\n{3,}/g, '\n\n').trim();
+  const flushText = () => {
+    const text = bufferedText();
+    if (text) outputs.push({ kind: 'text', text });
+    buffer = [];
+  };
+  for (const node of nodes || []) {
+    const anchor = node?.type === 'p' && Array.isArray(node.children)
+      ? node.children.find((child) => child?.type === 'a')
+      : null;
+    if (anchor) {
+      const label = (anchor.children || []).map((c) => (typeof c?.text === 'string' ? c.text : '')).join('').trim();
+      const url = String(anchor.url || '').trim();
+      // Só vira botão cta_url quando o rótulo é um documento jurídico
+      // conhecido (LGPD, Telemedicina, Termos). Outros links do Typebot
+      // (ex.: link de upload de receita) continuam como texto simples —
+      // quem decide o que fazer com eles é typebot-prescription-upload.service.js
+      // (responseLooksLikeUploadStage / augmentOutputsWithUploadLink), que
+      // já intercepta e reescreve esse conteúdo antes do envio.
+      if (url && label && DOC_BUTTON_LABELS[label]) {
+        // O primeiro link do bloco reaproveita o texto introdutório do grupo
+        // (se houver) como corpo do próprio botão, em vez de mandá-lo numa
+        // mensagem de texto separada. Links seguintes não repetem esse texto.
+        const introText = !sawLink ? bufferedText() : null;
+        buffer = [];
+        outputs.push({ kind: 'document', url, label, introText: introText || null });
+        sawLink = true;
+        continue;
+      }
+    }
+    buffer.push(richTextToPlainText([node]));
+    buffer.push('\n');
+  }
+  flushText();
+  return outputs;
+}
+
 /** Inputs múltiplos do Typebot oficial (fallback se a API não enviar options). */
 const CHRONIC_DISEASE_MULTI_CHOICE_INPUT_ID = 'b156nm008xh7gb52n7w3egzn'; // Doença Cronica
 const OFFICIAL_MULTI_CHOICE_INPUT_IDS = new Set([
@@ -218,6 +285,22 @@ function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
     if (message?.type !== 'text') continue;
+    const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
+    if (richText && richTextContainsLink(richText)) {
+      const linkOutputs = richTextToOutputs(richText);
+      // O Typebot manda a introdução do grupo (ex.: "Antes de continuar,
+      // leia os documentos abaixo:") como uma mensagem de texto própria,
+      // logo ANTES da mensagem com os links — não junto no mesmo richText.
+      // Se o output anterior é só esse texto puro, ele vira o corpo do
+      // primeiro botão de documento, em vez de ficar como mensagem separada.
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text' && linkOutputs[0]?.kind === 'document' && !linkOutputs[0].introText) {
+        linkOutputs[0].introText = previous.text;
+        outputs.pop();
+      }
+      outputs.push(...linkOutputs);
+      continue;
+    }
     const text = typebotText(message);
     if (text) outputs.push({ kind: 'text', text });
   }
@@ -781,6 +864,13 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+        // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
+        // espaço em branco é rejeitado com erro 131008 "Required parameter
+        // is missing" — testado ao vivo). O primeiro botão do grupo usa a
+        // introdução do próprio grupo como corpo (nenhuma mensagem de texto
+        // separada antes dele); os botões seguintes usam só um ícone neutro,
+        // sem repetir o nome do documento nem usar frase de instrução.
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: output.introText || '📄', displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
