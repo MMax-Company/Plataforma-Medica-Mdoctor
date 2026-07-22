@@ -13,6 +13,7 @@ const {
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const {
   buildClinicalNarrative,
+  describeConditions,
   PROTOCOL_VERSION
 } = require('./clinical-intelligence.service');
 const { mapTypebotPayload } = require('./typebot-payload.mapper');
@@ -134,7 +135,7 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   const clinicalNarrative = buildClinicalNarrative({
     patientName: normalized.patient_name || validation.paciente.nome,
-    condition: patientData.condition,
+    condition: describeConditions(patientData.doenca_cronica || patientData.condition),
     medication: validation.triagem.medicacao_em_uso || 'medicação em uso contínuo',
     decision
   });

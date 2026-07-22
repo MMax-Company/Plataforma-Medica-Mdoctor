@@ -50,6 +50,36 @@ function normalizeCondition(value = '') {
   return matched ? matched.value : 'renovacao_receita';
 }
 
+const CONDITION_LABELS = {
+  [CONDITIONS.HAS]: 'Hipertensão Arterial',
+  [CONDITIONS.DM2]: 'Diabetes Mellitus',
+  [CONDITIONS.DLP]: 'Dislipidemia',
+  [CONDITIONS.HIPO]: 'Hipotireoidismo'
+};
+
+// normalizeCondition() só devolve UM código (a primeira doença que casar),
+// o que é correto para regras de elegibilidade por condição, mas reduziria
+// a seleção múltipla (ex.: "has, dm, dlp") a uma só doença em textos
+// narrativos (resumo clínico). describeConditions() preserva todas as
+// condições selecionadas, mapeando cada uma para o nome em português.
+function describeConditions(value = '') {
+  const tokens = String(value || '')
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean);
+  if (!tokens.length) return 'condição crônica';
+  const labels = [];
+  const seen = new Set();
+  for (const token of tokens) {
+    const label = CONDITION_LABELS[normalizeCondition(token)] || token;
+    if (!seen.has(label)) {
+      seen.add(label);
+      labels.push(label);
+    }
+  }
+  return labels.length ? labels.join(', ') : 'condição crônica';
+}
+
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const converted = Number(value);
@@ -329,6 +359,7 @@ module.exports = {
   FLAG_LABELS,
   REFUSAL_LIBRARY,
   normalizeCondition,
+  describeConditions,
   normalizeBirthDate,
   extractUsageDays,
   hasContinuousMedication,

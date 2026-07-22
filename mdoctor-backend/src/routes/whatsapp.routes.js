@@ -15,6 +15,7 @@ const {
 } = require('../delivery/delivery.service');
 const {
   buildClinicalNarrative,
+  describeConditions,
   getRefusalMessage,
   PROTOCOL_VERSION
 } = require('../services/clinical-intelligence.service');
@@ -863,7 +864,7 @@ router.post('/webhook', async (req, res) => {
   }
   const clinicalNarrative = buildClinicalNarrative({
     patientName: from,
-    condition: patientData.condition,
+    condition: describeConditions(patientData.doenca_cronica || patientData.condition),
     medication: originalPayload?.medicamento || originalPayload?.medicacao_em_uso || 'medicação em uso contínuo',
     decision
   });
