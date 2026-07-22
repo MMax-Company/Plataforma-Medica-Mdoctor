@@ -88,12 +88,15 @@ async function findPendingUploadContext(phone) {
   return extractUploadSession(matches[0]);
 }
 
+// Alias de findPendingUploadContext: NÃO ampliar para atendimentos fora de
+// STATUS.AWAITING_PRESCRIPTION_UPLOAD. O fallback antigo buscava em
+// listAtendimentos() sem filtro de status, reaproveitando o contexto de
+// upload de qualquer atendimento passado (entregue, rejeitado, encerrado)
+// só porque o telefone coincidia — incidente 2026-07-21 (contexto do
+// atendimento já entregue horas antes sequestrando a resposta de um
+// atendimento novo).
 async function findUploadContextForPhone(phone) {
-  const pending = await findPendingUploadContext(phone);
-  if (pending) return pending;
-  const rows = await listAtendimentos();
-  const match = rows.find((row) => phonesMatch(row.paciente_telefone, phone) && extractUploadSession(row));
-  return match ? extractUploadSession(match) : null;
+  return findPendingUploadContext(phone);
 }
 
 // Rastreia media_id/message_id já processados na própria sessão (Fase 2
@@ -191,10 +194,13 @@ function outputsContainUrl(outputs = [], url = '') {
   );
 }
 
+// Detecção exclusivamente estrutural (IDs oficiais dos blocos de upload) —
+// NÃO usar regex sobre o texto das mensagens: a palavra "receita" aparece
+// também em textos comuns (ex.: a saudação inicial menciona "renovação de
+// receita"), o que gerava falso positivo e removia botões/listas de outras
+// etapas do fluxo (incidente 2026-07-21).
 function responseLooksLikeUploadStage(typebot = {}, expectedInputId = null) {
-  if (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(typebot.input?.id)) return true;
-  const blob = JSON.stringify(typebot.messages || []);
-  return /receita|upload|enviar foto/i.test(blob);
+  return isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(typebot.input?.id);
 }
 
 function stripUploadChoiceOutputs(outputs = []) {
