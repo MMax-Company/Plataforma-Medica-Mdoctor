@@ -409,6 +409,15 @@ function isActiveTypebotFlow(session = {}) {
 const POST_ATTENDANCE_CHOICE_INPUT_ID = 'blk_pos_atend_choice';
 const SUPPORT_SUBFLOW_CHOICE_INPUT_ID = 'blk_suporte_choice';
 
+// Choice input "Vamos começar" do grupo "Bem-Vindo" (primeiro input de toda
+// conversa do Typebot). Uma sessão parada exatamente aqui é, por definição,
+// uma sessão obsoleta: o paciente nunca respondeu ao início do fluxo. Ver
+// incidente 2026-07-21 ("Invalid message. Please, try again." ao enviar "1"
+// com sessão presa neste input) — isActiveTypebotFlow via a sessão como
+// "ativa" e encaminhava "1"/"2" via continueChat para este choice input, que
+// só aceita "Vamos começar".
+const WELCOME_CHOICE_INPUT_ID = 'sbjZWLJGVkHAkDqS4JQeGow';
+
 function matchesTypebotChoice(text, ...labels) {
   const norm = String(text || '').trim().toLowerCase();
   return labels.some((label) => norm === String(label).toLowerCase());
@@ -504,6 +513,23 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     activeFlow: diagActiveFlow,
     textMasked: maskDiagnosticText(text)
   });
+
+  // Sessão obsoleta parada exatamente no início do fluxo ("Vamos começar"):
+  // "1"/"2" aqui não podem virar resposta ao choice input via continueChat
+  // (isso gera "Invalid message..." do próprio Typebot — ver comentário de
+  // WELCOME_CHOICE_INPUT_ID). Restrito a este input específico — não vira
+  // comando global em nenhuma outra etapa do fluxo.
+  const stuckAtWelcomeChoice = diagSession?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID;
+  if (stuckAtWelcomeChoice) {
+    const textNormEarly = normalizeMenuText(text);
+    if (textNormEarly === '1') {
+      return { handled: true, action: 'typebot_clean' };
+    }
+    if (textNormEarly === '2') {
+      const result = await createWhatsAppSupportEntry({ phone });
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+  }
 
   if (diagActiveFlow && !diagGreeting) {
     return { handled: false, action: 'typebot' };
