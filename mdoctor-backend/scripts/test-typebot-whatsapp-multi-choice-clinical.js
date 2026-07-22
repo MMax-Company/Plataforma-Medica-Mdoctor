@@ -77,7 +77,12 @@ function assertDiseaseUxCopy() {
   assert.ok(DISEASE_MULTI_CHOICE_INTRO.includes('Confirmo'));
   const firstList = firstOutputs.find((o) => o.kind === 'list');
   assert.ok(firstList);
-  assert.ok(firstList.choices.some((c) => c.value === 'Confirmo'));
+  // Confirmo não é uma 5ª doença dentro da lista clínica.
+  assert.equal(firstList.choices.length, 4);
+  assert.ok(!firstList.choices.some((c) => c.value === 'Confirmo'));
+  const firstConfirmButtons = firstOutputs.find((o) => o.kind === 'buttons');
+  assert.ok(firstConfirmButtons);
+  assert.ok(firstConfirmButtons.choices.some((c) => c.value === 'Confirmo'));
 
   const converted = convertTypebotResponse({
     messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:' } }],
@@ -178,7 +183,12 @@ async function assertBridgeMultiDisease() {
   assert.ok(outputs.some((o) => o.kind === 'text' && o.text === DISEASE_MULTI_CHOICE_INTRO));
   const list = outputs.find((o) => o.kind === 'list');
   assert.ok(list);
-  assert.ok(list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+  // A lista de doenças não deve conter Confirmo como se fosse uma 5ª condição.
+  assert.ok(!list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+  assert.equal(list.choices.length, 4);
+  const confirmButtons = outputs.find((o) => o.kind === 'buttons');
+  assert.ok(confirmButtons);
+  assert.ok(confirmButtons.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
 
   let state = {
     inputId: DISEASE_INPUT.id,
@@ -216,6 +226,7 @@ async function assertAccumulateAndRelist() {
   };
   const texts = [];
   const lists = [];
+  const buttons = [];
   const typebotCalls = [];
 
   const bridge = createTypebotWhatsAppBridge({
@@ -252,7 +263,10 @@ async function assertAccumulateAndRelist() {
         texts.push(text);
         return { providerMessageId: `t-${texts.length}` };
       },
-      sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
+      sendButtonMessage: async (payload) => {
+        buttons.push(payload);
+        return { providerMessageId: `b-${buttons.length}` };
+      },
       sendListMessage: async (payload) => {
         lists.push(payload);
         return { providerMessageId: `l-${lists.length}` };
@@ -264,6 +278,7 @@ async function assertAccumulateAndRelist() {
   process.env.TYPEBOT_VIEWER_URL = 'https://typebot.io';
 
   const pick = async (label, messageId) => {
+    const textsBefore = texts.length;
     const result = await bridge({
       messageId,
       text: label,
@@ -272,15 +287,18 @@ async function assertAccumulateAndRelist() {
     });
     assert.equal(result.multiChoicePending, true);
     assert.ok(lists.length > 0);
+    // Patologias não mandam mais o resumo como texto avulso (duplicava o
+    // corpo da lista) — nenhuma mensagem de texto nova por escolha.
+    assert.equal(texts.length, textsBefore, 'não deveria enviar texto avulso de resumo para patologias');
   };
 
   await pick('Hipertensão Arterial', 'acc-1');
-  assert.equal(texts[texts.length - 1], 'Selecionadas até agora: Hipertensão Arterial.');
+  assert.equal(lists[lists.length - 1].body, 'Selecionadas até agora: Hipertensão Arterial.');
   assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has']);
 
   await pick('Diabetes Melitus', 'acc-2');
   assert.equal(
-    texts[texts.length - 1],
+    lists[lists.length - 1].body,
     'Selecionadas até agora: Hipertensão Arterial, Diabetes Melitus.'
   );
   assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has', 'dm']);
@@ -289,11 +307,17 @@ async function assertAccumulateAndRelist() {
   await pick('Hipotireidismo', 'acc-4');
   assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has', 'dm', 'dlp', 'hipotireoidismo']);
   assert.equal(
-    texts[texts.length - 1],
+    lists[lists.length - 1].body,
     'Selecionadas até agora: Hipertensão Arterial, Diabetes Melitus, Dislipidemia, Hipotireidismo.'
   );
   assert.equal(lists.length, 4);
-  assert.ok(lists.every((list) => (list.rows || []).some((row) => row.value === 'Confirmo' || row.title === 'Confirmo')));
+  // Nenhuma doença é apagada ao acumular: cada lista sempre traz as 4 opções clínicas.
+  assert.ok(lists.every((list) => (list.rows || []).length === 4));
+  // Confirmo nunca é uma linha da lista de doenças.
+  assert.ok(lists.every((list) => !(list.rows || []).some((row) => row.value === 'Confirmo' || row.title === 'Confirmo')));
+  // Confirmo chega em mensagem de botão separada, uma por escolha.
+  assert.equal(buttons.length, 4);
+  assert.ok(buttons.every((btn) => (btn.buttons || []).some((b) => b.value === 'Confirmo' || b.title === 'Confirmo')));
 
   const confirmed = await bridge({
     messageId: 'acc-confirm',

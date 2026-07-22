@@ -245,18 +245,17 @@ function buildMultiChoiceOutputs(input = {}, selected = []) {
   const items = mapChoiceItems(input.items || []);
   const buttonLabel = String(input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo';
   const isDisease = isChronicDiseaseMultiChoiceInput(input);
-  const choices = [
-    ...items.map((item) => ({
-      id: item.content || item.value || item.id,
-      title: String(item.content || item.value).slice(0, 24),
-      value: item.content || item.value
-    })),
-    {
-      id: buttonLabel,
-      title: buttonLabel.slice(0, 24),
-      value: buttonLabel
-    }
-  ];
+  const itemChoices = items.map((item) => ({
+    id: item.content || item.value || item.id,
+    title: String(item.content || item.value).slice(0, 24),
+    value: item.content || item.value
+  }));
+  const confirmChoice = { id: buttonLabel, title: buttonLabel.slice(0, 24), value: buttonLabel };
+  // Patologias: Confirmo não pode ser uma 5ª linha dentro da mesma lista de
+  // doenças (parece uma opção clínica a mais). A lista só traz as condições;
+  // a conclusão da seleção vai numa mensagem de botão separada, o mecanismo
+  // mínimo do WhatsApp para uma ação distinta de "marcar mais uma opção".
+  const choices = isDisease ? itemChoices : [...itemChoices, confirmChoice];
 
   const outputs = [];
   if (isDisease && !selected.length) {
@@ -278,6 +277,15 @@ function buildMultiChoiceOutputs(input = {}, selected = []) {
     button: 'Ver opções',
     choices: choices.slice(0, 10)
   });
+
+  if (isDisease) {
+    outputs.push({
+      kind: 'buttons',
+      body: `Marcou todas as condições? Toque em ${buttonLabel} para concluir.`,
+      choices: [confirmChoice]
+    });
+  }
+
   return outputs;
 }
 
@@ -566,6 +574,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
                   button: output.button,
                   rows: output.choices
                 });
+              } else if (output.kind === 'buttons') {
+                sentChoice = await provider.sendButtonMessage({
+                  ...common,
+                  body: output.body,
+                  buttons: output.choices
+                });
               }
               if (sentChoice?.providerMessageId) providerMessageIds.push(sentChoice.providerMessageId);
             }
@@ -604,14 +618,21 @@ function createTypebotWhatsAppBridge(deps = {}) {
           multiChoiceState = toggled.state;
           await persistMultiChoice({ identity, multiChoice: multiChoiceState });
           const providerMessageIds = [];
-          const summarySent = await provider.sendTextMessage({
-            to: identity.phone,
-            bsuid: identity.bsuid,
-            correlationId: messageId,
-            idempotencyKey: `${messageId}:multi-summary`,
-            text: multiChoiceSummary(multiChoiceState.selected, { id: multiChoiceState.inputId })
-          });
-          if (summarySent?.providerMessageId) providerMessageIds.push(summarySent.providerMessageId);
+          // Patologias: o resumo "Selecionadas até agora" já vai no corpo da
+          // lista (buildMultiChoiceOutputs); mandar de novo aqui como texto
+          // avulso duplicava a mesma frase em duas mensagens seguidas.
+          // Sinais de alerta mantém a mensagem de texto separada, como antes.
+          const isDiseaseChoice = isChronicDiseaseMultiChoiceInput({ id: multiChoiceState.inputId });
+          if (!isDiseaseChoice) {
+            const summarySent = await provider.sendTextMessage({
+              to: identity.phone,
+              bsuid: identity.bsuid,
+              correlationId: messageId,
+              idempotencyKey: `${messageId}:multi-summary`,
+              text: multiChoiceSummary(multiChoiceState.selected, { id: multiChoiceState.inputId })
+            });
+            if (summarySent?.providerMessageId) providerMessageIds.push(summarySent.providerMessageId);
+          }
           const outputs = buildMultiChoiceOutputs({
             id: multiChoiceState.inputId,
             items: multiChoiceState.items,
@@ -631,6 +652,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
                 body: output.body,
                 button: output.button,
                 rows: output.choices
+              });
+            } else if (output.kind === 'buttons') {
+              sent = await provider.sendButtonMessage({
+                ...common,
+                body: output.body,
+                buttons: output.choices
               });
             } else {
               sent = await provider.sendTextMessage({ ...common, text: output.text });
