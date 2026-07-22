@@ -179,6 +179,51 @@ function findChoiceItem(items, rawText) {
   )) || null;
 }
 
+/**
+ * Patologias: pergunta única em texto simples, com opções numeradas.
+ * O paciente digita os números (ou os nomes) separados por vírgula e conclui
+ * pela seta nativa de envio do WhatsApp — sem lista interativa, sem Confirmo
+ * e sem reenviar mensagem a cada escolha.
+ */
+function buildDiseaseChoicePrompt(items = []) {
+  const mapped = mapChoiceItems(items);
+  const lines = mapped.map((item, index) => `${index + 1}. ${item.content}`).join('\n');
+  return [
+    'Para quais destas condições você faz tratamento contínuo?',
+    '',
+    lines,
+    '',
+    'Digite os números correspondentes separados por vírgula (ex.: 1, 3). Pode escolher mais de uma opção.'
+  ].join('\n');
+}
+
+/** Aceita números ("1, 3") ou os próprios nomes das condições, em uma única mensagem. */
+function parseDiseaseFreeTextSelection(items = [], text = '') {
+  const mapped = mapChoiceItems(items);
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const tokens = raw
+    .replace(/\s+e\s+/gi, ',')
+    .split(/[,;/]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const selected = [];
+  const seen = new Set();
+  for (const token of tokens) {
+    let match = null;
+    if (/^\d+$/.test(token)) {
+      match = mapped[Number(token) - 1] || null;
+    }
+    if (!match) match = findChoiceItem(mapped, token);
+    if (match && !seen.has(match.value)) {
+      seen.add(match.value);
+      selected.push(match);
+    }
+  }
+  return selected;
+}
+
 function isExclusiveNoneItem(item) {
   if (!item) return false;
   if (String(item.value || '').trim().toUpperCase() === 'NAO') return true;
@@ -317,7 +362,11 @@ function convertTypebotResponse(response = {}) {
   const items = Array.isArray(input.items) ? input.items.filter((item) => item?.content || item?.value) : [];
   if (input.type === 'choice input' && items.length) {
     if (isMultipleChoiceInput(input)) {
-      outputs.push(...buildMultiChoiceOutputs(input, []));
+      if (isChronicDiseaseMultiChoiceInput(input)) {
+        outputs.push({ kind: 'text', text: buildDiseaseChoicePrompt(input.items) });
+      } else {
+        outputs.push(...buildMultiChoiceOutputs(input, []));
+      }
     } else {
       const choices = items.map((item, index) => ({
         id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
@@ -535,6 +584,42 @@ function createTypebotWhatsAppBridge(deps = {}) {
         : currentSession?.metadata?.typebot_expected_input_id || null;
       let inboundText = String(text || '');
       let multiChoiceState = currentSession?.metadata?.typebot_multi_choice || null;
+
+      // Patologias: pergunta única, sem Confirmo — o paciente digita todas as
+      // condições numa mensagem só e conclui pela seta nativa de envio do
+      // WhatsApp. Não reaproveita o mecanismo de acumular-depois-Confirmo
+      // usado por Sinais de Alerta (bloco abaixo, inalterado).
+      if (
+        multiChoiceState
+        && expectedInputId
+        && multiChoiceState.inputId === expectedInputId
+        && !menuBootstrap
+        && isChronicDiseaseMultiChoiceInput({ id: multiChoiceState.inputId })
+      ) {
+        const selected = parseDiseaseFreeTextSelection(multiChoiceState.items, inboundText);
+        if (!selected.length) {
+          const sent = await provider.sendTextMessage({
+            to: identity.phone,
+            bsuid: identity.bsuid,
+            correlationId: messageId,
+            idempotencyKey: `${messageId}:disease-invalid`,
+            text: `Não entendi sua resposta. ${buildDiseaseChoicePrompt(multiChoiceState.items)}`
+          });
+          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+          await finish({ messageId, status: 'processed', providerMessageIds });
+          return {
+            duplicate: false,
+            responsesSent: providerMessageIds.length,
+            sessionId: existingSessionId,
+            sessionIdReused: Boolean(existingSessionId),
+            multiChoicePending: true
+          };
+        }
+        inboundText = buildMultiChoiceSubmitText(selected);
+        multiChoiceState = null;
+        await persistMultiChoice({ identity, multiChoice: null });
+        // Sem return: cai para o fluxo normal abaixo, que chama o Typebot com inboundText já pronto.
+      }
 
       // Múltipla escolha WhatsApp: acumula opções localmente até Confirmo; só então chama Typebot.
       if (
@@ -873,12 +958,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
       if (uploadContext) await persistUploadContext({ identity, uploadContext });
 
       let outputs = convertTypebotResponse(typebot);
-      if (nextMultiChoice) {
-        // Evita duplicar o texto introdutório de patologias (já reemitido por buildMultiChoiceOutputs).
+      // Patologias já saem prontas de convertTypebotResponse como a pergunta
+      // única em texto (buildDiseaseChoicePrompt) — nada a reconstruir aqui.
+      if (nextMultiChoice && !isChronicDiseaseMultiChoiceInput(typebot.input)) {
         outputs = [
-          ...outputs.filter((output) => (
-            output.kind === 'text' && output.text !== DISEASE_MULTI_CHOICE_INTRO
-          )),
+          ...outputs.filter((output) => output.kind === 'text'),
           ...buildMultiChoiceOutputs(typebot.input, nextMultiChoice.selected)
         ];
       }
@@ -984,6 +1068,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
 module.exports = {
   buildMultiChoiceSubmitText,
   buildMultiChoiceOutputs,
+  buildDiseaseChoicePrompt,
+  parseDiseaseFreeTextSelection,
   callWithRetry,
   convertTypebotResponse,
   createTypebotWhatsAppBridge,
