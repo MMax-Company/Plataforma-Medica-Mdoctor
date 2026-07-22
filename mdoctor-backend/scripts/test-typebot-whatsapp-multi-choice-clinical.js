@@ -3,9 +3,13 @@ const fs = require('fs');
 const path = require('path');
 const {
   buildMultiChoiceSubmitText,
+  buildMultiChoiceOutputs,
   convertTypebotResponse,
   createTypebotWhatsAppBridge,
+  DISEASE_MULTI_CHOICE_INTRO,
+  isChronicDiseaseMultiChoiceInput,
   isMultipleChoiceInput,
+  multiChoiceSummary,
   toggleMultiChoiceSelection
 } = require('../src/services/typebot-whatsapp.bridge');
 
@@ -62,44 +66,53 @@ function assertOfficialJson() {
   assert.ok(!bot.edges.some((e) => e.id === 'o51d9l56lzldmzcuvc0jdg6y'));
 }
 
-async function assertBridgeMultiDisease() {
-  assert.equal(isMultipleChoiceInput(DISEASE_INPUT), true);
-  const outputs = convertTypebotResponse({
+function assertDiseaseUxCopy() {
+  assert.equal(isChronicDiseaseMultiChoiceInput(DISEASE_INPUT), true);
+  assert.equal(isChronicDiseaseMultiChoiceInput(SINAIS_INPUT), false);
+
+  const firstOutputs = buildMultiChoiceOutputs(DISEASE_INPUT, []);
+  assert.equal(firstOutputs[0].kind, 'text');
+  assert.equal(firstOutputs[0].text, DISEASE_MULTI_CHOICE_INTRO);
+  assert.ok(DISEASE_MULTI_CHOICE_INTRO.includes('mais de uma condição'));
+  assert.ok(DISEASE_MULTI_CHOICE_INTRO.includes('Confirmo'));
+  const firstList = firstOutputs.find((o) => o.kind === 'list');
+  assert.ok(firstList);
+  assert.ok(firstList.choices.some((c) => c.value === 'Confirmo'));
+
+  const converted = convertTypebotResponse({
     messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:' } }],
     input: DISEASE_INPUT
   });
-  assert.ok(outputs.some((o) => o.kind === 'text'));
-  const list = outputs.find((o) => o.kind === 'list');
-  assert.ok(list);
-  assert.ok(list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+  const introCount = converted.filter((o) => o.kind === 'text' && o.text === DISEASE_MULTI_CHOICE_INTRO).length;
+  assert.equal(introCount, 1);
 
-  let state = {
-    inputId: DISEASE_INPUT.id,
-    items: DISEASE_INPUT.items,
-    selected: [],
-    buttonLabel: 'Confirmo'
-  };
-  state = toggleMultiChoiceSelection(state, 'Hipertensão Arterial').state;
-  state = toggleMultiChoiceSelection(state, 'Diabetes Melitus').state;
-  assert.deepEqual(state.selected.map((s) => s.value), ['has', 'dm']);
-  assert.equal(buildMultiChoiceSubmitText(state.selected), 'has, dm');
+  const selectedTwo = [
+    { id: 'vjzl8ufgtda0h2tg4gvxvx2p', content: 'Hipertensão Arterial', value: 'has' },
+    { id: 'wvstylkrlny8u28zzuv2dixb', content: 'Diabetes Melitus', value: 'dm' }
+  ];
+  assert.equal(
+    multiChoiceSummary(selectedTwo, DISEASE_INPUT),
+    'Selecionadas até agora: Hipertensão Arterial, Diabetes Melitus.'
+  );
 
-  const single = toggleMultiChoiceSelection({
-    inputId: DISEASE_INPUT.id,
-    items: DISEASE_INPUT.items,
-    selected: [],
-    buttonLabel: 'Confirmo'
-  }, 'Dislipidemia').state;
-  assert.equal(buildMultiChoiceSubmitText(single.selected), 'dlp');
+  // Sinais de alerta mantém copy antiga
+  const sinaisOutputs = buildMultiChoiceOutputs(SINAIS_INPUT, []);
+  assert.ok(!sinaisOutputs.some((o) => o.text === DISEASE_MULTI_CHOICE_INTRO));
+  assert.equal(
+    multiChoiceSummary([{ content: 'Dor no peito', value: 'dor_peito' }], SINAIS_INPUT),
+    'Selecionado: Dor no peito'
+  );
+}
 
+async function assertConfirmSubmit(values, expectedSubmit) {
+  const selected = DISEASE_INPUT.items
+    .filter((item) => values.includes(item.value))
+    .map((item) => ({ id: item.id, content: item.content, value: item.value }));
   const typebotCalls = [];
   let multiMeta = {
     inputId: DISEASE_INPUT.id,
     items: DISEASE_INPUT.items,
-    selected: [
-      { id: 'vjzl8ufgtda0h2tg4gvxvx2p', content: 'Hipertensão Arterial', value: 'has' },
-      { id: 'wvstylkrlny8u28zzuv2dixb', content: 'Diabetes Melitus', value: 'dm' }
-    ],
+    selected,
     buttonLabel: 'Confirmo'
   };
   const bridge = createTypebotWhatsAppBridge({
@@ -146,13 +159,149 @@ async function assertBridgeMultiDisease() {
   process.env.TYPEBOT_VIEWER_URL = 'https://typebot.io';
 
   const confirmed = await bridge({
-    messageId: 'multi-disease-confirm',
+    messageId: `multi-disease-confirm-${values.join('-')}-${Date.now()}`,
     text: 'Confirmo',
     identity: { phone: '5511999990001', bsuid: null },
     whatsappSession: { id: 'wa-1', typebot_session_id: 'sess-disease' }
   });
   assert.equal(typebotCalls.length, 1);
-  assert.equal(typebotCalls[0].body.message.text, 'has, dm');
+  assert.equal(typebotCalls[0].body.message.text, expectedSubmit);
+  assert.equal(confirmed.multiChoicePending, undefined);
+}
+
+async function assertBridgeMultiDisease() {
+  assert.equal(isMultipleChoiceInput(DISEASE_INPUT), true);
+  const outputs = convertTypebotResponse({
+    messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:' } }],
+    input: DISEASE_INPUT
+  });
+  assert.ok(outputs.some((o) => o.kind === 'text' && o.text === DISEASE_MULTI_CHOICE_INTRO));
+  const list = outputs.find((o) => o.kind === 'list');
+  assert.ok(list);
+  assert.ok(list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+
+  let state = {
+    inputId: DISEASE_INPUT.id,
+    items: DISEASE_INPUT.items,
+    selected: [],
+    buttonLabel: 'Confirmo'
+  };
+  state = toggleMultiChoiceSelection(state, 'Hipertensão Arterial').state;
+  state = toggleMultiChoiceSelection(state, 'Diabetes Melitus').state;
+  assert.deepEqual(state.selected.map((s) => s.value), ['has', 'dm']);
+  assert.equal(buildMultiChoiceSubmitText(state.selected), 'has, dm');
+
+  const single = toggleMultiChoiceSelection({
+    inputId: DISEASE_INPUT.id,
+    items: DISEASE_INPUT.items,
+    selected: [],
+    buttonLabel: 'Confirmo'
+  }, 'Dislipidemia').state;
+  assert.equal(buildMultiChoiceSubmitText(single.selected), 'dlp');
+
+  // Uma patologia → Confirmo
+  await assertConfirmSubmit(['dlp'], 'dlp');
+  // Duas patologias
+  await assertConfirmSubmit(['has', 'dm'], 'has, dm');
+  // Quatro patologias
+  await assertConfirmSubmit(['has', 'dm', 'dlp', 'hipotireoidismo'], 'has, dm, dlp, hipotireoidismo');
+}
+
+async function assertAccumulateAndRelist() {
+  let multiMeta = {
+    inputId: DISEASE_INPUT.id,
+    items: DISEASE_INPUT.items,
+    selected: [],
+    buttonLabel: 'Confirmo'
+  };
+  const texts = [];
+  const lists = [];
+  const typebotCalls = [];
+
+  const bridge = createTypebotWhatsAppBridge({
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'sess-disease-acc',
+      metadata: {
+        typebot_expected_input_id: DISEASE_INPUT.id,
+        typebot_multi_choice: multiMeta
+      }
+    }),
+    persistExpectedInput: async () => {},
+    persistMultiChoice: async ({ multiChoice }) => { multiMeta = multiChoice; },
+    createIntegrationError: async () => {},
+    findPendingUploadContext: async () => null,
+    findUploadContextForPhone: async () => null,
+    persistUploadContext: async () => {},
+    uploadContextFromSession: () => null,
+    augmentOutputsWithUploadLink: (o) => o,
+    responseLooksLikeUploadStage: () => false,
+    isUploadChoiceInput: () => false,
+    callTypebot: async (path, body) => {
+      typebotCalls.push(body.message.text);
+      return {
+        messages: [{ type: 'text', content: { plainText: 'Próximo passo' } }],
+        input: { id: 'next', type: 'choice input', items: [{ content: 'ok' }] }
+      };
+    },
+    provider: {
+      sendTextMessage: async ({ text }) => {
+        texts.push(text);
+        return { providerMessageId: `t-${texts.length}` };
+      },
+      sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
+      sendListMessage: async (payload) => {
+        lists.push(payload);
+        return { providerMessageId: `l-${lists.length}` };
+      }
+    }
+  });
+
+  process.env.TYPEBOT_PUBLIC_ID = 'doctor-prescreve-8rmljgu';
+  process.env.TYPEBOT_VIEWER_URL = 'https://typebot.io';
+
+  const pick = async (label, messageId) => {
+    const result = await bridge({
+      messageId,
+      text: label,
+      identity: { phone: '5511999990099', bsuid: null },
+      whatsappSession: { id: 'wa-acc', typebot_session_id: 'sess-disease-acc' }
+    });
+    assert.equal(result.multiChoicePending, true);
+    assert.ok(lists.length > 0);
+  };
+
+  await pick('Hipertensão Arterial', 'acc-1');
+  assert.equal(texts[texts.length - 1], 'Selecionadas até agora: Hipertensão Arterial.');
+  assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has']);
+
+  await pick('Diabetes Melitus', 'acc-2');
+  assert.equal(
+    texts[texts.length - 1],
+    'Selecionadas até agora: Hipertensão Arterial, Diabetes Melitus.'
+  );
+  assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has', 'dm']);
+
+  await pick('Dislipidemia', 'acc-3');
+  await pick('Hipotireidismo', 'acc-4');
+  assert.deepEqual(multiMeta.selected.map((s) => s.value), ['has', 'dm', 'dlp', 'hipotireoidismo']);
+  assert.equal(
+    texts[texts.length - 1],
+    'Selecionadas até agora: Hipertensão Arterial, Diabetes Melitus, Dislipidemia, Hipotireidismo.'
+  );
+  assert.equal(lists.length, 4);
+  assert.ok(lists.every((list) => (list.rows || []).some((row) => row.value === 'Confirmo' || row.title === 'Confirmo')));
+
+  const confirmed = await bridge({
+    messageId: 'acc-confirm',
+    text: 'Confirmo',
+    identity: { phone: '5511999990099', bsuid: null },
+    whatsappSession: { id: 'wa-acc', typebot_session_id: 'sess-disease-acc' }
+  });
+  assert.equal(typebotCalls[0], 'has, dm, dlp, hipotireoidismo');
   assert.equal(confirmed.multiChoicePending, undefined);
 }
 
@@ -298,14 +447,21 @@ async function assertBridgeSinaisBranches() {
 
 async function main() {
   assertOfficialJson();
+  assertDiseaseUxCopy();
   await assertBridgeMultiDisease();
+  await assertAccumulateAndRelist();
   await assertBridgeSinaisBranches();
   console.log(JSON.stringify({
     ok: true,
     officialJsonPatched: true,
     welcomeUntouched: true,
+    diseaseIntroCopy: true,
+    selectedUntilNowCopy: true,
+    sinaisCopyUnchanged: true,
     twoDiseasesSubmit: 'has, dm',
     oneDiseaseSubmit: 'dlp',
+    fourDiseasesSubmit: 'has, dm, dlp, hipotireoidismo',
+    accumulationAndRelist: true,
     nenhumDestesSubmitsNAO: true,
     signalSubmitsValue: true,
     nenhumExclusive: true

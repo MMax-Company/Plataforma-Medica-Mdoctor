@@ -69,14 +69,23 @@ function textInputPrompt(input = {}) {
 }
 
 /** Inputs múltiplos do Typebot oficial (fallback se a API não enviar options). */
+const CHRONIC_DISEASE_MULTI_CHOICE_INPUT_ID = 'b156nm008xh7gb52n7w3egzn'; // Doença Cronica
 const OFFICIAL_MULTI_CHOICE_INPUT_IDS = new Set([
-  'b156nm008xh7gb52n7w3egzn', // Doença Cronica
+  CHRONIC_DISEASE_MULTI_CHOICE_INPUT_ID,
   's5VQGsVF4hQgziQsXVdwPDW' // Sinais de Alerta
 ]);
+
+const DISEASE_MULTI_CHOICE_INTRO =
+  'Você pode selecionar mais de uma condição. Escolha uma doença por vez. Depois de marcar todas, toque em “Confirmo”.';
 
 function isMultipleChoiceInput(input = {}) {
   if (input?.options?.isMultipleChoice === true) return true;
   return OFFICIAL_MULTI_CHOICE_INPUT_IDS.has(String(input?.id || '').trim());
+}
+
+/** UX copy de multi-patologias — não aplicar a Sinais de Alerta. */
+function isChronicDiseaseMultiChoiceInput(input = {}) {
+  return String(input?.id || '').trim() === CHRONIC_DISEASE_MULTI_CHOICE_INPUT_ID;
 }
 
 function normalizeChoiceKey(value) {
@@ -154,14 +163,21 @@ function buildMultiChoiceSubmitText(selected = []) {
     .join(', ');
 }
 
-function multiChoiceSummary(selected = []) {
-  if (!selected.length) return 'Nenhuma opção selecionada ainda.';
+function multiChoiceSummary(selected = [], input = {}) {
+  const isDisease = isChronicDiseaseMultiChoiceInput(input);
+  if (!selected.length) {
+    return isDisease ? 'Nenhuma condição selecionada ainda.' : 'Nenhuma opção selecionada ainda.';
+  }
+  if (isDisease) {
+    return `Selecionadas até agora: ${selected.map((item) => item.content || item.value).join(', ')}.`;
+  }
   return `Selecionado: ${selected.map((item) => item.content || item.value).join(', ')}`;
 }
 
 function buildMultiChoiceOutputs(input = {}, selected = []) {
   const items = mapChoiceItems(input.items || []);
   const buttonLabel = String(input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo';
+  const isDisease = isChronicDiseaseMultiChoiceInput(input);
   const choices = [
     ...items.map((item) => ({
       id: item.content || item.value || item.id,
@@ -174,13 +190,28 @@ function buildMultiChoiceOutputs(input = {}, selected = []) {
       value: buttonLabel
     }
   ];
-  const body = `${multiChoiceSummary(selected)}\n\nSelecione opções (pode mais de uma). Depois toque em ${buttonLabel}.`;
-  return [{
+
+  const outputs = [];
+  if (isDisease && !selected.length) {
+    outputs.push({ kind: 'text', text: DISEASE_MULTI_CHOICE_INTRO });
+  }
+
+  let body;
+  if (isDisease) {
+    body = selected.length
+      ? multiChoiceSummary(selected, input)
+      : `Escolha uma doença por vez. Depois de marcar todas, toque em ${buttonLabel}.`;
+  } else {
+    body = `${multiChoiceSummary(selected, input)}\n\nSelecione opções (pode mais de uma). Depois toque em ${buttonLabel}.`;
+  }
+
+  outputs.push({
     kind: 'list',
     body: body.slice(0, 1024),
     button: 'Ver opções',
     choices: choices.slice(0, 10)
-  }];
+  });
+  return outputs;
 }
 
 function convertTypebotResponse(response = {}) {
@@ -433,6 +464,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
             });
             const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
             const retryOutputs = buildMultiChoiceOutputs({
+              id: multiChoiceState.inputId,
               items: multiChoiceState.items,
               options: { buttonLabel: confirmLabel, isMultipleChoice: true }
             }, multiChoiceState.selected || []);
@@ -474,7 +506,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
               bsuid: identity.bsuid,
               correlationId: messageId,
               idempotencyKey: `${messageId}:multi-invalid`,
-              text: `Opção inválida. ${multiChoiceSummary(multiChoiceState.selected || [])}`
+              text: `Opção inválida. ${multiChoiceSummary(multiChoiceState.selected || [], { id: multiChoiceState.inputId })}`
             });
             const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
             await finish({ messageId, status: 'processed', providerMessageIds });
@@ -494,10 +526,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
             bsuid: identity.bsuid,
             correlationId: messageId,
             idempotencyKey: `${messageId}:multi-summary`,
-            text: multiChoiceSummary(multiChoiceState.selected)
+            text: multiChoiceSummary(multiChoiceState.selected, { id: multiChoiceState.inputId })
           });
           if (summarySent?.providerMessageId) providerMessageIds.push(summarySent.providerMessageId);
           const outputs = buildMultiChoiceOutputs({
+            id: multiChoiceState.inputId,
             items: multiChoiceState.items,
             options: { buttonLabel: multiChoiceState.buttonLabel || 'Confirmo', isMultipleChoice: true }
           }, multiChoiceState.selected);
@@ -731,8 +764,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
       let outputs = convertTypebotResponse(typebot);
       if (nextMultiChoice) {
+        // Evita duplicar o texto introdutório de patologias (já reemitido por buildMultiChoiceOutputs).
         outputs = [
-          ...outputs.filter((output) => output.kind === 'text'),
+          ...outputs.filter((output) => (
+            output.kind === 'text' && output.text !== DISEASE_MULTI_CHOICE_INTRO
+          )),
           ...buildMultiChoiceOutputs(typebot.input, nextMultiChoice.selected)
         ];
       }
@@ -830,13 +866,17 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
 module.exports = {
   buildMultiChoiceSubmitText,
+  buildMultiChoiceOutputs,
   callWithRetry,
   convertTypebotResponse,
   createTypebotWhatsAppBridge,
   describeError,
+  DISEASE_MULTI_CHOICE_INTRO,
   fetchTypebot,
+  isChronicDiseaseMultiChoiceInput,
   isMultipleChoiceInput,
   isRetryableTypebotError,
+  multiChoiceSummary,
   textInputPrompt,
   toggleMultiChoiceSelection
 };
