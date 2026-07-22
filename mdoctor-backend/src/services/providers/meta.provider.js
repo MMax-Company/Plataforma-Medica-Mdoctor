@@ -193,6 +193,55 @@ async function sendCtaUrlMessage({ to, bsuid, recipientId, body, displayText, ur
   }, { correlationId, idempotencyKey });
 }
 
+// WhatsApp Flow estático (sem endpoint de data-exchange): a Meta entrega o
+// resultado como mensagem "interactive"/"nfm_reply" no webhook normal — não
+// precisa de endpoint_uri, chave pública própria nem criptografia adicional.
+async function sendFlowMessage({
+  to,
+  bsuid,
+  recipientId,
+  header,
+  body,
+  cta,
+  flowId,
+  flowToken,
+  screen,
+  data,
+  correlationId,
+  idempotencyKey
+}) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const targetFlowId = String(flowId || '').trim();
+  if (!targetFlowId) {
+    const error = new Error('flow_id ausente para mensagem de WhatsApp Flow');
+    error.code = 'META_MISSING_FLOW_ID';
+    throw error;
+  }
+  return postMessage({
+    ...recipient,
+    type: 'interactive',
+    interactive: {
+      type: 'flow',
+      ...(header ? { header: { type: 'text', text: String(header).slice(0, 60) } } : {}),
+      body: { text: String(body || 'Toque no botão abaixo para continuar.').slice(0, 1024) },
+      action: {
+        name: 'flow',
+        parameters: {
+          flow_message_version: '3',
+          flow_token: String(flowToken || `flow-${Date.now()}`),
+          flow_id: targetFlowId,
+          flow_cta: String(cta || 'Continuar').slice(0, 20),
+          flow_action: 'navigate',
+          flow_action_payload: {
+            screen: String(screen || 'CONDICOES'),
+            data: data || {}
+          }
+        }
+      }
+    }
+  }, { correlationId, idempotencyKey });
+}
+
 async function sendListMessage({ to, bsuid, recipientId, body, button, rows, correlationId, idempotencyKey }) {
   const recipient = resolveRecipient({ to, bsuid, recipientId });
   return postMessage({
@@ -467,6 +516,7 @@ module.exports = {
   sendTextMessage,
   sendButtonMessage,
   sendCtaUrlMessage,
+  sendFlowMessage,
   sendListMessage,
   sendDocumentMessage,
   downloadMedia,

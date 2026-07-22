@@ -411,6 +411,22 @@ router.post('/webhook', async (req, res) => {
                       text = msg.interactive.button_reply.id || msg.interactive.button_reply.title;
                     } else if (msg.interactive.list_reply) {
                       text = msg.interactive.list_reply.id || msg.interactive.list_reply.title;
+                    } else if (msg.interactive.nfm_reply) {
+                      // Conclusão de WhatsApp Flow estático (ex.: patologias em
+                      // CheckboxGroup). response_json traz os values já no
+                      // formato oficial (has/dm2/dislipidemia/hipotireoidismo);
+                      // junta com ", " para casar com o texto que o
+                      // bridge/Typebot já espera. Idempotência: msg.id segue o
+                      // mesmo caminho de claimMetaMessage/finishMetaMessage de
+                      // qualquer outra mensagem — reentrega da Meta não
+                      // reprocessa (ver handleTypebotWhatsAppInbound abaixo).
+                      try {
+                        const parsed = JSON.parse(msg.interactive.nfm_reply.response_json || '{}');
+                        const selected = Array.isArray(parsed.condicoes) ? parsed.condicoes : [];
+                        if (selected.length) text = selected.join(', ');
+                      } catch {
+                        // response_json inválido — segue sem texto, cai no skip abaixo.
+                      }
                     }
                   }
 

@@ -16,6 +16,10 @@ function getConfig() {
     viewerUrl: official.viewerUrl,
     publicId: official.publicId,
     welcomeChoiceInputId: String(process.env.TYPEBOT_WELCOME_CHOICE_INPUT_ID || 'sbjZWLJGVkHAkDqS4JQeGow').trim(),
+    // WhatsApp Flow estático (CheckboxGroup) para a pergunta de patologias.
+    // Vazio = Flow ainda não publicado na WABA; usa o mecanismo de texto já
+    // validado como fallback (ver buildDiseaseChoicePrompt).
+    diseaseFlowId: String(process.env.WHATSAPP_DISEASE_FLOW_ID || '').trim(),
     timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
     retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
     retryBaseDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_BASE_DELAY_MS || 300)),
@@ -197,6 +201,25 @@ function buildDiseaseChoicePrompt(items = []) {
   ].join('\n');
 }
 
+const DISEASE_FLOW_SCREEN_ID = 'CONDICOES';
+
+/**
+ * Patologias: WhatsApp Flow estático com CheckboxGroup — o paciente marca de
+ * 1 a 4 condições numa única tela e conclui pelo botão nativo do Flow
+ * ("Continuar"), sem Confirmo e sem digitar números. flow_id vem de
+ * WHATSAPP_DISEASE_FLOW_ID (Flow criado e publicado na WABA).
+ */
+function buildDiseaseFlowOutput(flowId) {
+  return {
+    kind: 'flow',
+    header: 'Condições de saúde',
+    body: 'Para quais destas condições você utiliza medicação contínua? Selecione todas as opções aplicáveis.',
+    cta: 'Selecionar opções',
+    flowId,
+    screen: DISEASE_FLOW_SCREEN_ID
+  };
+}
+
 /** Aceita números ("1, 3") ou os próprios nomes das condições, em uma única mensagem. */
 function parseDiseaseFreeTextSelection(items = [], text = '') {
   const mapped = mapChoiceItems(items);
@@ -363,7 +386,10 @@ function convertTypebotResponse(response = {}) {
   if (input.type === 'choice input' && items.length) {
     if (isMultipleChoiceInput(input)) {
       if (isChronicDiseaseMultiChoiceInput(input)) {
-        outputs.push({ kind: 'text', text: buildDiseaseChoicePrompt(input.items) });
+        const { diseaseFlowId } = getConfig();
+        outputs.push(diseaseFlowId
+          ? buildDiseaseFlowOutput(diseaseFlowId)
+          : { kind: 'text', text: buildDiseaseChoicePrompt(input.items) });
       } else {
         outputs.push(...buildMultiChoiceOutputs(input, []));
       }
@@ -982,7 +1008,17 @@ function createTypebotWhatsAppBridge(deps = {}) {
         // separada antes dele); os botões seguintes usam só um ícone neutro,
         // sem repetir o nome do documento nem usar frase de instrução.
         else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: output.introText || '📄', displayText: docButtonLabel(output.label), url: output.url });
-        else sent = await provider.sendTextMessage({ ...common, text: output.text });
+        else if (output.kind === 'flow') {
+          sent = await provider.sendFlowMessage({
+            ...common,
+            header: output.header,
+            body: output.body,
+            cta: output.cta,
+            flowId: output.flowId,
+            screen: output.screen,
+            flowToken: `${identity.phone || identity.bsuid || 'flow'}:${messageId}`
+          });
+        } else sent = await provider.sendTextMessage({ ...common, text: output.text });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
 
@@ -1069,6 +1105,7 @@ module.exports = {
   buildMultiChoiceSubmitText,
   buildMultiChoiceOutputs,
   buildDiseaseChoicePrompt,
+  buildDiseaseFlowOutput,
   parseDiseaseFreeTextSelection,
   callWithRetry,
   convertTypebotResponse,
