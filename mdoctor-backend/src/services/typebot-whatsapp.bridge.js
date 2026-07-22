@@ -522,6 +522,19 @@ function createTypebotWhatsAppBridge(deps = {}) {
         nextInputId,
         messageTypes: (typebot.messages || []).map((m) => m.type)
       });
+      // DIAGNÓSTICO TEMPORÁRIO (pedido: distinguir convertTypebotResponse x
+      // falha silenciosa no envio) — remover após confirmar a causa. Os
+      // rótulos de choice input (ex.: "Vamos começar") não são dado pessoal,
+      // só limitados em tamanho por segurança.
+      logger.info('typebot_bridge_input_diagnostic', {
+        messageId,
+        inputType: typebot.input?.type || null,
+        inputId: typebot.input?.id || null,
+        itemsCount: Array.isArray(typebot.input?.items) ? typebot.input.items.length : 0,
+        itemLabels: Array.isArray(typebot.input?.items)
+          ? typebot.input.items.map((i) => String(i?.content ?? i?.value ?? '').slice(0, 60))
+          : []
+      });
 
       const providerMessageIds = [];
       let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));
@@ -529,6 +542,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const linkAlreadySent = Boolean(uploadMeta.link_sent_at);
 
       let outputs = convertTypebotResponse(typebot);
+      // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+      logger.info('typebot_bridge_outputs_generated_diagnostic', {
+        messageId,
+        outputsCount: outputs.length,
+        outputKinds: outputs.map((o) => o.kind)
+      });
       if (uploadContext && responseLooksLikeUploadStage(typebot, nextInputId)) {
         outputs = stripUploadChoiceOutputs(outputs);
         const hasRetryHint = outputs.some((output) => /link abaixo|enviar foto da receita|não localizamos/i.test(String(output.text || '')));
@@ -563,6 +582,17 @@ function createTypebotWhatsAppBridge(deps = {}) {
         // sem repetir o nome do documento nem usar frase de instrução.
         else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: output.introText || '📄', displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
+        // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+        logger.info('typebot_bridge_output_send_diagnostic', {
+          messageId,
+          outputKind: output.kind,
+          sendFunction: output.kind === 'buttons' ? 'sendButtonMessage'
+            : output.kind === 'list' ? 'sendListMessage'
+              : output.kind === 'document' ? 'sendCtaUrlMessage'
+                : 'sendTextMessage',
+          sentWasNullOrUndefined: sent === null || sent === undefined,
+          providerMessageId: sent?.providerMessageId || null
+        });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
 
