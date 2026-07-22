@@ -162,30 +162,13 @@ async function findPendingUploadContext(phone, { whatsappSession = null } = {}) 
   return extractUploadSession(matches[0]);
 }
 
+/**
+ * Contexto de upload só via findPendingUploadContext (sessão válida + AWAITING,
+ * sem receita anexada). Sem fallback histórico amplo por listAtendimentos().
+ * Atendimento entregue/finalizado/antigo → null.
+ */
 async function findUploadContextForPhone(phone, { whatsappSession = null } = {}) {
-  const pending = await findPendingUploadContext(phone, { whatsappSession });
-  if (pending) return pending;
-  const rows = await listAtendimentos();
-  const withSession = rows.filter(
-    (row) => phonesMatch(row.paciente_telefone, phone) && extractUploadSession(row)
-  );
-  if (withSession.length === 0) return null;
-  if (withSession.length > 1) {
-    const awaiting = withSession.filter(
-      (row) => String(row.status || '').toLowerCase() === STATUS.AWAITING_PRESCRIPTION_UPLOAD
-    );
-    if (awaiting.length > 1) {
-      const err = new Error(
-        'Mais de um atendimento aguardando receita anterior para este telefone. Não é possível vincular a mídia automaticamente.'
-      );
-      err.code = 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO';
-      err.statusCode = 409;
-      err.atendimentoIds = awaiting.map((row) => row.id);
-      throw err;
-    }
-    if (awaiting.length === 1) return extractUploadSession(awaiting[0]);
-  }
-  return extractUploadSession(withSession[0]);
+  return findPendingUploadContext(phone, { whatsappSession });
 }
 
 function readProcessedIds(whatsappSession = {}) {
@@ -283,10 +266,12 @@ function outputsContainUrl(outputs = [], url = '') {
   return outputs.some((output) => output.kind === 'text' && String(output.text || '').includes(target));
 }
 
+/**
+ * Somente IDs estruturais oficiais de upload.
+ * Textos de LGPD (“receita digital”, PDFs https) NÃO acionam estágio de upload.
+ */
 function responseLooksLikeUploadStage(typebot = {}, expectedInputId = null) {
-  if (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(typebot.input?.id)) return true;
-  const blob = JSON.stringify(typebot.messages || []);
-  return /receita|upload|enviar foto|aguardando envio/i.test(blob);
+  return isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(typebot.input?.id);
 }
 
 function augmentOutputsWithUploadLink(outputs = [], uploadContext = null) {
