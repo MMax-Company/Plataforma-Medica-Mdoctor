@@ -243,19 +243,22 @@ function normalizeMedications(payload = {}, maxItems = 3) {
     {
       text: payload.segundo_medicamento,
       overrides: {
-        name: payload.med2_nome,
-        dose: payload.med2_dose,
-        frequency: payload.med2_frequencia,
-        route: payload.med2_via
+        // medication_2_* é o nome de campo que o node do n8n (typebot-webhook-staging)
+        // usa ao encaminhar typebot_context — precisa do mesmo fallback duplo do
+        // primeiro medicamento, senão o item 2 é descartado (não reaproveitado).
+        name: payload.med2_nome || payload.medication_2_name,
+        dose: payload.med2_dose || payload.medication_2_dose,
+        frequency: payload.med2_frequencia || payload.medication_2_frequency,
+        route: payload.med2_via || payload.medication_2_route
       }
     },
     {
       text: payload.terceiro_medicamento,
       overrides: {
-        name: payload.med3_nome,
-        dose: payload.med3_dose,
-        frequency: payload.med3_frequencia,
-        route: payload.med3_via
+        name: payload.med3_nome || payload.medication_3_name,
+        dose: payload.med3_dose || payload.medication_3_dose,
+        frequency: payload.med3_frequencia || payload.medication_3_frequency,
+        route: payload.med3_via || payload.medication_3_route
       }
     }
   ];
