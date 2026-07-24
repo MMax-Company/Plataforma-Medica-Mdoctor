@@ -1,0 +1,156 @@
+{
+  "fixed": [
+    "2) Texto de \"Não possuo\" (blk_inel_txt, grupo grp_inelegivel_presencial) substituído pela mensagem oficial de 4 parágrafos. Grupo confirmado terminal (não cria atendimento, não cria Checkout, não encaminha para medicamentos/upload)."
+  ],
+  "notes": [
+    "1) Pergunta e opções já estavam exatamente conforme o pedido (ordem, labels, values, avanço em um único toque, sem idade da receita, sem upload) — nenhuma alteração feita, apenas confirmado por assertion.",
+    "3) Mensagem de \"Enviar depois\" já idêntica à oficial (3 parágrafos) — nenhuma alteração feita, apenas confirmado por assertion. Grupo terminal: não cria atendimento definitivo nem Checkout. Preservação de sessão/consentimentos/dados e retomada sem reiniciar a triagem dependem do Backend (fora do escopo desta correção, que é somente Typebot) — já implementado em sessão anterior (rec_enviar_depois -> grp_receita_enviar_depois sem novo bloco/gate)."
+  ],
+  "idsConfirmados": {
+    "grp_receita_anterior": {
+      "grupo": "grp_receita_anterior",
+      "blocoMensagem": "blk_receita_txt",
+      "blocoOpcoes": "blk_receita_choice",
+      "variavel": {
+        "id": "var_p62z9hhk",
+        "name": "has_previous_prescription"
+      },
+      "itens": [
+        {
+          "id": "rec_sim",
+          "content": "Sim, possuo",
+          "value": "available",
+          "outgoingEdgeId": "edge_rec_sim"
+        },
+        {
+          "id": "rec_nao",
+          "content": "Não possuo",
+          "value": "none",
+          "outgoingEdgeId": "edge_rec_nao"
+        },
+        {
+          "id": "rec_enviar_depois",
+          "content": "Enviar depois",
+          "value": "send_later",
+          "outgoingEdgeId": "edge_rec_enviar_depois"
+        }
+      ]
+    },
+    "roteamento": {
+      "edge_rec_sim": {
+        "groupId": "huh6fmizvv701t9u7hc2mult"
+      },
+      "edge_rec_nao": {
+        "groupId": "grp_inelegivel_presencial"
+      },
+      "edge_rec_enviar_depois": {
+        "groupId": "grp_receita_enviar_depois"
+      }
+    },
+    "grp_inelegivel_presencial": {
+      "grupo": "grp_inelegivel_presencial",
+      "blocoMensagem": "blk_inel_txt",
+      "textoAntes": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação.",
+      "textoDepois": "A receita médica anterior é necessária para esta modalidade de atendimento.\nSem esse documento, não será possível continuar.\nRecomendamos avaliação presencial ou contato com o profissional que acompanha seu tratamento.\nNenhuma cobrança foi realizada."
+    },
+    "grp_receita_enviar_depois": {
+      "grupo": "grp_receita_enviar_depois",
+      "blocoMensagem": "blk_rx_enviar_depois_txt",
+      "texto": "Sua solicitação foi salva e está aguardando a receita médica anterior.\nNenhum pagamento será solicitado neste momento.\nQuando estiver com o documento, retome o atendimento pelo mesmo WhatsApp."
+    }
+  },
+  "assertions": [
+    {
+      "name": "1) mensagem oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) 3 opções, na ordem oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) labels oficiais",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) values oficiais",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) todas as opções avançam com um único toque (outgoingEdgeId próprio)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) variável correta (has_previous_prescription)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) sem pergunta de idade da receita neste grupo (apenas 2 blocos no grupo)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) sem bloco de upload/mídia neste grupo",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "roteamento: available -> Quantidade de medicamentos",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "roteamento: none -> grp_inelegivel_presencial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "roteamento: send_later -> grp_receita_enviar_depois",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) texto atual diverge do oficial (pré-condição)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) mensagem oficial aplicada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) grupo é terminal (nenhuma edge sai dele) — encerra controladamente, sem medicamentos/upload/Checkout/atendimento",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) mensagem já idêntica à oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) grupo é terminal (nenhuma edge sai dele) — encerra temporariamente, sem atendimento/Checkout",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}
