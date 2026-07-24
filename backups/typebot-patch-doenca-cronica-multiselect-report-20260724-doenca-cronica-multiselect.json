@@ -1,0 +1,61 @@
+{
+  "fixed": [
+    "hda2dcvh33856qga899drcfi: texto da pergunta reescrito com lista numerada (1-4) e instrução de resposta por números separados por vírgula, igual ao print de referência.",
+    "b156nm008xh7gb52n7w3egzn: convertido de choice input (isMultipleChoice, sem suporte real no WhatsApp) para text input — mesma variável (icaxqctv4r7b4du941d9qs46) e mesma edge de saída (edge_condicoes_to_route_check). Múltipla seleção agora funciona de fato: o paciente digita os números, o Backend valida e converte para os mesmos códigos (has,dm,dlp,hipotireoidismo) que blk_resumo_set_condicoes já espera."
+  ],
+  "notes": [],
+  "assertions": [
+    {
+      "name": "pré-condição: bloco ainda é choice input com isMultipleChoice:true",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: variableId correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: outgoingEdgeId correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: 4 itens nas ordens/valores esperados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: bloco agora é text input",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: variableId preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: outgoingEdgeId preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: texto contém as 4 condições numeradas e a instrução",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}

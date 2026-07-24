@@ -6,8 +6,42 @@ const CLINICAL_INPUTS = Object.freeze({
   blk_k8s4myef: { field: 'medicationName', question: 'Informe o nome do medicamento.' },
   blk_n5x21i7c: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
   blk_e3e58xjk: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
-  blk_g0v3kz80: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' }
+  blk_g0v3kz80: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
+  b156nm008xh7gb52n7w3egzn: { field: 'chronicConditions', question: 'Digite os números correspondentes separados por vírgula (ex.: 1, 3).' }
 });
+
+// Mapa fixo número -> código de condição, na mesma ordem/numeração exibida
+// no texto da pergunta (grupo "Doença Cronica"). Os códigos são os mesmos
+// já usados em toda a base (map em blk_resumo_set_condicoes e nas
+// eligibility rules) — só a forma de coleta muda (texto livre com números
+// em vez de choice input, já que o WhatsApp não tem seleção múltipla
+// nativa em botões/lista).
+const CHRONIC_CONDITION_BY_NUMBER = {
+  1: 'has',
+  2: 'dm',
+  3: 'dlp',
+  4: 'hipotireoidismo'
+};
+
+function validateChronicConditions(value) {
+  const raw = compactWhitespace(value);
+  if (!raw) {
+    return { valid: false, error: 'Informe pelo menos um número válido entre 1 e 4, separados por vírgula (ex.: 1, 3).' };
+  }
+  const numbers = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  const codes = [];
+  for (const token of numbers) {
+    if (!/^[1-4]$/.test(token)) {
+      return { valid: false, error: `"${token}" não é uma opção válida. Use apenas números de 1 a 4, separados por vírgula (ex.: 1, 3).` };
+    }
+    const code = CHRONIC_CONDITION_BY_NUMBER[Number(token)];
+    if (!codes.includes(code)) codes.push(code);
+  }
+  if (!codes.length) {
+    return { valid: false, error: 'Informe pelo menos um número válido entre 1 e 4, separados por vírgula (ex.: 1, 3).' };
+  }
+  return { valid: true, value: codes.join(',') };
+}
 
 const INVALID_VALUE_PATTERNS = [
   /^__probe__$/i,
@@ -250,7 +284,8 @@ function validateStructuredAddress(value, cepValue) {
 
 const VALIDATORS = {
   medicationName: validateMedicationName,
-  medicationDose: validateMedicationDose
+  medicationDose: validateMedicationDose,
+  chronicConditions: validateChronicConditions
 };
 
 function validateClinicalInput(inputId, value, options = {}) {
