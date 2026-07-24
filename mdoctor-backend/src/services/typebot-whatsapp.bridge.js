@@ -119,12 +119,17 @@ function docButtonLabel(label) {
   return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
 }
 
-// Restrito à pergunta de autorização LGPD, à de ciência da telemedicina, à
-// de confirmação dos dados (resumo) e à de declaração de elegibilidade —
-// única exceção onde a pergunta e os botões formam uma única mensagem
-// (corpo = a própria pergunta, sem "Escolha uma opção:"). Nenhum outro
-// choice input do bot é afetado por este conjunto.
-const QUESTION_MERGE_INPUT_IDS = new Set(['ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice', 'plhspmybxbhylbfbsvqyhlmj', 'w9v6g0rlkucnfmxc3qh2a2qt']);
+// Restrito aos choice inputs listados abaixo — LGPD, ciência da
+// telemedicina, confirmação de dados, declaração de elegibilidade, tempo
+// de uso, receita anterior, quantidade de medicamentos, frequência e via
+// de administração do 1º medicamento — única exceção onde a pergunta e os
+// botões formam uma única mensagem (corpo = a própria pergunta, sem
+// "Escolha uma opção:"). Nenhum outro choice input do bot é afetado por
+// este conjunto.
+const QUESTION_MERGE_INPUT_IDS = new Set([
+  'ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice', 'plhspmybxbhylbfbsvqyhlmj', 'w9v6g0rlkucnfmxc3qh2a2qt',
+  'r0imrcgaiv1idzkykt891q4u', 'blk_receita_choice', 'w97ho902ina4lg7b6dn0sycw', 'blk_yyroio7i', 'blk_nggi0xs0'
+]);
 
 function richTextContainsLink(nodes = []) {
   for (const item of nodes || []) {
@@ -219,12 +224,10 @@ function convertTypebotResponse(response = {}) {
         value: fullLabel
       };
     });
-    // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS
-    // (autorização de LGPD, ciência da telemedicina, confirmação de dados e
-    // declaração de elegibilidade): a pergunta chegava como mensagem de
-    // texto separada, seguida de uma segunda mensagem com corpo genérico
-    // "Escolha uma opção:" — vira uma única mensagem de botões com a
-    // pergunta como corpo. Nenhum outro
+    // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS: a
+    // pergunta chegava como mensagem de texto separada, seguida de uma
+    // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
+    // única mensagem de botões com a pergunta como corpo. Nenhum outro
     // choice input do bot é afetado.
     let body = 'Escolha uma opção:';
     if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
