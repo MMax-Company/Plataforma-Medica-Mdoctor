@@ -77,7 +77,7 @@
         "sent": "Ciente e continuar",
         "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
         "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
-        "tries": 2
+        "tries": 3
       },
       {
         "label": "elegibilidade_para_dados_pessoais",
@@ -129,11 +129,11 @@
       },
       {
         "label": "cep_localizado_pede_so_numero_complemento",
-        "ok": false,
+        "ok": true,
         "sent": "01310-100",
         "expectedAntes": "blk_endereco_numero_complemento",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_endereco_numero_complemento",
+        "tries": 2
       }
     ],
     "phone": "5511900020001"
@@ -355,7 +355,7 @@
         "sent": "Ciente e continuar",
         "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
         "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
-        "tries": 3
+        "tries": 2
       },
       {
         "label": "elegibilidade_para_dados_pessoais",
@@ -371,7 +371,7 @@
         "sent": "Paciente Teste Cep3 Completo",
         "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
         "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
-        "tries": 2
+        "tries": 3
       },
       {
         "label": "nascimento",
@@ -415,11 +415,11 @@
       },
       {
         "label": "apos_erro_cep_valido_avanca_normalmente",
-        "ok": false,
+        "ok": true,
         "sent": "01310100",
         "expectedAntes": "blk_endereco_numero_complemento",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_endereco_numero_complemento",
+        "tries": 2
       }
     ],
     "phone": "5511900020003"
@@ -559,119 +559,121 @@
       },
       {
         "label": "cep_localizado",
-        "ok": false,
+        "ok": true,
         "sent": "01310100",
         "expectedAntes": "blk_endereco_numero_complemento",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_endereco_numero_complemento",
+        "tries": 2
       },
       {
         "label": "numero_complemento_para_receita_anterior",
-        "ok": false,
+        "ok": true,
         "sent": "500",
         "expectedAntes": "blk_receita_choice",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_receita_choice",
+        "tries": 2
       },
       {
         "label": "receita_anterior_para_qtd_medicamentos",
-        "ok": false,
+        "ok": true,
         "sent": "Sim, possuo",
         "expectedAntes": "w97ho902ina4lg7b6dn0sycw",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "w97ho902ina4lg7b6dn0sycw",
+        "tries": 2
       },
       {
         "label": "qtd_medicamentos_1",
-        "ok": false,
+        "ok": true,
         "sent": "1",
         "expectedAntes": "blk_xp763m78",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_xp763m78",
+        "tries": 2
       },
       {
         "label": "med1_nome",
-        "ok": false,
+        "ok": true,
         "sent": "Losartana",
         "expectedAntes": "blk_n5x21i7c",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_n5x21i7c",
+        "tries": 2
       },
       {
         "label": "med1_dose",
-        "ok": false,
+        "ok": true,
         "sent": "50 mg",
         "expectedAntes": "blk_yyroio7i",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_yyroio7i",
+        "tries": 2
       },
       {
         "label": "med1_freq",
-        "ok": false,
+        "ok": true,
         "sent": "Uma vez ao dia",
         "expectedAntes": "blk_nggi0xs0",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_nggi0xs0",
+        "tries": 2
       },
       {
         "label": "med1_via_para_resumo",
-        "ok": false,
+        "ok": true,
         "sent": "Via oral",
         "expectedAntes": "plhspmybxbhylbfbsvqyhlmj",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "plhspmybxbhylbfbsvqyhlmj",
+        "tries": 2
       },
       {
         "label": "quero_corrigir_abre_menu",
-        "ok": false,
+        "ok": true,
         "sent": "Quero corrigir",
         "expectedAntes": "blk_correcao_menu_choice",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_correcao_menu_choice",
+        "tries": 2
       },
       {
         "label": "menu_correcao_endereco_volta_para_cep",
-        "ok": false,
+        "ok": true,
         "sent": "Endereço",
         "expectedAntes": "blk_0oydu2f7",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 2
       },
       {
         "label": "cep_localizado_na_correcao",
-        "ok": false,
+        "ok": true,
         "sent": "01310100",
         "expectedAntes": "blk_endereco_numero_complemento",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "blk_endereco_numero_complemento",
+        "tries": 2
       },
       {
         "label": "numero_complemento_correcao_volta_direto_ao_resumo__SEM_REINICIAR",
-        "ok": false,
+        "ok": true,
         "sent": "900, apto 12",
         "expectedAntes": "plhspmybxbhylbfbsvqyhlmj",
-        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
-        "tries": 8
+        "expectedDepois": "plhspmybxbhylbfbsvqyhlmj",
+        "tries": 2
       }
     ],
     "phone": "5511900020006",
     "beforeCorrection": {
-      "id": "571af490-3a56-4fde-bf26-301ae9d9a230",
+      "id": "b4028808-1102-4546-9036-337b75fb729c",
       "phone": "5511900020006",
-      "typebot_session_id": "l23e6v621mdxureys412efrm",
+      "typebot_session_id": "a8slo4gw4n7rqi2y4qdqo0b5",
       "metadata": {
-        "last_inbound_message_id": "wamid.cepend.5511900020006.1784880400602.24",
-        "typebot_expected_input_id": "q78qjnk6ticwkeifl7xe2rju"
+        "cep_lookup": null,
+        "last_inbound_message_id": "wamid.cepend.5511900020006.1784883102149.24",
+        "typebot_expected_input_id": "plhspmybxbhylbfbsvqyhlmj"
       },
       "status": "active"
     },
     "afterCorrection": {
-      "id": "571af490-3a56-4fde-bf26-301ae9d9a230",
+      "id": "b4028808-1102-4546-9036-337b75fb729c",
       "phone": "5511900020006",
-      "typebot_session_id": "l23e6v621mdxureys412efrm",
+      "typebot_session_id": "a8slo4gw4n7rqi2y4qdqo0b5",
       "metadata": {
-        "last_inbound_message_id": "wamid.cepend.5511900020006.1784880492696.28",
-        "typebot_expected_input_id": "q78qjnk6ticwkeifl7xe2rju"
+        "cep_lookup": null,
+        "last_inbound_message_id": "wamid.cepend.5511900020006.1784883115116.28",
+        "typebot_expected_input_id": "plhspmybxbhylbfbsvqyhlmj"
       },
       "status": "active"
     }
