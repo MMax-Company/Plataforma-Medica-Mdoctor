@@ -8,18 +8,25 @@ function emptyResult(cep) {
   return { logradouro: '', bairro: '', cidade: '', estado: '', cep, encontrado: false };
 }
 
-router.get('/:cep', async (req, res) => {
+router.post('/', async (req, res) => {
+  req.params = { cep: (req.body && req.body.cep) || '' };
+  return lookupHandler(req, res);
+});
+
+router.get('/:cep', lookupHandler);
+
+async function lookupHandler(req, res) {
   const cep = String(req.params.cep || '').replace(/\D/g, '');
 
   if (cep.length !== 8) {
     return res.json(emptyResult(cep));
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), VIACEP_TIMEOUT_MS);
-
   try {
-    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`, { signal: controller.signal });
+    const response = await Promise.race([
+      fetch(`https://viacep.com.br/ws/${cep}/json/`),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('cep_lookup_timeout')), VIACEP_TIMEOUT_MS))
+    ]);
     if (!response.ok) return res.json(emptyResult(cep));
 
     const data = await response.json();
@@ -34,10 +41,9 @@ router.get('/:cep', async (req, res) => {
       encontrado: true
     });
   } catch (error) {
+    console.error('cep_lookup_error', error.message, error.cause);
     return res.json(emptyResult(cep));
-  } finally {
-    clearTimeout(timeout);
   }
-});
+}
 
 module.exports = router;
