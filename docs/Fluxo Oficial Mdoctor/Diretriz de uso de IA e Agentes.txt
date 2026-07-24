@@ -1,0 +1,31 @@
+DIRETRIZ DE USO DE IA E AGENTES — DOCTOR PRESCREVE
+
+Tipo: Diretriz operacional permanente
+Data da primeira regra: 24/07/2026
+Aprovador responsável: Dr. Max Vinicius Ferreira Matos
+
+======================================================================
+1. EXECUÇÃO DE TESTES E PROCESSOS LONGOS
+======================================================================
+
+Aplica-se a qualquer agente que execute testes E2E, scripts de
+verificação ou processos de longa duração neste projeto.
+
+1. Dividir os testes E2E em cenários independentes, com duração máxima
+   prevista de 90 segundos por comando.
+2. Aplicar timeout próprio em cada chamada externa, incluindo WhatsApp,
+   Typebot, Backend, banco de dados e webhooks.
+3. Se um comando for transferido para segundo plano:
+   - registrar o novo ID do processo;
+   - acompanhar automaticamente o mesmo processo até terminar;
+   - não reiniciar o teste;
+   - não pedir autorização para continuar;
+   - não encerrar a tarefa ao atingir o limite de 120 segundos.
+4. Em caso de travamento real:
+   - identificar a última etapa concluída;
+   - encerrar somente o processo travado;
+   - informar a causa exata;
+   - continuar separadamente os cenários restantes.
+5. Não repetir toda a suíte quando apenas um cenário falhar.
+6. Ao finalizar, apresentar o resultado individual de cada teste, com
+   evidências e falhas.
