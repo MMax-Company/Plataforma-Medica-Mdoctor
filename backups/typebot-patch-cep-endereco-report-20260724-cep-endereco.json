@@ -1,0 +1,117 @@
+{
+  "fixed": [
+    "Grupo \"Dados Pessoais\" (od03hfeq73l5xvs0lj9xrox3): CEP passa por normalização (remove não-dígitos), validação (exatamente 8 números, com mensagem de erro e retorno somente à pergunta do CEP em caso de falha), consulta ao novo endpoint do Backend (GET /api/cep/:cep) e ramificação: localizado -> pede só número/complemento e monta Endereco completo; não localizado -> pede endereço completo em texto livre (reaproveitando o bloco existente q78qjnk6ticwkeifl7xe2rju, sem pedir o CEP de novo). Ambos os caminhos convergem para a mesma rota de retorno (grp_dados_route_end) já existente."
+  ],
+  "notes": [
+    "Item 5 (correção posterior do endereço) e item 6 (resumo exibindo CEP/Endereço) já estavam corretos na publicação atual — nenhuma alteração foi necessária, apenas confirmados por assertion."
+  ],
+  "assertions": [
+    {
+      "name": "pré-condição: bloco CEP existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: bloco endereço antigo existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: input endereço existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: nenhuma edge aponta para blk_pergunta_endereco",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: correção de endereço já pula para blk_pergunta_cep (nenhuma alteração necessária no item 5)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: resumo já exibe CEP e Endereço (nenhuma alteração necessária no item 6)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "variáveis novas registradas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco CEP: variável correta (var_9lceldd5)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco CEP: placeholder correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco endereço manual: variável correta (Endereco)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco endereço manual: edge de saída preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "ordem: pergunta CEP antes do input CEP",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "ordem: pergunta endereço antiga logo após input CEP",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco antigo removido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "ordem final: manual_msg imediatamente antes do input de endereço (sequencial)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "7 novas edges registradas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    },
+    {
+      "name": "V. edge_dados_to_route_check preservada (caminho manual)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. edge_corr_to_endereco_jump preservada (correção -> pergunta CEP)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. rota de retorno única para ambos os caminhos (grp_dados_route_end)",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

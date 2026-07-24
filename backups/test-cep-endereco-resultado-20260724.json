@@ -1,0 +1,679 @@
+[
+  {
+    "name": "teste1_cep_localizado",
+    "ok": false,
+    "steps": [
+      {
+        "label": "inicio",
+        "ok": false
+      },
+      {
+        "label": "menu_para_bemvindo",
+        "ok": true,
+        "sent": "1",
+        "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+        "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+        "tries": 2
+      },
+      {
+        "label": "bemvindo_para_lgpd",
+        "ok": true,
+        "sent": "Vamos começar",
+        "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+        "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+        "tries": 2
+      },
+      {
+        "label": "lgpd_para_nome_social",
+        "ok": true,
+        "sent": "Autorizo",
+        "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+        "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+        "tries": 2
+      },
+      {
+        "label": "nome_social_para_condicoes",
+        "ok": true,
+        "sent": "Paciente Teste Cep1",
+        "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+        "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+        "tries": 2
+      },
+      {
+        "label": "condicoes_para_tempo_uso",
+        "ok": true,
+        "sent": "Hipertensão Arterial",
+        "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+        "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+        "tries": 2
+      },
+      {
+        "label": "tempo_uso_para_sinais_alerta",
+        "ok": true,
+        "sent": "Mais de 6 meses",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 2
+      },
+      {
+        "label": "sinais_alerta_seleciona_nenhum",
+        "ok": true,
+        "sent": "Nenhum desses sinais ou sintomas",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 1
+      },
+      {
+        "label": "sinais_alerta_confirma_para_telemedicina",
+        "ok": true,
+        "sent": "Confirmo",
+        "expectedAntes": "blk_tele_choice",
+        "expectedDepois": "blk_tele_choice",
+        "tries": 2
+      },
+      {
+        "label": "telemedicina_para_elegibilidade",
+        "ok": true,
+        "sent": "Ciente e continuar",
+        "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "tries": 2
+      },
+      {
+        "label": "elegibilidade_para_dados_pessoais",
+        "ok": true,
+        "sent": "Sim",
+        "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+        "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+        "tries": 2
+      },
+      {
+        "label": "nome_completo",
+        "ok": true,
+        "sent": "Paciente Teste Cep1 Completo",
+        "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+        "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+        "tries": 2
+      },
+      {
+        "label": "nascimento",
+        "ok": true,
+        "sent": "10/05/1990",
+        "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+        "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+        "tries": 2
+      },
+      {
+        "label": "cpf",
+        "ok": true,
+        "sent": "52998224725",
+        "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+        "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+        "tries": 2
+      },
+      {
+        "label": "whatsapp",
+        "ok": true,
+        "sent": "5511900020001",
+        "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+        "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+        "tries": 2
+      },
+      {
+        "label": "email_para_cep",
+        "ok": true,
+        "sent": "teste.cep1@example.com",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 2
+      },
+      {
+        "label": "cep_localizado_pede_so_numero_complemento",
+        "ok": false,
+        "sent": "01310-100",
+        "expectedAntes": "blk_endereco_numero_complemento",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      }
+    ],
+    "phone": "5511900020001"
+  },
+  {
+    "name": "teste2_cep_nao_localizado",
+    "ok": false,
+    "steps": [
+      {
+        "label": "inicio",
+        "ok": false
+      },
+      {
+        "label": "menu_para_bemvindo",
+        "ok": true,
+        "sent": "1",
+        "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+        "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+        "tries": 2
+      },
+      {
+        "label": "bemvindo_para_lgpd",
+        "ok": true,
+        "sent": "Vamos começar",
+        "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+        "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+        "tries": 2
+      },
+      {
+        "label": "lgpd_para_nome_social",
+        "ok": true,
+        "sent": "Autorizo",
+        "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+        "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+        "tries": 2
+      },
+      {
+        "label": "nome_social_para_condicoes",
+        "ok": true,
+        "sent": "Paciente Teste Cep2",
+        "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+        "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+        "tries": 2
+      },
+      {
+        "label": "condicoes_para_tempo_uso",
+        "ok": true,
+        "sent": "Hipertensão Arterial",
+        "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+        "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+        "tries": 2
+      },
+      {
+        "label": "tempo_uso_para_sinais_alerta",
+        "ok": true,
+        "sent": "Mais de 6 meses",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 2
+      },
+      {
+        "label": "sinais_alerta_seleciona_nenhum",
+        "ok": true,
+        "sent": "Nenhum desses sinais ou sintomas",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 1
+      },
+      {
+        "label": "sinais_alerta_confirma_para_telemedicina",
+        "ok": true,
+        "sent": "Confirmo",
+        "expectedAntes": "blk_tele_choice",
+        "expectedDepois": "blk_tele_choice",
+        "tries": 2
+      },
+      {
+        "label": "telemedicina_para_elegibilidade",
+        "ok": true,
+        "sent": "Ciente e continuar",
+        "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "tries": 2
+      },
+      {
+        "label": "elegibilidade_para_dados_pessoais",
+        "ok": true,
+        "sent": "Sim",
+        "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+        "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+        "tries": 2
+      },
+      {
+        "label": "nome_completo",
+        "ok": true,
+        "sent": "Paciente Teste Cep2 Completo",
+        "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+        "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+        "tries": 2
+      },
+      {
+        "label": "nascimento",
+        "ok": true,
+        "sent": "10/05/1990",
+        "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+        "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+        "tries": 2
+      },
+      {
+        "label": "cpf",
+        "ok": true,
+        "sent": "52998224725",
+        "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+        "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+        "tries": 2
+      },
+      {
+        "label": "whatsapp",
+        "ok": true,
+        "sent": "5511900020002",
+        "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+        "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+        "tries": 2
+      },
+      {
+        "label": "email_para_cep",
+        "ok": true,
+        "sent": "teste.cep2@example.com",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 2
+      },
+      {
+        "label": "cep_nao_localizado_pede_endereco_completo",
+        "ok": true,
+        "sent": "99999999",
+        "expectedAntes": "q78qjnk6ticwkeifl7xe2rju",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 2
+      }
+    ],
+    "phone": "5511900020002"
+  },
+  {
+    "name": "teste3_cep_invalido",
+    "ok": false,
+    "steps": [
+      {
+        "label": "inicio",
+        "ok": false
+      },
+      {
+        "label": "menu_para_bemvindo",
+        "ok": true,
+        "sent": "1",
+        "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+        "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+        "tries": 2
+      },
+      {
+        "label": "bemvindo_para_lgpd",
+        "ok": true,
+        "sent": "Vamos começar",
+        "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+        "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+        "tries": 2
+      },
+      {
+        "label": "lgpd_para_nome_social",
+        "ok": true,
+        "sent": "Autorizo",
+        "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+        "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+        "tries": 2
+      },
+      {
+        "label": "nome_social_para_condicoes",
+        "ok": true,
+        "sent": "Paciente Teste Cep3",
+        "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+        "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+        "tries": 2
+      },
+      {
+        "label": "condicoes_para_tempo_uso",
+        "ok": true,
+        "sent": "Hipertensão Arterial",
+        "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+        "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+        "tries": 2
+      },
+      {
+        "label": "tempo_uso_para_sinais_alerta",
+        "ok": true,
+        "sent": "Mais de 6 meses",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 2
+      },
+      {
+        "label": "sinais_alerta_seleciona_nenhum",
+        "ok": true,
+        "sent": "Nenhum desses sinais ou sintomas",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 1
+      },
+      {
+        "label": "sinais_alerta_confirma_para_telemedicina",
+        "ok": true,
+        "sent": "Confirmo",
+        "expectedAntes": "blk_tele_choice",
+        "expectedDepois": "blk_tele_choice",
+        "tries": 2
+      },
+      {
+        "label": "telemedicina_para_elegibilidade",
+        "ok": true,
+        "sent": "Ciente e continuar",
+        "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "tries": 3
+      },
+      {
+        "label": "elegibilidade_para_dados_pessoais",
+        "ok": true,
+        "sent": "Sim",
+        "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+        "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+        "tries": 2
+      },
+      {
+        "label": "nome_completo",
+        "ok": true,
+        "sent": "Paciente Teste Cep3 Completo",
+        "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+        "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+        "tries": 2
+      },
+      {
+        "label": "nascimento",
+        "ok": true,
+        "sent": "10/05/1990",
+        "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+        "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+        "tries": 2
+      },
+      {
+        "label": "cpf",
+        "ok": true,
+        "sent": "52998224725",
+        "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+        "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+        "tries": 2
+      },
+      {
+        "label": "whatsapp",
+        "ok": true,
+        "sent": "5511900020003",
+        "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+        "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+        "tries": 2
+      },
+      {
+        "label": "email_para_cep",
+        "ok": true,
+        "sent": "teste.cep3@example.com",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 2
+      },
+      {
+        "label": "cep_invalido_repete_pergunta",
+        "ok": true,
+        "sent": "123",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 1
+      },
+      {
+        "label": "apos_erro_cep_valido_avanca_normalmente",
+        "ok": false,
+        "sent": "01310100",
+        "expectedAntes": "blk_endereco_numero_complemento",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      }
+    ],
+    "phone": "5511900020003"
+  },
+  {
+    "name": "teste4_cep_unica_vez",
+    "ok": true,
+    "cepHits": 1
+  },
+  {
+    "name": "teste5e6_correcao_endereco",
+    "ok": false,
+    "steps": [
+      {
+        "label": "inicio",
+        "ok": false
+      },
+      {
+        "label": "menu_para_bemvindo",
+        "ok": true,
+        "sent": "1",
+        "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+        "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+        "tries": 2
+      },
+      {
+        "label": "bemvindo_para_lgpd",
+        "ok": true,
+        "sent": "Vamos começar",
+        "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+        "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+        "tries": 2
+      },
+      {
+        "label": "lgpd_para_nome_social",
+        "ok": true,
+        "sent": "Autorizo",
+        "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+        "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+        "tries": 2
+      },
+      {
+        "label": "nome_social_para_condicoes",
+        "ok": true,
+        "sent": "Paciente Teste Cep56",
+        "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+        "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+        "tries": 2
+      },
+      {
+        "label": "condicoes_para_tempo_uso",
+        "ok": true,
+        "sent": "Hipertensão Arterial",
+        "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+        "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+        "tries": 2
+      },
+      {
+        "label": "tempo_uso_para_sinais_alerta",
+        "ok": true,
+        "sent": "Mais de 6 meses",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 2
+      },
+      {
+        "label": "sinais_alerta_seleciona_nenhum",
+        "ok": true,
+        "sent": "Nenhum desses sinais ou sintomas",
+        "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+        "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+        "tries": 1
+      },
+      {
+        "label": "sinais_alerta_confirma_para_telemedicina",
+        "ok": true,
+        "sent": "Confirmo",
+        "expectedAntes": "blk_tele_choice",
+        "expectedDepois": "blk_tele_choice",
+        "tries": 2
+      },
+      {
+        "label": "telemedicina_para_elegibilidade",
+        "ok": true,
+        "sent": "Ciente e continuar",
+        "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+        "tries": 2
+      },
+      {
+        "label": "elegibilidade_para_dados_pessoais",
+        "ok": true,
+        "sent": "Sim",
+        "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+        "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+        "tries": 2
+      },
+      {
+        "label": "nome_completo",
+        "ok": true,
+        "sent": "Paciente Teste Cep56 Completo",
+        "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+        "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+        "tries": 2
+      },
+      {
+        "label": "nascimento",
+        "ok": true,
+        "sent": "10/05/1990",
+        "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+        "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+        "tries": 2
+      },
+      {
+        "label": "cpf",
+        "ok": true,
+        "sent": "52998224725",
+        "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+        "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+        "tries": 2
+      },
+      {
+        "label": "whatsapp",
+        "ok": true,
+        "sent": "5511900020006",
+        "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+        "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+        "tries": 2
+      },
+      {
+        "label": "email_para_cep",
+        "ok": true,
+        "sent": "teste.cep56@example.com",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "blk_0oydu2f7",
+        "tries": 2
+      },
+      {
+        "label": "cep_localizado",
+        "ok": false,
+        "sent": "01310100",
+        "expectedAntes": "blk_endereco_numero_complemento",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "numero_complemento_para_receita_anterior",
+        "ok": false,
+        "sent": "500",
+        "expectedAntes": "blk_receita_choice",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "receita_anterior_para_qtd_medicamentos",
+        "ok": false,
+        "sent": "Sim, possuo",
+        "expectedAntes": "w97ho902ina4lg7b6dn0sycw",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "qtd_medicamentos_1",
+        "ok": false,
+        "sent": "1",
+        "expectedAntes": "blk_xp763m78",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "med1_nome",
+        "ok": false,
+        "sent": "Losartana",
+        "expectedAntes": "blk_n5x21i7c",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "med1_dose",
+        "ok": false,
+        "sent": "50 mg",
+        "expectedAntes": "blk_yyroio7i",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "med1_freq",
+        "ok": false,
+        "sent": "Uma vez ao dia",
+        "expectedAntes": "blk_nggi0xs0",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "med1_via_para_resumo",
+        "ok": false,
+        "sent": "Via oral",
+        "expectedAntes": "plhspmybxbhylbfbsvqyhlmj",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "quero_corrigir_abre_menu",
+        "ok": false,
+        "sent": "Quero corrigir",
+        "expectedAntes": "blk_correcao_menu_choice",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "menu_correcao_endereco_volta_para_cep",
+        "ok": false,
+        "sent": "Endereço",
+        "expectedAntes": "blk_0oydu2f7",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "cep_localizado_na_correcao",
+        "ok": false,
+        "sent": "01310100",
+        "expectedAntes": "blk_endereco_numero_complemento",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      },
+      {
+        "label": "numero_complemento_correcao_volta_direto_ao_resumo__SEM_REINICIAR",
+        "ok": false,
+        "sent": "900, apto 12",
+        "expectedAntes": "plhspmybxbhylbfbsvqyhlmj",
+        "expectedDepois": "q78qjnk6ticwkeifl7xe2rju",
+        "tries": 8
+      }
+    ],
+    "phone": "5511900020006",
+    "beforeCorrection": {
+      "id": "571af490-3a56-4fde-bf26-301ae9d9a230",
+      "phone": "5511900020006",
+      "typebot_session_id": "l23e6v621mdxureys412efrm",
+      "metadata": {
+        "last_inbound_message_id": "wamid.cepend.5511900020006.1784880400602.24",
+        "typebot_expected_input_id": "q78qjnk6ticwkeifl7xe2rju"
+      },
+      "status": "active"
+    },
+    "afterCorrection": {
+      "id": "571af490-3a56-4fde-bf26-301ae9d9a230",
+      "phone": "5511900020006",
+      "typebot_session_id": "l23e6v621mdxureys412efrm",
+      "metadata": {
+        "last_inbound_message_id": "wamid.cepend.5511900020006.1784880492696.28",
+        "typebot_expected_input_id": "q78qjnk6ticwkeifl7xe2rju"
+      },
+      "status": "active"
+    }
+  }
+]
