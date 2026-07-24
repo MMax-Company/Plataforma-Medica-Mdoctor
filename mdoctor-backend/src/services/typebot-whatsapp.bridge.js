@@ -92,11 +92,16 @@ function typebotText(message = {}) {
 // (ex.: os 5 documentos jurídicos) vira um botão de URL (abre o link
 // externamente, sem baixar nada no WhatsApp e sem mostrar a URL), em vez de
 // texto simples.
+// Meta trunca display_text de botão cta_url em 20 unidades UTF-16 (ver
+// sendCtaUrlMessage em providers/meta.provider.js) — os 4 rótulos com
+// emoji pedidos (ex.: "📄 Consentimento LGPD" = 21) não cabem por inteiro;
+// abreviados ao mínimo para caber, mantendo o emoji e a palavra-chave.
+// Chaves = texto do link tal como está publicado hoje no Typebot.
 const DOC_BUTTON_LABELS = {
-  'Consentimento LGPD': 'Consentimento LGPD',
-  'Política de Privacidade': 'Política Privacidade',
-  'Consentimento para Telemedicina Assíncrona': 'Telemedicina',
-  'Aviso Importante — Não Urgência/Emergência': 'Não Urgência',
+  'Consentimento LGPD': '📄Consentimento LGPD',
+  'Política de Privacidade': '🔒 Pol. Privacidade',
+  'Consentimento de Telemedicina': '🩺 Telemedicina',
+  'Aviso de Não Urgência': '⚠️ Não Urgência',
   'Política e Termos de Uso': 'Termos de Uso'
 };
 
