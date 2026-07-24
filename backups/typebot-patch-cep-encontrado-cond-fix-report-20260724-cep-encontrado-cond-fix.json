@@ -1,0 +1,72 @@
+{
+  "fixed": [
+    "blk_cep_encontrado_cond (grupo Dados Pessoais): agora sempre roteia para blk_endereco_manual_msg -> q78qjnk6ticwkeifl7xe2rju (nova edge edge_cep_force_manual), independente do valor de var_cep_encontrado. Antes, sem nenhuma edge, o bloco caía sequencialmente na cadeia nativa \"encontrado\" (blk_endereco_numero_complemento) em 100% dos casos — o mesmo id que o bridge usa como marcador interno (CEP_NUMERO_COMPLEMENTO_SENTINEL), causando a corrupção de Endereco/cep confirmada no teste humano de hoje 12:49 (sessão ljbfx0egdglo96ec6u0ay3aq: var_endereco_numero_complemento recebeu o endereço inteiro formatado em vez de apenas número/complemento)."
+  ],
+  "notes": [
+    "blk_endereco_localizado_msg, blk_endereco_numero_complemento e blk_endereco_montar_localizado (cadeia nativa \"encontrado\") ficam definitivamente inalcançáveis — mantidos no Typebot como blocos órfãos inofensivos (não removidos, para minimizar a alteração); o bridge já assumia e já trata 100% do caso \"CEP encontrado\" por fora (mensagem própria + construção do endereço), então nenhuma funcionalidade é perdida."
+  ],
+  "assertions": [
+    {
+      "name": "pré-condição: blk_cep_encontrado_cond não tem outgoingEdgeId próprio (causa raiz)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: item da comparação existe mas sem outgoingEdgeId (causa raiz)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: nenhuma edge parte de blk_cep_encontrado_cond hoje",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: blk_endereco_manual_msg e q78qjnk6ticwkeifl7xe2rju existem e seguem nessa ordem",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: q78qjnk6ticwkeifl7xe2rju ainda aponta para a rota de retorno correta",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: blk_cep_encontrado_cond aponta para a nova edge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: items da condição esvaziados (nunca mais \"casa\")",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: nova edge aponta para blk_endereco_manual_msg no grupo correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: rota final do endereço manual preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: rota de correção de endereço (menu) preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}
