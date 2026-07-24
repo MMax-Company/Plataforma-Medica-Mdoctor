@@ -3,6 +3,7 @@ const T = require('../db/tables');
 const { dbQuery } = require('../db/persistence');
 const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
+const { recordStripePaymentEvent, deletePaymentEvent } = require('../store/payments.store');
 const metaProvider = require('./providers/meta.provider');
 const {
   PAYMENT_AMOUNT_CENTS,
@@ -18,6 +19,15 @@ const {
 
 const TOKEN_TTL_MS = Number(process.env.TYPEBOT_PAYMENT_LINK_TTL_MS || 24 * 60 * 60 * 1000);
 const PAYMENT_SUCCESS_REPLY = 'Success';
+
+// Reentrega do MESMO event.id do Stripe (inclusive concorrente) precisa
+// falhar a reivindicação em payment_events, não travar o webhook.
+function isUniqueViolationError(error) {
+  const code = error?.cause?.code || error?.code;
+  if (code === '23505') return true;
+  const message = String(error?.cause?.message || error?.message || '');
+  return /duplicate key value violates unique constraint/i.test(message);
+}
 
 function generateToken() {
   return crypto.randomBytes(32).toString('base64url');
@@ -451,13 +461,47 @@ async function applyCheckoutWebhook(event, deps = {}) {
     return { ok: false, code: 'NOT_PAID' };
   }
 
+  // Idempotência da retomada por reentrega do MESMO evento Stripe (mesma
+  // proteção do canal painel/Memed: payment_events.provider_event_id, índice
+  // único parcial — supabase/migrations/20260602_fechamento_stripe_payments_
+  // idempotency.sql). Reivindica o event.id ANTES de marcar o pagamento: a
+  // reivindicação em si é atômica no banco (constraint única), então mesmo
+  // duas entregas concorrentes só deixam uma passar, sem depender de timing.
+  const recordEvent = deps.recordStripePaymentEvent || recordStripePaymentEvent;
+  let claim;
+  try {
+    claim = await recordEvent({
+      appointmentId: null,
+      patientId: null,
+      providerEventId: event.id,
+      eventType: event.type,
+      amountCents: object.amount_total || null,
+      currency: String(object.currency || 'brl').toUpperCase(),
+      payload: { channel: 'whatsapp', checkout_session_id: object.id, payment_token: token, phone: session.phone || null }
+    });
+  } catch (error) {
+    if (!isUniqueViolationError(error)) throw error;
+    claim = { duplicate: true };
+  }
+  if (claim.duplicate) {
+    return { ok: true, alreadyPaid: true, token: payment.token, session };
+  }
+
   const markStatus = deps.markPaymentStatus || markPaymentStatus;
-  await markStatus(session, 'paid', {
-    status: 'completed',
-    paid_at: new Date().toISOString(),
-    checkout_session_id: object.id,
-    stripe_event_id: event.id
-  });
+  try {
+    await markStatus(session, 'paid', {
+      status: 'completed',
+      paid_at: new Date().toISOString(),
+      checkout_session_id: object.id,
+      stripe_event_id: event.id
+    });
+  } catch (error) {
+    // Falha antes da retomada: desfaz a reivindicação para permitir nova
+    // tentativa segura na próxima reentrega do mesmo evento.
+    const revertClaim = deps.deletePaymentEvent || deletePaymentEvent;
+    await revertClaim(claim.paymentEvent?.id, claim.payment?.id).catch(() => {});
+    throw error;
+  }
   return { ok: true, token: payment.token, session, justPaid: true };
 }
 

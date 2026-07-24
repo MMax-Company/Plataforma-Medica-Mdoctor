@@ -65,7 +65,8 @@ async function main() {
     const marked = [];
     const result = await applyCheckoutWebhook(stripeCheckoutEvent(), {
       findSessionByPaymentToken: async () => session,
-      markPaymentStatus: async (s, status, extra) => { marked.push({ status, extra }); s.metadata.typebot_payment.payment_status = status; }
+      markPaymentStatus: async (s, status, extra) => { marked.push({ status, extra }); s.metadata.typebot_payment.payment_status = status; },
+      recordStripePaymentEvent: async () => ({ duplicate: false, payment: { id: 'fake-payment-1' }, paymentEvent: { id: 'fake-event-1' } })
     });
     assert.equal(result.ok, true);
     assert.equal(result.justPaid, true);
