@@ -93,6 +93,13 @@ function buildBody({ phone, doencas = 'hipertensao', receitaAnterior = 'sim' }) 
       tempo_uso: 'mais de 30 dias',
       receita_anterior: receitaAnterior,
       sinais_alerta: 'não'
+    },
+    typebot_context: {
+      lgpd_accepted: true,
+      privacy_policy_accepted: true,
+      telemedicine_consent_accepted: true,
+      non_urgency_notice_accepted: true,
+      terms_of_use_accepted: true
     }
   };
 }

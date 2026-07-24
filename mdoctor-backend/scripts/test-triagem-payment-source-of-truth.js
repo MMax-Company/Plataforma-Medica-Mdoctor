@@ -103,7 +103,14 @@ function buildBody({ phone, receitaAnterior = 'sim', paymentStatus }) {
       endereco: 'Rua Aurora, 965, Santa Efigenia, Sao Paulo, SP',
       cep: '01209003'
     },
-    triagem
+    triagem,
+    typebot_context: {
+      lgpd_accepted: true,
+      privacy_policy_accepted: true,
+      telemedicine_consent_accepted: true,
+      non_urgency_notice_accepted: true,
+      terms_of_use_accepted: true
+    }
   };
   // payment_status/pagamento_status/pagamento propositalmente AUSENTES do
   // payload do Typebot — exatamente o caso real observado hoje.

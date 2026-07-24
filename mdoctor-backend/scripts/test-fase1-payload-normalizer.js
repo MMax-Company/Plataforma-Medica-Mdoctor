@@ -27,7 +27,12 @@ const base = {
   sinais_alerta: 'NAO',
   eligibility_status: 'eligible',
   pagamento_status: 'paid',
-  primeiro_medicamento: 'metformina 850 tomo 2x ao dia'
+  primeiro_medicamento: 'metformina 850 tomo 2x ao dia',
+  lgpd_accepted: true,
+  privacy_policy_accepted: true,
+  telemedicine_consent_accepted: true,
+  non_urgency_notice_accepted: true,
+  terms_of_use_accepted: true
 };
 
 assert('birth 09/02/1988', normalizeBirthDate('09/02/1988') === '1988-02-09');

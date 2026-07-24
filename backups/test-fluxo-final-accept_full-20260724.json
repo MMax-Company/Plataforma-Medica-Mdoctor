@@ -1,0 +1,232 @@
+{
+  "name": "accept_full",
+  "ok": false,
+  "steps": [
+    {
+      "label": "inicio",
+      "ok": false
+    },
+    {
+      "label": "menu_para_bemvindo",
+      "ok": true,
+      "sent": "1",
+      "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+      "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+      "tries": 2
+    },
+    {
+      "label": "bemvindo_para_lgpd_caixa3",
+      "ok": true,
+      "sent": "Vamos começar",
+      "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+      "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+      "tries": 2
+    },
+    {
+      "label": "lgpd_autorizo_para_nome_social",
+      "ok": true,
+      "sent": "Autorizo",
+      "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+      "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+      "tries": 3
+    },
+    {
+      "label": "nome_social_para_condicoes",
+      "ok": true,
+      "sent": "Paciente Teste Fluxo1",
+      "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+      "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+      "tries": 2
+    },
+    {
+      "label": "condicoes_para_tempo_uso",
+      "ok": true,
+      "sent": "Hipertensão Arterial",
+      "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+      "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+      "tries": 2
+    },
+    {
+      "label": "tempo_uso_para_sinais_alerta",
+      "ok": true,
+      "sent": "Mais de 6 meses",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 2
+    },
+    {
+      "label": "sinais_alerta_seleciona_nenhum",
+      "ok": true,
+      "sent": "Nenhum desses sinais ou sintomas",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 1
+    },
+    {
+      "label": "sinais_alerta_confirma_para_telemedicina_caixa3",
+      "ok": true,
+      "sent": "Confirmo",
+      "expectedAntes": "blk_tele_choice",
+      "expectedDepois": "blk_tele_choice",
+      "tries": 1
+    },
+    {
+      "label": "telemedicina_ciente_para_elegibilidade",
+      "ok": true,
+      "sent": "Ciente e continuar",
+      "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+      "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+      "tries": 4
+    },
+    {
+      "label": "elegibilidade_para_dados_pessoais",
+      "ok": true,
+      "sent": "Sim",
+      "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+      "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+      "tries": 2
+    },
+    {
+      "label": "nome_completo",
+      "ok": true,
+      "sent": "Paciente Teste Fluxo1 Completo",
+      "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+      "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+      "tries": 2
+    },
+    {
+      "label": "nascimento",
+      "ok": true,
+      "sent": "10/05/1990",
+      "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+      "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+      "tries": 2
+    },
+    {
+      "label": "cpf",
+      "ok": true,
+      "sent": "52998224725",
+      "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+      "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+      "tries": 2
+    },
+    {
+      "label": "whatsapp",
+      "ok": true,
+      "sent": "5511900040001",
+      "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+      "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+      "tries": 2
+    },
+    {
+      "label": "email_para_cep",
+      "ok": true,
+      "sent": "teste.fluxo1@example.com",
+      "expectedAntes": "blk_0oydu2f7",
+      "expectedDepois": "blk_0oydu2f7",
+      "tries": 2
+    },
+    {
+      "label": "cep_localizado",
+      "ok": true,
+      "sent": "01310100",
+      "expectedAntes": "blk_endereco_numero_complemento",
+      "expectedDepois": "blk_endereco_numero_complemento",
+      "tries": 2
+    },
+    {
+      "label": "numero_complemento_para_receita_anterior",
+      "ok": true,
+      "sent": "321",
+      "expectedAntes": "blk_receita_choice",
+      "expectedDepois": "blk_receita_choice",
+      "tries": 2
+    },
+    {
+      "label": "receita_anterior_para_qtd_medicamentos",
+      "ok": true,
+      "sent": "Sim, possuo",
+      "expectedAntes": "w97ho902ina4lg7b6dn0sycw",
+      "expectedDepois": "w97ho902ina4lg7b6dn0sycw",
+      "tries": 2
+    },
+    {
+      "label": "qtd_medicamentos_1",
+      "ok": true,
+      "sent": "1",
+      "expectedAntes": "blk_xp763m78",
+      "expectedDepois": "blk_xp763m78",
+      "tries": 2
+    },
+    {
+      "label": "med1_nome",
+      "ok": true,
+      "sent": "Losartana",
+      "expectedAntes": "blk_n5x21i7c",
+      "expectedDepois": "blk_n5x21i7c",
+      "tries": 2
+    },
+    {
+      "label": "med1_dose",
+      "ok": true,
+      "sent": "50 mg",
+      "expectedAntes": "blk_yyroio7i",
+      "expectedDepois": "blk_yyroio7i",
+      "tries": 2
+    },
+    {
+      "label": "med1_freq",
+      "ok": true,
+      "sent": "Uma vez ao dia",
+      "expectedAntes": "blk_nggi0xs0",
+      "expectedDepois": "blk_nggi0xs0",
+      "tries": 2
+    },
+    {
+      "label": "med1_via_para_resumo",
+      "ok": true,
+      "sent": "Via oral",
+      "expectedAntes": "plhspmybxbhylbfbsvqyhlmj",
+      "expectedDepois": "plhspmybxbhylbfbsvqyhlmj",
+      "tries": 2
+    },
+    {
+      "label": "resumo_para_termos",
+      "ok": true,
+      "sent": "Sim, estão corretos",
+      "expectedAntes": "blk_terms_choice",
+      "expectedDepois": "blk_terms_choice",
+      "tries": 2
+    },
+    {
+      "label": "termos_aceito_para_pagamento",
+      "ok": true,
+      "sent": "Li e concordo",
+      "expectedAntes": "rapfykn1f1uno89ypqmwi43f",
+      "expectedDepois": "rapfykn1f1uno89ypqmwi43f",
+      "tries": 3
+    },
+    {
+      "label": "checkout_criado",
+      "ok": true
+    },
+    {
+      "label": "valor_correto",
+      "ok": true
+    }
+  ],
+  "phone": "5511900040001",
+  "payment": {
+    "token": "CepAvo5P9Zr1kUtpiJfciRrnP9dmsRHpkRVPMuHoEr8",
+    "status": "pending",
+    "intent_id": null,
+    "created_at": "2026-07-24T10:26:01.587Z",
+    "expires_at": "2026-07-25T10:26:01.587Z",
+    "amount_cents": 6990,
+    "amount_label": "R$ 69,90",
+    "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_a1RDTIN9n7hqmvMWv0ykUxHXga4smn1GcJ14CeItSebAEMTYF2qPPK1WC0#fidnandhYHdWcXxpYCc%2FJ2FgY2RwaXEnKSdpamZkaWAnPyd1cShHVycpJ2JwZGZkaGppYFNkd2xka3EnPydmamtxd2ppJyknZHVsTmB8Jz8ndW5acWB2cVowNFFGUkROT21uUDUwQ09va2lXQ0thX1BsX25AcWRiUG9ObzN2UkttaUddT1JRbHBHXUZiT0dvaTN3aj12U28wUjNofTZTPEN8N19HNjExMmRmVVJ0QkNPMTU1MUJyQjY0TG0nKSdjd2poVmB3c2B3Jz9xd3BgKSdnZGZuYndqcGthRmppancnPycmY2NjY2NjJyknaWR8anBxUXx1YCc%2FJ3Zsa2JpYFpscWBoJyknYGtkZ2lgVWlkZmBtamlhYHd2Jz9xd3BgeCUl",
+    "payment_status": "pending",
+    "typebot_session_id": "n3orsbvyj7jm42eg1arjkhhc",
+    "checkout_session_id": "cs_test_a1RDTIN9n7hqmvMWv0ykUxHXga4smn1GcJ14CeItSebAEMTYF2qPPK1WC0"
+  }
+}

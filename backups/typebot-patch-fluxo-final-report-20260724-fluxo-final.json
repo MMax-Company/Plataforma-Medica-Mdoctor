@@ -1,0 +1,235 @@
+{
+  "fixed": [
+    "1) LGPD: dividido em 3 caixas reais (doc1, doc2, pergunta+escolha); values do choice corrigidos de sim/nao para true/false (alinhado à convenção do resto do bot); URLs atuais preservadas.",
+    "1b) Recusa LGPD (grupo jnbvtyzr1ffz4ff5n05a999k): removida imagem quebrada (S3 interno do Typebot) e texto com placeholders de variável de ambiente expostos ao paciente (\"SUPABASE_PUBLIC_LGPD_URL | ...\"); substituído pela mensagem oficial de encerramento (FLUXO OFICIAL PROVISÓRIO.txt, Etapa 3).",
+    "Registro LGPD (grp_lgpd_accept): adicionada lgpd_accepted_at ({{now}}), mesmo padrão já usado em accepted_terms_at — spec pede data/hora por conjunto de consentimento.",
+    "2) Telemedicina: dividido em 3 caixas reais (doc1, doc2, pergunta+escolha); values já estavam corretos (true/false); URLs atuais preservadas. Grupo de recusa (grp_telemedicina_decline) já estava adequado — não alterado.",
+    "Registro telemedicina (grp_telemedicina_accept): adicionada telemedicine_accepted_at ({{now}}), mesmo padrão de accepted_terms_at.",
+    "5+6) grp_foto_receita: blk_foto_txt corrigido para a mensagem oficial de confirmação de pagamento; nova blk_foto_formatos com a mensagem oficial de formatos aceitos (JPG, PNG ou PDF), preservando o input existente (blk_upload_check) e a edge de retry (edge_pending_resend_to_upload) que aponta para blk_foto_txt."
+  ],
+  "notes": [
+    "4) Termos de Uso: já preservava texto/documento/URL/nome do arquivo atuais e já registrava resposta, data/hora (accepted_terms_at) e URL — nenhuma alteração feita, conforme instrução de preservar provisoriamente."
+  ],
+  "idsConfirmados": {
+    "lgpd": {
+      "grupo": "b2l6ks9gkl95zebue3wri6tr",
+      "caixa1": {
+        "intro": "blk_lgpd_intro",
+        "link": "blk_lgpd_docs"
+      },
+      "caixa2": {
+        "intro": "blk_lgpd_doc2_intro (novo)",
+        "link": "blk_lgpd_doc2_link (novo)"
+      },
+      "caixa3": {
+        "pergunta": "blk_lgpd_question (novo)",
+        "choice": "ivbr3o1a7lv8izhfteuerhqx"
+      },
+      "variaveis": {
+        "lgpd_accepted": "var_gs0egl8m",
+        "privacy_policy_accepted": "var_qesjr9zn"
+      }
+    },
+    "lgpd_recusa": {
+      "grupo": "jnbvtyzr1ffz4ff5n05a999k",
+      "blocoMensagem": "skre2de1bnw4113hysub3fgj",
+      "removidos": [
+        "kfa5kfgqdvkvttzo6xn6o8n0 (imagem)",
+        "mzwt4y2kbvuhdz7d29dtrgp2 (texto redundante)"
+      ]
+    },
+    "telemedicina": {
+      "grupo": "grp_telemedicina_consent",
+      "caixa1": {
+        "intro": "blk_tele_intro",
+        "link": "blk_tele_docs"
+      },
+      "caixa2": {
+        "intro": "blk_tele_doc2_intro (novo)",
+        "link": "blk_tele_doc2_link (novo)"
+      },
+      "caixa3": {
+        "pergunta": "blk_tele_question (novo)",
+        "choice": "blk_tele_choice"
+      },
+      "variaveis": {
+        "telemedicine_consent_accepted": "var_678up7nr",
+        "non_urgency_notice_accepted": "var_es63vwzc"
+      }
+    },
+    "pagamento_upload": {
+      "grupo": "grp_foto_receita",
+      "mensagemConfirmacao": "blk_foto_txt",
+      "mensagemFormatos": "blk_foto_formatos (novo)"
+    }
+  },
+  "assertions": [
+    {
+      "name": "pré: 3 blocos antes (intro combinado, docs combinado, choice)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: URLs atuais preservadas (LGPD)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: values do choice LGPD eram sim/nao (divergente da convenção)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: 6 blocos (3 caixas: doc1 intro+link, doc2 intro+link, pergunta+choice)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: values true/false",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: URLs preservadas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: grupo de recusa tinha 3 blocos (imagem quebrada + 2 textos)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: conteúdo continha placeholders de env var (confirma o bug)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: grupo de recusa com 1 bloco de texto oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: sem placeholders de env var",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_lgpd_accept: bloco de links encontrado para inserir data/hora ao lado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_lgpd_accept: blk_set_lgpd_at inserido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: 3 blocos antes (intro combinado, docs combinado, choice)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: values já true/false (nenhuma alteração necessária aqui)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: URLs atuais preservadas (telemedicina)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: 6 blocos (3 caixas)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: URLs preservadas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_telemedicina_accept: bloco de links encontrado para inserir data/hora ao lado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grp_telemedicina_accept: blk_set_tele_at inserido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) Termos: texto/documento/URL atuais presentes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) Termos: values já true/false, roteamento correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) Termos: registro completo (aceite, data/hora, links, resumo)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré: mensagem combinada divergente do texto oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: mensagem de confirmação de pagamento oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: mensagem de formatos oficial",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: blk_upload_check ainda logo em seguida (sequencial, sem quebrar o input)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    },
+    {
+      "name": "V. edge_sinais_to_telemedicine ainda aponta para blk_tele_intro existente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. edge_pending_resend_to_upload ainda aponta para blk_foto_txt existente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. roteamento LGPD accept/decline preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. roteamento telemedicina accept/decline preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. pagamento (valor R$69,90, Webhook n8n) não alterado",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

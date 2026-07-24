@@ -374,6 +374,11 @@ function validateRequiredFields(normalized = {}, options = {}) {
   }
   if (normalized.has_previous_prescription !== true) missing.push('has_previous_prescription');
   if (!externalUpload && !normalized.previous_prescription_file) missing.push('previous_prescription_file');
+  if (normalized.lgpd_accepted !== true) missing.push('lgpd_accepted');
+  if (normalized.privacy_policy_accepted !== true) missing.push('privacy_policy_accepted');
+  if (normalized.telemedicine_consent_accepted !== true) missing.push('telemedicine_consent_accepted');
+  if (normalized.non_urgency_notice_accepted !== true) missing.push('non_urgency_notice_accepted');
+  if (normalized.terms_of_use_accepted !== true) missing.push('terms_of_use_accepted');
 
   if (missing.length) {
     return { ok: false, reason: `Dados obrigatórios incompletos: ${missing.join(', ')}`, missing };
