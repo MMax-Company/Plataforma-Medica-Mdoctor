@@ -109,6 +109,12 @@ function docButtonLabel(label) {
   return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
 }
 
+// Restrito à pergunta de autorização LGPD e à de ciência da telemedicina —
+// única exceção onde a pergunta e os botões formam uma única mensagem
+// (corpo = a própria pergunta, sem "Escolha uma opção:"). Nenhum outro
+// choice input do bot é afetado por este conjunto.
+const QUESTION_MERGE_INPUT_IDS = new Set(['ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice']);
+
 function richTextContainsLink(nodes = []) {
   for (const item of nodes || []) {
     if (item?.type === 'a') return true;
@@ -202,9 +208,23 @@ function convertTypebotResponse(response = {}) {
         value: fullLabel
       };
     });
+    // Correção restrita à pergunta de autorização de LGPD e à de ciência da
+    // telemedicina (únicos dois inputs listados em QUESTION_MERGE_INPUT_IDS):
+    // a pergunta chegava como mensagem de texto separada, seguida de uma
+    // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
+    // única mensagem de botões com a pergunta como corpo. Nenhum outro
+    // choice input do bot é afetado.
+    let body = 'Escolha uma opção:';
+    if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text') {
+        body = previous.text;
+        outputs.pop();
+      }
+    }
     outputs.push(choices.length <= 3
-      ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
-      : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
+      ? { kind: 'buttons', body, choices }
+      : { kind: 'list', body, button: 'Ver opções', choices: choices.slice(0, 10) });
   }
 
   const hasTextOutput = outputs.some((output) => output.kind === 'text');
