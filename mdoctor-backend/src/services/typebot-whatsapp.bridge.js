@@ -71,7 +71,17 @@ function richTextToPlainText(nodes = []) {
         }
         continue;
       }
-      if (typeof item?.text === 'string') parts.push(item.text);
+      if (typeof item?.text === 'string') {
+        // Quando o texto de uma variável interpolada ({{var}}) já contém
+        // "*" literais (ex.: negrito calculado dinamicamente num Set
+        // variable), o Typebot reprocessa o valor substituído como markdown
+        // e devolve os trechos como nós "bold"/"italic" em vez de manter os
+        // asteriscos literais — perdendo-os na extração de texto puro. Como
+        // o WhatsApp usa um único asterisco para negrito nativo, qualquer
+        // trecho marcado bold/italic pelo Typebot é reemitido como
+        // *texto* para preservar a intenção original (negrito no WhatsApp).
+        parts.push(item.bold || item.italic ? `*${item.text}*` : item.text);
+      }
       if (Array.isArray(item?.children)) walk(item.children);
       if (item?.type === 'p') parts.push('\n');
     }
@@ -109,11 +119,12 @@ function docButtonLabel(label) {
   return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
 }
 
-// Restrito à pergunta de autorização LGPD e à de ciência da telemedicina —
+// Restrito à pergunta de autorização LGPD, à de ciência da telemedicina, à
+// de confirmação dos dados (resumo) e à de declaração de elegibilidade —
 // única exceção onde a pergunta e os botões formam uma única mensagem
 // (corpo = a própria pergunta, sem "Escolha uma opção:"). Nenhum outro
 // choice input do bot é afetado por este conjunto.
-const QUESTION_MERGE_INPUT_IDS = new Set(['ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice']);
+const QUESTION_MERGE_INPUT_IDS = new Set(['ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice', 'plhspmybxbhylbfbsvqyhlmj', 'w9v6g0rlkucnfmxc3qh2a2qt']);
 
 function richTextContainsLink(nodes = []) {
   for (const item of nodes || []) {
@@ -208,11 +219,12 @@ function convertTypebotResponse(response = {}) {
         value: fullLabel
       };
     });
-    // Correção restrita à pergunta de autorização de LGPD e à de ciência da
-    // telemedicina (únicos dois inputs listados em QUESTION_MERGE_INPUT_IDS):
-    // a pergunta chegava como mensagem de texto separada, seguida de uma
-    // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
-    // única mensagem de botões com a pergunta como corpo. Nenhum outro
+    // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS
+    // (autorização de LGPD, ciência da telemedicina, confirmação de dados e
+    // declaração de elegibilidade): a pergunta chegava como mensagem de
+    // texto separada, seguida de uma segunda mensagem com corpo genérico
+    // "Escolha uma opção:" — vira uma única mensagem de botões com a
+    // pergunta como corpo. Nenhum outro
     // choice input do bot é afetado.
     let body = 'Escolha uma opção:';
     if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {

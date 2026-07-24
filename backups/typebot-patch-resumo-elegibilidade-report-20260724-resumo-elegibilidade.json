@@ -1,0 +1,95 @@
+{
+  "fixed": [
+    "blk_resumo_set_condicoes: agora retorna uma condição por linha (\\n), cada linha entre asteriscos (negrito WhatsApp), em vez de lista única separada por vírgula.",
+    "blk_resumo_set_medicamentos: removida a numeração \"1.\", \"2.\" — cada linha de medicamento (nome — dose — freq — via) entre asteriscos (negrito WhatsApp).",
+    "blk_resumo_set_cpf_mascarado: caractere de máscara trocado de \"*\" para \"•\" (bug de colisão com negrito markdown corrigido — causa raiz, não workaround).",
+    "k0i76xzc7cs84de90o94oy9i (texto \"Confira seus dados\"): reformatado em template numerado com emojis 1️⃣-🔟, uma linha em branco entre campos, somente os valores do paciente em negrito (*texto*); campo CPF usa {{resumo_cpf_mascarado}} (mantém o mascaramento já existente, ex.: 529.***.***-25); campos de condições e medicamentos usam as variáveis já calculadas (agora multi-linha e em negrito).",
+    "iw6zqwf26frmqnp1csxiwlbm (texto \"Critérios de elegibilidade\"): reformatado em template numerado com emojis 1️⃣-8️⃣, uma linha em branco entre critérios; os 8 critérios preservados palavra por palavra e na mesma ordem já publicada (extraídos do próprio bloco original, não redigitados)."
+  ],
+  "notes": [
+    "QUESTION_MERGE_INPUT_IDS (mdoctor-backend/src/services/typebot-whatsapp.bridge.js) recebe plhspmybxbhylbfbsvqyhlmj e w9v6g0rlkucnfmxc3qh2a2qt nesta mesma pedido, em commit único — mesma técnica do fa58f27."
+  ],
+  "assertions": [
+    {
+      "name": "pré-condição: choice resumo com 2 itens preservados (values/edges)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: choice elegibilidade com 2 itens preservados (values/edges)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: exatamente 8 critérios extraídos do bloco publicado",
+      "ok": true,
+      "detail": [
+        "Tem entre 18 e 80 anos;",
+        "Possui diagnóstico prévio de uma doença crônica atendida pelo Doctor Prescreve;",
+        "Utiliza a medicação de forma contínua há mais de 30 dias;",
+        "Não apresenta sinais ou sintomas de alerta neste momento;",
+        "Possui receita anterior válida ou documento compatível;",
+        "A receita anterior foi emitida há no máximo 180 dias;",
+        "As informações fornecidas são verdadeiras;",
+        "Compreende que a emissão da receita depende da avaliação médica."
+      ]
+    },
+    {
+      "name": "resumo: 10 campos numerados presentes (1️⃣..🔟)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "resumo: pergunta final presente uma única vez",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "resumo: não contém \"Receita anterior\"",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "resumo: máscara de CPF não usa mais asterisco literal (evita colisão com negrito markdown)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "elegibilidade: 8 critérios numerados presentes (1️⃣..8️⃣)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "elegibilidade: todos os 8 critérios originais presentes literalmente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "elegibilidade: pergunta final presente uma única vez",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "choice resumo inalterado (values/edges/labels)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "choice elegibilidade inalterado (values/edges/labels)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}
