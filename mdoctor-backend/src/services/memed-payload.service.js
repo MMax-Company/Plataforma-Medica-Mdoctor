@@ -51,30 +51,37 @@ function buildMedicationLabel(med = {}) {
   const dose = compactWhitespace(med.dose);
   const unit = compactWhitespace(med.unit || 'mg') || 'mg';
   if (!dose) return name;
-  // Compara ignorando espaços ("25mg" vs "25 mg") para não duplicar a
-  // concentração quando o nome já foi digitado com ela (ex.: "Hidroclorotiazida 25 mg").
-  const doseToken = `${dose}${unit}`.toLowerCase().replace(/\s+/g, '');
-  const nameToken = name.toLowerCase().replace(/\s+/g, '');
-  if (doseToken && nameToken.includes(doseToken)) return name;
+  // O nome pode já trazer a concentração embutida, com ou sem unidade/espaço
+  // (ex.: "Hidroclorotiazida 25 mg", "Hidroclorotiazida 25mg" ou só "Captopril 25").
+  // Extrai o primeiro número do nome e compara com a dose estruturada para não
+  // duplicar a concentração no medicamento enviado à Memed.
+  const nameConcMatch = name.match(/(\d+(?:[.,]\d+)?)/);
+  const doseNormalized = dose.replace(',', '.');
+  if (nameConcMatch && nameConcMatch[1].replace(',', '.') === doseNormalized) {
+    return name;
+  }
   return `${name} ${dose} ${unit}`.trim();
 }
 
+// Posologia compatível com a Memed a partir da frequência coletada no chatbot
+// (1/2/3 vezes ao dia). Usa o texto já normalizado pela triagem quando
+// disponível; caso contrário (medicamento sem posology persistida) gera no
+// mesmo formato — sem repetir dose/concentração, já presente no nome do item.
 function buildPosologia(med = {}) {
-  const frequency = compactWhitespace(med.frequency);
-  const route = compactWhitespace(med.route || 'oral');
-  const dose = compactWhitespace(med.dose);
-  const unit = compactWhitespace(med.unit || 'mg') || 'mg';
-  const via =
-    route.toLowerCase() === 'oral' || route.toLowerCase().includes('oral')
-      ? 'via oral'
-      : `via ${route}`;
-
   if (med.posology && !isInvalidClinicalValue(med.posology)) {
     return compactWhitespace(med.posology);
   }
 
-  const doseHint = dose ? ` (${dose}${unit})` : '';
-  return `Tomar 1 comprimido por ${via}, ${frequency}${doseHint}. Tratamento por ${TREATMENT_DAYS} dias.`;
+  const frequency = compactWhitespace(med.frequency);
+  const route = compactWhitespace(med.route || 'oral');
+  const via =
+    route.toLowerCase() === 'oral' || route.toLowerCase().includes('oral')
+      ? 'via oral'
+      : `via ${route}`;
+  const doses = dailyDosesFromFrequency(frequency);
+  const frequencyLabel = doses === 3 ? 'a cada 8 horas' : doses === 2 ? 'a cada 12 horas' : 'uma vez ao dia';
+
+  return `Tomar 1 unidade por ${via}, ${frequencyLabel}.`;
 }
 
 function extractMedicationRows(clinical = {}) {
