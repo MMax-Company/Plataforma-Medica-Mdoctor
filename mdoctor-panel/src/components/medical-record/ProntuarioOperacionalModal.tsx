@@ -269,7 +269,7 @@ export function ProntuarioOperacionalModal({
                     onClick={() => void viewAttachedPrescription()}
                     disabled={!hasAttachedPrescription}
                   >
-                    📄 Receita Anexada
+                    📄 Receita Anterior
                   </button>
                   {hasAttachedPrescription && (() => {
                     const q = atendimento.dados_clinicos?.prescription_image_quality;

@@ -45,6 +45,8 @@ export function ProntuarioConsultStatus({ atendimento }: ProntuarioConsultStatus
   const statusKey = panelStatus || String(atendimento.status || '').toUpperCase();
   const statusLabel = STATUS_LABELS[statusKey] || atendimento.status || '—';
 
+  const emittedReceiptUrl = String(memed.pdfUrl || memed.receitaUrl || '');
+
   const historyRows = [
     { label: 'Abertura do atendimento', value: formatDateTime(atendimento.criado_em) },
     { label: 'Última atualização', value: formatDateTime(atendimento.atualizado_em) },
@@ -63,12 +65,21 @@ export function ProntuarioConsultStatus({ atendimento }: ProntuarioConsultStatus
       value: formatDateTime(String(historico.ultimo_envio_em || entrega.sent_at || entrega.attempted_at || '')),
     },
     {
-      label: 'Canal de entrega',
-      value: String(historico.ultimo_canal || entrega.channel || '—'),
+      label: '📄 Visualizar receita emitida',
+      value: '',
+      // Mesmo comportamento do botão "Receita Anterior" (viewAttachedPrescription):
+      // abre a receita em nova aba; fica desabilitado quando ainda não há URL.
+      action: emittedReceiptUrl
+        ? () => window.open(emittedReceiptUrl, '_blank', 'noopener,noreferrer')
+        : undefined,
     },
     {
-      label: 'ID receita Memed',
+      label: 'ID Receita Memed',
       value: String(historico.receita_id || memed.receitaId || '—'),
+    },
+    {
+      label: 'Canal de entrega',
+      value: String(historico.ultimo_canal || entrega.channel || '—'),
     },
   ].filter((row) => row.value !== '—' || row.label.startsWith('Abertura') || row.label.startsWith('Última'));
 
@@ -81,12 +92,25 @@ export function ProntuarioConsultStatus({ atendimento }: ProntuarioConsultStatus
         </span>
       </div>
       <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
-        {historyRows.map((row) => (
-          <div key={row.label} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
-            <span className="shrink-0 text-slate-400">{row.label}</span>
-            <span className="truncate text-right font-semibold text-slate-800">{row.value}</span>
-          </div>
-        ))}
+        {historyRows.map((row) =>
+          'action' in row ? (
+            <div key={row.label} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
+              <button
+                type="button"
+                onClick={row.action}
+                disabled={!row.action}
+                className="truncate text-left font-semibold text-[#2563eb] hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
+              >
+                {row.label}
+              </button>
+            </div>
+          ) : (
+            <div key={row.label} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
+              <span className="shrink-0 text-slate-400">{row.label}</span>
+              <span className="truncate text-right font-semibold text-slate-800">{row.value}</span>
+            </div>
+          ),
+        )}
       </div>
     </section>
   );
