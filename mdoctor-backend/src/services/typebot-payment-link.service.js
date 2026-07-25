@@ -603,7 +603,17 @@ async function completePaymentByToken(token, deps = {}) {
     // mídia podia chegar antes desse estado existir.
     const uploadHelpers = deps.uploadHelpers || require('./typebot-prescription-upload.service');
     if (uploadHelpers.responseLooksLikeUploadStage(typebot, typebot.input?.id)) {
-      const uploadContext = await uploadHelpers.findUploadContextForPhone(session.phone);
+      let uploadContext = await uploadHelpers.findUploadContextForPhone(session.phone);
+      if (!uploadContext) {
+        // Achado 24/07/2026 (atendimento do Willian): se o webhook de
+        // triagem rodou ANTES da confirmação do Stripe, o atendimento
+        // nasceu rejeitado só por "pagamento_pendente" — agora que o
+        // pagamento está confirmado de fato, revalida esse atendimento em
+        // vez de deixar o paciente sem nenhum atendimento aguardando a
+        // receita. Só reabre quando o ÚNICO motivo da rejeição foi
+        // pagamento; nunca toca em rejeição por motivo clínico/dados.
+        uploadContext = await uploadHelpers.reconcileRejectedPaymentPendingAppointment(session.phone, { correlationId });
+      }
       if (uploadContext) {
         await uploadHelpers.persistUploadContext({
           identity: { phone: session.phone, bsuid: session.bsuid },

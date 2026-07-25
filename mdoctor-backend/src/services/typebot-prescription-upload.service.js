@@ -1,11 +1,11 @@
 const T = require('../db/tables');
 const { dbQuery } = require('../db/persistence');
-const { STATUS, listAtendimentos, getAtendimento } = require('../store/atendimentos.store');
+const { STATUS, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { upsertSessionIdentity, getSessionByPhone } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
-const { resolveTokenRecord } = require('./prescription-upload-token.service');
+const { resolveTokenRecord, createPrescriptionUploadSession } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
@@ -97,6 +97,63 @@ async function findPendingUploadContext(phone) {
 // atendimento novo).
 async function findUploadContextForPhone(phone) {
   return findPendingUploadContext(phone);
+}
+
+// Reconciliação pós-pagamento (achado 24/07/2026, atendimento do Willian):
+// o webhook de triagem roda no instante em que o Typebot chega na etapa de
+// pagamento — se o Stripe confirma alguns segundos/minutos DEPOIS desse
+// instante, o atendimento nasce REJEITADO só por "pagamento_pendente",
+// mesmo com todos os dados clínicos corretos (achado documentado no
+// commit b2afa33 como pendente de autorização). Chamada só quando
+// findPendingUploadContext não encontra nenhum atendimento já aguardando
+// (ou seja, nunca interfere no caminho feliz). Só reabre o atendimento
+// quando o ÚNICO motivo da rejeição foi pagamento — nunca toca em
+// atendimentos rejeitados por motivo clínico/dados incompletos. Reaproveita
+// createPrescriptionUploadSession (mesma função do caminho normal) para
+// criar o token de upload e virar o status — sem duplicar lógica.
+async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId = null } = {}) {
+  const rows = await listAtendimentos({ status: STATUS.REJECTED });
+  const match = rows.find(
+    (row) => phonesMatch(row.paciente_telefone, phone) && row.elegibilidade?.reasonCode === 'pagamento_pendente'
+  );
+  if (!match) return null;
+
+  const clinical = match.dados_clinicos || {};
+  await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
+    motivo: 'Pagamento confirmado após criação do atendimento — elegibilidade revalidada automaticamente',
+    pagamento_status: 'CONFIRMADO',
+    elegibilidade: {
+      ...match.elegibilidade,
+      eligible: true,
+      reason: 'Pagamento confirmado (reconciliado após criação do atendimento)',
+      reasonCode: 'eligible',
+      riskLevel: 'BAIXO',
+      renewalStatus: 'coerente'
+    },
+    risco: 'BAIXO',
+    dados_clinicos: {
+      ...clinical,
+      payment_status: 'paid',
+      payment_confirmed: true,
+      pagamento_status: 'CONFIRMADO',
+      payment_sync_source: 'whatsapp_session_reconciliation',
+      validation: {
+        ...(clinical.validation || {}),
+        payment_confirmed: true,
+        can_enter_medical_queue: true,
+        awaiting_prescription_upload: true
+      }
+    }
+  });
+
+  const session = await createPrescriptionUploadSession({ atendimentoId: match.id, correlationId });
+  return {
+    atendimentoId: match.id,
+    token: session.token,
+    uploadUrl: session.uploadUrl,
+    uploadStatusUrl: buildUploadStatusUrl(session.token),
+    status: STATUS.AWAITING_PRESCRIPTION_UPLOAD
+  };
 }
 
 // Rastreia media_id/message_id já processados na própria sessão (Fase 2
@@ -489,6 +546,7 @@ module.exports = {
   outputsContainUrl,
   persistUploadContext,
   readProcessedIds,
+  reconcileRejectedPaymentPendingAppointment,
   responseLooksLikeUploadStage,
   resumeTypebotAfterPrescriptionUpload,
   revertPrescriptionUploadResume,
