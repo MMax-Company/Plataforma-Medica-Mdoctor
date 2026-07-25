@@ -9,6 +9,7 @@ Documento único de handoff entre agentes. **Consultar antes de iniciar qualquer
 3. Não fazer `git push origin main` salvo ordem explícita (dispara auto-deploy do painel produção).
 4. Um registro por tarefa concluída (commits relacionados podem ser citados juntos).
 5. Manter entradas objetivas; não duplicar documentação técnica longa aqui.
+6. **Antes de qualquer nova correção no WhatsApp ou no Typebot**, consultar `docs/typebot/ESTADO-CONSOLIDADO-STAGING-20260721.md` e verificar se a alteração já foi implementada — evita retrabalho e regressão de correções já validadas.
 
 ## Ambientes de referência (staging)
 
@@ -46,6 +47,64 @@ Documento único de handoff entre agentes. **Consultar antes de iniciar qualquer
 ---
 
 ## Histórico recente
+
+### 2026-07-21 — Teste humano completo ponta a ponta homologado (staging)
+
+| Campo | Valor |
+|-------|--------|
+| **Data** | 2026-07-21 ~17:30 (BRT) |
+| **Agente** | Claude (acompanhamento em tempo real) |
+| **Tarefa** | Primeiro teste humano real, completo e sem interrupções, do fluxo de renovação de receita no staging após as correções desta sessão (resumo clínico, upload automático, menu inicial, fonte de verdade do pagamento, mapeamento de tempo de uso, portão do `blk_upload_check`). |
+| **Fluxo observado (ponta a ponta)** | Atendimento iniciado pelo WhatsApp (`Oi` → menu → `1`) → triagem clínica concluída → pagamento confirmado (Stripe) → elegibilidade avaliada corretamente (`eligible: true`) → upload automático da receita anterior aceito na primeira tentativa → atendimento criado no Supabase (`appointments`) → atendimento exibido na fila do painel médico → médico assumiu o atendimento (`em_atendimento`) → receita anterior visualizada no painel → aprovação médica (`APROVADO`) → prescrição emitida via Memed → receita retornou ao painel → envio ao paciente via WhatsApp concluído → SMS enviado → prontuário localizado por CPF → conteúdo do prontuário íntegro → receita anexada ao prontuário e ao atendimento → três perguntas finais da triagem respondidas → status final `DELIVERED` → pesquisa pós-entrega iniciada (`post_delivery_survey.step: opt_in`). |
+| **Atendimento de referência** | `a5c18ccd-6239-4614-8835-e72f6f56382e` (telefone de teste `+5511991690401`) |
+| **Arquivos alterados** | Nenhum (sessão de acompanhamento — apenas observação do teste humano real) |
+| **Commit(s)** | — |
+| **Deploy** | — |
+| **Ambiente alterado** | Nenhum (leitura/observação) |
+| **Testes** | Teste humano real completo, sem dados sintéticos |
+| **Pendências** | Apenas ajustes de formatação e acabamento (não funcionais) |
+| **Produção alterada** | **Não** |
+| **Status** | **Fluxo homologado funcionalmente de ponta a ponta.** |
+
+---
+
+### 2026-07-21 — Resumo clínico, upload automático e menu inicial (tarde)
+
+| Campo | Valor |
+|-------|--------|
+| **Data** | 2026-07-21 (BRT) |
+| **Agente** | Claude |
+| **Tarefa** | Correção do resumo clínico no Typebot; correção do upload automático após pagamento; remoção da mensagem duplicada do Backend; criação antecipada do contexto de upload; `blk_upload_check` aceita somente `"Já enviei a receita"`; "Oi" mostra menu e "1" inicia nova triagem. |
+| **Correção** | Ver detalhamento nas trocas desta sessão — inclui ajustes no Typebot oficial `higij2z0xihxxkr378rmljgu` (blocos de resumo, `blk_upload_check` + grupo-portão de confirmação) e no Backend (`typebot-payment-link.service.js`, `whatsapp-support.service.js`). |
+| **Arquivos alterados** | `typebot-payment-link.service.js`, `typebot-payment.constants.js`, `whatsapp-support.service.js` + Typebot publicado (não versionado em código). |
+| **Testes** | 17/17 e 4/4 aprovados. |
+| **Ambiente alterado** | staging backend; Typebot oficial `higij2z0xihxxkr378rmljgu` (publicado) |
+| **Pendências** | Atendimento sintético de teste criado durante validações: `19b051ee-18b4-495e-8984-96fdb24389e1`. |
+| **Produção alterada** | **Não** |
+| **Status** | Pronto para novo teste humano. |
+
+---
+
+### 2026-07-21 — Consolidação pré-teste humano: 3 correções de Backend + 5 pedidos no Typebot
+
+| Campo | Valor |
+|-------|--------|
+| **Data** | 2026-07-21 ~11:10 (BRT) |
+| **Agente** | Claude |
+| **Tarefa** | Teste humano real do número `+5511991690401` revelou 2 bugs (endereço "Cidade UF" sem vírgula; upload silencioso sem resposta), corrigidos ao vivo com autorização. Depois, 4 pedidos isolados subsequentes: sincronização de pagamento, consolidação do upload de receita via WhatsApp, correções textuais/expressões no Typebot, e uma validação final read-only do staging. |
+| **Causa** | Ver detalhamento completo em `docs/typebot/ESTADO-CONSOLIDADO-STAGING-20260721.md` — causas raiz individuais por item (parser de endereço, payment_status não sincronizado, retomada do Typebot nunca cablada no caminho WhatsApp, aspas indevidas em `expressionToEvaluate` de blocos "Set variable"). |
+| **Correção** | Backend: 3 commits (`b8dfc4f`, `7d90243`, `4e0b623`). Typebot: 5 publicações via Builder API (endereço, textos, resumo clínico, links jurídicos, intervalo de frequência + CPF mascarado). |
+| **Arquivos alterados** | `typebot-clinical-data.validation.js`, `whatsapp.routes.js`, `triagem-webhook.service.js`, `typebot-prescription-upload.service.js`, `prescription-upload.service.js` + 2 novos scripts de teste. Typebot: ver `docs/typebot/ESTADO-CONSOLIDADO-STAGING-20260721.md` seção 2. |
+| **Commit(s)** | `b8dfc4f`, `7d90243`, `4e0b623` |
+| **Deploy** | `mdoctor-backend-staging` → `484e9b63` (7d90243) e `63ba32f2` (4e0b623, **ativo**) — SUCCESS |
+| **Ambiente alterado** | staging backend; Typebot oficial `higij2z0xihxxkr378rmljgu` (publicado); Supabase staging (reparo manual pontual do `payment_status` do atendimento `95ecafa9`, autorizado, sem tocar status/elegibilidade) |
+| **Testes** | `test-triagem-payment-sync.js` 5/5; `test-typebot-prescription-upload.js` 18/18; reverificação independente de cada publish do Typebot (leitura do `publishedTypebot`, não só do rascunho) |
+| **Pendências** | Ver seção 5 (ressalvas não bloqueantes) de `ESTADO-CONSOLIDADO-STAGING-20260721.md`: retomada automática ainda sem evidência humana pós-deploy; intervalo de frequência não chega ao painel (decisão explícita de não corrigir agora) |
+| **Produção alterada** | **Não** |
+
+**Detalhamento completo:** `docs/typebot/ESTADO-CONSOLIDADO-STAGING-20260721.md`. **Roteiro/checklist do próximo teste humano:** `docs/typebot/ROTEIRO-TESTE-HUMANO-20260721.md`. **Estado atual: VALIDADO PARA TESTE HUMANO.**
+
+---
 
 ### 2026-07-18 — Upload de receita sem resposta no WhatsApp (staging)
 
