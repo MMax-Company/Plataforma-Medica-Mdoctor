@@ -25,12 +25,18 @@ function normalizeBirthDate(value = '') {
   return raw;
 }
 
-/** Doses por dia — usa heurística; não altera o texto de frequência persistido. */
+/**
+ * Doses por dia — usa heurística; não altera o texto de frequência persistido.
+ * Reconhece tanto os códigos normalizados ('12/12h', '8/8h') quanto o texto
+ * bruto das opções do chatbot ("Duas vezes ao dia", "Três vezes ao dia"),
+ * para a quantidade escalar corretamente mesmo com dados legados que não
+ * passaram pela normalização.
+ */
 function dailyDosesFromFrequency(frequency = '') {
   const f = compactWhitespace(frequency).toLowerCase();
-  if (f.includes('3x') || f.includes('8/8') || f.includes('8 em 8') || f.includes('8h')) return 3;
-  if (f.includes('2x') || f.includes('12/12') || f.includes('12 em 12') || f.includes('12h')) return 2;
-  if (f.includes('1x') || f.includes('24/24') || f.includes('24h') || f.includes('1 vez')) return 1;
+  if (f.includes('3x') || f.includes('8/8') || f.includes('8 em 8') || f.includes('8h') || f.includes('tres vezes') || f.includes('três vezes')) return 3;
+  if (f.includes('2x') || f.includes('12/12') || f.includes('12 em 12') || f.includes('12h') || f.includes('duas vezes')) return 2;
+  if (f.includes('1x') || f.includes('24/24') || f.includes('24h') || f.includes('1 vez') || f.includes('uma vez')) return 1;
   return 1;
 }
 
