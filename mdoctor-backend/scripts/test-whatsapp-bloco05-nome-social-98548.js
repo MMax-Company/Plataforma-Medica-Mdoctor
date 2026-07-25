@@ -78,11 +78,20 @@ async function waitForExpected(predicate, { tries = 20, delayMs = 2500 } = {}) {
   for (let i = 0; i < tries; i += 1) {
     const session = await getWaSession();
     const expected = session?.metadata?.typebot_expected_input_id || null;
-    if (predicate(expected, session)) return { ok: true, expected, session, tries: i + 1 };
+    const typebotSessionId = session?.typebot_session_id || null;
+    if (predicate(expected, session, typebotSessionId)) {
+      return { ok: true, expected, typebotSessionId, session, tries: i + 1 };
+    }
     await sleep(delayMs);
   }
   const session = await getWaSession();
-  return { ok: false, expected: session?.metadata?.typebot_expected_input_id || null, session, tries };
+  return {
+    ok: false,
+    expected: session?.metadata?.typebot_expected_input_id || null,
+    typebotSessionId: session?.typebot_session_id || null,
+    session,
+    tries
+  };
 }
 
 async function main() {
@@ -90,14 +99,14 @@ async function main() {
   step('sessao_resetada', true);
 
   await sendWa('Oi', 'a');
-  let wait = await waitForExpected((id) => Boolean(id));
+  let wait = await waitForExpected((id, _s, tbId) => Boolean(id || tbId));
   step('oi_iniciou_typebot', wait.ok, { expected: wait.expected, tries: wait.tries });
 
-  await sendWa('Iniciar consulta', 'b');
+  await sendWa('Iniciar Atendimento', 'b');
   wait = await waitForExpected((id) => id === 'ivbr3o1a7lv8izhfteuerhqx');
   step('chegou_lgpd', wait.ok, { expected: wait.expected, tries: wait.tries });
 
-  await sendWa('Li e autorizo', 'c');
+  await sendWa('Autorizo', 'c');
   wait = await waitForExpected((id) => id === BLOCK_NOME_INPUT);
   step('pergunta_nome_social_sem_idade', wait.ok, { expected: wait.expected, tries: wait.tries });
 
