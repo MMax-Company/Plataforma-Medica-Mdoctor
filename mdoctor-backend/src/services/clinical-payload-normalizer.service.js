@@ -171,21 +171,24 @@ function mapFrequency(text = '') {
 function mapRoute(text = '') {
   const t = String(text || '').toLowerCase();
   if (t.includes('subling')) return 'sublingual';
+  if (t.includes('subcut')) return 'subcutânea';
   if (t.includes('inal') || t.includes('spray')) return 'inalatória';
   if (t.includes('injet') || t.includes('sc') || t.includes('im')) return 'injetável';
   if (t.includes('topico') || t.includes('tópico') || t.includes('pomada')) return 'tópica';
   return 'oral';
 }
 
-function buildPosology({ dose, unit, frequency, route }) {
-  const doseLabel = dose ? `${dose}${unit || 'mg'}` : '';
-  const routeLabel = route === 'oral' ? 'por via oral' : `por via ${route}`;
-  if (frequency === '12/12h') return `Tomar 1 comprimido ${routeLabel} a cada 12 horas${doseLabel ? ` (${doseLabel})` : ''}.`;
-  if (frequency === '8/8h') return `Tomar 1 comprimido ${routeLabel} a cada 8 horas${doseLabel ? ` (${doseLabel})` : ''}.`;
-  if (frequency === '24h' || frequency === '1x pela manhã' || frequency === '1x à noite') {
-    return `Tomar 1 comprimido ${routeLabel} ${frequency.replace('24h', '1 vez ao dia')}${doseLabel ? ` (${doseLabel})` : ''}.`;
-  }
-  return `Tomar conforme prescrição anterior${doseLabel ? ` — ${doseLabel}` : ''}.`;
+// Posologia compatível com a Memed a partir das opções fechadas do chatbot
+// (1/2/3 vezes ao dia x via oral/sublingual/subcutânea). Nunca cai mais na
+// frase genérica "Tomar conforme prescrição anterior" — casos não mapeados
+// (ou legados) recebem a mesma redação de "uma vez ao dia".
+function buildPosology({ frequency, route }) {
+  const routeLabel = route === 'oral' || !route ? 'por via oral' : `por via ${route}`;
+  if (frequency === '12/12h') return `Tomar 1 unidade ${routeLabel}, a cada 12 horas.`;
+  if (frequency === '8/8h') return `Tomar 1 unidade ${routeLabel}, a cada 8 horas.`;
+  if (frequency === '1x à noite') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (à noite).`;
+  if (frequency === '1x pela manhã') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (pela manhã).`;
+  return `Tomar 1 unidade ${routeLabel}, uma vez ao dia.`;
 }
 
 function parseMedicationFreeText(text = '', overrides = {}) {
@@ -220,8 +223,12 @@ function parseMedicationFreeText(text = '', overrides = {}) {
   }
 
   name = capitalizeMedicationName(name);
-  frequency = frequency || mapFrequency(lower);
-  route = route || mapRoute(lower);
+  // Normaliza sempre (mesmo quando vem de override estruturado med{n}_frequencia/med{n}_via)
+  // — o texto bruto do botão do Typebot ("1x ao dia", "Via sublingual") precisa virar os
+  // códigos que buildPosology() reconhece ('12/12h', 'sublingual' etc.), senão a posologia
+  // nunca bate com a frequência/via realmente selecionada pelo paciente.
+  frequency = mapFrequency(frequency || lower);
+  route = mapRoute(route || lower);
 
   return {
     name,
@@ -229,7 +236,7 @@ function parseMedicationFreeText(text = '', overrides = {}) {
     unit: unit || 'mg',
     route,
     frequency,
-    posology: buildPosology({ dose, unit, frequency, route }),
+    posology: buildPosology({ frequency, route }),
     usage: 'contínuo',
     raw_text: raw || null,
     label: raw || `${name} ${dose || ''}${unit || ''}`.trim()

@@ -45,8 +45,11 @@ function buildMedicationLabel(med = {}) {
   const dose = compactWhitespace(med.dose);
   const unit = compactWhitespace(med.unit || 'mg') || 'mg';
   if (!dose) return name;
-  const doseToken = `${dose} ${unit}`.toLowerCase();
-  if (name.toLowerCase().includes(doseToken)) return name;
+  // Compara ignorando espaços ("25mg" vs "25 mg") para não duplicar a
+  // concentração quando o nome já foi digitado com ela (ex.: "Hidroclorotiazida 25 mg").
+  const doseToken = `${dose}${unit}`.toLowerCase().replace(/\s+/g, '');
+  const nameToken = name.toLowerCase().replace(/\s+/g, '');
+  if (doseToken && nameToken.includes(doseToken)) return name;
   return `${name} ${dose} ${unit}`.trim();
 }
 
