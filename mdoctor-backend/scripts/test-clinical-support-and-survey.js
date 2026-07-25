@@ -195,12 +195,12 @@ async function testSurveyFlow() {
   assert(Q3_MESSAGE.includes('Você utilizaria novamente o Doctor Prescreve?'));
   results.textoExatoDasTresPerguntas = 'ok';
 
-  // 2) Disparo após entrega confirmada: cria outcome pendente + envia
-  //    mensagem de fechamento e opt-in, uma única vez.
+  // 2) Disparo após entrega confirmada: cria outcome pendente + envia a
+  //    mensagem de opt-in, uma única vez.
   const phone = '5511977770001';
   const trigger1 = await survey.triggerPostDeliverySurvey({ attendanceId: 'at-1', patientId: 'pac-1', phone });
   assert.equal(trigger1.triggered, true);
-  assert.equal(sentMessages.length, 2, 'envia mensagem de fechamento + opt-in, uma vez cada');
+  assert.equal(sentMessages.length, 1, 'envia a mensagem de opt-in uma única vez');
   results.disparoApenasAposEntregaConfirmada = 'ok';
 
   // 3) Evento repetido (novo disparo para o MESMO atendimento) NÃO reinicia
@@ -208,7 +208,7 @@ async function testSurveyFlow() {
   const trigger2 = await survey.triggerPostDeliverySurvey({ attendanceId: 'at-1', patientId: 'pac-1', phone });
   assert.equal(trigger2.skipped, true);
   assert.equal(trigger2.reason, 'already_in_progress');
-  assert.equal(sentMessages.length, 2, 'evento repetido não reenvia as mensagens de abertura');
+  assert.equal(sentMessages.length, 1, 'evento repetido não reenvia a mensagem de abertura');
   assert.equal(outcomes.filter((o) => o.attendance_id === 'at-1').length, 1, 'evento repetido não cria segundo outcome');
   results.eventoRepetidoNaoReiniciaSurvey = 'ok';
 

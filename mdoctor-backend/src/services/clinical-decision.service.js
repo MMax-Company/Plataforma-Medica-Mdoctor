@@ -15,8 +15,7 @@ const {
 const CLINICAL_REJECT_WHATSAPP_MESSAGE =
   'Após avaliação médica, não foi possível emitir a receita solicitada.\n\nNossa equipe analisará as providências administrativas referentes ao pagamento.\n\nCaso precise de ajuda, digite 2 para falar com o suporte.';
 
-const CLINICAL_APPROVE_WHATSAPP_MESSAGE =
-  'Sua solicitação foi aprovada pelo médico.\n\nA receita está sendo preparada para envio.';
+const CLINICAL_APPROVE_WHATSAPP_MESSAGE = '✅ Sua solicitação foi aprovada pelo médico.';
 
 function resolveDecisionRationale(rationale, notes) {
   if (rationale && typeof rationale === 'object') {

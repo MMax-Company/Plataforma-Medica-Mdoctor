@@ -15,7 +15,7 @@ const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
 // retomado automaticamente em seguida (resumeTypebotAfterPrescriptionUpload)
 // e é ele quem informa a entrada na fila médica (grupo final do fluxo) —
 // por isso aqui só a confirmação do recebimento, sem repetir essa etapa.
-const PRESCRIPTION_RECEIVED_MESSAGE = 'Recebemos sua receita anterior com sucesso.';
+const PRESCRIPTION_RECEIVED_MESSAGE = '✅ Recebemos sua receita médica com sucesso.';
 
 const UPLOAD_CHOICE_INPUT_IDS = new Set([
   'blk_upload_check',

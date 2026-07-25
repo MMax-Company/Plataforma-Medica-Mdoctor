@@ -72,10 +72,10 @@ const results = {};
 {
   const { buildPrescriptionDeliveryWhatsAppMessage } = require('../src/delivery/delivery.service.js');
   const text = buildPrescriptionDeliveryWhatsAppMessage('https://memed.example/receita/abc123');
-  assert(text.includes('Sua receita está pronta.'));
-  assert(text.includes('Acesse o documento pelo link seguro abaixo:'));
+  assert(text.includes('📄 Sua receita foi emitida com sucesso.'));
+  assert(text.includes('Acesse sua receita pelo link seguro abaixo:'));
   assert(text.includes('https://memed.example/receita/abc123'));
-  assert(text.includes('Em caso de dúvida, digite 2 para falar com o suporte.'));
+  assert(text.includes('Se precisar de ajuda, digite 2 para falar com o suporte.'));
   results.textoDeEntregaExato = 'ok';
 }
 

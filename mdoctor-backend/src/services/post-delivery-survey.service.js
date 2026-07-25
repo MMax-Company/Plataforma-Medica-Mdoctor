@@ -2,7 +2,6 @@ const logger = require('../config/logger');
 const { isDryRunMode, resolveWhatsAppProvider, sendWhatsAppText } = require('../delivery/delivery.service');
 const {
   SURVEY_VERSION,
-  PRESCRIPTION_SENT_MESSAGE,
   SURVEY_OPT_IN_MESSAGE,
   SURVEY_OPT_IN_DECLINED_MESSAGE,
   Q1_MESSAGE,
@@ -146,13 +145,6 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     step: 'opt_in'
   });
 
-  // Send messages sequentially — ordering matters (closing first, then opt-in offer)
-  await sendSurveyWhatsApp({
-    phone: digits,
-    text: PRESCRIPTION_SENT_MESSAGE,
-    correlationId,
-    idempotencyKey: `survey-closing:${attendanceId}:${outcome.id}`
-  });
   const sendResult = await sendSurveyWhatsApp({
     phone: digits,
     text: SURVEY_OPT_IN_MESSAGE,

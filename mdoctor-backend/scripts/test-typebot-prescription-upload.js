@@ -164,7 +164,7 @@ async function main() {
     // repetir a mesma informação numa segunda mensagem do Backend.
     assert.equal(sentMessages.length, 1, 'só a confirmação exata de recebimento, uma única vez');
     assert.equal(sentMessages[0].text, PRESCRIPTION_RECEIVED_MESSAGE);
-    assert.equal(sentMessages[0].text, 'Recebemos sua receita anterior com sucesso.');
+    assert.equal(sentMessages[0].text, '✅ Recebemos sua receita médica com sucesso.');
     assert.equal(sentMessages[0].idempotencyKey, 'prescription-received:at-3');
     results.confirmacaoUnicaSemMensagemDuplicada = 'ok';
 
@@ -203,7 +203,7 @@ async function main() {
     });
     assert.equal(result.handled, true, 'a mídia continua vinculada mesmo se a retomada automática falhar');
     assert.equal(sentMessages.length, 1, 'a confirmação já enviada não é afetada pela falha da retomada');
-    assert.equal(sentMessages[0].text, 'Recebemos sua receita anterior com sucesso.');
+    assert.equal(sentMessages[0].text, '✅ Recebemos sua receita médica com sucesso.');
     results.falhaNaRetomadaNaoDerrubaIngestao = 'ok';
   }
 

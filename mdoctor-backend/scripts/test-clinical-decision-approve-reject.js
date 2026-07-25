@@ -172,8 +172,7 @@ async function main() {
     assert.equal(r1.atendimento.status, STATUS.APPROVED);
     assert.equal(decisaoLogs.length, 1);
     assert.equal(sentTexts.length, 1, 'envia a confirmação de aprovação uma única vez');
-    assert(sentTexts[0].text.includes('Sua solicitação foi aprovada pelo médico'));
-    assert(sentTexts[0].text.includes('A receita está sendo preparada para envio'));
+    assert(sentTexts[0].text.includes('✅ Sua solicitação foi aprovada pelo médico.'));
 
     const r2 = await clinicalDecision.approveAtendimento('at-approve-1', {}, { doctorId: 'doc-1', correlationId: 'c-2' });
     assert.equal(r2.ok, true);
