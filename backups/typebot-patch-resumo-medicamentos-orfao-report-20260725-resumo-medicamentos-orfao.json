@@ -1,0 +1,85 @@
+{
+  "fixed": [
+    "Movido blk_resumo_set_medicamentos de \"Group #49\" (órfão, removido) para \"Confirmação de dados\", posição 3 (logo após blk_resumo_set_cpf_mascarado, antes de k0i76xzc7cs84de90o94oy9i)."
+  ],
+  "notes": [],
+  "assertions": [
+    {
+      "name": "grupo órfão tem exatamente 1 bloco",
+      "ok": true,
+      "detail": [
+        "blk_resumo_set_medicamentos"
+      ]
+    },
+    {
+      "name": "bloco órfão é Set variable de var_resumo_medicamentos",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo órfão não tem nenhuma edge de entrada/saída",
+      "ok": true,
+      "detail": []
+    },
+    {
+      "name": "Confirmação de dados NÃO contém mais o bloco (confirma a regressão)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "texto de confirmação ainda referencia {{resumo_medicamentos}}",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco-âncora (cpf_mascarado) encontrado em Confirmação de dados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo órfão removido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco presente em Confirmação de dados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bloco fica ANTES do texto que consome a variável",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "conteúdo do bloco preservado exatamente (deep equal ao original)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "nenhum bloco perdido ou duplicado (mesma contagem total)",
+      "ok": true,
+      "detail": {
+        "antes": 150,
+        "depois": 150
+      }
+    },
+    {
+      "name": "nenhuma edge foi tocada (mesma contagem)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}
