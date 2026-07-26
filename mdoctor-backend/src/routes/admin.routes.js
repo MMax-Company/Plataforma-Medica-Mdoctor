@@ -193,6 +193,7 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
         stripe_checkout_url: a.dados_clinicos?.stripe_checkout_url,
         memed_receita: a.dados_clinicos?.memed_receita,
         entrega_receita: a.dados_clinicos?.entrega_receita,
+        motivo_rejeicao: a.dados_clinicos?.motivo_rejeicao || null,
       },
     }));
 
