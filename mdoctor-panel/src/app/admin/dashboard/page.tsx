@@ -1,46 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { logout, requireSession } from '@/services/auth.service';
+import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { authHeaders, logout, requireSession } from '@/services/auth.service';
+import { getApiBase } from '@/services/api';
 import {
   fetchAdminDashboard,
+  fetchAdminAtendimentos,
   type AdminAtendimento,
   type AdminDashboard,
 } from '@/services/admin.service';
-import { AppShell, Card, EmptyState, StatusPill } from '@/components/ui/DesignSystem';
+import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
+import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
+import { MetricCard } from '@/components/ui/DesignSystem';
+import { avatarInitials, patientInitials, formatQueuePatientId } from '@/lib/patient-display';
 
-function fmt(v?: string) {
-  if (!v) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(v));
-}
-
-function statusLabel(s: string) {
-  const v = (s || '').toLowerCase();
-  if (['waiting', 'queue', 'fila', 'triaged'].includes(v)) return 'Aguardando';
-  if (v === 'awaiting_prescription_upload') return 'Aguardando receita';
-  if (['em_atendimento', 'under_review', 'approved'].includes(v)) return 'Em atendimento';
-  if (['receita_emitida', 'memed_processing', 'awaiting_validation', 'receita_em_edicao'].includes(v)) return 'Receita emitida';
-  if (['ready', 'validated', 'aprovado'].includes(v)) return 'Receita pronta';
-  if (['delivered', 'finished'].includes(v)) return 'Entregue';
-  if (['rejected', 'recusado', 'cancelado'].includes(v)) return 'Recusado';
-  return s;
-}
-
-function statusTone(s: string): 'primary' | 'success' | 'danger' | 'gold' | 'secondary' {
-  const v = (s || '').toLowerCase();
-  if (['waiting', 'queue', 'fila', 'triaged', 'awaiting_prescription_upload'].includes(v)) return 'primary';
-  if (['em_atendimento', 'under_review', 'approved', 'receita_emitida', 'memed_processing', 'receita_em_edicao'].includes(v)) return 'gold';
-  if (['ready', 'validated', 'aprovado', 'delivered', 'finished'].includes(v)) return 'success';
-  if (['rejected', 'recusado', 'cancelado'].includes(v)) return 'danger';
-  return 'secondary';
-}
-
+// Seção 2 — Cards Quantitativos: mesmos 6 indicadores já existentes hoje no
+// Painel Administrativo (fetchAdminDashboard), apenas reposicionados na nova
+// arquitetura. Nenhum cálculo novo.
 const CARDS = [
   {
     key: 'pronto_para_avaliacao' as const,
@@ -92,22 +70,120 @@ const CARDS = [
   },
 ];
 
+// Seção 5 — Corpo Principal: reaproveita exatamente as regras de agrupamento
+// já existentes em admin/pacientes (isReady) e no grupo "danger" de
+// statusTone (rejected/recusado/cancelado), e o mesmo filtro de pendências
+// administrativas já usado em pendencias_admin. Nenhuma regra nova.
+function isApproved(a: AdminAtendimento) {
+  const v = (a.status || '').toLowerCase();
+  return ['ready', 'validated', 'aprovado'].includes(v);
+}
+
+function isRejected(a: AdminAtendimento) {
+  const v = (a.status || '').toLowerCase();
+  return ['rejected', 'recusado', 'cancelado'].includes(v);
+}
+
+function hasPendingAdminNote(a: AdminAtendimento) {
+  return (a.dados_clinicos?.observacoes_admin || []).some((n) => !n.resolvido);
+}
+
+function fmt(v?: string) {
+  if (!v) return '—';
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(v));
+}
+
+type BodyColumnKey = 'approved' | 'rejected' | 'pending';
+
+const bodyColumns: Array<{
+  key: BodyColumnKey;
+  title: string;
+  icon: typeof CheckCircle2;
+  iconClass: string;
+  match: (a: AdminAtendimento) => boolean;
+}> = [
+  {
+    key: 'approved',
+    title: 'PACIENTES APROVADOS',
+    icon: CheckCircle2,
+    iconClass: 'bg-[#E8F8EE] text-[#0B7F3C]',
+    match: isApproved,
+  },
+  {
+    key: 'rejected',
+    title: 'PACIENTES REJEITADOS',
+    icon: XCircle,
+    iconClass: 'bg-slate-100 text-[#5B6475]',
+    match: isRejected,
+  },
+  {
+    key: 'pending',
+    title: 'PENDÊNCIAS ADMINISTRATIVAS',
+    icon: AlertTriangle,
+    iconClass: 'bg-amber-50 text-amber-700',
+    match: hasPendingAdminNote,
+  },
+];
+
+// Seção 4 — Indicadores de Tempo Médio: apenas placeholders visuais, sem
+// nenhuma lógica/endpoint novo (implementação prevista para fase futura).
+const TIME_PLACEHOLDERS = [
+  'Tempo médio de triagem',
+  'Tempo médio de espera médica',
+  'Tempo médio de avaliação',
+  'Tempo médio até emissão da receita',
+  'Tempo médio da jornada completa',
+  'Tempo médio de suporte administrativo',
+  'Tempo médio de suporte médico',
+];
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<AdminDashboard | null>(null);
+  const [atendimentos, setAtendimentos] = useState<AdminAtendimento[]>([]);
+  const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
   const [userName, setUserName] = useState('');
   const [userRole, setUserRole] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  async function fetchSupportQueue() {
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
+      const json = await res.json();
+      if (!res.ok) return;
+      const rows = Array.isArray(json) ? json : json.atendimentos || json.data || [];
+      setSupportPatients(
+        rows.map((item: any) => ({
+          id: item.id,
+          paciente_nome: item.paciente_nome,
+          paciente_telefone: item.paciente_telefone,
+          criado_em: item.criado_em,
+          status: item.status,
+          support_sub_status: item?.dados_clinicos?.support_sub_status,
+        })),
+      );
+    } catch {
+      setSupportPatients([]);
+    }
+  }
 
   useEffect(() => {
     requireSession()
       .then((user) => {
         setUserName(user.name);
         setUserRole(user.role);
-        return fetchAdminDashboard();
+        return Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportQueue()]);
       })
-      .then(setData)
+      .then(([dashboard, list]) => {
+        setData(dashboard);
+        setAtendimentos(list.atendimentos || []);
+      })
       .catch((e: unknown) => {
         const msg = e instanceof Error ? e.message : 'Erro ao carregar dashboard';
         setError(msg);
@@ -115,6 +191,16 @@ export default function AdminDashboardPage() {
       })
       .finally(() => setLoading(false));
   }, [router]);
+
+  const grouped = useMemo(() => {
+    return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
+      (acc, column) => {
+        acc[column.key] = atendimentos.filter(column.match);
+        return acc;
+      },
+      { approved: [], rejected: [], pending: [] },
+    );
+  }, [atendimentos]);
 
   async function handleLogout() {
     await logout();
@@ -129,45 +215,32 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const navLinks = (
-    <>
-      <a
-        href="/admin/pacientes"
-        className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-      >
-        Todos os Pacientes
-      </a>
-      {userRole === 'admin' && (
-        <a
-          href="/fila"
-          className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-        >
-          Painel Médico
-        </a>
-      )}
-    </>
-  );
-
   return (
-    <AppShell
-      title="Painel Administrativo"
-      subtitle="Central operacional — Doctor Prescreve"
-      userLabel={userName ? `${userName} · ${userRole.toUpperCase()}` : undefined}
-      actions={navLinks}
-      onLogout={handleLogout}
-    >
-      <div className="space-y-6 p-4 sm:p-6">
+    <main className="relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]">
+      {/* 1. Cabeçalho — MedicalPanelHeader reaproveitado, apenas título e botão adaptados */}
+      <MedicalPanelHeader
+        operational
+        title="Painel Administrativo"
+        recordButtonLabel="Relação de Pacientes"
+        recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
+        onOpenMedicalRecord={() => router.push('/admin/pacientes')}
+        onLogout={handleLogout}
+      />
+
+      <div className="panel-page-body">
         {error && (
-          <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="shrink-0 rounded-[14px] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
             {error}
           </div>
         )}
 
         {data && (
           <>
-            <section>
-              <p className="mb-3 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
+            {/* 2. Cards Quantitativos — mesmos 6 cards/indicadores já existentes */}
+            <section className="shrink-0">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Situação atual — {data.total} atendimento{data.total !== 1 ? 's' : ''} no sistema
+                {userName ? ` · ${userName} · ${userRole.toUpperCase()}` : ''}
               </p>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {CARDS.map((card) => {
@@ -177,13 +250,13 @@ export default function AdminDashboardPage() {
                       key={card.key}
                       type="button"
                       onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
-                      className={`flex flex-col items-start rounded-[20px] border p-4 text-left shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${card.bg} ${card.border}`}
+                      className={`flex flex-col items-start rounded-[20px] border p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] ${card.bg} ${card.border}`}
                     >
-                      <span className="text-2xl" aria-hidden>
+                      <span className="text-xl" aria-hidden>
                         {card.emoji}
                       </span>
-                      <span className="mt-3 text-3xl font-black text-[#1E1E1E]">{count}</span>
-                      <span className="mt-1 text-[11px] font-semibold leading-tight text-[#5B6475]">
+                      <span className="mt-2 text-2xl font-black text-[#1E1E1E]">{count}</span>
+                      <span className="mt-1 text-[10.5px] font-semibold leading-tight text-[#5B6475]">
                         {card.label}
                       </span>
                     </button>
@@ -192,83 +265,108 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            <section>
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
-                  Pacientes recentes
-                </p>
-                <a
-                  href="/admin/pacientes"
-                  className="text-xs font-bold text-[#1557FF] hover:underline"
-                >
-                  Ver todos →
-                </a>
-              </div>
+            {/* 3. Faixa de Suporte Administrativo — MedicalSupportBand reaproveitado como está */}
+            <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
 
-              {data.recentes.length === 0 ? (
-                <EmptyState
-                  title="Nenhum atendimento registrado"
-                  description="Os pacientes aparecem aqui assim que chegam pelo Typebot."
-                />
-              ) : (
-                <Card className="overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[600px] text-sm">
-                      <thead>
-                        <tr className="border-b border-[#E5EAF2] bg-[#F8FAFC] text-xs font-black text-[#5B6475]">
-                          <th className="px-4 py-3 text-left">Paciente</th>
-                          <th className="px-4 py-3 text-left">Doença</th>
-                          <th className="px-4 py-3 text-left">Entrada</th>
-                          <th className="px-4 py-3 text-left">Status</th>
-                          <th className="px-4 py-3 text-left">Pagamento</th>
-                          <th className="px-4 py-3" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {data.recentes.map((p: AdminAtendimento) => (
-                          <tr
-                            key={p.id}
-                            className="border-b border-[#E5EAF2] last:border-0 hover:bg-[#F8FAFC]"
-                          >
-                            <td className="px-4 py-3 font-bold text-[#1E1E1E]">
-                              {p.paciente_nome}
-                            </td>
-                            <td className="px-4 py-3 text-[#5B6475]">{p.condicao || '—'}</td>
-                            <td className="px-4 py-3 text-[#5B6475]">{fmt(p.criado_em)}</td>
-                            <td className="px-4 py-3">
-                              <StatusPill tone={statusTone(p.status)}>
-                                {statusLabel(p.status)}
-                              </StatusPill>
-                            </td>
-                            <td className="px-4 py-3">
-                              <StatusPill
-                                tone={
-                                  p.pagamento_status === 'CONFIRMADO' ? 'success' : 'gold'
-                                }
-                              >
-                                {p.pagamento_status === 'CONFIRMADO' ? 'Pago' : 'Pendente'}
-                              </StatusPill>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                              <button
-                                type="button"
-                                onClick={() => router.push(`/admin/paciente/${p.id}`)}
-                                className="rounded-[12px] border border-[#E5EAF2] bg-white px-3 py-1.5 text-xs font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
-                              >
-                                Ver jornada
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              )}
+            {/* 4. Indicadores de Tempo Médio — placeholders visuais, sem lógica */}
+            <section className="shrink-0">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
+                Indicadores de tempo médio (em breve)
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                {TIME_PLACEHOLDERS.map((label) => (
+                  <MetricCard key={label} label={label} value="—" />
+                ))}
+              </div>
             </section>
+
+            {/* 5. Corpo Principal — mesmo padrão visual de coluna do Painel Médico (fila) */}
+            <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-3">
+              {bodyColumns.map((column) => {
+                const Icon = column.icon;
+                const items = grouped[column.key];
+                return (
+                  <section key={column.key} className="dp-fila-column fila-column-scroll h-full min-h-0 min-w-0">
+                    <div className="dp-fila-column__head flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span
+                          className={`dp-col-heading-icon flex shrink-0 items-center justify-center rounded-full ${column.iconClass}`}
+                        >
+                          <Icon className="h-[17px] w-[17px]" aria-hidden="true" />
+                        </span>
+                        <h2 className="dp-col-heading truncate">{column.title}</h2>
+                      </div>
+                      <span className="dp-col-count dp-col-count-alert">{items.length}</span>
+                    </div>
+
+                    <div className="dp-fila-column__scroll space-y-2">
+                      {items.length ? (
+                        items.map((item) => {
+                          const patientLabel = patientInitials(item.paciente_nome);
+                          const patientAvatar = avatarInitials(item.paciente_nome);
+                          return (
+                            <article key={item.id} className="dp-patient-card">
+                              <div className="dp-patient-card__inner">
+                                <div
+                                  className="dp-patient-avatar dp-patient-initials shrink-0"
+                                  title={item.paciente_nome}
+                                  aria-hidden="true"
+                                >
+                                  {patientAvatar}
+                                </div>
+                                <div className="dp-patient-card__main">
+                                  <div className="dp-patient-card__head">
+                                    <div className="min-w-0">
+                                      <h3
+                                        className={`dp-patient-card-label truncate ${
+                                          patientLabel.length > 5 ? 'dp-patient-card-label--compact' : ''
+                                        }`}
+                                        title={item.paciente_nome}
+                                      >
+                                        {patientLabel}
+                                      </h3>
+                                      <p className="dp-patient-id">#{formatQueuePatientId(item.id)}</p>
+                                    </div>
+                                    <span className="dp-status-badge dp-status-badge-neutral whitespace-nowrap">
+                                      {fmt(item.atualizado_em || item.criado_em)}
+                                    </span>
+                                  </div>
+
+                                  <div className="dp-patient-card__actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => router.push(`/admin/paciente/${item.id}`)}
+                                      className="rounded-[12px] border border-[#E5EAF2] bg-white px-3 py-1.5 text-xs font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
+                                    >
+                                      Ver jornada
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            </article>
+                          );
+                        })
+                      ) : (
+                        <p className="dp-text-subtle rounded-[14px] border border-dashed border-[#E4ECF7] p-5 text-center text-[12px] font-semibold">
+                          Sem atendimentos
+                        </p>
+                      )}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           </>
         )}
       </div>
-    </AppShell>
+
+      {/* 6. Rodapé — mesmo rodapé institucional do Painel Médico */}
+      <footer className="panel-footer">
+        <span>
+          Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © 2025 Todos os
+          direitos reservados.
+        </span>
+      </footer>
+    </main>
   );
 }
