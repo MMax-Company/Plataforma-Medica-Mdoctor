@@ -31,6 +31,7 @@ export type AdminAtendimento = {
     stripe_checkout_url?: string;
     memed_receita?: { pdfUrl?: string; receitaUrl?: string; receitaId?: string };
     entrega_receita?: { channel?: string; status?: string; sent_at?: string };
+    motivo_rejeicao?: { code?: string; label?: string; detail?: string | null; rejected_at?: string } | null;
   };
 };
 
