@@ -1350,11 +1350,9 @@ body {
 /* Painel Administrativo V2 — compactação adicional das colunas do corpo
    principal (além do fila-page-dense compartilhado com o Painel Médico),
    para abrir espaço para a faixa de suporte/cards maiores. Mesma lógica
-   de especificidade acima. */
-.fila-page-dense .admin-corpo-dense .dp-patient-card {
-  padding: 5px 8px;
-}
-
+   de especificidade acima. As linhas de paciente (PatientRow) usam classes
+   Tailwind diretas, não dp-patient-card — só o cabeçalho/scroll da coluna
+   (dp-fila-column__*) ainda são compartilhados com o Painel Médico. */
 .fila-page-dense .admin-corpo-dense .dp-fila-column__head {
   min-height: 32px;
   padding-top: 4px;
@@ -1363,15 +1361,6 @@ body {
 
 .fila-page-dense .admin-corpo-dense .dp-fila-column__scroll {
   padding: 6px;
-}
-
-.fila-page-dense .admin-corpo-dense .dp-fila-column__scroll.space-y-2 > * + * {
-  margin-top: 4px;
-}
-
-.fila-page-dense .admin-corpo-dense .dp-patient-avatar {
-  width: 32px;
-  height: 32px;
 }
 
 /* Prontuário — conteúdo flui na página (sem scroll interno no miolo clínico) */

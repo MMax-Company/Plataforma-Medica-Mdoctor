@@ -8,12 +8,13 @@ import { getApiBase } from '@/services/api';
 import {
   fetchAdminDashboard,
   fetchAdminAtendimentos,
+  resolveAdminNote,
   type AdminAtendimento,
   type AdminDashboard,
 } from '@/services/admin.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
-import { avatarInitials, patientInitials, formatQueuePatientId } from '@/lib/patient-display';
+import { avatarInitials } from '@/lib/patient-display';
 
 // Seção 2 — Cards Quantitativos: mesmos 6 indicadores já existentes hoje no
 // Painel Administrativo (fetchAdminDashboard), apenas reposicionados na nova
@@ -83,18 +84,36 @@ function isRejected(a: AdminAtendimento) {
   return ['rejected', 'recusado', 'cancelado'].includes(v);
 }
 
-function hasPendingAdminNote(a: AdminAtendimento) {
-  return (a.dados_clinicos?.observacoes_admin || []).some((n) => !n.resolvido);
+function firstPendingAdminNote(a: AdminAtendimento) {
+  return (a.dados_clinicos?.observacoes_admin || []).find((n) => !n.resolvido) || null;
 }
 
-function fmt(v?: string) {
+function hasPendingAdminNote(a: AdminAtendimento) {
+  return firstPendingAdminNote(a) !== null;
+}
+
+// Motivo/etapa de reprovação: reaproveita dados_clinicos.motivo_rejeicao (já
+// gravado pelo médico em /clinical/reject — ver clinical-decision.service.js)
+// e o campo elegibilidade já existente para o caso de reprovação automática
+// na triagem (sem revisão médica). Nenhuma classificação nova é criada.
+function rejectionMotivo(a: AdminAtendimento): string {
+  const manual = a.dados_clinicos?.motivo_rejeicao;
+  if (manual?.label) return manual.detail ? `${manual.label} — ${manual.detail}` : manual.label;
+  return a.elegibilidade?.reason || '—';
+}
+
+function rejectionEtapa(a: AdminAtendimento): string {
+  return a.dados_clinicos?.motivo_rejeicao ? 'Avaliação médica' : 'Triagem';
+}
+
+function fmtDate(v?: string) {
   if (!v) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(v));
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(v));
+}
+
+function fmtTime(v?: string) {
+  if (!v) return '—';
+  return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(v));
 }
 
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
@@ -161,6 +180,103 @@ function MetricTileContent({ emoji, value, label }: { emoji: string; value: Reac
   );
 }
 
+// Linha operacional do paciente (não é card): Avatar | Nome | Data | Horário |
+// campo(s) específico(s) da coluna | ação(ões) — tudo na mesma linha
+// horizontal, como pedido para a central operacional de acompanhamento.
+function PatientRow({
+  column,
+  item,
+  onVerJornada,
+  onResolveNote,
+  resolvingNoteId,
+}: {
+  column: BodyColumnKey;
+  item: AdminAtendimento;
+  onVerJornada: () => void;
+  onResolveNote: (atendimentoId: string, noteId: string) => void;
+  resolvingNoteId: string | null;
+}) {
+  const verJornadaBtn = (
+    <button
+      type="button"
+      onClick={onVerJornada}
+      className="w-full rounded-[7px] border border-[#E5EAF2] bg-white px-2 py-1 text-[9.5px] font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
+    >
+      Ver Jornada
+    </button>
+  );
+
+  return (
+    <div className="flex items-center gap-2 rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 hover:bg-[#F8FAFC]">
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0F1D38] text-[9px] font-bold text-white"
+        title={item.paciente_nome}
+        aria-hidden="true"
+      >
+        {avatarInitials(item.paciente_nome)}
+      </div>
+      <span className="w-[104px] shrink-0 truncate text-[11px] font-bold text-[#071B3A]" title={item.paciente_nome}>
+        {item.paciente_nome}
+      </span>
+      <span className="w-[62px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
+      <span className="w-[40px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
+
+      {column === 'approved' && (
+        <>
+          <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
+            {item.condicao || '—'}
+          </span>
+          <div className="w-[92px] shrink-0">{verJornadaBtn}</div>
+        </>
+      )}
+
+      {column === 'rejected' && (
+        <>
+          <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
+            {rejectionMotivo(item)}
+          </span>
+          <span className="w-[92px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={rejectionEtapa(item)}>
+            {rejectionEtapa(item)}
+          </span>
+          <div className="flex w-[92px] shrink-0 flex-col gap-1">
+            {verJornadaBtn}
+            <button
+              type="button"
+              disabled
+              title="Ação ainda não definida — depende de decisão de regra de negócio"
+              className="w-full cursor-not-allowed rounded-[7px] border border-[#E5EAF2] bg-[#F8FAFC] px-2 py-1 text-[9.5px] font-bold text-[#9AA5B4]"
+            >
+              Reiniciar
+            </button>
+          </div>
+        </>
+      )}
+
+      {column === 'pending' && (() => {
+        const note = firstPendingAdminNote(item);
+        const resolving = note ? resolvingNoteId === note.id : false;
+        return (
+          <>
+            <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
+              {note?.texto || '—'}
+            </span>
+            <div className="w-[92px] shrink-0">
+              <button
+                type="button"
+                disabled={!note || resolving}
+                onClick={() => note && onResolveNote(item.id, note.id)}
+                className="w-full rounded-[7px] border border-[#E5EAF2] bg-white px-2 py-1 text-[9.5px] font-bold text-[#0BA84F] hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resolving ? 'Resolvendo...' : 'Resolver'}
+              </button>
+            </div>
+          </>
+        );
+      })()}
+    </div>
+  );
+}
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<AdminDashboard | null>(null);
@@ -170,6 +286,28 @@ export default function AdminDashboardPage() {
   const [userRole, setUserRole] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resolvingNoteId, setResolvingNoteId] = useState<string | null>(null);
+
+  async function refreshAtendimentos() {
+    try {
+      const list = await fetchAdminAtendimentos();
+      setAtendimentos(list.atendimentos || []);
+    } catch {
+      /* mantém a lista anterior — próximo ciclo tenta de novo */
+    }
+  }
+
+  async function handleResolveNote(atendimentoId: string, noteId: string) {
+    setResolvingNoteId(noteId);
+    try {
+      await resolveAdminNote(atendimentoId, noteId);
+      await refreshAtendimentos();
+    } catch {
+      /* best-effort — usuário pode tentar de novo */
+    } finally {
+      setResolvingNoteId(null);
+    }
+  }
 
   async function fetchSupportQueue() {
     try {
@@ -210,6 +348,19 @@ export default function AdminDashboardPage() {
       })
       .finally(() => setLoading(false));
   }, [router]);
+
+  // Lista dinâmica: mesma cadência de atualização automática do Painel
+  // Médico (fila/page.tsx) — pacientes sobem/descem de coluna conforme o
+  // status muda, sem precisar recarregar a página.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refreshAtendimentos();
+        void fetchSupportQueue();
+      }
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const grouped = useMemo(() => {
     return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
@@ -317,53 +468,18 @@ export default function AdminDashboardPage() {
                       <span className="dp-col-count dp-col-count-alert">{items.length}</span>
                     </div>
 
-                    <div className="dp-fila-column__scroll space-y-2">
+                    <div className="dp-fila-column__scroll space-y-1.5">
                       {items.length ? (
-                        items.map((item) => {
-                          const patientLabel = patientInitials(item.paciente_nome);
-                          const patientAvatar = avatarInitials(item.paciente_nome);
-                          return (
-                            <article key={item.id} className="dp-patient-card">
-                              <div className="dp-patient-card__inner">
-                                <div
-                                  className="dp-patient-avatar dp-patient-initials shrink-0"
-                                  title={item.paciente_nome}
-                                  aria-hidden="true"
-                                >
-                                  {patientAvatar}
-                                </div>
-                                <div className="dp-patient-card__main">
-                                  <div className="dp-patient-card__head">
-                                    <div className="min-w-0">
-                                      <h3
-                                        className={`dp-patient-card-label truncate ${
-                                          patientLabel.length > 5 ? 'dp-patient-card-label--compact' : ''
-                                        }`}
-                                        title={item.paciente_nome}
-                                      >
-                                        {patientLabel}
-                                      </h3>
-                                      <p className="dp-patient-id">#{formatQueuePatientId(item.id)}</p>
-                                    </div>
-                                    <span className="dp-status-badge dp-status-badge-neutral whitespace-nowrap">
-                                      {fmt(item.atualizado_em || item.criado_em)}
-                                    </span>
-                                  </div>
-
-                                  <div className="dp-patient-card__actions">
-                                    <button
-                                      type="button"
-                                      onClick={() => router.push(`/admin/paciente/${item.id}`)}
-                                      className="rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1 text-[10px] font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
-                                    >
-                                      Ver jornada
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </article>
-                          );
-                        })
+                        items.map((item) => (
+                          <PatientRow
+                            key={item.id}
+                            column={column.key}
+                            item={item}
+                            onVerJornada={() => router.push(`/admin/paciente/${item.id}`)}
+                            onResolveNote={handleResolveNote}
+                            resolvingNoteId={resolvingNoteId}
+                          />
+                        ))
                       ) : (
                         <p className="dp-text-subtle rounded-[14px] border border-dashed border-[#E4ECF7] p-5 text-center text-[12px] font-semibold">
                           Sem atendimentos
