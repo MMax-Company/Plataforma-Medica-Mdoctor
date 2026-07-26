@@ -54,11 +54,16 @@ function subStatusLabel(sub?: string): string {
 interface MedicalSupportBandProps {
   patients: SupportQueueItem[];
   onQueueRefresh?: () => void;
+  /** 'lg' dá mais destaque visual (usado no Painel Administrativo) — mesmo
+   * layout/lógica do Painel Médico, só maior. Default preserva o visual
+   * atual do Painel Médico sem nenhuma mudança. */
+  size?: 'compact' | 'lg';
 }
 
-export function MedicalSupportBand({ patients, onQueueRefresh }: MedicalSupportBandProps) {
+export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' }: MedicalSupportBandProps) {
   const visible = patients.slice(0, 10);
   const extra = Math.max(0, patients.length - 10);
+  const lg = size === 'lg';
 
   async function handleAttend(patient: SupportQueueItem) {
     try {
@@ -97,38 +102,44 @@ export function MedicalSupportBand({ patients, onQueueRefresh }: MedicalSupportB
   }
 
   return (
-    <section className="panel-support-band flex shrink-0 items-center border border-[#D9E6FF] bg-[#EEF4FF]">
+    <section
+      className={`panel-support-band${lg ? ' panel-support-band--lg' : ''} flex shrink-0 items-center border border-[#D9E6FF] bg-[#EEF4FF]`}
+    >
       <div className="grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
-        <div className="flex min-w-0 items-center gap-2.5 border-r border-[#D9E6FF] pr-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#D9E6FF] text-[#1A3F8F]">
-            <Headphones className="h-4 w-4" strokeWidth={2.2} aria-hidden="true" />
+        <div className={`flex min-w-0 items-center border-r border-[#D9E6FF] ${lg ? 'gap-3.5 pr-5' : 'gap-2.5 pr-4'}`}>
+          <div
+            className={`flex shrink-0 items-center justify-center rounded-full bg-[#D9E6FF] text-[#1A3F8F] ${lg ? 'h-12 w-12' : 'h-8 w-8'}`}
+          >
+            <Headphones className={lg ? 'h-6 w-6' : 'h-4 w-4'} strokeWidth={2.2} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-[14px] font-bold leading-tight text-[#1A3F8F]">SUPORTE MÉDICO VIA WHATSAPP</h2>
-            <p className="dp-text-muted mt-0.5 text-[11px] leading-snug">
+            <h2 className={`font-bold leading-tight text-[#1A3F8F] ${lg ? 'text-[19px]' : 'text-[14px]'}`}>
+              SUPORTE MÉDICO VIA WHATSAPP
+            </h2>
+            <p className={`dp-text-muted mt-0.5 leading-snug ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
               Pacientes aguardando atendimento da equipe de suporte via WhatsApp.
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col justify-center gap-0.5 border-r border-[#D9E6FF] px-4">
-          <p className="flex items-center gap-1.5 text-[12px] font-semibold text-[#1A2333]">
-            <Users className="h-3.5 w-3.5 shrink-0 text-[#1A3F8F]" aria-hidden="true" />
+        <div className={`flex flex-col justify-center border-r border-[#D9E6FF] ${lg ? 'gap-1.5 px-5' : 'gap-0.5 px-4'}`}>
+          <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[15px]' : 'text-[12px]'}`}>
+            <Users className={lg ? 'h-4.5 w-4.5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
             <span>
               <strong className="font-bold">{patients.length}</strong> aguardando atendimento
             </span>
           </p>
-          <p className="dp-text-muted flex items-center gap-1.5 text-[11px]">
-            <Clock className="h-3.5 w-3.5 shrink-0 text-[#1A3F8F]" aria-hidden="true" />
+          <p className={`dp-text-muted flex items-center gap-1.5 ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
+            <Clock className={lg ? 'h-4.5 w-4.5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
             Esperando há{' '}
-            <span className="text-[15px] font-bold text-[#1A3F8F]">{minutesWaiting(patients)}</span>
+            <span className={`font-bold text-[#1A3F8F] ${lg ? 'text-[19px]' : 'text-[15px]'}`}>{minutesWaiting(patients)}</span>
           </p>
         </div>
 
-        <div className="flex min-w-0 flex-col items-end justify-center pl-3">
-          <div className="flex min-h-[28px] flex-wrap items-center justify-end gap-1.5">
+        <div className={`flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
+          <div className={`flex flex-wrap items-center justify-end gap-1.5 ${lg ? 'min-h-[36px]' : 'min-h-[28px]'}`}>
             {visible.length === 0 ? (
-              <span className="dp-text-subtle text-[11px] font-medium">Nenhum paciente na fila de suporte</span>
+              <span className={`dp-text-subtle font-medium ${lg ? 'text-[13px]' : 'text-[11px]'}`}>Nenhum paciente na fila de suporte</span>
             ) : (
               visible.map((patient, index) => {
                 const sub = patient.support_sub_status;
@@ -144,7 +155,9 @@ export function MedicalSupportBand({ patients, onQueueRefresh }: MedicalSupportB
                     <button
                       type="button"
                       onClick={() => handleAttend(patient)}
-                      className={`inline-flex h-7 min-w-7 cursor-pointer items-center justify-center rounded-[6px] px-1.5 text-[12px] font-bold transition-all duration-200 ${
+                      className={`inline-flex cursor-pointer items-center justify-center rounded-[6px] font-bold transition-all duration-200 ${
+                        lg ? 'h-9 min-w-9 px-2 text-[14px]' : 'h-7 min-w-7 px-1.5 text-[12px]'
+                      } ${
                         isDecision
                           ? 'bg-amber-100 text-amber-700'
                           : isActive
@@ -181,7 +194,7 @@ export function MedicalSupportBand({ patients, onQueueRefresh }: MedicalSupportB
               </span>
             ) : null}
           </div>
-          <p className="dp-text-subtle mt-1 text-[10px]">Clique no número para abrir WhatsApp · ✓ para finalizar</p>
+          <p className={`dp-text-subtle mt-1 ${lg ? 'text-[11px]' : 'text-[10px]'}`}>Clique no número para abrir WhatsApp · ✓ para finalizar</p>
         </div>
       </div>
     </section>

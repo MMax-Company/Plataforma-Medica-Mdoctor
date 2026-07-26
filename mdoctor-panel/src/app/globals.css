@@ -1324,6 +1324,19 @@ body {
   }
 }
 
+/* Painel Administrativo V2 — variante "lg" do MedicalSupportBand (mesmo
+   componente/lógica do Painel Médico, só com mais destaque visual). Fica
+   fora de @layer components de propósito: no CSS cascade layers, regras
+   sem @layer sempre vencem regras dentro de um layer nomeado, então este
+   bloco sobrepõe .fila-page-dense .panel-support-band sem depender de
+   ordem/especificidade. */
+.panel-support-band--lg {
+  height: 148px;
+  padding-left: 20px;
+  padding-right: 20px;
+  border-radius: 16px;
+}
+
 /* Prontuário — conteúdo flui na página (sem scroll interno no miolo clínico) */
 .atendimento-page-fluid .dp-panel-shell {
   max-width: 1320px;
