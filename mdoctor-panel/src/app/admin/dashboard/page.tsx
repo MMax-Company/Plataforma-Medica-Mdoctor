@@ -114,28 +114,6 @@ function fmtTime(v?: string) {
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(v));
 }
 
-// MOCK TEMPORÁRIO — apenas para validação visual da coluna Pendências
-// Administrativas (staging não tem pendência real no momento). Remover
-// assim que a validação do layout for confirmada; não é dado real nem
-// gravado no backend.
-const MOCK_PENDING_PATIENT: AdminAtendimento = {
-  id: 'mock-pendencia-visual',
-  paciente_nome: 'Fictício da Silva Santos (mock)',
-  status: 'em_atendimento',
-  criado_em: new Date().toISOString(),
-  dados_clinicos: {
-    observacoes_admin: [
-      {
-        id: 'mock-nota-1',
-        texto: 'Telefone divergente do informado na triagem — confirmar com o paciente antes de prosseguir',
-        autor: 'Sistema (mock)',
-        criado_em: new Date().toISOString(),
-        resolvido: false,
-      },
-    ],
-  },
-};
-
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
 
 const bodyColumns: Array<{
@@ -397,16 +375,13 @@ export default function AdminDashboardPage() {
   }, []);
 
   const grouped = useMemo(() => {
-    const result = bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
+    return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
         acc[column.key] = atendimentos.filter(column.match);
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
     );
-    // MOCK TEMPORÁRIO — ver MOCK_PENDING_PATIENT acima.
-    result.pending = [MOCK_PENDING_PATIENT, ...result.pending];
-    return result;
   }, [atendimentos]);
 
   async function handleLogout() {
