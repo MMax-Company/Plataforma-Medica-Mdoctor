@@ -103,36 +103,38 @@ export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' 
 
   return (
     <section
-      className={`panel-support-band${lg ? ' panel-support-band--lg' : ''} flex shrink-0 items-center border border-[#D9E6FF] bg-[#EEF4FF]`}
+      className={`panel-support-band${lg ? ' panel-support-band--lg' : ''} flex shrink-0 items-center bg-[#EEF4FF] ${
+        lg ? 'border-2 border-[#BFD0FF]' : 'border border-[#D9E6FF]'
+      }`}
     >
       <div className="grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
-        <div className={`flex min-w-0 items-center border-r border-[#D9E6FF] ${lg ? 'gap-3.5 pr-5' : 'gap-2.5 pr-4'}`}>
+        <div className={`flex min-w-0 items-center border-r border-[#D9E6FF] ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
           <div
-            className={`flex shrink-0 items-center justify-center rounded-full bg-[#D9E6FF] text-[#1A3F8F] ${lg ? 'h-12 w-12' : 'h-8 w-8'}`}
+            className={`flex shrink-0 items-center justify-center rounded-full bg-[#D9E6FF] text-[#1A3F8F] ${lg ? 'h-14 w-14' : 'h-8 w-8'}`}
           >
-            <Headphones className={lg ? 'h-6 w-6' : 'h-4 w-4'} strokeWidth={2.2} aria-hidden="true" />
+            <Headphones className={lg ? 'h-7 w-7' : 'h-4 w-4'} strokeWidth={2.2} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 className={`font-bold leading-tight text-[#1A3F8F] ${lg ? 'text-[19px]' : 'text-[14px]'}`}>
+            <h2 className={`font-black leading-tight text-[#1A3F8F] ${lg ? 'text-[23px]' : 'text-[14px]'}`}>
               SUPORTE MÉDICO VIA WHATSAPP
             </h2>
-            <p className={`dp-text-muted mt-0.5 leading-snug ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
+            <p className={`dp-text-muted mt-0.5 leading-snug ${lg ? 'text-[14px]' : 'text-[11px]'}`}>
               Pacientes aguardando atendimento da equipe de suporte via WhatsApp.
             </p>
           </div>
         </div>
 
-        <div className={`flex flex-col justify-center border-r border-[#D9E6FF] ${lg ? 'gap-1.5 px-5' : 'gap-0.5 px-4'}`}>
-          <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[15px]' : 'text-[12px]'}`}>
-            <Users className={lg ? 'h-4.5 w-4.5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
+        <div className={`flex flex-col justify-center border-r border-[#D9E6FF] ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
+          <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[17px]' : 'text-[12px]'}`}>
+            <Users className={lg ? 'h-5 w-5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
             <span>
-              <strong className="font-bold">{patients.length}</strong> aguardando atendimento
+              <strong className="font-black">{patients.length}</strong> aguardando atendimento
             </span>
           </p>
-          <p className={`dp-text-muted flex items-center gap-1.5 ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
-            <Clock className={lg ? 'h-4.5 w-4.5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
+          <p className={`dp-text-muted flex items-center gap-1.5 ${lg ? 'text-[14px]' : 'text-[11px]'}`}>
+            <Clock className={lg ? 'h-5 w-5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
             Esperando há{' '}
-            <span className={`font-bold text-[#1A3F8F] ${lg ? 'text-[19px]' : 'text-[15px]'}`}>{minutesWaiting(patients)}</span>
+            <span className={`font-black text-[#1A3F8F] ${lg ? 'text-[26px]' : 'text-[15px]'}`}>{minutesWaiting(patients)}</span>
           </p>
         </div>
 
@@ -155,8 +157,8 @@ export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' 
                     <button
                       type="button"
                       onClick={() => handleAttend(patient)}
-                      className={`inline-flex cursor-pointer items-center justify-center rounded-[6px] font-bold transition-all duration-200 ${
-                        lg ? 'h-9 min-w-9 px-2 text-[14px]' : 'h-7 min-w-7 px-1.5 text-[12px]'
+                      className={`inline-flex cursor-pointer items-center justify-center rounded-[8px] font-black transition-all duration-200 ${
+                        lg ? 'h-10 min-w-10 px-2.5 text-[16px]' : 'h-7 min-w-7 px-1.5 text-[12px]'
                       } ${
                         isDecision
                           ? 'bg-amber-100 text-amber-700'

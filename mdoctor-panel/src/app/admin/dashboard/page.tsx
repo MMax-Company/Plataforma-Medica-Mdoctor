@@ -220,6 +220,7 @@ export default function AdminDashboardPage() {
       <MedicalPanelHeader
         operational
         title="Painel Administrativo"
+        titleAlign="left"
         recordButtonLabel="Relação de Pacientes"
         recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/pacientes')}
@@ -235,13 +236,13 @@ export default function AdminDashboardPage() {
 
         {data && (
           <>
-            {/* 2. Cards Quantitativos — mesmos 6 cards/indicadores já existentes, escala compacta */}
+            {/* 2. Cards Quantitativos — mesmos 6 cards/indicadores já existentes, com destaque */}
             <section className="shrink-0">
-              <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-[#5B6475]">
+              <p className="mb-1.5 text-[10.5px] font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Situação atual — {data.total} atendimento{data.total !== 1 ? 's' : ''} no sistema
                 {userName ? ` · ${userName} · ${userRole.toUpperCase()}` : ''}
               </p>
-              <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
                 {CARDS.map((card) => {
                   const count = data.cards[card.key] ?? 0;
                   return (
@@ -249,13 +250,13 @@ export default function AdminDashboardPage() {
                       key={card.key}
                       type="button"
                       onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
-                      className={`flex flex-col items-start rounded-[12px] border p-2 text-left shadow-[0_1px_4px_rgba(0,0,0,0.04)] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(0,0,0,0.08)] ${card.bg} ${card.border}`}
+                      className={`flex flex-col items-start rounded-[16px] border-2 p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)] ${card.bg} ${card.border}`}
                     >
-                      <span className="text-base leading-none" aria-hidden>
+                      <span className="text-2xl leading-none" aria-hidden>
                         {card.emoji}
                       </span>
-                      <span className="mt-1 text-lg font-black leading-none text-[#1E1E1E]">{count}</span>
-                      <span className="mt-0.5 text-[9px] font-semibold leading-tight text-[#5B6475]">
+                      <span className="mt-1.5 text-[28px] font-black leading-none text-[#1E1E1E]">{count}</span>
+                      <span className="mt-1 text-[10.5px] font-bold leading-tight text-[#5B6475]">
                         {card.label}
                       </span>
                     </button>
@@ -264,19 +265,19 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            {/* 3. Faixa de Suporte Administrativo — MedicalSupportBand reaproveitado, variante "lg" para destaque */}
+            {/* 3. Faixa de Suporte Administrativo — prioridade visual máxima, MedicalSupportBand em "lg" */}
             <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} size="lg" />
 
-            {/* 4. Indicadores de Tempo Médio — apenas placeholders compactos, sem lógica/endpoint novo */}
-            <section className="shrink-0">
-              <div className="flex flex-wrap items-center gap-1.5 rounded-[10px] border border-[#E5EAF2] bg-white px-2.5 py-1.5">
-                <span className="mr-1 shrink-0 text-[9px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
-                  Tempo médio (em breve):
-                </span>
+            {/* 4. Indicadores de Tempo Médio — área reservada visível, porém a menos prioritária */}
+            <section className="shrink-0 rounded-[12px] border border-dashed border-[#C9D4E6] bg-[#F8FAFC] px-3 py-2">
+              <p className="mb-1 text-[9.5px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+                Indicadores de tempo médio · área reservada
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
                 {TIME_PLACEHOLDERS.map((label) => (
                   <span
                     key={label}
-                    className="inline-flex items-center gap-1 rounded-[7px] bg-[#F8FAFC] px-2 py-1 text-[9.5px] font-semibold text-[#5B6475]"
+                    className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 text-[10px] font-semibold text-[#5B6475]"
                   >
                     {label}
                     <strong className="font-black text-[#1E1E1E]">—</strong>
@@ -286,7 +287,7 @@ export default function AdminDashboardPage() {
             </section>
 
             {/* 5. Corpo Principal — mesmo padrão visual de coluna do Painel Médico (fila) */}
-            <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-3">
+            <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-2">
               {bodyColumns.map((column) => {
                 const Icon = column.icon;
                 const items = grouped[column.key];

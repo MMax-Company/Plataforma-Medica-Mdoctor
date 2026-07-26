@@ -727,6 +727,15 @@ body {
     justify-content: center;
   }
 
+  /* Variante usada quando o rótulo do botão à direita é mais longo que
+     "PRONTUÁRIO" (ex.: "Relação de Pacientes") e colide com o título
+     centralizado — move só o título para a esquerda, sem mexer na
+     posição de logo/ops. */
+  .panel-header__col--title-left {
+    justify-content: flex-start;
+    padding-left: 24px;
+  }
+
   .panel-header__col--ops {
     justify-content: flex-end;
     transform: translateY(6px);
@@ -1331,10 +1340,11 @@ body {
    bloco sobrepõe .fila-page-dense .panel-support-band sem depender de
    ordem/especificidade. */
 .panel-support-band--lg {
-  height: 148px;
-  padding-left: 20px;
-  padding-right: 20px;
-  border-radius: 16px;
+  height: 176px;
+  padding-left: 22px;
+  padding-right: 22px;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(21, 87, 255, 0.08);
 }
 
 /* Prontuário — conteúdo flui na página (sem scroll interno no miolo clínico) */
