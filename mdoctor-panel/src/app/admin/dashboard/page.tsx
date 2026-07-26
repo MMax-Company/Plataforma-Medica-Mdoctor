@@ -123,6 +123,9 @@ const bodyColumns: Array<{
   title: string;
   icon: typeof CheckCircle2;
   iconClass: string;
+  topBorderClass: string;
+  headBgClass: string;
+  countBadgeClass: string;
   match: (a: AdminAtendimento) => boolean;
 }> = [
   {
@@ -130,6 +133,9 @@ const bodyColumns: Array<{
     title: 'PACIENTES APROVADOS',
     icon: CheckCircle2,
     iconClass: 'bg-[#E8F8EE] text-[#0B7F3C]',
+    topBorderClass: 'border-t-4 border-t-[#0BA84F]',
+    headBgClass: 'bg-[#E8F8EE]',
+    countBadgeClass: 'border-[#0BA84F]/30 bg-[#0BA84F] text-white',
     match: isApproved,
   },
   {
@@ -137,13 +143,19 @@ const bodyColumns: Array<{
     title: 'PACIENTES REJEITADOS',
     icon: XCircle,
     iconClass: 'bg-slate-100 text-[#5B6475]',
+    topBorderClass: 'border-t-4 border-t-[#B91C2B]',
+    headBgClass: 'bg-slate-100',
+    countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isRejected,
   },
   {
     key: 'pending',
     title: 'PENDÊNCIAS ADMINISTRATIVAS',
     icon: AlertTriangle,
-    iconClass: 'bg-amber-50 text-amber-700',
+    iconClass: 'bg-amber-100 text-amber-800',
+    topBorderClass: 'border-t-4 border-t-amber-500',
+    headBgClass: 'bg-amber-50',
+    countBadgeClass: 'border-amber-500/30 bg-amber-500 text-white',
     match: hasPendingAdminNote,
   },
 ];
@@ -200,14 +212,14 @@ function PatientRow({
     <button
       type="button"
       onClick={onVerJornada}
-      className="w-full rounded-[7px] border border-[#E5EAF2] bg-white px-2 py-1 text-[9.5px] font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
+      className="w-full rounded-[7px] border-2 border-[#1557FF] bg-white px-2 py-1 text-[9.5px] font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
     >
       Ver Jornada
     </button>
   );
 
   return (
-    <div className="flex items-center gap-2 rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 hover:bg-[#F8FAFC]">
+    <div className="flex items-center gap-2 overflow-hidden rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 hover:bg-[#F8FAFC]">
       <div
         className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0F1D38] text-[9px] font-bold text-white"
         title={item.paciente_nome}
@@ -215,30 +227,33 @@ function PatientRow({
       >
         {avatarInitials(item.paciente_nome)}
       </div>
-      <span className="w-[104px] shrink-0 truncate text-[11px] font-bold text-[#071B3A]" title={item.paciente_nome}>
+      <span
+        className="min-w-[80px] flex-[1.3] truncate text-[11px] font-bold text-[#071B3A]"
+        title={item.paciente_nome}
+      >
         {item.paciente_nome}
       </span>
-      <span className="w-[62px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
-      <span className="w-[40px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
+      <span className="w-[66px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
+      <span className="w-[38px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
 
       {column === 'approved' && (
         <>
-          <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
+          <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
             {item.condicao || '—'}
           </span>
-          <div className="w-[92px] shrink-0">{verJornadaBtn}</div>
+          <div className="w-[84px] shrink-0">{verJornadaBtn}</div>
         </>
       )}
 
       {column === 'rejected' && (
         <>
-          <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
+          <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
             {rejectionMotivo(item)}
           </span>
-          <span className="w-[92px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={rejectionEtapa(item)}>
+          <span className="w-[78px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={rejectionEtapa(item)}>
             {rejectionEtapa(item)}
           </span>
-          <div className="flex w-[92px] shrink-0 flex-col gap-1">
+          <div className="flex w-[84px] shrink-0 flex-col gap-1">
             {verJornadaBtn}
             <button
               type="button"
@@ -257,15 +272,15 @@ function PatientRow({
         const resolving = note ? resolvingNoteId === note.id : false;
         return (
           <>
-            <span className="min-w-0 flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
+            <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
               {note?.texto || '—'}
             </span>
-            <div className="w-[92px] shrink-0">
+            <div className="w-[84px] shrink-0">
               <button
                 type="button"
                 disabled={!note || resolving}
                 onClick={() => note && onResolveNote(item.id, note.id)}
-                className="w-full rounded-[7px] border border-[#E5EAF2] bg-white px-2 py-1 text-[9.5px] font-bold text-[#0BA84F] hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="w-full rounded-[7px] border-2 border-[#B45309] bg-white px-2 py-1 text-[9.5px] font-bold text-[#B45309] hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {resolving ? 'Resolvendo...' : 'Resolver'}
               </button>
@@ -455,8 +470,13 @@ export default function AdminDashboardPage() {
                 const Icon = column.icon;
                 const items = grouped[column.key];
                 return (
-                  <section key={column.key} className="dp-fila-column fila-column-scroll h-full min-h-0 min-w-0">
-                    <div className="dp-fila-column__head flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-3">
+                  <section
+                    key={column.key}
+                    className={`dp-fila-column fila-column-scroll h-full min-h-0 min-w-0 ${column.topBorderClass}`}
+                  >
+                    <div
+                      className={`dp-fila-column__head flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-3 ${column.headBgClass}`}
+                    >
                       <div className="flex min-w-0 items-center gap-2.5">
                         <span
                           className={`dp-col-heading-icon flex shrink-0 items-center justify-center rounded-full ${column.iconClass}`}
@@ -465,7 +485,7 @@ export default function AdminDashboardPage() {
                         </span>
                         <h2 className="dp-col-heading truncate">{column.title}</h2>
                       </div>
-                      <span className="dp-col-count dp-col-count-alert">{items.length}</span>
+                      <span className={`dp-col-count ${column.countBadgeClass}`}>{items.length}</span>
                     </div>
 
                     <div className="dp-fila-column__scroll space-y-1.5">
