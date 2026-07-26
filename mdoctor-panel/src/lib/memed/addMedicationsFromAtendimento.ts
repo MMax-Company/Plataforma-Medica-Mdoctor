@@ -95,13 +95,16 @@ export async function addMedicationsFromAtendimento(
   const memed_items_sent: MemedPrescriptionItem[] = [];
 
   for (const item of memed_items) {
+    // quantidade NUNCA é enviada ao addItem: para item de texto livre (sem id
+    // de catálogo), a Memed sempre renderiza "N embalagem(ns)" no PDF a
+    // partir desse campo — mesmo quantidade:1 aparece como "1 embalagem" em
+    // destaque. Validado em homologação (26/07): só nome+posologia faz essa
+    // linha desaparecer por completo. A quantidade real (comprimidos) já vai
+    // embutida em item.nome pelo backend (memed-payload.service.js).
     const payload: MemedPrescriptionItem = {
       nome: item.nome,
       posologia: item.posologia,
     };
-    if (typeof item.quantidade === 'number' && item.quantidade > 0) {
-      payload.quantidade = item.quantidade;
-    }
 
     try {
       await sendAddItemWithDiagnostic(payload as Record<string, unknown>);
