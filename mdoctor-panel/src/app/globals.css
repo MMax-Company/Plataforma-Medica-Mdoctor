@@ -1334,17 +1334,44 @@ body {
 }
 
 /* Painel Administrativo V2 — variante "lg" do MedicalSupportBand (mesmo
-   componente/lógica do Painel Médico, só com mais destaque visual). Fica
-   fora de @layer components de propósito: no CSS cascade layers, regras
-   sem @layer sempre vencem regras dentro de um layer nomeado, então este
-   bloco sobrepõe .fila-page-dense .panel-support-band sem depender de
-   ordem/especificidade. */
-.panel-support-band--lg {
-  height: 176px;
-  padding-left: 22px;
-  padding-right: 22px;
+   componente/lógica do Painel Médico, só com mais destaque visual).
+   Especificidade (0,3,0) de propósito: precisa vencer
+   ".fila-page-dense .panel-support-band" (0,2,0) do Sistema Dense
+   Unificado, que também se aplica a esta página. */
+.fila-page-dense .panel-support-band.panel-support-band--lg {
+  height: 208px;
+  min-height: 208px;
+  padding-left: 24px;
+  padding-right: 24px;
   border-radius: 18px;
   box-shadow: 0 4px 16px rgba(21, 87, 255, 0.08);
+}
+
+/* Painel Administrativo V2 — compactação adicional das colunas do corpo
+   principal (além do fila-page-dense compartilhado com o Painel Médico),
+   para abrir espaço para a faixa de suporte/cards maiores. Mesma lógica
+   de especificidade acima. */
+.fila-page-dense .admin-corpo-dense .dp-patient-card {
+  padding: 5px 8px;
+}
+
+.fila-page-dense .admin-corpo-dense .dp-fila-column__head {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.fila-page-dense .admin-corpo-dense .dp-fila-column__scroll {
+  padding: 6px;
+}
+
+.fila-page-dense .admin-corpo-dense .dp-fila-column__scroll.space-y-2 > * + * {
+  margin-top: 4px;
+}
+
+.fila-page-dense .admin-corpo-dense .dp-patient-avatar {
+  width: 32px;
+  height: 32px;
 }
 
 /* Prontuário — conteúdo flui na página (sem scroll interno no miolo clínico) */
