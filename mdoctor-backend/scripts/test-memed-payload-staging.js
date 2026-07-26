@@ -76,9 +76,16 @@ for (const [key, frequency] of [
   payloads[key] = { addItem: item, setPaciente: payload.setPaciente };
 }
 
-ok('2x quantidade 120', payloads['2x_dia'].addItem.quantidade === 120);
-ok('1x quantidade 60', payloads['1x_dia'].addItem.quantidade === 60);
-ok('3x quantidade 180', payloads['3x_dia'].addItem.quantidade === 180);
+// A Memed só aceita unit "embalagem(ns)" para item sem id de catálogo — sem
+// busca de catálogo (fora de escopo), a quantidade real (60/120/180) vai
+// embutida no nome (padrão oficial da Memed para texto livre) e quantidade
+// enviada ao addItem é sempre 1 (ver comentário em buildAddItemPayload).
+ok('2x quantidade real 120 no nome', payloads['2x_dia'].addItem.nome.includes('120 comprimidos'));
+ok('1x quantidade real 60 no nome', payloads['1x_dia'].addItem.nome.includes('60 comprimidos'));
+ok('3x quantidade real 180 no nome', payloads['3x_dia'].addItem.nome.includes('180 comprimidos'));
+ok('2x quantidade enviada à Memed é 1', payloads['2x_dia'].addItem.quantidade === 1);
+ok('1x quantidade enviada à Memed é 1', payloads['1x_dia'].addItem.quantidade === 1);
+ok('3x quantidade enviada à Memed é 1', payloads['3x_dia'].addItem.quantidade === 1);
 
 try {
   buildAddItemPayload({

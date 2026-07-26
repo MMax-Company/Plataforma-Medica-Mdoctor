@@ -159,6 +159,21 @@ function buildSetPacientePayload(atendimento = {}) {
   return payload;
 }
 
+// A Memed só aceita "embalagem"/"embalagens" como unit do addItem quando o
+// medicamento é texto livre (sem id do catálogo oficial) — confirmado na
+// documentação oficial (doc.memed.com.br/docs/frontend/comandos-mdhub/add-item):
+// "valores válidos para unit: embalagem|embalagens|form_units.singular|
+// form_units.plural", sendo os dois últimos só disponíveis com item de
+// catálogo. Sem busca de catálogo (fora do escopo desta fase do produto),
+// não há como declarar "comprimidos" nesse campo. O próprio exemplo oficial
+// da Memed para texto livre resolve isso embutindo a quantidade real no
+// nome do item (`"Vitamina C, comprimido (100un)"`) e enviando quantidade:1
+// — mesmo padrão aplicado aqui, para nunca aparecer "N embalagens" (que
+// implicaria N caixas, não N comprimidos) na receita.
+function dispensingUnitLabel(route = '') {
+  return String(route || '').toLowerCase().includes('subcut') ? 'unidades' : 'comprimidos';
+}
+
 function buildAddItemPayload(med = {}) {
   const name = compactWhitespace(med.name);
   const dose = compactWhitespace(med.dose);
@@ -177,14 +192,14 @@ function buildAddItemPayload(med = {}) {
     throw err;
   }
 
-  const quantidade = quantityForFrequency(frequency);
+  const quantidadeReal = quantityForFrequency(frequency);
   const rawUnit = compactWhitespace(med.unidade || med.unit_dispense || '').toLowerCase();
   if (rawUnit && BLOCKED_MEMED_UNITS.has(rawUnit)) {
     const err = new Error(`Unidade de dispensação inválida para Memed: ${rawUnit}. Use comprimidos.`);
     err.code = 'MEMED_PAYLOAD_UNIT_INVALID';
     throw err;
   }
-  if (!quantidade || quantidade < 1) {
+  if (!quantidadeReal || quantidadeReal < 1) {
     const err = new Error('Quantidade Memed inválida ou vazia');
     err.code = 'MEMED_PAYLOAD_QUANTITY_INVALID';
     throw err;
@@ -196,9 +211,11 @@ function buildAddItemPayload(med = {}) {
     unit,
     frequencia: frequency,
     via: route,
-    nome: buildMedicationLabel(med),
+    nome: `${buildMedicationLabel(med)} (${quantidadeReal} ${dispensingUnitLabel(route)})`,
     posologia: buildPosologia(med),
-    quantidade,
+    // Enviado à Memed como quantidade:1 (o "1 pacote" descrito por inteiro em
+    // "nome"); quantidadeReal (60/120/180) fica só no texto do nome.
+    quantidade: 1,
     unidade: MEMED_UNIT,
     duracao_dias: TREATMENT_DAYS
   };
