@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClipboardList, LogOut } from 'lucide-react';
 import { getAuthUser, type AuthUser } from '@/services/auth.service';
 import { getMemedConfig } from '@/services/memed.service';
@@ -48,13 +48,32 @@ function formatDoctorName(name: string): string {
   return `Dr. ${trimmed}`;
 }
 
+function displayName(name: string, role?: string): string {
+  return role === 'administrativo' ? name.trim() || 'Administrador' : formatDoctorName(name);
+}
+
+function roleLabel(role?: string): string {
+  if (role === 'administrativo') return 'Administrativo';
+  return role === 'admin' ? 'Administrador' : 'Médico';
+}
+
 interface MedicalPanelHeaderProps {
   onLogout: () => void;
   onOpenMedicalRecord?: () => void;
   operational?: boolean;
+  title?: string;
+  recordButtonLabel?: string;
+  recordButtonIcon?: ReactNode;
 }
 
-export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational = false }: Readonly<MedicalPanelHeaderProps>) {
+export function MedicalPanelHeader({
+  onLogout,
+  onOpenMedicalRecord,
+  operational = false,
+  title = 'Painel Médico',
+  recordButtonLabel = 'PRONTUÁRIO',
+  recordButtonIcon = <ClipboardList className="h-4 w-4" aria-hidden="true" />,
+}: Readonly<MedicalPanelHeaderProps>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const memedStatus = useMemedStatus();
 
@@ -62,8 +81,8 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
     setUser(getAuthUser());
   }, []);
 
-  const doctorName = formatDoctorName(user?.name || 'Max Matos');
-  const doctorRole = user?.role === 'admin' ? 'Administrador' : 'Médico';
+  const doctorName = displayName(user?.name || 'Max Matos', user?.role);
+  const doctorRole = roleLabel(user?.role);
   const initials = useMemo(() => doctorInitials(doctorName), [doctorName]);
 
   const memedCfg = MEMED_STATUS_CONFIG[memedStatus];
@@ -91,7 +110,7 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
 
         {/* Centro — título centralizado na página */}
         <div className="panel-header__col panel-header__col--center">
-          <h1 className="panel-header__title">Painel Médico</h1>
+          <h1 className="panel-header__title">{title}</h1>
         </div>
 
         {/* Direita — PRONTUÁRIO isolado | gap | bloco ops (Memed · Perfil · SAIR) */}
@@ -104,8 +123,8 @@ export function MedicalPanelHeader({ onLogout, onOpenMedicalRecord, operational 
                 onClick={onOpenMedicalRecord}
                 className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
               >
-                <ClipboardList className="h-4 w-4" aria-hidden="true" />
-                PRONTUÁRIO
+                {recordButtonIcon}
+                {recordButtonLabel}
               </button>
             ) : null}
 
