@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
@@ -131,15 +131,35 @@ const bodyColumns: Array<{
 
 // Seção 4 — Indicadores de Tempo Médio: apenas placeholders visuais, sem
 // nenhuma lógica/endpoint novo (implementação prevista para fase futura).
+// Usa o mesmo componente/estilo dos Cards Quantitativos (metricTileClass +
+// MetricTileContent), só com cor neutra e valor fixo "—".
 const TIME_PLACEHOLDERS = [
-  'Tempo médio de triagem',
-  'Tempo médio de espera médica',
-  'Tempo médio de avaliação',
-  'Tempo médio até emissão da receita',
-  'Tempo médio da jornada completa',
-  'Tempo médio de suporte administrativo',
-  'Tempo médio de suporte médico',
+  'Triagem',
+  'Espera médica',
+  'Avaliação',
+  'Emissão da receita',
+  'Jornada completa',
+  'Suporte administrativo',
+  'Suporte médico',
 ];
+
+function metricTileClass(bg: string, border: string, interactive: boolean) {
+  return `flex flex-col items-start rounded-[16px] border-2 p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition-all ${
+    interactive ? 'hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)]' : ''
+  } ${bg} ${border}`;
+}
+
+function MetricTileContent({ emoji, value, label }: { emoji: string; value: ReactNode; label: string }) {
+  return (
+    <>
+      <span className="text-2xl leading-none" aria-hidden>
+        {emoji}
+      </span>
+      <span className="mt-1.5 text-[28px] font-black leading-none text-[#1E1E1E]">{value}</span>
+      <span className="mt-1 text-[10.5px] font-bold leading-tight text-[#5B6475]">{label}</span>
+    </>
+  );
+}
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -242,7 +262,7 @@ export default function AdminDashboardPage() {
                 Situação atual — {data.total} atendimento{data.total !== 1 ? 's' : ''} no sistema
                 {userName ? ` · ${userName} · ${userRole.toUpperCase()}` : ''}
               </p>
-              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+              <div className="grid grid-cols-6 gap-2.5">
                 {CARDS.map((card) => {
                   const count = data.cards[card.key] ?? 0;
                   return (
@@ -250,15 +270,9 @@ export default function AdminDashboardPage() {
                       key={card.key}
                       type="button"
                       onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
-                      className={`flex flex-col items-start rounded-[16px] border-2 p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)] ${card.bg} ${card.border}`}
+                      className={metricTileClass(card.bg, card.border, true)}
                     >
-                      <span className="text-2xl leading-none" aria-hidden>
-                        {card.emoji}
-                      </span>
-                      <span className="mt-1.5 text-[28px] font-black leading-none text-[#1E1E1E]">{count}</span>
-                      <span className="mt-1 text-[10.5px] font-bold leading-tight text-[#5B6475]">
-                        {card.label}
-                      </span>
+                      <MetricTileContent emoji={card.emoji} value={count} label={card.label} />
                     </button>
                   );
                 })}
@@ -268,26 +282,24 @@ export default function AdminDashboardPage() {
             {/* 3. Faixa de Suporte Administrativo — prioridade visual máxima, MedicalSupportBand em "lg" */}
             <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} size="lg" />
 
-            {/* 4. Indicadores de Tempo Médio — área reservada visível, porém a menos prioritária */}
-            <section className="shrink-0 rounded-[12px] border border-dashed border-[#C9D4E6] bg-[#F8FAFC] px-3 py-2">
-              <p className="mb-1 text-[9.5px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+            {/* 4. Indicadores de Tempo Médio — mesmo componente dos Cards Quantitativos,
+                 cor neutra, sem lógica/endpoint novo (área reservada) */}
+            <section className="shrink-0">
+              <p className="mb-1.5 text-[10.5px] font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Indicadores de tempo médio · área reservada
               </p>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="grid grid-cols-7 gap-2.5">
                 {TIME_PLACEHOLDERS.map((label) => (
-                  <span
-                    key={label}
-                    className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 text-[10px] font-semibold text-[#5B6475]"
-                  >
-                    {label}
-                    <strong className="font-black text-[#1E1E1E]">—</strong>
-                  </span>
+                  <div key={label} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
+                    <MetricTileContent emoji="⏱️" value="—" label={label} />
+                  </div>
                 ))}
               </div>
             </section>
 
-            {/* 5. Corpo Principal — mesmo padrão visual de coluna do Painel Médico (fila) */}
-            <div className="grid min-h-0 flex-1 grid-cols-3 items-stretch gap-2">
+            {/* 5. Corpo Principal — mesmo padrão visual de coluna do Painel Médico (fila),
+                 com compactação extra (admin-corpo-dense) para caber a hierarquia toda em uma tela */}
+            <div className="admin-corpo-dense grid min-h-0 flex-1 grid-cols-3 items-stretch gap-2">
               {bodyColumns.map((column) => {
                 const Icon = column.icon;
                 const items = grouped[column.key];
