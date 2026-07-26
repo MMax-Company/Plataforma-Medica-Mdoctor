@@ -92,7 +92,7 @@ function hasPendingAdminNote(a: AdminAtendimento) {
   return firstPendingAdminNote(a) !== null;
 }
 
-// Motivo/etapa de reprovação: reaproveita dados_clinicos.motivo_rejeicao (já
+// Motivo de reprovação: reaproveita dados_clinicos.motivo_rejeicao (já
 // gravado pelo médico em /clinical/reject — ver clinical-decision.service.js)
 // e o campo elegibilidade já existente para o caso de reprovação automática
 // na triagem (sem revisão médica). Nenhuma classificação nova é criada.
@@ -100,10 +100,6 @@ function rejectionMotivo(a: AdminAtendimento): string {
   const manual = a.dados_clinicos?.motivo_rejeicao;
   if (manual?.label) return manual.detail ? `${manual.label} — ${manual.detail}` : manual.label;
   return a.elegibilidade?.reason || '—';
-}
-
-function rejectionEtapa(a: AdminAtendimento): string {
-  return a.dados_clinicos?.motivo_rejeicao ? 'Avaliação médica' : 'Triagem';
 }
 
 function fmtDate(v?: string) {
@@ -192,9 +188,11 @@ function MetricTileContent({ emoji, value, label }: { emoji: string; value: Reac
   );
 }
 
-// Linha operacional do paciente (não é card): Avatar | Nome | Data | Horário |
-// campo(s) específico(s) da coluna | ação(ões) — tudo na mesma linha
-// horizontal, como pedido para a central operacional de acompanhamento.
+// Linha operacional do paciente — NÃO é card: sem borda ao redor, sem fundo
+// próprio, sem cantos arredondados, sem hover na linha inteira. Só uma
+// divisória fina embaixo, como item de lista/tabela. Único elemento
+// clicável da linha são os botões de ação.
+// Avatar | Nome | Data | Horário | campo específico da coluna | ação(ões).
 function PatientRow({
   column,
   item,
@@ -219,26 +217,23 @@ function PatientRow({
   );
 
   return (
-    <div className="flex items-center gap-2 overflow-hidden rounded-[8px] border border-[#E5EAF2] bg-white px-2.5 py-1.5 hover:bg-[#F8FAFC]">
+    <div className="flex items-center gap-2 border-b border-[#EEF2F7] px-1 py-1.5 last:border-0">
       <div
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0F1D38] text-[9px] font-bold text-white"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0F1D38] text-[8.5px] font-bold text-white"
         title={item.paciente_nome}
         aria-hidden="true"
       >
         {avatarInitials(item.paciente_nome)}
       </div>
-      <span
-        className="min-w-[80px] flex-[1.3] truncate text-[11px] font-bold text-[#071B3A]"
-        title={item.paciente_nome}
-      >
+      <span className="min-w-[70px] flex-1 truncate text-[11px] font-bold text-[#071B3A]" title={item.paciente_nome}>
         {item.paciente_nome}
       </span>
-      <span className="w-[66px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
-      <span className="w-[38px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
+      <span className="w-[60px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
+      <span className="w-[36px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
 
       {column === 'approved' && (
         <>
-          <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
+          <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
             {item.condicao || '—'}
           </span>
           <div className="w-[84px] shrink-0">{verJornadaBtn}</div>
@@ -247,11 +242,8 @@ function PatientRow({
 
       {column === 'rejected' && (
         <>
-          <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
+          <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
             {rejectionMotivo(item)}
-          </span>
-          <span className="w-[78px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={rejectionEtapa(item)}>
-            {rejectionEtapa(item)}
           </span>
           <div className="flex w-[84px] shrink-0 flex-col gap-1">
             {verJornadaBtn}
@@ -272,7 +264,7 @@ function PatientRow({
         const resolving = note ? resolvingNoteId === note.id : false;
         return (
           <>
-            <span className="min-w-[60px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
+            <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
               {note?.texto || '—'}
             </span>
             <div className="w-[84px] shrink-0">
@@ -488,7 +480,7 @@ export default function AdminDashboardPage() {
                       <span className={`dp-col-count ${column.countBadgeClass}`}>{items.length}</span>
                     </div>
 
-                    <div className="dp-fila-column__scroll space-y-1.5">
+                    <div className="dp-fila-column__scroll">
                       {items.length ? (
                         items.map((item) => (
                           <PatientRow
