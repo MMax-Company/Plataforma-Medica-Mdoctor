@@ -62,6 +62,7 @@ interface MedicalPanelHeaderProps {
   onOpenMedicalRecord?: () => void;
   operational?: boolean;
   title?: string;
+  titleAlign?: 'center' | 'left';
   recordButtonLabel?: string;
   recordButtonIcon?: ReactNode;
 }
@@ -71,6 +72,7 @@ export function MedicalPanelHeader({
   onOpenMedicalRecord,
   operational = false,
   title = 'Painel Médico',
+  titleAlign = 'center',
   recordButtonLabel = 'PRONTUÁRIO',
   recordButtonIcon = <ClipboardList className="h-4 w-4" aria-hidden="true" />,
 }: Readonly<MedicalPanelHeaderProps>) {
@@ -109,7 +111,11 @@ export function MedicalPanelHeader({
         </div>
 
         {/* Centro — título centralizado na página */}
-        <div className="panel-header__col panel-header__col--center">
+        <div
+          className={`panel-header__col panel-header__col--center${
+            titleAlign === 'left' ? ' panel-header__col--title-left' : ''
+          }`}
+        >
           <h1 className="panel-header__title">{title}</h1>
         </div>
 
