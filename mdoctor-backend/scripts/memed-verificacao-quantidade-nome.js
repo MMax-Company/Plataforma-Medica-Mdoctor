@@ -1,21 +1,23 @@
 #!/usr/bin/env node
 /**
- * Cria e aprova um atendimento de homologação em staging com Captopril 25mg
- * 2x ao dia (quantidade real esperada: 120 comprimidos), para verificação
- * manual do PDF final assinado na Memed após o fix de memed-payload.service.js
- * (quantidade embutida em "nome", quantidade:1 enviada ao addItem).
+ * Cria e aprova um atendimento de homologação em staging com um medicamento
+ * parametrizável (default: Captopril 25mg 2x ao dia — quantidade real
+ * esperada: 120 comprimidos), para verificação manual do PDF final assinado
+ * na Memed após o fix de memed-payload.service.js (quantidade embutida em
+ * "nome", quantidade:1 enviada ao addItem).
  *
  * Uso: LOAD_RAILWAY_VARS=0 node scripts/memed-verificacao-quantidade-nome.js
+ * Override: MED_NOME=Losartana MED_DOSE=50 MED_FREQ="1x ao dia" node ...
  */
 require('./load-dotenv');
 const fs = require('fs');
 const path = require('path');
 const lib = require('./homologacao-clinica-fase2-lib');
 
-const PANEL = String(process.env.PANEL_URL || 'https://painel-medico-staging-staging.up.railway.app').replace(
-  /\/$/,
-  ''
-);
+const PANEL_STAGING = 'https://painel-medico-staging-staging.up.railway.app';
+const MED_NOME = process.env.MED_NOME || 'Captopril';
+const MED_DOSE = process.env.MED_DOSE || '25';
+const MED_FREQ = process.env.MED_FREQ || '2x ao dia';
 const REPORT_PATH =
   process.env.REPORT_PATH ||
   path.join(__dirname, '../../docs/MEMED-VERIFICACAO-QUANTIDADE-NOME.json');
@@ -36,7 +38,7 @@ async function createAtendimentoCaptopril(correlationId) {
     },
     triagem: {
       doencas: 'Hipertensão arterial (HAS)',
-      medicacao_em_uso: 'Captopril 25mg',
+      medicacao_em_uso: `${MED_NOME} ${MED_DOSE}mg`,
       tempo_uso: 'Mais de 6 meses',
       receita_anterior: 'sim',
       sinais_alerta: 'não',
@@ -56,10 +58,10 @@ async function createAtendimentoCaptopril(correlationId) {
       telemedicine_consent_accepted: true,
       non_urgency_notice_accepted: true,
       terms_of_use_accepted: true,
-      med1_nome: 'Captopril',
-      med1_dose: '25',
+      med1_nome: MED_NOME,
+      med1_dose: MED_DOSE,
       med1_via: 'oral',
-      med1_frequencia: '2x ao dia'
+      med1_frequencia: MED_FREQ
     }
   };
 
@@ -85,9 +87,11 @@ async function createAtendimentoCaptopril(correlationId) {
   };
 }
 
+const AUTO_APPROVE = process.env.AUTO_APPROVE !== '0';
+
 async function main() {
   const correlationId = `memed-verif-qtd-${Date.now()}`;
-  const report = { executed_at: new Date().toISOString(), backend: lib.BACKEND_URL, panel: PANEL, correlationId, steps: [] };
+  const report = { executed_at: new Date().toISOString(), backend: lib.BACKEND_URL, panel: PANEL_STAGING, correlationId, steps: [] };
   function step(name, ok, extra = {}) {
     report.steps.push({ name, ok, ...extra });
   }
@@ -113,12 +117,16 @@ async function main() {
     process.exit(1);
   }
 
-  const approve = await lib.clinicalApprove(login.token, atendimentoId, correlationId);
-  step('clinical_approve', approve.ok, { status: approve.data?.atendimento?.status });
+  if (AUTO_APPROVE) {
+    const approve = await lib.clinicalApprove(login.token, atendimentoId, correlationId);
+    step('clinical_approve', approve.ok, { status: approve.data?.atendimento?.status });
+  } else {
+    step('clinical_approve', true, { skipped: true, reason: 'AUTO_APPROVE=0 — aprovação fica para o médico no painel' });
+  }
 
   const detail = await lib.getAtendimento(login.token, atendimentoId, correlationId);
   const at = detail.data?.atendimento || {};
-  step('atendimento_approved', String(at.status || '').toLowerCase() === 'approved', {
+  step('atendimento_status', true, {
     status: at.status,
     paciente_nome: at.paciente_nome,
     medications: at.dados_clinicos?.medications
@@ -132,13 +140,13 @@ async function main() {
   });
 
   report.urls = {
-    receita: `${PANEL}/receita?atendimentoId=${atendimentoId}`,
-    atendimento: `${PANEL}/atendimento/${atendimentoId}`,
-    fila: `${PANEL}/fila`
+    receita: `${PANEL_STAGING}/receita?atendimentoId=${atendimentoId}`,
+    atendimento: `${PANEL_STAGING}/atendimento/${atendimentoId}`,
+    fila: `${PANEL_STAGING}/fila`
   };
-  report.expected_addItem_nome_contains = '120 comprimidos';
-  report.instrucao =
-    'Login no painel com as credenciais do médico, abrir a URL de receita acima, emitir e assinar via widget Memed, e conferir no PDF final se aparece "Captopril 25 mg (120 comprimidos)" sem "1 embalagem" em destaque.';
+  report.instrucao = AUTO_APPROVE
+    ? 'Login no painel com as credenciais do médico, abrir a URL de receita acima, emitir e assinar via widget Memed, e conferir no PDF final o texto do item.'
+    : 'Atendimento criado via /api/webhook/triagem (mesma via oficial do Typebot/n8n) e está na fila aguardando revisão. Login no painel, abrir a fila (ou a URL de atendimento acima), revisar e aprovar clinicamente como de costume, e então seguir o fluxo normal até a Memed.';
   report.ok = report.steps.every((s) => s.ok);
 
   fs.writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2));

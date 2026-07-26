@@ -165,11 +165,13 @@ function buildSetPacientePayload(atendimento = {}) {
 // "valores válidos para unit: embalagem|embalagens|form_units.singular|
 // form_units.plural", sendo os dois últimos só disponíveis com item de
 // catálogo. Sem busca de catálogo (fora do escopo desta fase do produto),
-// não há como declarar "comprimidos" nesse campo. O próprio exemplo oficial
-// da Memed para texto livre resolve isso embutindo a quantidade real no
-// nome do item (`"Vitamina C, comprimido (100un)"`) e enviando quantidade:1
-// — mesmo padrão aplicado aqui, para nunca aparecer "N embalagens" (que
-// implicaria N caixas, não N comprimidos) na receita.
+// não há como declarar "comprimidos" nesse campo. Pior: mesmo enviando
+// quantidade:1 (sem unit), a Memed ainda renderiza "1 embalagem" em destaque
+// no PDF final — validado em homologação real (26/07). Por isso o painel
+// (addMedicationsFromAtendimento.ts) nunca encaminha quantidade/unidade ao
+// addItem; a quantidade real (60/120/180 comprimidos) vai só no texto do
+// nome. Os campos quantidade/unidade/duracao_dias abaixo existem apenas para
+// validação interna (guard do painel), nunca chegam à Memed.
 function dispensingUnitLabel(route = '') {
   return String(route || '').toLowerCase().includes('subcut') ? 'unidades' : 'comprimidos';
 }
@@ -213,8 +215,8 @@ function buildAddItemPayload(med = {}) {
     via: route,
     nome: `${buildMedicationLabel(med)} (${quantidadeReal} ${dispensingUnitLabel(route)})`,
     posologia: buildPosologia(med),
-    // Enviado à Memed como quantidade:1 (o "1 pacote" descrito por inteiro em
-    // "nome"); quantidadeReal (60/120/180) fica só no texto do nome.
+    // Nunca enviado à Memed (ver comentário acima) — só para validação
+    // interna do painel; quantidadeReal (60/120/180) fica só no texto do nome.
     quantidade: 1,
     unidade: MEMED_UNIT,
     duracao_dias: TREATMENT_DAYS
