@@ -102,15 +102,39 @@ function rejectionMotivo(a: AdminAtendimento): string {
   return a.elegibilidade?.reason || '—';
 }
 
+// Sem ano (DD/MM): operação é sempre do ano corrente, e o espaço ganho vai
+// para nome/patologia/motivo, que são os campos com prioridade de leitura.
 function fmtDate(v?: string) {
   if (!v) return '—';
-  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(v));
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(v));
 }
 
 function fmtTime(v?: string) {
   if (!v) return '—';
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(v));
 }
+
+// MOCK TEMPORÁRIO — apenas para validação visual da coluna Pendências
+// Administrativas (staging não tem pendência real no momento). Remover
+// assim que a validação do layout for confirmada; não é dado real nem
+// gravado no backend.
+const MOCK_PENDING_PATIENT: AdminAtendimento = {
+  id: 'mock-pendencia-visual',
+  paciente_nome: 'Fictício da Silva Santos (mock)',
+  status: 'em_atendimento',
+  criado_em: new Date().toISOString(),
+  dados_clinicos: {
+    observacoes_admin: [
+      {
+        id: 'mock-nota-1',
+        texto: 'Telefone divergente do informado na triagem — confirmar com o paciente antes de prosseguir',
+        autor: 'Sistema (mock)',
+        criado_em: new Date().toISOString(),
+        resolvido: false,
+      },
+    ],
+  },
+};
 
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
 
@@ -217,7 +241,7 @@ function PatientRow({
   );
 
   return (
-    <div className="flex items-center gap-2 border-b border-[#EEF2F7] px-1 py-1.5 last:border-0">
+    <div className="flex items-center gap-1.5 border-b border-[#EEF2F7] px-1 py-1.5 last:border-0">
       <div
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0F1D38] text-[8.5px] font-bold text-white"
         title={item.paciente_nome}
@@ -225,15 +249,18 @@ function PatientRow({
       >
         {avatarInitials(item.paciente_nome)}
       </div>
-      <span className="min-w-[70px] flex-1 truncate text-[11px] font-bold text-[#071B3A]" title={item.paciente_nome}>
+      <span
+        className="min-w-[90px] flex-[1.5] truncate text-[11px] font-bold text-[#071B3A]"
+        title={item.paciente_nome}
+      >
         {item.paciente_nome}
       </span>
-      <span className="w-[60px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
-      <span className="w-[36px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
+      <span className="w-[34px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
+      <span className="w-[34px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
 
       {column === 'approved' && (
         <>
-          <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
+          <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
             {item.condicao || '—'}
           </span>
           <div className="w-[84px] shrink-0">{verJornadaBtn}</div>
@@ -242,7 +269,7 @@ function PatientRow({
 
       {column === 'rejected' && (
         <>
-          <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
+          <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
             {rejectionMotivo(item)}
           </span>
           <div className="flex w-[84px] shrink-0 flex-col gap-1">
@@ -264,7 +291,7 @@ function PatientRow({
         const resolving = note ? resolvingNoteId === note.id : false;
         return (
           <>
-            <span className="min-w-[70px] flex-[1.6] truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
+            <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
               {note?.texto || '—'}
             </span>
             <div className="w-[84px] shrink-0">
@@ -370,13 +397,16 @@ export default function AdminDashboardPage() {
   }, []);
 
   const grouped = useMemo(() => {
-    return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
+    const result = bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
         acc[column.key] = atendimentos.filter(column.match);
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
     );
+    // MOCK TEMPORÁRIO — ver MOCK_PENDING_PATIENT acima.
+    result.pending = [MOCK_PENDING_PATIENT, ...result.pending];
+    return result;
   }, [atendimentos]);
 
   async function handleLogout() {
