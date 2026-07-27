@@ -61,6 +61,17 @@ function buildUploadStatusUrl(token) {
   return `${base}/api/upload-receita/${encodeURIComponent(token)}/status`;
 }
 
+// Restaurada (era dangling reference desde a reconciliação da PR #36 —
+// função removida daqui, mas whatsapp.routes.js e triagem-webhook.service.js
+// continuaram chamando-a, causando "is not a function" em produção).
+// URL para GET /api/atendimentos/:id/prescription-upload/status (ver
+// atendimentos.routes.js), consumida por scripts/test-receita-whatsapp-pedidos.js.
+function buildUploadStatusUrlByAtendimento(atendimentoId) {
+  const base = getPublicBackendBaseUrl();
+  if (!base || !atendimentoId) return null;
+  return `${base}/api/atendimentos/${encodeURIComponent(atendimentoId)}/prescription-upload/status`;
+}
+
 function extractUploadSession(atendimento = {}) {
   const clinical = atendimento.dados_clinicos || atendimento.clinical_data || {};
   const session = clinical.prescription_upload_session || {};
@@ -542,6 +553,7 @@ module.exports = {
   UPLOAD_SUCCESS_REPLY,
   augmentOutputsWithUploadLink,
   buildUploadStatusUrl,
+  buildUploadStatusUrlByAtendimento,
   claimPrescriptionUploadResume,
   findPendingUploadContext,
   findUploadContextForPhone,
