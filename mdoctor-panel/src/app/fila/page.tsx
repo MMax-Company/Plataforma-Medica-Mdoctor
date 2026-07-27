@@ -129,7 +129,11 @@ function missingMemedFields(item: Atendimento): string[] {
 
 function isSupportItem(item: Atendimento) {
   const clinical = item.dados_clinicos || {};
-  return item.condicao === 'suporte_whatsapp' || clinical.queue_type === 'support';
+  return (
+    item.condicao === 'suporte_whatsapp' ||
+    clinical.queue_type === 'support' ||
+    clinical.queue_type === 'medical_support'
+  );
 }
 
 function whatsappContactUrl(phone?: string) {
@@ -182,13 +186,17 @@ export default function FilaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [prontuarioId, setProntuarioId] = useState<string | null>(null);
+  const [prontuarioConsultMode, setProntuarioConsultMode] = useState(false);
   const [memedOverlayId, setMemedOverlayId] = useState<string | null>(null);
   const [patientSearchOpen, setPatientSearchOpen] = useState(false);
   // Once true, overlay stays mounted so div#prescricao-memed is never destroyed between patients.
   // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
   const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
-  const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
+  // Suporte Geral (tickets pré-triagem) nunca chega ao médico — só o
+  // Suporte Médico (atendimentos clínicos encaminhados pelo admin) aparece
+  // aqui. Ver MedicalSupportBand mode="medical_support".
+  const [medicalSupportItems, setMedicalSupportItems] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -267,31 +275,29 @@ export default function FilaPage() {
     }
   }
 
-  async function fetchSupportQueue() {
+  async function fetchMedicalSupportQueue() {
     try {
-      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
+      const res = await fetch(`${getApiBase()}/api/atendimentos/medical-support-queue`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok) return;
       const rows = Array.isArray(data) ? data : data.atendimentos || data.data || [];
-      setSupportPatients(
+      setMedicalSupportItems(
         rows.map((item: Atendimento) => ({
           id: item.id,
           paciente_nome: item.paciente_nome,
-          paciente_telefone: item.paciente_telefone,
           criado_em: item.criado_em,
-          status: item.status,
-          support_sub_status: (item as any).dados_clinicos?.support_sub_status,
+          medical_support_reason: (item as any).dados_clinicos?.medical_support_reason || null,
         })),
       );
     } catch {
-      setSupportPatients([]);
+      setMedicalSupportItems([]);
     }
   }
 
   useEffect(() => {
     requireSession()
       .then(async () => {
-        await Promise.all([fetchAtendimentos(), fetchSupportQueue()]);
+        await Promise.all([fetchAtendimentos(), fetchMedicalSupportQueue()]);
       })
       .catch((e: any) => {
         setError(e.message || 'Sessão expirada. Faça login novamente.');
@@ -314,13 +320,15 @@ export default function FilaPage() {
     router.replace(query ? `/fila?${query}` : '/fila', { scroll: false });
   }
 
-  function openProntuarioModal(id: string) {
+  function openProntuarioModal(id: string, consultMode = false) {
+    setProntuarioConsultMode(consultMode);
     setProntuarioId(id);
     syncProntuarioUrl(id);
   }
 
   function closeProntuarioModal() {
     setProntuarioId(null);
+    setProntuarioConsultMode(false);
     syncProntuarioUrl(null);
   }
 
@@ -328,7 +336,7 @@ export default function FilaPage() {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void fetchAtendimentos();
-        void fetchSupportQueue();
+        void fetchMedicalSupportQueue();
       }
     }, 30000);
     return () => window.clearInterval(timer);
@@ -561,10 +569,21 @@ export default function FilaPage() {
       />
 
       <div className="panel-page-body">
-        <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
+        <MedicalSupportBand
+          patients={medicalSupportItems}
+          onQueueRefresh={fetchMedicalSupportQueue}
+          mode="medical_support"
+          onOpenProntuario={(id) => openProntuarioModal(id, true)}
+        />
 
         <div className="sr-only" aria-hidden>
-          <button type="button" onClick={() => { fetchAtendimentos(); fetchSupportQueue(); }}>
+          <button
+            type="button"
+            onClick={() => {
+              fetchAtendimentos();
+              fetchMedicalSupportQueue();
+            }}
+          >
             Atualizar
           </button>
         </div>
@@ -781,6 +800,7 @@ export default function FilaPage() {
       <ProntuarioOperacionalModal
         atendimentoId={prontuarioId}
         open={Boolean(prontuarioId)}
+        consultMode={prontuarioConsultMode}
         onClose={closeProntuarioModal}
         onCompleted={() => {
           void fetchAtendimentos();

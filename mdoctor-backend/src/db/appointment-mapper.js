@@ -21,6 +21,7 @@ function rowToAtendimento(row = {}) {
     dados_clinicos: clinical,
     motivo_decisao: row.decision_reason || row.motivo_decisao || null,
     medico_id: row.doctor_id || row.medico_id || null,
+    numero_curto: row.numero_curto ?? null,
     criado_em: row.created_at || row.criado_em,
     atualizado_em: row.updated_at || row.atualizado_em
   };

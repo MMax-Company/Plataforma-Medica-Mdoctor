@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
+import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle, Eye } from 'lucide-react';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { getApiBase } from '@/services/api';
 import {
@@ -74,9 +74,11 @@ const CARDS = [
 // já existentes em admin/pacientes (isReady) e no grupo "danger" de
 // statusTone (rejected/recusado/cancelado), e o mesmo filtro de pendências
 // administrativas já usado em pendencias_admin. Nenhuma regra nova.
+// Inclui "delivered": receita já emitida e entregue é um caso aprovado
+// (só avançou de estágio dentro da fila), não deixa de ser aprovação.
 function isApproved(a: AdminAtendimento) {
   const v = (a.status || '').toLowerCase();
-  return ['ready', 'validated', 'aprovado'].includes(v);
+  return ['ready', 'validated', 'aprovado', 'delivered', 'finished'].includes(v);
 }
 
 function isRejected(a: AdminAtendimento) {
@@ -92,11 +94,28 @@ function hasPendingAdminNote(a: AdminAtendimento) {
   return firstPendingAdminNote(a) !== null;
 }
 
+// Rótulos de encerramento de suporte via WhatsApp (whatsapp-support.service.js
+// SUPPORT_SUB) — não são motivo de reprovação clínica, então não usam o texto
+// genérico de elegibilidade.reason (que fica sem sentido aqui, ex.: mostrar
+// "Aguardando atendimento humano" para um ticket que já foi encerrado).
+const SUPPORT_SUB_STATUS_LABELS: Record<string, string> = {
+  closed_by_patient: 'Suporte encerrado pelo paciente',
+  closed_inactive: 'Suporte encerrado por inatividade',
+  converted_to_renewal: 'Suporte convertido em renovação',
+  awaiting_patient_decision: 'Suporte aguardando decisão do paciente',
+  em_atendimento: 'Suporte em atendimento',
+  waiting: 'Suporte aguardando atendimento',
+};
+
 // Motivo de reprovação: reaproveita dados_clinicos.motivo_rejeicao (já
 // gravado pelo médico em /clinical/reject — ver clinical-decision.service.js)
 // e o campo elegibilidade já existente para o caso de reprovação automática
 // na triagem (sem revisão médica). Nenhuma classificação nova é criada.
 function rejectionMotivo(a: AdminAtendimento): string {
+  if (a.elegibilidade?.reasonCode === 'human_support') {
+    const sub = a.dados_clinicos?.support_sub_status;
+    return (sub && SUPPORT_SUB_STATUS_LABELS[sub]) || 'Ticket de suporte via WhatsApp';
+  }
   const manual = a.dados_clinicos?.motivo_rejeicao;
   if (manual?.label) return manual.detail ? `${manual.label} — ${manual.detail}` : manual.label;
   return a.elegibilidade?.reason || '—';
@@ -112,6 +131,25 @@ function fmtDate(v?: string) {
 function fmtTime(v?: string) {
   if (!v) return '—';
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(v));
+}
+
+// Data e hora unificadas numa única informação (ex.: "26/07 • 21:07"), em vez
+// de duas colunas separadas — reduz a quantidade de blocos visuais na linha.
+function fmtDateTime(v?: string) {
+  if (!v) return '—';
+  return `${fmtDate(v)} • ${fmtTime(v)}`;
+}
+
+// Condição clínica padronizada em maiúsculas com "•" como separador
+// (ex.: "has,dm" → "HAS • DM"), em vez do formato bruto salvo no banco.
+function formatCondicao(condicao?: string): string {
+  if (!condicao) return '—';
+  return condicao
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(' • ')
+    .toUpperCase();
 }
 
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
@@ -158,43 +196,65 @@ const bodyColumns: Array<{
   },
 ];
 
-// Seção 4 — Indicadores de Tempo Médio: apenas placeholders visuais, sem
-// nenhuma lógica/endpoint novo (implementação prevista para fase futura).
-// Usa o mesmo componente/estilo dos Cards Quantitativos (metricTileClass +
-// MetricTileContent), só com cor neutra e valor fixo "—".
-const TIME_PLACEHOLDERS = [
-  'Triagem',
-  'Espera médica',
-  'Avaliação',
-  'Emissão da receita',
-  'Jornada completa',
-  'Suporte administrativo',
-  'Suporte médico',
-];
+// Seção 4 — Indicadores de Tempo Médio: calculados pelo backend
+// (/api/admin/dashboard → tempos) a partir de timestamps reais já gravados
+// no fluxo de aprovação/emissão/entrega (clinical_audit.approvedAt,
+// memed_context.emitida_em, historico_receita.finalizado_em). Rótulos sem
+// evento real e distinto registrado no modelo de dados atual (Triagem,
+// Avaliação, Suporte administrativo, Suporte médico) recebem "—" em vez de
+// um número fabricado — o backend já retorna null nesses casos.
+const TIME_METRIC_KEYS = [
+  'triagem',
+  'espera_medica',
+  'avaliacao',
+  'emissao_receita',
+  'jornada_completa',
+  'suporte_administrativo',
+  'suporte_medico',
+] as const;
+
+const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
+  triagem: 'Triagem',
+  espera_medica: 'Espera médica',
+  avaliacao: 'Avaliação',
+  emissao_receita: 'Emissão da receita',
+  jornada_completa: 'Jornada completa',
+  suporte_administrativo: 'Suporte administrativo',
+  suporte_medico: 'Suporte médico',
+};
 
 function metricTileClass(bg: string, border: string, interactive: boolean) {
-  return `flex flex-col items-start rounded-[16px] border-2 p-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.05)] transition-all ${
-    interactive ? 'hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.1)]' : ''
+  return `flex flex-col items-start rounded-[10px] border p-2 text-left shadow-[0_1px_4px_rgba(0,0,0,0.04)] transition-all ${
+    interactive ? 'hover:-translate-y-0.5 hover:shadow-[0_4px_10px_rgba(0,0,0,0.08)]' : ''
   } ${bg} ${border}`;
 }
 
 function MetricTileContent({ emoji, value, label }: { emoji: string; value: ReactNode; label: string }) {
   return (
     <>
-      <span className="text-2xl leading-none" aria-hidden>
+      <span className="text-base leading-none" aria-hidden>
         {emoji}
       </span>
-      <span className="mt-1.5 text-[28px] font-black leading-none text-[#1E1E1E]">{value}</span>
-      <span className="mt-1 text-[10.5px] font-bold leading-tight text-[#5B6475]">{label}</span>
+      <span className="mt-1 text-[17px] font-black leading-none text-[#1E1E1E]">{value}</span>
+      <span className="mt-0.5 text-[9px] font-bold leading-tight text-[#5B6475]">{label}</span>
     </>
   );
 }
 
-// Linha operacional do paciente — NÃO é card: sem borda ao redor, sem fundo
-// próprio, sem cantos arredondados, sem hover na linha inteira. Só uma
+// Identificador curto do atendimento (numero_curto, backfillado por migração
+// em 27/07) — usado só nas colunas do painel (tela de monitoramento) para
+// deixar claro que cada linha é um ATENDIMENTO, não um paciente, sem repetir
+// o nome completo várias vezes. A Jornada do Atendimento (tela de detalhe)
+// continua mostrando o nome completo normalmente — nada mudou lá.
+function shortId(item: AdminAtendimento): string {
+  return item.numero_curto ? `DP-${item.numero_curto}` : `#${item.id.slice(0, 8)}`;
+}
+
+// Linha operacional do atendimento — NÃO é card: sem borda ao redor, sem
+// fundo próprio, sem cantos arredondados, sem hover na linha inteira. Só uma
 // divisória fina embaixo, como item de lista/tabela. Único elemento
 // clicável da linha são os botões de ação.
-// Avatar | Nome | Data | Horário | campo específico da coluna | ação(ões).
+// Avatar (iniciais) | Nº do atendimento | Data | Horário | campo específico da coluna | ação.
 function PatientRow({
   column,
   item,
@@ -212,9 +272,11 @@ function PatientRow({
     <button
       type="button"
       onClick={onVerJornada}
-      className="w-full rounded-[7px] border-2 border-[#1557FF] bg-white px-2 py-1 text-[9.5px] font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
+      title="Ver jornada do atendimento"
+      aria-label="Ver jornada do atendimento"
+      className="flex h-6 w-6 items-center justify-center rounded-[7px] border-2 border-[#1557FF] bg-white text-[#1557FF] hover:bg-[#EEF4FF]"
     >
-      Ver Jornada
+      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
   );
 
@@ -227,40 +289,26 @@ function PatientRow({
       >
         {avatarInitials(item.paciente_nome)}
       </div>
-      <span
-        className="min-w-[90px] flex-[1.5] truncate text-[11px] font-bold text-[#071B3A]"
-        title={item.paciente_nome}
-      >
-        {item.paciente_nome}
+      <span className="min-w-[66px] shrink-0 text-[13px] font-black text-[#071B3A]" title={item.paciente_nome}>
+        {shortId(item)}
       </span>
-      <span className="w-[34px] shrink-0 text-[10px] text-[#5B6475]">{fmtDate(item.criado_em)}</span>
-      <span className="w-[34px] shrink-0 text-[10px] text-[#5B6475]">{fmtTime(item.criado_em)}</span>
+      <span className="w-[92px] shrink-0 text-[10px] text-[#5B6475]">{fmtDateTime(item.criado_em)}</span>
 
       {column === 'approved' && (
         <>
-          <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={item.condicao}>
-            {item.condicao || '—'}
+          <span className="w-[110px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={formatCondicao(item.condicao)}>
+            {formatCondicao(item.condicao)}
           </span>
-          <div className="w-[84px] shrink-0">{verJornadaBtn}</div>
+          {verJornadaBtn}
         </>
       )}
 
       {column === 'rejected' && (
         <>
-          <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
+          <span className="w-[110px] shrink-0 truncate text-[10.5px] text-[#5B6475]" title={rejectionMotivo(item)}>
             {rejectionMotivo(item)}
           </span>
-          <div className="flex w-[84px] shrink-0 flex-col gap-1">
-            {verJornadaBtn}
-            <button
-              type="button"
-              disabled
-              title="Ação ainda não definida — depende de decisão de regra de negócio"
-              className="w-full cursor-not-allowed rounded-[7px] border border-[#E5EAF2] bg-[#F8FAFC] px-2 py-1 text-[9.5px] font-bold text-[#9AA5B4]"
-            >
-              Reiniciar
-            </button>
-          </div>
+          {verJornadaBtn}
         </>
       )}
 
@@ -269,7 +317,7 @@ function PatientRow({
         const resolving = note ? resolvingNoteId === note.id : false;
         return (
           <>
-            <span className="min-w-[70px] flex-[1.3] truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
+            <span className="min-w-[90px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
               {note?.texto || '—'}
             </span>
             <div className="w-[84px] shrink-0">
@@ -294,8 +342,6 @@ export default function AdminDashboardPage() {
   const [data, setData] = useState<AdminDashboard | null>(null);
   const [atendimentos, setAtendimentos] = useState<AdminAtendimento[]>([]);
   const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
-  const [userName, setUserName] = useState('');
-  const [userRole, setUserRole] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolvingNoteId, setResolvingNoteId] = useState<string | null>(null);
@@ -344,11 +390,7 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     requireSession()
-      .then((user) => {
-        setUserName(user.name);
-        setUserRole(user.role);
-        return Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportQueue()]);
-      })
+      .then(() => Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportQueue()]))
       .then(([dashboard, list]) => {
         setData(dashboard);
         setAtendimentos(list.atendimentos || []);
@@ -375,9 +417,13 @@ export default function AdminDashboardPage() {
   }, []);
 
   const grouped = useMemo(() => {
+    // Atendimentos encaminhados ao médico (fluxo Suporte Médico) somem das
+    // colunas administrativas enquanto aguardam resposta — reaparecem quando
+    // o médico resolve ou devolve ao suporte.
+    const visiveis = atendimentos.filter((a) => a.dados_clinicos?.queue_type !== 'medical_support');
     return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
-        acc[column.key] = atendimentos.filter(column.match);
+        acc[column.key] = visiveis.filter(column.match);
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
@@ -398,8 +444,7 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <main className="fila-page-dense relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]">
-      {/* 1. Cabeçalho — MedicalPanelHeader reaproveitado, apenas título e botão adaptados */}
+    <main className="admin-dashboard flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
       <MedicalPanelHeader
         operational
         title="Painel Administrativo"
@@ -410,22 +455,18 @@ export default function AdminDashboardPage() {
         onLogout={handleLogout}
       />
 
-      <div className="panel-page-body">
+      <div className="admin-dashboard__content mx-auto w-full max-w-[1280px] space-y-3 p-3 sm:p-4">
         {error && (
-          <div className="shrink-0 rounded-[14px] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
+          <div className="rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
             {error}
           </div>
         )}
 
         {data && (
           <>
-            {/* 2. Cards Quantitativos — mesmos 6 cards/indicadores já existentes, com destaque */}
-            <section className="shrink-0">
-              <p className="mb-1.5 text-[10.5px] font-black uppercase tracking-[0.08em] text-[#5B6475]">
-                Situação atual — {data.total} atendimento{data.total !== 1 ? 's' : ''} no sistema
-                {userName ? ` · ${userName} · ${userRole.toUpperCase()}` : ''}
-              </p>
-              <div className="grid grid-cols-6 gap-2.5">
+            {/* Cards Quantitativos */}
+            <section>
+              <div className="admin-dashboard__summary grid grid-cols-6 gap-1.5">
                 {CARDS.map((card) => {
                   const count = data.cards[card.key] ?? 0;
                   return (
@@ -442,50 +483,73 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            {/* 3. Faixa de Suporte Administrativo — prioridade visual máxima, MedicalSupportBand em "lg" */}
-            <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} size="lg" />
-
-            {/* 4. Indicadores de Tempo Médio — mesmo componente dos Cards Quantitativos,
-                 cor neutra, sem lógica/endpoint novo (área reservada) */}
-            <section className="shrink-0">
-              <p className="mb-1.5 text-[10.5px] font-black uppercase tracking-[0.08em] text-[#5B6475]">
-                Indicadores de tempo médio · área reservada
+            {/* Indicador financeiro — receita real (atendimentos com pagamento
+                 confirmado × valor único da consulta), sem valor fabricado por
+                 atendimento: o produto tem preço fixo, não há campo a preencher. */}
+            <section>
+              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+                Financeiro
               </p>
-              <div className="grid grid-cols-7 gap-2.5">
-                {TIME_PLACEHOLDERS.map((label) => (
-                  <div key={label} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
-                    <MetricTileContent emoji="⏱️" value="—" label={label} />
+              <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
+                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
+                </div>
+                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
+                </div>
+                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
+                </div>
+              </div>
+            </section>
+
+            {/* Faixa de Suporte Administrativo — tamanho compacto, mesma escala
+                 do restante do painel (ver MedicalSupportBand size default). */}
+            <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
+
+            {/* Indicadores de Tempo Médio — calculados a partir de timestamps
+                 reais (ver computeTempos no backend); rótulos sem evento
+                 distinto registrado mostram "—", nunca um número inventado. */}
+            <section>
+              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+                Indicadores de tempo médio
+                {data.tempos.amostra ? ` · amostra: ${data.tempos.amostra} atendimento${data.tempos.amostra !== 1 ? 's' : ''}` : ''}
+              </p>
+              <div className="admin-dashboard__time grid grid-cols-7 gap-1.5">
+                {TIME_METRIC_KEYS.map((key) => (
+                  <div key={key} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
+                    <MetricTileContent emoji="⏱️" value={data.tempos[key] ?? '—'} label={TIME_METRIC_LABELS[key]} />
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* 5. Corpo Principal — mesmo padrão visual de coluna do Painel Médico (fila),
-                 com compactação extra (admin-corpo-dense) para caber a hierarquia toda em uma tela */}
-            <div className="admin-corpo-dense grid min-h-0 flex-1 grid-cols-3 items-stretch gap-2">
+            {/* Corpo Principal — mesma lógica de agrupamento de sempre, com
+                 escala/tipografia compacta alinhada à Relação de Pacientes. */}
+            <div className="admin-dashboard__journey grid grid-cols-3 gap-2">
               {bodyColumns.map((column) => {
                 const Icon = column.icon;
                 const items = grouped[column.key];
                 return (
                   <section
                     key={column.key}
-                    className={`dp-fila-column fila-column-scroll h-full min-h-0 min-w-0 ${column.topBorderClass}`}
+                    className={`flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${column.topBorderClass}`}
                   >
                     <div
-                      className={`dp-fila-column__head flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-3 ${column.headBgClass}`}
+                      className={`flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-2.5 py-1.5 ${column.headBgClass}`}
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex min-w-0 items-center gap-1.5">
                         <span
-                          className={`dp-col-heading-icon flex shrink-0 items-center justify-center rounded-full ${column.iconClass}`}
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${column.iconClass}`}
                         >
-                          <Icon className="h-[17px] w-[17px]" aria-hidden="true" />
+                          <Icon className="h-3.5 w-3.5" aria-hidden="true" />
                         </span>
-                        <h2 className="dp-col-heading truncate">{column.title}</h2>
+                        <h2 className="truncate text-[11px] font-black tracking-[0.02em] text-[#071B3A]">{column.title}</h2>
                       </div>
                       <span className={`dp-col-count ${column.countBadgeClass}`}>{items.length}</span>
                     </div>
 
-                    <div className="dp-fila-column__scroll">
+                    <div className="max-h-[440px] min-h-[120px] overflow-y-auto">
                       {items.length ? (
                         items.map((item) => (
                           <PatientRow
@@ -498,7 +562,7 @@ export default function AdminDashboardPage() {
                           />
                         ))
                       ) : (
-                        <p className="dp-text-subtle rounded-[14px] border border-dashed border-[#E4ECF7] p-5 text-center text-[12px] font-semibold">
+                        <p className="dp-text-subtle rounded-[10px] border border-dashed border-[#E4ECF7] p-3 text-center text-[11px] font-semibold">
                           Sem atendimentos
                         </p>
                       )}
@@ -510,14 +574,6 @@ export default function AdminDashboardPage() {
           </>
         )}
       </div>
-
-      {/* 6. Rodapé — mesmo rodapé institucional do Painel Médico */}
-      <footer className="panel-footer">
-        <span>
-          Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © 2025 Todos os
-          direitos reservados.
-        </span>
-      </footer>
     </main>
   );
 }
