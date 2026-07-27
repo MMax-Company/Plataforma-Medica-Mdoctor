@@ -39,7 +39,7 @@ function baseAtendimento(frequency) {
           unit: 'mg',
           frequency,
           route: 'Via oral',
-          posology: `Tomar 1 unidade por via oral, ${frequency}.`
+          posology: `Tomar 1 comprimido por via oral, ${frequency}.`
         }
       ],
       data_nascimento: '1988-02-09'

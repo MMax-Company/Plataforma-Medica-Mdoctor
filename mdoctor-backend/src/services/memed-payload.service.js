@@ -80,8 +80,11 @@ function buildPosologia(med = {}) {
       : `via ${route}`;
   const doses = dailyDosesFromFrequency(frequency);
   const frequencyLabel = doses === 3 ? 'a cada 8 horas' : doses === 2 ? 'a cada 12 horas' : 'uma vez ao dia';
+  // "comprimido" para vias orais/sublinguais; "unidade" só para
+  // injetável/subcutânea (ver mesmo critério em dispensingUnitLabel abaixo).
+  const unit = route.toLowerCase().includes('subcut') ? 'unidade' : 'comprimido';
 
-  return `Tomar 1 unidade por ${via}, ${frequencyLabel}.`;
+  return `Tomar 1 ${unit} por ${via}, ${frequencyLabel}.`;
 }
 
 function extractMedicationRows(clinical = {}) {
