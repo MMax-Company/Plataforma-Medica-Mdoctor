@@ -727,6 +727,15 @@ body {
     justify-content: center;
   }
 
+  /* Variante usada quando o rótulo do botão à direita é mais longo que
+     "PRONTUÁRIO" (ex.: "Relação de Pacientes") e colide com o título
+     centralizado — move só o título para a esquerda, sem mexer na
+     posição de logo/ops. */
+  .panel-header__col--title-left {
+    justify-content: flex-start;
+    padding-left: 24px;
+  }
+
   .panel-header__col--ops {
     justify-content: flex-end;
     transform: translateY(6px);
@@ -1322,6 +1331,36 @@ body {
     padding-right: 6px;
     border-radius: 5px;
   }
+}
+
+/* Painel Administrativo V2 — variante "lg" do MedicalSupportBand (mesmo
+   componente/lógica do Painel Médico, só com mais destaque visual).
+   Especificidade (0,3,0) de propósito: precisa vencer
+   ".fila-page-dense .panel-support-band" (0,2,0) do Sistema Dense
+   Unificado, que também se aplica a esta página. */
+.fila-page-dense .panel-support-band.panel-support-band--lg {
+  height: 208px;
+  min-height: 208px;
+  padding-left: 24px;
+  padding-right: 24px;
+  border-radius: 18px;
+  box-shadow: 0 4px 16px rgba(21, 87, 255, 0.08);
+}
+
+/* Painel Administrativo V2 — compactação adicional das colunas do corpo
+   principal (além do fila-page-dense compartilhado com o Painel Médico),
+   para abrir espaço para a faixa de suporte/cards maiores. Mesma lógica
+   de especificidade acima. As linhas de paciente (PatientRow) usam classes
+   Tailwind diretas, não dp-patient-card — só o cabeçalho/scroll da coluna
+   (dp-fila-column__*) ainda são compartilhados com o Painel Médico. */
+.fila-page-dense .admin-corpo-dense .dp-fila-column__head {
+  min-height: 32px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.fila-page-dense .admin-corpo-dense .dp-fila-column__scroll {
+  padding: 6px;
 }
 
 /* Prontuário — conteúdo flui na página (sem scroll interno no miolo clínico) */
@@ -2714,4 +2753,154 @@ a.prontuario-patient-card__whatsapp:hover {
 /* Mantém widget dentro do painel — reduz sensação de “site externo” */
 body[data-dp-memed-open='1'] .medical-workflow-root {
   overflow-x: hidden;
+}
+
+/* Painel Administrativo — refinamento exclusivamente visual.
+   Mantém a estrutura, dados, ações e estados existentes. */
+.admin-dashboard {
+  background:
+    linear-gradient(180deg, #fbfdff 0, #f6f9fd 260px, #f6f9fd 100%);
+}
+
+.admin-dashboard .panel-header--operational {
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.admin-dashboard__content {
+  max-width: 1320px;
+  padding: 12px 20px 20px;
+}
+
+.admin-dashboard__summary,
+.admin-dashboard__finance,
+.admin-dashboard__time {
+  gap: 10px;
+}
+
+.admin-dashboard__summary > button,
+.admin-dashboard__finance > div,
+.admin-dashboard__time > div {
+  min-height: 76px;
+  border-radius: 12px;
+  border-color: rgba(203, 213, 225, 0.78);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+.admin-dashboard__summary > button {
+  padding: 11px;
+}
+
+.admin-dashboard__summary > button:hover {
+  border-color: rgba(21, 87, 255, 0.32);
+  box-shadow: 0 7px 18px rgba(15, 23, 42, 0.075);
+}
+
+.admin-dashboard__summary > button:focus-visible,
+.admin-dashboard__journey button:focus-visible {
+  outline: 3px solid rgba(21, 87, 255, 0.22);
+  outline-offset: 2px;
+}
+
+.admin-dashboard__finance > div {
+  min-height: 70px;
+}
+
+.admin-dashboard__time > div {
+  min-height: 62px;
+  padding: 9px 10px;
+  background-color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-dashboard__journey {
+  gap: 12px;
+}
+
+.admin-dashboard__journey > section {
+  border-color: #e2e8f0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+}
+
+.admin-dashboard__journey > section > div:first-child {
+  min-height: 42px;
+  padding: 8px 12px;
+}
+
+.admin-dashboard__journey > section > div:last-child {
+  max-height: 396px;
+  min-height: 112px;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.admin-dashboard__journey > section > div:last-child > div {
+  min-height: 38px;
+  gap: 8px;
+  padding: 7px 10px;
+  border-color: #edf1f6;
+  transition: background-color 150ms ease;
+}
+
+.admin-dashboard__journey > section > div:last-child > div:hover {
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.admin-dashboard__journey [aria-label='Ver jornada do atendimento'] {
+  height: 26px;
+  width: 26px;
+  border-width: 1px;
+  border-color: #bbf7d0;
+  border-radius: 8px;
+  color: #078742;
+  box-shadow: none;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.admin-dashboard__journey [aria-label='Ver jornada do atendimento']:hover {
+  border-color: #86efac;
+  background: #f0fdf4;
+  transform: translateY(-1px);
+}
+
+.admin-dashboard__journey .dp-col-count {
+  height: 24px;
+  min-width: 24px;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+@media (max-width: 1023px) {
+  .admin-dashboard__content {
+    padding: 12px 14px 18px;
+  }
+
+  .admin-dashboard__summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-dashboard__time {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .admin-dashboard__journey {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-dashboard__content {
+    padding: 10px 10px 16px;
+  }
+
+  .admin-dashboard__summary,
+  .admin-dashboard__finance,
+  .admin-dashboard__time {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .admin-dashboard__summary > button,
+  .admin-dashboard__finance > div {
+    min-height: 70px;
+  }
 }

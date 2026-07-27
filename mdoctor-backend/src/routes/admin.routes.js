@@ -13,6 +13,9 @@ const {
   listRecentDecisoesLog,
   statusInGroup,
 } = require('../store/atendimentos.store');
+const { PAYMENT_AMOUNT_CENTS, PAYMENT_AMOUNT_LABEL } = require('../services/typebot-payment.constants');
+const { createAuditLog } = require('../store/audit.store');
+const { QUEUE_TYPE_MEDICAL_SUPPORT } = require('../constants/whatsapp-queue');
 
 const router = express.Router();
 
@@ -41,6 +44,80 @@ function hasUnresolvedAdminNote(atendimento) {
   const notes = atendimento.dados_clinicos?.observacoes_admin;
   if (!Array.isArray(notes) || !notes.length) return false;
   return notes.some((n) => !n.resolvido);
+}
+
+// Indicador financeiro: soma o valor real da consulta (mesmo preço fixo usado
+// no link de pagamento Stripe, typebot-payment.constants.js) para cada
+// atendimento com pagamento efetivamente confirmado. Não é um valor
+// registrado por atendimento (o produto é preço único), então não há campo
+// a backfillar — a receita é sempre atendimentos_pagos × valor_unitario.
+const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function computeFinanceiro(atendimentos) {
+  const pagos = atendimentos.filter(isPaid);
+  const receitaTotalCentavos = pagos.length * PAYMENT_AMOUNT_CENTS;
+  return {
+    atendimentos_pagos: pagos.length,
+    valor_unitario_centavos: PAYMENT_AMOUNT_CENTS,
+    valor_unitario_label: PAYMENT_AMOUNT_LABEL,
+    receita_total_centavos: receitaTotalCentavos,
+    receita_total_label: BRL_FORMATTER.format(receitaTotalCentavos / 100),
+  };
+}
+
+function minutesBetween(fromIso, toIso) {
+  const from = new Date(fromIso).getTime();
+  const to = new Date(toIso).getTime();
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to < from) return null;
+  return (to - from) / 60000;
+}
+
+function average(values) {
+  const clean = values.filter((v) => typeof v === 'number' && Number.isFinite(v));
+  if (!clean.length) return null;
+  return clean.reduce((sum, v) => sum + v, 0) / clean.length;
+}
+
+function formatMinutes(minutes) {
+  if (minutes === null) return null;
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+}
+
+// Indicadores de tempo médio: calculados só sobre atendimentos com o rastro
+// real completo (status "delivered", com clinical_audit.approvedAt,
+// memed_context.emitida_em e historico_receita.finalizado_em já gravados
+// pelo fluxo real de aprovação/emissão/entrega — nada aqui é inventado).
+// "Triagem", "Avaliação" (distinta da espera), "Suporte administrativo" e
+// "Suporte médico" não têm um evento real e distinto registrado no modelo de
+// dados atual, então ficam null (painel exibe "—") em vez de um número
+// fabricado.
+function computeTempos(atendimentos) {
+  const comRastroCompleto = atendimentos.filter((a) => {
+    const c = a.dados_clinicos || {};
+    return a.status === 'delivered' && c.clinical_audit?.approvedAt && c.memed_context?.emitida_em && c.historico_receita?.finalizado_em;
+  });
+
+  const esperaMedica = average(comRastroCompleto.map((a) => minutesBetween(a.criado_em, a.dados_clinicos.clinical_audit.approvedAt)));
+  const emissaoReceita = average(
+    comRastroCompleto.map((a) => minutesBetween(a.dados_clinicos.clinical_audit.approvedAt, a.dados_clinicos.memed_context.emitida_em)),
+  );
+  const jornadaCompleta = average(
+    comRastroCompleto.map((a) => minutesBetween(a.criado_em, a.dados_clinicos.historico_receita.finalizado_em)),
+  );
+
+  return {
+    amostra: comRastroCompleto.length,
+    triagem: null,
+    espera_medica: formatMinutes(esperaMedica),
+    avaliacao: null,
+    emissao_receita: formatMinutes(emissaoReceita),
+    jornada_completa: formatMinutes(jornadaCompleta),
+    suporte_administrativo: null,
+    suporte_medico: null,
+  };
 }
 
 // ─── EXISTING: Tech admin status (admin role only) ───────────────────────────
@@ -101,26 +178,32 @@ router.get('/status', requireAuth, requireRole('admin'), async (req, res) => {
 router.get('/dashboard', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
   try {
     const all = await listAtendimentos();
+    // Atendimentos encaminhados ao médico somem das colunas do corpo principal
+    // (ver admin/dashboard/page.tsx) — os 6 cards precisam da mesma exclusão,
+    // senão "Pendências administrativas" pode contar um caso que já não
+    // aparece na coluna correspondente (nota antiga não resolvida + em espera
+    // de resposta médica ao mesmo tempo).
+    const cardsVisiveis = all.filter((a) => a.dados_clinicos?.queue_type !== 'medical_support');
 
-    const aguardandoPagamento = all.filter(
+    const aguardandoPagamento = cardsVisiveis.filter(
       (a) => isWaiting(a) && !isPaid(a),
     ).length;
 
-    const aguardandoReceita = all.filter(
+    const aguardandoReceita = cardsVisiveis.filter(
       (a) => a.status === 'awaiting_prescription_upload',
     ).length;
 
-    const prontoParaAvaliacao = all.filter(
+    const prontoParaAvaliacao = cardsVisiveis.filter(
       (a) => isWaiting(a) && isPaid(a),
     ).length;
 
-    const emAtendimento = all.filter(isInMedicalFlow).length;
+    const emAtendimento = cardsVisiveis.filter(isInMedicalFlow).length;
 
-    const receitas_prontas = all.filter(
+    const receitas_prontas = cardsVisiveis.filter(
       (a) => statusInGroup(a.status, 'readyToDeliver'),
     ).length;
 
-    const pendenciasAdmin = all.filter(hasUnresolvedAdminNote).length;
+    const pendenciasAdmin = cardsVisiveis.filter(hasUnresolvedAdminNote).length;
 
     const recentes = all
       .slice(0, 10)
@@ -146,6 +229,8 @@ router.get('/dashboard', requireAuth, requireRole(...ADMIN_ROLES), async (req, r
         receitas_prontas,
         pendencias_admin: pendenciasAdmin,
       },
+      financeiro: computeFinanceiro(all),
+      tempos: computeTempos(all),
       total: all.length,
       recentes,
     });
@@ -174,6 +259,7 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
 
     const atendimentos = all.map((a) => ({
       id: a.id,
+      numero_curto: a.numero_curto,
       paciente_nome: a.paciente_nome,
       paciente_telefone: a.paciente_telefone,
       paciente_cpf: a.paciente_cpf,
@@ -193,6 +279,19 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
         stripe_checkout_url: a.dados_clinicos?.stripe_checkout_url,
         memed_receita: a.dados_clinicos?.memed_receita,
         entrega_receita: a.dados_clinicos?.entrega_receita,
+        motivo_rejeicao: a.dados_clinicos?.motivo_rejeicao || null,
+        support_sub_status: a.dados_clinicos?.support_sub_status || null,
+        queue_type: a.dados_clinicos?.queue_type || null,
+        medical_support_reason: a.dados_clinicos?.medical_support_reason || null,
+        medical_support_requested_at: a.dados_clinicos?.medical_support_requested_at || null,
+        // medico_id (coluna) é sempre null com o login atual (username, não
+        // numérico) — o responsável real fica em clinical_audit.
+        clinical_audit: a.dados_clinicos?.clinical_audit
+          ? {
+              approvedBy: a.dados_clinicos.clinical_audit.approvedBy || null,
+              rejectedBy: a.dados_clinicos.clinical_audit.rejectedBy || null,
+            }
+          : null,
       },
     }));
 
@@ -243,6 +342,11 @@ router.post('/atendimentos/:id/notes', requireAuth, requireRole(...ADMIN_ROLES),
       : [];
 
     const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
+      // updateAtendimentoStatus zera medico_id/motivo_decisao se não forem
+      // repassados — adicionar uma observação não deve apagar quem decidiu
+      // o atendimento nem o motivo da decisão.
+      medicoId: atendimento.medico_id,
+      motivo: atendimento.motivo_decisao,
       dados_clinicos: {
         ...atendimento.dados_clinicos,
         observacoes_admin: [...notasExistentes, nota],
@@ -282,6 +386,9 @@ router.patch(
       );
 
       const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
+        // ver comentário equivalente na rota de adicionar observação acima.
+        medicoId: atendimento.medico_id,
+        motivo: atendimento.motivo_decisao,
         dados_clinicos: {
           ...atendimento.dados_clinicos,
           observacoes_admin: notasAtualizadas,
@@ -403,6 +510,65 @@ router.post(
       res
         .status(500)
         .json({ success: false, error: err.message || 'Erro ao reenviar link de pagamento' });
+    }
+  },
+);
+
+// ─── OPERATIONAL: Forward to doctor (fluxo Suporte Médico) ──────────────────
+// Encaminha um atendimento clínico real (nunca um ticket de Suporte Geral) para
+// esclarecimento médico pontual. Nunca cria atendimento, altera receita ou
+// reabre avaliação clínica — só sinaliza dados_clinicos.queue_type, lido pelo
+// Painel Médico (GET /api/atendimentos/medical-support-queue).
+
+router.post(
+  '/atendimentos/:id/forward-to-doctor',
+  requireAuth,
+  requireRole(...ADMIN_ROLES),
+  async (req, res) => {
+    try {
+      const { motivo } = req.body || {};
+      if (!motivo || !String(motivo).trim()) {
+        return res.status(400).json({ success: false, error: 'Motivo do encaminhamento é obrigatório' });
+      }
+
+      const atendimento = await getAtendimento(req.params.id);
+      if (!atendimento) {
+        return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+      }
+
+      if (atendimento.condicao === 'suporte_whatsapp') {
+        return res.status(400).json({
+          success: false,
+          error: 'Tickets de Suporte Geral não podem ser encaminhados ao médico — não são atendimentos clínicos.',
+        });
+      }
+
+      const now = new Date().toISOString();
+      const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
+        // updateAtendimentoStatus sempre reescreve medico_id/motivo_decisao a
+        // partir de meta — sem repassar os valores atuais, esta ação (que não
+        // deveria mexer em nada disso) os zeraria silenciosamente.
+        medicoId: atendimento.medico_id,
+        motivo: atendimento.motivo_decisao,
+        dados_clinicos: {
+          ...atendimento.dados_clinicos,
+          queue_type: QUEUE_TYPE_MEDICAL_SUPPORT,
+          medical_support_reason: String(motivo).trim(),
+          medical_support_requested_at: now,
+        },
+      });
+
+      await createAuditLog({
+        entity_type: 'atendimento',
+        entity_id: req.params.id,
+        action: 'forwarded_to_doctor',
+        actor: req.user?.name || req.user?.username || 'admin',
+        payload: { atendimento_id: req.params.id, motivo: String(motivo).trim() },
+      });
+
+      res.json({ success: true, atendimento: updated });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message || 'Erro ao encaminhar ao médico' });
     }
   },
 );

@@ -79,11 +79,11 @@ export default function AdminPage() {
         headers: authHeaders()
       });
       const payload = await response.json();
-      if (response.status === 403) throw new Error('Seu perfil não tem acesso ao Painel Master.');
-      if (!response.ok || !payload.success) throw new Error(payload.error || 'Falha ao carregar painel master');
+      if (response.status === 403) throw new Error('Seu perfil não tem acesso ao Painel de Monitoramento.');
+      if (!response.ok || !payload.success) throw new Error(payload.error || 'Falha ao carregar painel de monitoramento');
       setData(payload);
     } catch (e: any) {
-      setError(e.message || 'Falha ao carregar painel master');
+      setError(e.message || 'Falha ao carregar painel de monitoramento');
       if (String(e.message || '').includes('Sessão')) window.location.href = '/login';
     } finally {
       setLoading(false);
@@ -99,7 +99,7 @@ export default function AdminPage() {
     fetchStatus();
   }, []);
 
-  if (loading) return <main className="min-h-screen bg-[#F8FAFC] p-6 text-sm text-[#5B6475]">Carregando painel master...</main>;
+  if (loading) return <main className="min-h-screen bg-[#F8FAFC] p-6 text-sm text-[#5B6475]">Carregando painel de monitoramento...</main>;
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-[#1E1E1E]">
@@ -109,8 +109,8 @@ export default function AdminPage() {
             DP
           </div>
           <div>
-            <h1 className="text-lg font-black">Painel Master</h1>
-            <p className="text-sm text-[#5B6475]">Produção, integrações e operação médica</p>
+            <h1 className="text-lg font-black">Painel de Monitoramento</h1>
+            <p className="text-sm text-[#5B6475]">Monitoramento da infraestrutura, integrações e operação do sistema</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

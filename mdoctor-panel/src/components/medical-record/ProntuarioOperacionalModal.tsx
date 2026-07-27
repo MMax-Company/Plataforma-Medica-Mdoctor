@@ -10,6 +10,7 @@ import { whatsappContactUrl } from '@/lib/patient-display';
 interface ProntuarioOperacionalModalProps {
   atendimentoId: string | null;
   open: boolean;
+  consultMode?: boolean;
   onClose: () => void;
   onCompleted?: () => void;
   onApproved?: (id: string) => void;
@@ -103,6 +104,7 @@ function ClinicalBlock({
 export function ProntuarioOperacionalModal({
   atendimentoId,
   open,
+  consultMode = false,
   onClose,
   onCompleted,
   onApproved,
@@ -245,7 +247,9 @@ export function ProntuarioOperacionalModal({
                   Prontuário Médico
                 </h1>
                 <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
-                  Avalie as informações do paciente e aprove o atendimento
+                  {consultMode
+                    ? 'Consulta de prontuário — somente leitura'
+                    : 'Avalie as informações do paciente e aprove o atendimento'}
                 </p>
               </div>
 
@@ -294,6 +298,8 @@ export function ProntuarioOperacionalModal({
                       startEditing();
                     }
                   }}
+                  disabled={consultMode}
+                  title={consultMode ? 'Consulta arquivada — edição indisponível' : undefined}
                 >
                   ✏️ {editing ? 'Bloquear' : 'Editar'}
                 </button>
@@ -474,14 +480,16 @@ export function ProntuarioOperacionalModal({
               </main>
             </div>
 
-            <ProntuarioDecisionBar
-              notes={notes}
-              onNotesChange={setNotes}
-              onReject={() => void handleReject()}
-              onApprove={() => void handleApprove()}
-              disabled={actionLoading === 'save'}
-              loadingAction={actionLoading === 'approve' ? 'approve' : actionLoading === 'reject' ? 'reject' : null}
-            />
+            {!consultMode ? (
+              <ProntuarioDecisionBar
+                notes={notes}
+                onNotesChange={setNotes}
+                onReject={() => void handleReject()}
+                onApprove={() => void handleApprove()}
+                disabled={actionLoading === 'save'}
+                loadingAction={actionLoading === 'approve' ? 'approve' : actionLoading === 'reject' ? 'reject' : null}
+              />
+            ) : null}
           </>
         ) : null}
       </div>

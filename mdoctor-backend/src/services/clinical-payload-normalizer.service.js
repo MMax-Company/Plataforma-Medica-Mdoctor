@@ -556,6 +556,7 @@ function hasStoredPreviousPrescription(clinical = {}) {
 function isVisibleInMedicalPanel(atendimento = {}) {
   const clinical = atendimento.dados_clinicos || {};
   if (clinical.queue_type === 'support' || clinical.whatsapp_support === true) return false;
+  if (clinical.queue_type === 'medical_support') return false;
   if (atendimento.condicao === 'suporte_whatsapp') return false;
 
   const status = String(atendimento.status || '').toLowerCase();

@@ -5,9 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { logout, requireSession } from '@/services/auth.service';
 import {
   fetchAdminAtendimentos,
+  medicoResponsavel,
   type AdminAtendimento,
 } from '@/services/admin.service';
-import { AppShell, Card, EmptyState, StatusPill, TextInput } from '@/components/ui/DesignSystem';
+import { Card, EmptyState, StatusPill, TextInput } from '@/components/ui/DesignSystem';
+import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 
 function fmt(v?: string) {
   if (!v) return '—';
@@ -137,15 +139,6 @@ function PacientesContent() {
     router.replace('/login');
   }
 
-  const navLinks = (
-    <a
-      href="/admin/dashboard"
-      className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-    >
-      ← Dashboard
-    </a>
-  );
-
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#F8FAFC] text-sm text-[#5B6475]">
@@ -155,16 +148,21 @@ function PacientesContent() {
   }
 
   return (
-    <AppShell
-      title="Pacientes"
-      subtitle={
-        filter !== 'all' && FILTER_LABELS[filter]
-          ? `Filtro: ${FILTER_LABELS[filter]}`
-          : `${filtered.length} atendimento${filtered.length !== 1 ? 's' : ''}`
-      }
-      actions={navLinks}
-      onLogout={handleLogout}
-    >
+    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
+      <MedicalPanelHeader
+        operational
+        title="Pacientes"
+        titleAlign="left"
+        subtitle={
+          filter !== 'all' && FILTER_LABELS[filter]
+            ? `Filtro: ${FILTER_LABELS[filter]}`
+            : `${filtered.length} atendimento${filtered.length !== 1 ? 's' : ''}`
+        }
+        recordButtonLabel="← Dashboard"
+        onOpenMedicalRecord={() => router.push('/admin/dashboard')}
+        onLogout={handleLogout}
+      />
+
       <div className="space-y-4 p-4 sm:p-6">
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
@@ -257,7 +255,7 @@ function PacientesContent() {
                           </StatusPill>
                         </td>
                         <td className="px-4 py-3 text-[#5B6475]">
-                          {a.medico_id || '—'}
+                          {medicoResponsavel(a) || '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
@@ -277,7 +275,7 @@ function PacientesContent() {
           </Card>
         )}
       </div>
-    </AppShell>
+    </main>
   );
 }
 
