@@ -6,8 +6,13 @@ const CLINICAL_INPUTS = Object.freeze({
   blk_k8s4myef: { field: 'medicationName', question: 'Informe o nome do medicamento.' },
   blk_n5x21i7c: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
   blk_e3e58xjk: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
-  blk_g0v3kz80: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' },
-  b156nm008xh7gb52n7w3egzn: { field: 'chronicConditions', question: 'Digite os números correspondentes separados por vírgula (ex.: 1, 3).' }
+  blk_g0v3kz80: { field: 'medicationDose', question: 'Informe a dose (ex.: 25 mg).' }
+  // b156nm008xh7gb52n7w3egzn (Doença Crônica) NÃO entra aqui: esse input já
+  // é resolvido pelo mecanismo de lista interativa multi-seleção do
+  // WhatsApp (OFFICIAL_MULTI_CHOICE_INPUT_IDS em typebot-whatsapp.bridge.js),
+  // que envia texto final como códigos ("has, dm"). Registrá-lo também aqui
+  // como chronicConditions (dígitos "1, 3") fazia validateTypebotInput
+  // rejeitar a confirmação da lista, travando o fluxo em loop.
 });
 
 // Mapa fixo número -> código de condição, na mesma ordem/numeração exibida
