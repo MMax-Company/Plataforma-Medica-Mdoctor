@@ -99,7 +99,7 @@ router.post('/:token/complete', async (req, res) => {
   }
 });
 
-router.get('/:token', (_req, res) => {
+router.get('/:token', (req, res) => {
   res.setHeader('Content-Security-Policy', PAYMENT_PAGE_CSP);
   res.sendFile(path.join(__dirname, '..', 'views', 'typebot-payment.html'));
 });

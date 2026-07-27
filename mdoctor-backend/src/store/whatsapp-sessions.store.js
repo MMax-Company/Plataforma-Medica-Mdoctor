@@ -177,12 +177,46 @@ async function clearSurveySession(phone) {
   return data;
 }
 
+const TRANSIENT_CLINICAL_METADATA_KEYS = [
+  'typebot_expected_input_id',
+  'typebot_multi_choice',
+  'typebot_payment',
+  'typebot_prescription_upload'
+];
+
+/**
+ * FASE 6B — remove metadata transitória da sessão WhatsApp ao entrar em suporte.
+ * Não altera atendimentos clínicos, pagamentos confirmados ou arquivos já salvos.
+ */
+async function clearTransientClinicalSessionMetadata({ whatsappSession }) {
+  if (!whatsappSession?.id) return null;
+
+  const metadata = { ...(whatsappSession.metadata || {}) };
+  for (const key of TRANSIENT_CLINICAL_METADATA_KEYS) {
+    delete metadata[key];
+  }
+
+  const data = await dbQuery('limpar metadata clínica transitória whatsapp session', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .update({
+        typebot_session_id: null,
+        metadata,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', whatsappSession.id)
+      .select('*')
+      .single()
+  );
+  return data;
+}
+
 async function setTypebotSessionId({ sessionId, typebotSessionId }) {
-  if (!sessionId || !typebotSessionId) return null;
+  if (!sessionId) return null;
   const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
-      .update({ typebot_session_id: typebotSessionId, updated_at: new Date().toISOString() })
+      .update({ typebot_session_id: typebotSessionId || null, updated_at: new Date().toISOString() })
       .eq('id', sessionId)
       .select('*')
       .single()
@@ -229,6 +263,7 @@ function getActiveSurveySession(session = {}) {
 
 module.exports = {
   clearSurveySession,
+  clearTransientClinicalSessionMetadata,
   clearTypebotSession,
   getActiveSurveySession,
   getSessionByBsuid,
@@ -236,5 +271,6 @@ module.exports = {
   normalizePhone,
   setTypebotSessionId,
   upsertSessionIdentity,
-  upsertSessionMetadata
+  upsertSessionMetadata,
+  TRANSIENT_CLINICAL_METADATA_KEYS
 };

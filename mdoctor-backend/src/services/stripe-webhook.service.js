@@ -7,7 +7,7 @@ const {
 } = require('../store/atendimentos.store');
 const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
-const { isExternalUploadEnabled } = require('./prescription-upload-token.service');
+const { isExternalUploadEnabled, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const {
   applyCheckoutWebhook,
   completePaymentByToken,
@@ -27,6 +27,69 @@ function extractAtendimentoId(event) {
 
 function isPaidStripeEvent(type) {
   return type === 'checkout.session.completed' || type === 'payment_intent.succeeded';
+}
+
+async function handleTypebotPaymentWebhook(event) {
+  const object = event?.data?.object || {};
+
+  if (event.type === 'checkout.session.completed') {
+    const token = String(object.metadata?.payment_token || '').trim();
+    const typebotSessionId = String(object.metadata?.typebot_session_id || '').trim();
+    if (!token && !typebotSessionId) return null;
+    const applied = await applyCheckoutWebhook(event);
+    if (!applied.ok) {
+      if (applied.code === 'SESSION_NOT_FOUND') return null;
+      logger.warn('stripe_webhook_typebot_checkout_rejected', {
+        eventId: event.id,
+        code: applied.code
+      });
+      return { status: 200, body: { success: true, ignored: true, reason: applied.code } };
+    }
+    try {
+      const result = await completePaymentByToken(applied.token, { session: applied.session });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          typebot_payment: true,
+          duplicate: Boolean(result.alreadyCompleted),
+          responsesSent: result.responsesSent ?? 0
+        }
+      };
+    } catch (error) {
+      logger.error('stripe_webhook_typebot_payment_resume_failed', {
+        token_suffix: String(applied.token).slice(-8),
+        error: error.message
+      });
+      return { status: 500, body: { success: false, error: error.message } };
+    }
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    // FASE 4B: cobrança ativa do WhatsApp é somente Checkout Session.
+    // PaymentIntent legado (bloco payment input do Typebot) não confirma nem retoma o fluxo.
+    const intentId = String(object.payment_intent || object.id || '').trim();
+    const session = intentId ? await findSessionByPaymentIntentId(intentId) : null;
+    if (session?.metadata?.typebot_payment?.token) {
+      logger.info('stripe_webhook_typebot_pi_ignored', {
+        eventId: event.id,
+        intentId,
+        reason: 'whatsapp_checkout_only'
+      });
+      return {
+        status: 200,
+        body: {
+          success: true,
+          ignored: true,
+          reason: 'whatsapp_checkout_only',
+          typebot_payment: true
+        }
+      };
+    }
+    return null;
+  }
+
+  return null;
 }
 
 async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
@@ -68,6 +131,20 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
       }
     }
   });
+
+  // FASE 5B: AWAITING sempre com prescription_upload_session.
+  if (nextStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
+    await ensurePrescriptionUploadSession({
+      atendimentoId,
+      patientId: atendimento.patient_id || null,
+      correlationId: stripeMeta.eventId || null
+    }).catch((error) => {
+      logger.warn('stripe_webhook_upload_session_ensure_failed', {
+        atendimentoId,
+        error: error.message
+      });
+    });
+  }
 
   if (stripeMeta.eventId) {
     await recordStripePaymentEvent({
@@ -188,13 +265,13 @@ async function handleStripeWebhookEvent(event) {
   const typebotResult = await handleTypebotPaymentWebhook(event);
   if (typebotResult) return typebotResult;
 
-  const object = event.data?.object || {};
   const atendimentoId = extractAtendimentoId(event);
   if (!atendimentoId) {
     logger.warn('stripe_webhook_missing_atendimento_id', { type: event.type, id: event.id });
     return { status: 200, body: { success: true, ignored: true, reason: 'missing_atendimento_id' } };
   }
 
+  const object = event.data?.object || {};
   const result = await applyStripePaymentConfirmed(atendimentoId, {
     eventId: event.id,
     eventType: event.type,

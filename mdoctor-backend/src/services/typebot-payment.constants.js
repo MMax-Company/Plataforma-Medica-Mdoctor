@@ -16,6 +16,12 @@ const PAYMENT_PENDING_MESSAGE = [
   'Se você já concluiu, aguarde alguns instantes e selecione Conferir pagamento.'
 ].join('\n');
 
+const PAYMENT_CONFIRMED_MESSAGE = [
+  'Pagamento confirmado.',
+  '',
+  'Agora vamos coletar as informações dos medicamentos e concluir o envio da sua receita anterior.'
+].join('\n');
+
 const PAYMENT_FAILED_MESSAGE = 'Não foi possível confirmar o pagamento. Você pode tentar novamente.';
 const PAYMENT_CANCELLED_MESSAGE = 'O pagamento não foi concluído. Nenhuma cobrança foi confirmada.';
 
@@ -41,6 +47,7 @@ module.exports = {
   PAYMENT_BTN_REOPEN,
   PAYMENT_BUTTON_LABEL,
   PAYMENT_CANCELLED_MESSAGE,
+  PAYMENT_CONFIRMED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
   PAYMENT_PENDING_CHOICES,

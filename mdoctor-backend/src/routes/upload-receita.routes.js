@@ -142,14 +142,20 @@ router.get('/:token/status', async (req, res) => {
     }
     const clinical = atendimento.dados_clinicos || {};
     const uploaded = hasStoredPreviousPrescription(clinical);
+    const uploadStatus = uploaded ? 'completed' : (clinical.prescription_upload_session?.status || 'pending');
     return res.json({
       success: true,
       token_status: record.status,
       atendimento_id: atendimento.id,
       atendimento_status: atendimento.status,
       upload_completed: uploaded ? 'true' : 'false',
+      upload_status: uploadStatus,
+      foto_receita_url: clinical.foto_receita_url || clinical.previous_prescription_url || null,
       upload_url: clinical.prescription_upload_session?.upload_url || null,
-      expires_at: clinical.prescription_upload_session?.expires_at || new Date(record.expiresAt).toISOString()
+      expires_at: clinical.prescription_upload_session?.expires_at || new Date(record.expiresAt).toISOString(),
+      message: uploaded
+        ? 'Receita anterior vinculada ao atendimento'
+        : 'Aguardando envio da receita anterior nesta conversa do WhatsApp'
     });
   } catch (error) {
     return res.status(error.statusCode || 400).json({
@@ -181,16 +187,20 @@ router.post('/:token', handleMulterUpload, async (req, res) => {
       correlationId
     });
 
-    resumeTypebotAfterPrescriptionUpload({
-      token,
+    const whatsappResume = await resumeTypebotAfterPrescriptionUpload({
       atendimentoId: result.atendimento?.id,
-      correlationId
-    }).catch((error) => createAuditLog({
-      entity_type: 'prescription_upload',
-      action: 'resume_typebot_failed',
-      actor: 'system',
-      payload: { correlationId, token: '[redacted]', error: error.message }
-    }));
+      token,
+      correlationId,
+      phone: result.atendimento?.paciente_telefone
+    }).catch((error) => {
+      createAuditLog({
+        entity_type: 'prescription_upload',
+        action: 'resume_typebot_failed',
+        actor: 'system',
+        payload: { correlationId, token: '[redacted]', error: error.message }
+      });
+      return { ok: false, code: 'RESUME_ERROR' };
+    });
 
     if (wantsHtmlResponse(req)) {
       const html = renderUploadPage({
@@ -208,6 +218,7 @@ router.post('/:token', handleMulterUpload, async (req, res) => {
       message: 'Receita anterior recebida com sucesso',
       atendimento_id: result.atendimento?.id,
       status: result.atendimento?.status,
+      whatsapp_resume: whatsappResume,
       prescription: {
         storage_path: result.prescriptionMeta?.previous_prescription_storage_path,
         mime_type: result.prescriptionMeta?.previous_prescription_mime_type,

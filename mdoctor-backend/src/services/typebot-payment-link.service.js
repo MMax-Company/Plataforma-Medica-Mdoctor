@@ -10,6 +10,7 @@ const {
   PAYMENT_AMOUNT_LABEL,
   PAYMENT_BUTTON_LABEL,
   PAYMENT_CANCELLED_MESSAGE,
+  PAYMENT_CONFIRMED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
   PAYMENT_PENDING_CHOICES,
@@ -589,6 +590,14 @@ async function completePaymentByToken(token, deps = {}) {
 
   const correlationId = `typebot-payment-${payment.checkout_session_id || payment.token}`;
   try {
+    await provider.sendTextMessage({
+      to: session.phone,
+      bsuid: session.bsuid,
+      correlationId,
+      idempotencyKey: `${correlationId}:confirmed`,
+      text: PAYMENT_CONFIRMED_MESSAGE
+    });
+
     const typebot = await callTypebot(
       `/sessions/${encodeURIComponent(payment.typebot_session_id)}/continueChat`,
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
@@ -634,7 +643,7 @@ async function completePaymentByToken(token, deps = {}) {
       bsuid: session.bsuid,
       metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
     }).catch(() => {});
-    return { ok: true, responsesSent: providerMessageIds.length };
+    return { ok: true, responsesSent: providerMessageIds.length + 1 };
   } catch (error) {
     await revertFlowResume(session);
     await logError({

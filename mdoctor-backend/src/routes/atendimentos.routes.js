@@ -392,6 +392,29 @@ router.get('/search', requireAuth, async (req, res) => {
   return res.json({ success: true, results, total: results.length });
 });
 
+router.get('/:id/prescription-upload/status', async (req, res) => {
+  try {
+    const {
+      getPrescriptionUploadStatusByAtendimentoId
+    } = require('../services/typebot-prescription-upload.service');
+    const status = await getPrescriptionUploadStatusByAtendimentoId(req.params.id);
+    if (!status.found) {
+      return res.status(404).json({
+        success: false,
+        error: 'Atendimento não encontrado',
+        code: 'ATENDIMENTO_NOT_FOUND'
+      });
+    }
+    return res.json({ success: true, ...status });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message,
+      code: error.code || 'PRESCRIPTION_UPLOAD_STATUS_ERROR'
+    });
+  }
+});
+
 router.get('/:id', requireAuth, async (req, res) => {
   const atendimento = await getAtendimento(req.params.id);
   if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
