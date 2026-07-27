@@ -12,7 +12,11 @@ const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const logger = require('../config/logger');
 
 // Menu 1/2 é exclusivo do backend (porta de entrada Meta). Não duplicar no Typebot.
-const MAIN_MENU_TEXT = '1 - Iniciar atendimento\n2 - Suporte';
+// Texto homologado (commit cddfbb7, 22/07): a saudação antes das opções é
+// parte do comportamento validado — reduzir a só "1 - Iniciar atendimento\n2
+// - Suporte" (sem saudação) foi uma regressão da reconciliação da PR #36/#23f00ab.
+const MAIN_MENU_TEXT =
+  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte';
 
 function isMainMenuTrigger(text) {
   const normalized = String(text || '').trim().toUpperCase();

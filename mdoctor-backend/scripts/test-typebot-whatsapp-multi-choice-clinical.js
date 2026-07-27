@@ -9,16 +9,13 @@ const {
   toggleMultiChoiceSelection
 } = require('../src/services/typebot-whatsapp.bridge');
 
-const DISEASE_INPUT = {
+// Doença Crônica (b156nm008xh7gb52n7w3egzn) NÃO usa mais lista+Confirmo desde
+// 3a786ef (24/07): o Typebot publicado converteu esse bloco para text input
+// (pergunta com opções numeradas no próprio texto, resposta livre "1, 3").
+// Ver assertChronicConditionsFreeText().
+const DISEASE_TEXT_INPUT = {
   id: 'b156nm008xh7gb52n7w3egzn',
-  type: 'choice input',
-  options: { isMultipleChoice: true, buttonLabel: 'Confirmo', variableId: 'icaxqctv4r7b4du941d9qs46' },
-  items: [
-    { id: 'vjzl8ufgtda0h2tg4gvxvx2p', content: 'Hipertensão Arterial', value: 'has' },
-    { id: 'wvstylkrlny8u28zzuv2dixb', content: 'Diabetes Melitus', value: 'dm' },
-    { id: 'nrpsd9wjyynm4gkalizc5p65', content: 'Dislipidemia', value: 'dlp' },
-    { id: 's6jrm608stgtegacomrr2q1a', content: 'Hipotireidismo', value: 'hipotireoidismo' }
-  ]
+  type: 'text input'
 };
 
 const SINAIS_INPUT = {
@@ -44,14 +41,10 @@ function assertOfficialJson() {
   // Não alteramos Bem-Vindo nesta tarefa
   assert.ok(welcome.items[0].content);
 
-  const doenca = bot.groups.find((g) => g.title === 'Doença Cronica');
-  const diseaseChoice = doenca.blocks.find((b) => b.id === 'b156nm008xh7gb52n7w3egzn');
-  assert.equal(diseaseChoice.options.isMultipleChoice, true);
-  assert.equal(diseaseChoice.options.buttonLabel, 'Confirmo');
-  assert.equal(diseaseChoice.outgoingEdgeId, 'edge_doenca_to_tempo');
-  assert.ok(diseaseChoice.items.every((item) => !item.outgoingEdgeId));
-  assert.deepEqual(diseaseChoice.items.map((i) => i.value), ['has', 'dm', 'dlp', 'hipotireoidismo']);
-  assert.ok(!doenca.blocks.some((b) => b.id === 'pkodixot7oiiya9iknntuvz2'));
+  // Doença Crônica: fixture docs/typebot/typebot-doctor-prescreve-staging-safe.json
+  // é um snapshot anterior a 3a786ef (24/07) e não reflete mais o bot
+  // publicado (esse bloco virou text input, ver assertChronicConditionsFreeText).
+  // Não asserida aqui para não travar o teste num artefato de docs desatualizado.
 
   const sinais = bot.groups.find((g) => g.title === 'Sinais de Alerta');
   const cond = sinais.blocks.find((b) => b.type === 'Condition');
@@ -62,98 +55,89 @@ function assertOfficialJson() {
   assert.ok(!bot.edges.some((e) => e.id === 'o51d9l56lzldmzcuvc0jdg6y'));
 }
 
-async function assertBridgeMultiDisease() {
-  assert.equal(isMultipleChoiceInput(DISEASE_INPUT), true);
+async function assertChronicConditionsFreeText() {
+  // Regressão coberta aqui (PR #36/#37): forçar este input no mecanismo de
+  // lista+Confirmo gerava uma lista sem os itens reais (Typebot não manda
+  // input.items para text input), travando o fluxo em loop. Homologado:
+  // pergunta com opções numeradas no texto, resposta livre convertida em
+  // códigos por validateChronicConditions.
+  assert.equal(isMultipleChoiceInput(DISEASE_TEXT_INPUT), false);
+
   const outputs = convertTypebotResponse({
-    messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:' } }],
-    input: DISEASE_INPUT
+    messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:\n1. Hipertensão Arterial\n2. Diabetes Melitus\n3. Dislipidemia\n4. Hipotireidismo\n\nDigite os números correspondentes separados por vírgula (ex.: 1, 3). Pode escolher mais de uma opção.' } }],
+    input: DISEASE_TEXT_INPUT
   });
-  assert.ok(outputs.some((o) => o.kind === 'text'));
-  const list = outputs.find((o) => o.kind === 'list');
-  assert.ok(list);
-  assert.ok(list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+  assert.ok(outputs.every((o) => o.kind === 'text'));
+  assert.ok(!outputs.some((o) => o.kind === 'list' || o.kind === 'buttons'));
 
-  let state = {
-    inputId: DISEASE_INPUT.id,
-    items: DISEASE_INPUT.items,
-    selected: [],
-    buttonLabel: 'Confirmo'
-  };
-  state = toggleMultiChoiceSelection(state, 'Hipertensão Arterial').state;
-  state = toggleMultiChoiceSelection(state, 'Diabetes Melitus').state;
-  assert.deepEqual(state.selected.map((s) => s.value), ['has', 'dm']);
-  assert.equal(buildMultiChoiceSubmitText(state.selected), 'has, dm');
-
-  const single = toggleMultiChoiceSelection({
-    inputId: DISEASE_INPUT.id,
-    items: DISEASE_INPUT.items,
-    selected: [],
-    buttonLabel: 'Confirmo'
-  }, 'Dislipidemia').state;
-  assert.equal(buildMultiChoiceSubmitText(single.selected), 'dlp');
-
-  const typebotCalls = [];
-  let multiMeta = {
-    inputId: DISEASE_INPUT.id,
-    items: DISEASE_INPUT.items,
-    selected: [
-      { id: 'vjzl8ufgtda0h2tg4gvxvx2p', content: 'Hipertensão Arterial', value: 'has' },
-      { id: 'wvstylkrlny8u28zzuv2dixb', content: 'Diabetes Melitus', value: 'dm' }
-    ],
-    buttonLabel: 'Confirmo'
-  };
-  const bridge = createTypebotWhatsAppBridge({
-    claimMetaMessage: async () => ({ claimed: true }),
-    finishMetaMessage: async () => {},
-    setTypebotSessionId: async () => {},
-    reloadSession: async ({ whatsappSession }) => ({
-      ...whatsappSession,
-      typebot_session_id: 'sess-disease',
-      metadata: {
-        typebot_expected_input_id: DISEASE_INPUT.id,
-        typebot_multi_choice: multiMeta
-      }
-    }),
-    persistExpectedInput: async () => {},
-    persistMultiChoice: async ({ multiChoice }) => { multiMeta = multiChoice; },
-    createIntegrationError: async () => {},
-    findPendingUploadContext: async () => null,
-    findUploadContextForPhone: async () => null,
-    persistUploadContext: async () => {},
-    uploadContextFromSession: () => null,
-    augmentOutputsWithUploadLink: (o) => o,
-    responseLooksLikeUploadStage: () => false,
-    isUploadChoiceInput: () => false,
-    callTypebot: async (path, body) => {
-      typebotCalls.push({ path, body });
-      return {
-        messages: [{ type: 'text', content: { plainText: 'Há quanto tempo você usa esse medicamento?' } }],
-        input: {
-          id: 'r0imrcgaiv1idzkykt891q4u',
-          type: 'choice input',
-          items: [{ content: '1 a 6 meses' }, { content: 'Mais de 6 meses' }]
+  function makeBridge(typebotCalls) {
+    return createTypebotWhatsAppBridge({
+      claimMetaMessage: async () => ({ claimed: true }),
+      finishMetaMessage: async () => {},
+      setTypebotSessionId: async () => {},
+      reloadSession: async ({ whatsappSession }) => ({
+        ...whatsappSession,
+        typebot_session_id: 'sess-disease',
+        metadata: {
+          typebot_expected_input_id: DISEASE_TEXT_INPUT.id,
+          typebot_multi_choice: null
         }
-      };
-    },
-    provider: {
-      sendTextMessage: async () => ({ providerMessageId: 't1' }),
-      sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
-      sendListMessage: async () => ({ providerMessageId: 'l1' })
-    }
-  });
+      }),
+      persistExpectedInput: async () => {},
+      persistMultiChoice: async () => {},
+      createIntegrationError: async () => {},
+      findPendingUploadContext: async () => null,
+      findUploadContextForPhone: async () => null,
+      persistUploadContext: async () => {},
+      uploadContextFromSession: () => null,
+      augmentOutputsWithUploadLink: (o) => o,
+      responseLooksLikeUploadStage: () => false,
+      isUploadChoiceInput: () => false,
+      callTypebot: async (path, body) => {
+        typebotCalls.push({ path, body });
+        return {
+          messages: [{ type: 'text', content: { plainText: 'Há quanto tempo você usa esse medicamento?' } }],
+          input: {
+            id: 'r0imrcgaiv1idzkykt891q4u',
+            type: 'choice input',
+            items: [{ content: '1 a 6 meses' }, { content: 'Mais de 6 meses' }]
+          }
+        };
+      },
+      provider: {
+        sendTextMessage: async () => ({ providerMessageId: 't1' }),
+        sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
+        sendListMessage: async () => ({ providerMessageId: 'l1' })
+      }
+    });
+  }
 
   process.env.TYPEBOT_PUBLIC_ID = 'doctor-prescreve-8rmljgu';
   process.env.TYPEBOT_VIEWER_URL = 'https://typebot.io';
 
-  const confirmed = await bridge({
-    messageId: 'multi-disease-confirm',
-    text: 'Confirmo',
+  const validCalls = [];
+  const answered = await makeBridge(validCalls)({
+    messageId: 'disease-free-text',
+    text: '1, 3',
     identity: { phone: '5511999990001', bsuid: null },
     whatsappSession: { id: 'wa-1', typebot_session_id: 'sess-disease' }
   });
-  assert.equal(typebotCalls.length, 1);
-  assert.equal(typebotCalls[0].body.message.text, 'has, dm');
-  assert.equal(confirmed.multiChoicePending, undefined);
+  assert.equal(validCalls.length, 1);
+  assert.equal(validCalls[0].body.message.text, 'has,dlp');
+  assert.equal(answered.multiChoicePending, undefined);
+
+  // Opção inválida deve ser rejeitada com a pergunta original, sem chamar o
+  // Typebot — instância própria de bridge (expectedInputs em memória é por
+  // instância, não deve carregar o avanço de sessão do caso anterior).
+  const invalidCalls = [];
+  const rejected = await makeBridge(invalidCalls)({
+    messageId: 'disease-free-text-invalid',
+    text: '9',
+    identity: { phone: '5511999990002', bsuid: null },
+    whatsappSession: { id: 'wa-2', typebot_session_id: 'sess-disease' }
+  });
+  assert.equal(invalidCalls.length, 0);
+  assert.equal(rejected.responsesSent >= 1, true);
 }
 
 async function assertBridgeSinaisBranches() {
@@ -298,14 +282,13 @@ async function assertBridgeSinaisBranches() {
 
 async function main() {
   assertOfficialJson();
-  await assertBridgeMultiDisease();
+  await assertChronicConditionsFreeText();
   await assertBridgeSinaisBranches();
   console.log(JSON.stringify({
     ok: true,
-    officialJsonPatched: true,
     welcomeUntouched: true,
-    twoDiseasesSubmit: 'has, dm',
-    oneDiseaseSubmit: 'dlp',
+    chronicConditionsIsFreeText: true,
+    chronicConditionsSubmit: 'has,dlp',
     nenhumDestesSubmitsNAO: true,
     signalSubmitsValue: true,
     nenhumExclusive: true

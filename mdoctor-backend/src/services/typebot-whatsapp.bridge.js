@@ -186,9 +186,17 @@ function textInputPrompt(input = {}) {
   return String(labels.placeholder || labels.label || '').trim();
 }
 
-/** Inputs múltiplos do Typebot oficial (fallback se a API não enviar options). */
+/**
+ * Inputs múltiplos do Typebot oficial (fallback se a API não enviar options).
+ * Doença Crônica (b156nm008xh7gb52n7w3egzn) NÃO entra aqui: desde 3a786ef
+ * (24/07) esse bloco é um text input no Typebot publicado (pergunta com
+ * opções numeradas no próprio texto, resposta livre "1, 3"), não um choice
+ * input — forçá-lo neste fallback gera uma lista sem os itens reais
+ * (Typebot não manda input.items para text input), travando o fluxo em
+ * loop no botão Confirmo. Ver typebot-clinical-data.validation.js
+ * (validateChronicConditions), que já trata esse input como texto livre.
+ */
 const OFFICIAL_MULTI_CHOICE_INPUT_IDS = new Set([
-  'b156nm008xh7gb52n7w3egzn', // Doença Cronica
   's5VQGsVF4hQgziQsXVdwPDW' // Sinais de Alerta
 ]);
 
