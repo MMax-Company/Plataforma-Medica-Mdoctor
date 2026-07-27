@@ -1,19 +1,23 @@
 const { STATUS, createAtendimento, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { createAuditLog } = require('../store/audit.store');
-const { recordSupportTicket, recordWhatsappMessage } = require('./clinical-persistence.service');
+const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
+const { handleSurveyInbound } = require('./post-delivery-survey.service');
+const { getActiveSurveySession, getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
+const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
-const SUPPORT_WAITING_REPLY =
-  'Aguarde, em breve nossa equipe realizará seu atendimento.\n\n*0* - Voltar ao menu inicial\n*ENCERRAR* - Encerrar atendimento';
+const MENU_TEXT =
+  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte';
 
-const SUPPORT_ALREADY_OPEN_REPLY =
-  'Você já está na fila de suporte. Aguarde o contato da equipe.';
+const SUPPORT_WAITING_TEXT =
+  'Seu atendimento foi encaminhado para o suporte.\n\nAguarde. Nossa equipe responderá assim que possível.\n\nPara encerrar o suporte, envie 0 ou ENCERRAR.';
 
-const SUPPORT_IN_QUEUE_REPLY =
-  'Você está na fila de suporte. Nossa equipe entrará em contato em breve.\n\n*0* - Cancelar e voltar ao menu inicial\n*ENCERRAR* - Encerrar atendimento';
+const SUPPORT_CLOSED_TEXT =
+  'Atendimento de suporte encerrado.\n\nQuando precisar, envie uma nova mensagem para acessar o menu do Doctor Prescreve.';
 
 const SUPPORT_SUB = {
   WAITING: 'waiting',
@@ -52,38 +56,6 @@ async function findOpenSupportByPhone(phone) {
   );
 }
 
-async function findSupportByCreationIdempotencyKey(idempotencyKey) {
-  const normalized = String(idempotencyKey || '').trim();
-  if (!normalized) return null;
-
-  const rows = await listAtendimentos();
-  return (
-    rows.find((item) => {
-      if (!isSupportQueue(item)) return false;
-      const stored = String(item.dados_clinicos?.idempotency_key || '').trim();
-      return stored && stored === normalized;
-    }) || null
-  );
-}
-
-async function logSupportInboundMessage({ phone, text, atendimentoId = null }) {
-  const digits = normalizePhone(phone);
-  if (!digits || !String(text || '').trim()) return;
-  logger.info('whatsapp_support_inbound_message', {
-    atendimento_id: atendimentoId || null,
-    phone: digits.replace(/\d(?=\d{4})/g, '*'),
-    body_length: String(text).length
-  });
-  await recordWhatsappMessage({
-    appointmentId: atendimentoId,
-    phone: digits,
-    body: String(text),
-    direction: 'inbound',
-    status: 'received',
-    metadata: { channel: 'whatsapp_support' }
-  }).catch(() => {});
-}
-
 async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey, requestId }) {
   const digits = normalizePhone(phone);
   if (!digits) {
@@ -92,22 +64,9 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
     throw error;
   }
 
-  const idempotency = String(idempotencyKey || '').trim();
-  if (idempotency) {
-    const byKey = await findSupportByCreationIdempotencyKey(idempotency);
-    if (byKey) {
-      return {
-        duplicate: true,
-        idempotentReplay: true,
-        atendimento: byKey,
-        reply: supportIsOpen(byKey) ? SUPPORT_ALREADY_OPEN_REPLY : 'Solicitação de suporte já registrada.'
-      };
-    }
-  }
-
   const existing = await findOpenSupportByPhone(digits);
   if (existing) {
-    return { duplicate: true, atendimento: existing, reply: SUPPORT_ALREADY_OPEN_REPLY };
+    return { duplicate: true, atendimento: existing, reply: 'Você já está na fila de suporte. Aguarde o contato da equipe.' };
   }
 
   const suffix = digits.slice(-4);
@@ -164,7 +123,7 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
   return {
     duplicate: false,
     atendimento,
-    reply: SUPPORT_WAITING_REPLY
+    reply: SUPPORT_WAITING_TEXT
   };
 }
 
@@ -180,6 +139,7 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
     motivo: 'Encerrado pelo paciente via WhatsApp',
     dados_clinicos: {
       ...(existing.dados_clinicos || {}),
+      support_sub_status: SUPPORT_SUB.CLOSED_PATIENT,
       support_closed_at: new Date().toISOString(),
       support_closed_by: 'patient'
     }
@@ -200,7 +160,7 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
   return {
     closed: true,
     atendimento: updated,
-    reply: 'Atendimento de suporte encerrado. Obrigado pelo contato.'
+    reply: SUPPORT_CLOSED_TEXT
   };
 }
 
@@ -292,7 +252,7 @@ async function getPatientSupportContext(phone) {
   };
 }
 
-async function respondToFinalization(phone, choice, { inlineTypebot = false } = {}) {
+async function respondToFinalization(phone, choice) {
   const digits = normalizePhone(phone);
   const rows = await listAtendimentos();
   const match = rows.find((item) => {
@@ -337,15 +297,9 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
       action: 'support_converted_to_renewal', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
-    if (inlineTypebot) {
-      return { handled: true, sub_status: SUPPORT_SUB.CONVERTED, startTypebot: true };
-    }
-    // Legado sem inline: não envia link público — atendimento só via WhatsApp.
     return {
-      handled: true,
-      sub_status: SUPPORT_SUB.CONVERTED,
-      startTypebot: true,
-      reply: 'Digite *1* para iniciar o atendimento médico pelo WhatsApp.'
+      handled: true, sub_status: SUPPORT_SUB.CONVERTED,
+      reply: `Ótimo! Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções. Um médico irá analisar e emitir sua receita em breve.`
     };
   }
 
@@ -404,19 +358,276 @@ async function handleRejectionResponse({ phone, text }) {
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
     const supportResult = await createWhatsAppSupportEntry({ phone: digits });
-    return { handled: true, reply: supportResult.reply, enteredSupport: true };
+    return { handled: true, reply: supportResult.reply };
   }
 
   return { handled: true, reply: REJECTION_OPTIONS };
 }
 
+function normalizeMenuText(value = '') {
+  return String(value || '').trim().toUpperCase();
+}
+
+const DIACRITICS_RANGE = String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f);
+const DIACRITICS_REGEX = new RegExp('[' + DIACRITICS_RANGE + ']', 'g');
+
+function isGreetingText(value = '') {
+  const norm = String(value || '')
+    .normalize('NFD')
+    .replace(DIACRITICS_REGEX, '')
+    .trim()
+    .toUpperCase();
+  return norm === 'OI' || norm === 'OLA';
+}
+
+// DIAGNÓSTICO TEMPORÁRIO — mostra o texto só quando curto (comando de menu,
+// rótulo de botão, saudação); respostas longas (dados pessoais/clínicos) são
+// substituídas por um indicador de tamanho para não vazar PII no log.
+function maskDiagnosticText(value = '') {
+  const str = String(value || '');
+  if (str.length <= 40) return str;
+  return `[REDACTED ${str.length} chars]`;
+}
+
+function isActiveTypebotFlow(session = {}) {
+  const expectedInputId = session?.metadata?.typebot_expected_input_id;
+  if (!session?.typebot_session_id || !expectedInputId) return false;
+  // Enquanto aguarda a confirmação real de upload (blk_upload_check /
+  // blk_upload_pending_choice), a sessão não conta como "fluxo ativo" para
+  // roteamento de menu — evita que texto comum (ex.: "1") fique preso
+  // encaminhado para esse input em vez de reiniciar a triagem via menu.
+  // eslint-disable-next-line global-require
+  const { isUploadChoiceInput } = require('./typebot-prescription-upload.service');
+  if (isUploadChoiceInput(expectedInputId)) return false;
+  return true;
+}
+
+// Blocos do Typebot (grupo "42 — Atendimento concluído" e "Suporte (fora do
+// fluxo)") que, apesar de já existirem no fluxo do bot, não acionavam nenhuma
+// ação real no backend — o paciente escolhia "Falar com o suporte" e ninguém
+// via o pedido no painel. Ver docs/typebot backup 20260718-1404.
+const POST_ATTENDANCE_CHOICE_INPUT_ID = 'blk_pos_atend_choice';
+const SUPPORT_SUBFLOW_CHOICE_INPUT_ID = 'blk_suporte_choice';
+
+// Choice input "Vamos começar" do grupo "Bem-Vindo" (primeiro input de toda
+// conversa do Typebot). Uma sessão parada exatamente aqui é, por definição,
+// uma sessão obsoleta: o paciente nunca respondeu ao início do fluxo. Ver
+// incidente 2026-07-21 ("Invalid message. Please, try again." ao enviar "1"
+// com sessão presa neste input) — isActiveTypebotFlow via a sessão como
+// "ativa" e encaminhava "1"/"2" via continueChat para este choice input, que
+// só aceita "Vamos começar".
+const WELCOME_CHOICE_INPUT_ID = 'sbjZWLJGVkHAkDqS4JQeGow';
+
+function matchesTypebotChoice(text, ...labels) {
+  const norm = String(text || '').trim().toLowerCase();
+  return labels.some((label) => norm === String(label).toLowerCase());
+}
+
+async function handleTypebotSupportChoice({ phone, expectedInputId, text, correlationId }) {
+  if (expectedInputId === POST_ATTENDANCE_CHOICE_INPUT_ID) {
+    if (matchesTypebotChoice(text, 'Falar com o suporte', 'item_pos_suporte')) {
+      const result = await createWhatsAppSupportEntry({ phone, correlationId });
+      return { action: 'support_created', duplicate: result.duplicate };
+    }
+    if (matchesTypebotChoice(text, 'Encerrar atendimento', 'item_pos_encerrar')) {
+      return { action: 'clear_session' };
+    }
+    return null;
+  }
+
+  if (expectedInputId === SUPPORT_SUBFLOW_CHOICE_INPUT_ID) {
+    if (matchesTypebotChoice(text, 'Encerrar', 'item_suporte_encerrar')) {
+      const result = await closeWhatsAppSupportEntry({ phone, correlationId });
+      return { action: 'clear_session', closed: result.closed };
+    }
+    return null;
+  }
+
+  return null;
+}
+
+// Fase 3 pedido 3: só "0" ou "ENCERRAR" encerram o suporte, sempre com a
+// mesma mensagem única (SUPPORT_CLOSED_TEXT) e sem anexar o menu na mesma
+// resposta — o menu volta a aparecer sozinho na PRÓXIMA mensagem do
+// paciente, já que o atendimento deixa de estar "aberto" (supportIsOpen).
+async function handleSupportQueueInput({ phone, textNorm }) {
+  if (textNorm === 'ENCERRAR' || textNorm === '0') {
+    const result = await closeWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: result.reply };
+  }
+  if (textNorm === '3' || textNorm === 'CHATBOT' || textNorm === 'INICIAR CHATBOT NOVAMENTE') {
+    await closeWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'typebot_clean' };
+  }
+  if (textNorm === '1' || textNorm === 'AGUARDAR' || textNorm === 'AGUARDAR ATENDIMENTO') {
+    return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
+  }
+  // Qualquer outra mensagem (incluindo números como "2", "5"...) apenas
+  // reapresenta o aviso de espera — nunca inicia triagem/Typebot.
+  return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
+}
+
+async function resolveMetaInboundRouting({ phone, text, session = null }) {
+  const digits = normalizePhone(phone);
+  let resolvedSession = session;
+  if (!resolvedSession && digits) {
+    resolvedSession = await getSessionByPhone(digits);
+  }
+
+  try {
+    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false });
+    if (surveyResult.handled) {
+      return { handled: true, action: 'reply', reply: surveyResult.reply };
+    }
+    if (getActiveSurveySession(resolvedSession)?.step) {
+      return {
+        handled: true,
+        action: 'reply',
+        reply: surveyResult.reply || SURVEY_OPT_IN_MESSAGE
+      };
+    }
+  } catch (e) {
+    logger.warn('meta_inbound_survey_check_failed', { error: e.message });
+  }
+
+  try {
+    const rejResult = await handleRejectionResponse({ phone, text });
+    if (rejResult.handled) {
+      return { handled: true, action: 'reply', reply: rejResult.reply };
+    }
+  } catch (e) {
+    logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
+  }
+
+  // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
+  // remover após confirmar a causa. Não altera nenhuma decisão de roteamento,
+  // só registra os componentes que a alimentam.
+  const diagSession = resolvedSession || session;
+  const diagActiveFlow = isActiveTypebotFlow(diagSession);
+  const diagGreeting = isGreetingText(text);
+  logger.info('typebot_routing_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    hasTypebotSessionId: Boolean(diagSession?.typebot_session_id),
+    expectedInputId: diagSession?.metadata?.typebot_expected_input_id || null,
+    isGreeting: diagGreeting,
+    activeFlow: diagActiveFlow,
+    textMasked: maskDiagnosticText(text)
+  });
+
+  // Sessão obsoleta parada exatamente no início do fluxo ("Vamos começar"):
+  // "1"/"2" aqui não podem virar resposta ao choice input via continueChat
+  // (isso gera "Invalid message..." do próprio Typebot — ver comentário de
+  // WELCOME_CHOICE_INPUT_ID). Restrito a este input específico — não vira
+  // comando global em nenhuma outra etapa do fluxo.
+  const stuckAtWelcomeChoice = diagSession?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID;
+  if (stuckAtWelcomeChoice) {
+    const textNormEarly = normalizeMenuText(text);
+    if (textNormEarly === '1') {
+      return { handled: true, action: 'typebot_clean' };
+    }
+    if (textNormEarly === '2') {
+      const result = await createWhatsAppSupportEntry({ phone });
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+  }
+
+  if (diagActiveFlow && !diagGreeting) {
+    return { handled: false, action: 'typebot' };
+  }
+
+  const textNorm = normalizeMenuText(text);
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+  logger.info('typebot_routing_fallthrough_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    textNorm,
+    supportSubStatus: sub
+  });
+
+  if (sub === SUPPORT_SUB.AWAITING_DECISION) {
+    if (textNorm === '1' || textNorm === '2') {
+      const result = await respondToFinalization(phone, textNorm);
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+    return {
+      handled: true,
+      action: 'reply',
+      reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita'
+    };
+  }
+
+  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    return handleSupportQueueInput({ phone, textNorm });
+  }
+
+  if (textNorm === '1') {
+    return { handled: true, action: 'typebot_clean' };
+  }
+  if (textNorm === '2') {
+    const result = await createWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: result.reply };
+  }
+
+  // Sem sessão clínica nem suporte ativo: mostra o menu oficial e NÃO inicia
+  // o Typebot sozinho. Só "1" (tratado acima) inicia o Typebot; qualquer
+  // outra entrada aqui apenas reapresenta o menu, sem tocar em sessão.
+  return { handled: true, action: 'reply', reply: MENU_TEXT };
+}
+
 async function processIncomingMessage({ phone, text }) {
-  const err = new Error(
-    'processIncomingMessage desativado: use POST /api/whatsapp/webhook (Meta Cloud API) como entrada oficial.'
-  );
-  err.code = 'LEGACY_SUPPORT_ROUTE_DISABLED';
-  err.statusCode = 410;
-  throw err;
+  const digits = normalizePhone(phone);
+
+  // 1. Survey responses take priority — "1"/"2" would otherwise be misrouted to menu logic
+  try {
+    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false });
+    if (surveyResult.handled) {
+      return { reply: surveyResult.reply };
+    }
+    const session = digits ? await getSessionByPhone(digits) : null;
+    if (getActiveSurveySession(session)?.step) {
+      return { reply: surveyResult.reply || SURVEY_OPT_IN_MESSAGE };
+    }
+  } catch (e) {
+    logger.warn('process_message_survey_check_failed', { error: e.message });
+  }
+
+  // 2. Pending rejection response — patient must choose to close or start support
+  try {
+    const rejResult = await handleRejectionResponse({ phone, text });
+    if (rejResult.handled) {
+      return { reply: rejResult.reply };
+    }
+  } catch (e) {
+    logger.warn('process_message_rejection_check_failed', { error: e.message });
+  }
+
+  const textNorm = normalizeMenuText(text);
+
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+
+  if (sub === SUPPORT_SUB.AWAITING_DECISION) {
+    if (textNorm === '1' || textNorm === '2') {
+      const result = await respondToFinalization(phone, textNorm);
+      return { reply: result.reply };
+    }
+    return { reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita' };
+  }
+
+  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    const queueResult = await handleSupportQueueInput({ phone, textNorm });
+    return { reply: queueResult.reply };
+  }
+
+  // No active support — main menu (n8n/Evolution path keeps Typebot URL on option 1)
+  if (textNorm === '1') {
+    return { reply: `✅ Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções e preencha suas informações. Um médico irá analisar e emitir sua receita em breve.` };
+  }
+  if (textNorm === '2') {
+    const result = await createWhatsAppSupportEntry({ phone });
+    return { reply: result.reply };
+  }
+  return { reply: MENU_TEXT };
 }
 
 async function closeInactiveSessions() {
@@ -461,13 +672,16 @@ async function closeInactiveSessions() {
 
 module.exports = {
   SUPPORT_SUB,
-  SUPPORT_ALREADY_OPEN_REPLY,
-  SUPPORT_IN_QUEUE_REPLY,
-  SUPPORT_WAITING_REPLY,
+  MENU_TEXT,
+  SUPPORT_WAITING_TEXT,
+  SUPPORT_CLOSED_TEXT,
+  POST_ATTENDANCE_CHOICE_INPUT_ID,
+  SUPPORT_SUBFLOW_CHOICE_INPUT_ID,
   normalizePhone,
+  normalizeMenuText,
+  isActiveTypebotFlow,
   getSupportSubStatus,
   findOpenSupportByPhone,
-  findSupportByCreationIdempotencyKey,
   createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry,
   listWhatsAppSupportQueue,
@@ -476,8 +690,8 @@ module.exports = {
   finalizeSupportAttendance,
   getPatientSupportContext,
   respondToFinalization,
-  handleRejectionResponse,
-  logSupportInboundMessage,
+  resolveMetaInboundRouting,
+  handleTypebotSupportChoice,
   processIncomingMessage,
   closeInactiveSessions
 };

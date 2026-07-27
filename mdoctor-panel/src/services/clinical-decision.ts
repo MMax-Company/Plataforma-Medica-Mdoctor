@@ -15,7 +15,7 @@ type BackendAtendimento = {
 };
 
 export const CLINICAL_REJECT_WHATSAPP_MESSAGE =
-  'Após análise médica, sua solicitação não foi aprovada. O estorno do pagamento será processado e poderá ser concluído em até 72 horas, conforme os prazos da instituição financeira.';
+  'Após avaliação médica, não foi possível emitir a receita solicitada.\n\nNossa equipe analisará as providências administrativas referentes ao pagamento.\n\nCaso precise de ajuda, digite 2 para falar com o suporte.';
 
 function unwrapAtendimento(data: BackendAtendimento | { atendimento?: BackendAtendimento }): BackendAtendimento {
   if ('atendimento' in data && data.atendimento) return data.atendimento;

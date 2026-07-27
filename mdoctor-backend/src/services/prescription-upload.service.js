@@ -23,7 +23,15 @@ function mimeFromFilename(name = '') {
   return map[ext] || null;
 }
 
-async function completeExternalPrescriptionUpload({ token, buffer, mimeType, filename, correlationId = null }) {
+async function completeExternalPrescriptionUpload({
+  token,
+  buffer,
+  mimeType,
+  filename,
+  correlationId = null,
+  mediaId = null,
+  messageId = null
+}) {
   const record = await resolveTokenRecord(token);
   assertTokenActive(record);
 
@@ -77,7 +85,16 @@ async function completeExternalPrescriptionUpload({ token, buffer, mimeType, fil
     correlationId,
     clinicalPatch: {
       ...clinical,
-      prescription_ingest: { ok: true, storage_path: prescriptionMeta.previous_prescription_storage_path },
+      prescription_ingest: {
+        ok: true,
+        storage_path: prescriptionMeta.previous_prescription_storage_path,
+        // Fase 2 pedido 3 já registrava caminho/tipo/tamanho/horário (via
+        // prescriptionMeta, mesclado acima em ...clinical); message_id e
+        // media_id da Meta ficam registrados aqui, quando o envio veio do
+        // WhatsApp direto (ausentes no upload legado pela página externa).
+        whatsapp_media_id: mediaId,
+        whatsapp_message_id: messageId
+      },
       prescription_image_quality: imageQuality
     }
   });

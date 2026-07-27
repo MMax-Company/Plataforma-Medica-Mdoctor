@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
 import { ProntuarioDecisionBar } from '@/components/medical-record/ProntuarioDecisionBar';
+import { ProntuarioConsultStatus } from '@/components/medical-record/ProntuarioConsultStatus';
 import { useProntuarioAtendimento, type ClinicalEditForm } from '@/hooks/useProntuarioAtendimento';
-import { whatsappContactUrl } from '@/lib/patient-display';
+import { whatsappContactUrl, isValidCpf } from '@/lib/patient-display';
 
 interface ProntuarioOperacionalModalProps {
   atendimentoId: string | null;
@@ -177,7 +178,14 @@ export function ProntuarioOperacionalModal({
           label: '📅 Data de nascimento',
           value: firstText(clinical.data_nascimento, clinical.birth_date),
         },
-        { label: '🪪 CPF', value: atendimento.paciente_cpf || 'Não informado' },
+        {
+          label: '🪪 CPF',
+          value: atendimento.paciente_cpf
+            ? isValidCpf(atendimento.paciente_cpf)
+              ? atendimento.paciente_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+              : atendimento.paciente_cpf
+            : 'Não informado',
+        },
         {
           label: '✉️ E-mail',
           value: atendimento.paciente_email || 'Não informado',
@@ -248,7 +256,7 @@ export function ProntuarioOperacionalModal({
                 </h1>
                 <p className="mt-0.5 text-[9px] font-semibold text-slate-400">
                   {consultMode
-                    ? 'Consulta de prontuário — somente leitura'
+                    ? 'Consulta de prontuário arquivado — somente leitura'
                     : 'Avalie as informações do paciente e aprove o atendimento'}
                 </p>
               </div>
@@ -261,7 +269,7 @@ export function ProntuarioOperacionalModal({
                     onClick={() => void viewAttachedPrescription()}
                     disabled={!hasAttachedPrescription}
                   >
-                    📄 Receita Anexada
+                    📄 Receita Anterior
                   </button>
                   {hasAttachedPrescription && (() => {
                     const q = atendimento.dados_clinicos?.prescription_image_quality;
@@ -348,7 +356,9 @@ export function ProntuarioOperacionalModal({
               </div>
             ) : null}
 
-            <div className="mb-2 grid min-h-0 w-full flex-1 grid-cols-[240px_1fr] items-stretch gap-3 overflow-hidden">
+            {consultMode ? <ProntuarioConsultStatus atendimento={atendimento} /> : null}
+
+            <div className="mb-2 grid min-h-0 w-full flex-1 grid-cols-1 items-stretch gap-3 overflow-hidden lg:grid-cols-[240px_1fr]">
               <aside className="flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                 <div className="flex h-full flex-col justify-between">
                   <h2 className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400">
@@ -480,7 +490,13 @@ export function ProntuarioOperacionalModal({
               </main>
             </div>
 
-            {!consultMode ? (
+            {consultMode ? (
+              <footer className="flex h-10 w-full shrink-0 items-center justify-end bg-white">
+                <button type="button" className={headerBtnClass} onClick={onClose}>
+                  Fechar consulta
+                </button>
+              </footer>
+            ) : (
               <ProntuarioDecisionBar
                 notes={notes}
                 onNotesChange={setNotes}
@@ -489,7 +505,7 @@ export function ProntuarioOperacionalModal({
                 disabled={actionLoading === 'save'}
                 loadingAction={actionLoading === 'approve' ? 'approve' : actionLoading === 'reject' ? 'reject' : null}
               />
-            ) : null}
+            )}
           </>
         ) : null}
       </div>

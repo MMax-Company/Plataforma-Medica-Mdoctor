@@ -25,24 +25,24 @@ const Q2_Q3_OPTIONS = {
   no: 'nao'
 };
 
-const PRESCRIPTION_SENT_MESSAGE = [
-  'Sua receita foi enviada com sucesso.',
-  '',
-  'Obrigado por utilizar o *Doctor Prescreve*.'
-].join('\n');
-
 const SURVEY_OPT_IN_MESSAGE = [
-  'Antes de encerrar, você pode nos ajudar respondendo 3 perguntas rápidas? É opcional.',
+  'Você gostaria de responder *3 perguntas rápidas* sobre sua experiência?',
   '',
-  '*1* - Sim, claro!',
-  '*2* - Não, obrigado'
+  'Sua participação é opcional e leva menos de 1 minuto.',
+  '',
+  '*1 - Sim*',
+  '*2 - Não*'
 ].join('\n');
 
-const SURVEY_OPT_IN_DECLINED_MESSAGE = 'Tudo bem! Qualquer dúvida, estamos aqui. Até a próxima!';
+const SURVEY_OPT_IN_DECLINED_MESSAGE = [
+  'Obrigado por utilizar o *Doctor Prescreve*.',
+  '',
+  'Desejamos saúde e bem-estar. Até a próxima!'
+].join('\n');
 
 const Q1_MESSAGE = [
   '*Pergunta 1 de 3*',
-  'Sem o Doctor Prescreve, como você obteria sua renovação terapêutica?',
+  'Sem o Doctor Prescreve, o que você faria para conseguir sua receita?',
   '',
   '*1* - Pronto-socorro',
   '*2* - UBS',
@@ -53,7 +53,7 @@ const Q1_MESSAGE = [
 
 const Q2_MESSAGE = [
   '*Pergunta 2 de 3*',
-  'O Doctor Prescreve ajudou a evitar a interrupção do seu tratamento?',
+  'O Doctor Prescreve ajudou a evitar que você ficasse sem a medicação?',
   '',
   '*1* - Sim',
   '*2* - Não'
@@ -67,7 +67,13 @@ const Q3_MESSAGE = [
   '*2* - Não'
 ].join('\n');
 
-const THANK_YOU_MESSAGE = 'Obrigado pelas respostas! Sua participação é muito importante para nós.';
+const THANK_YOU_MESSAGE = [
+  'Obrigado por responder à nossa pesquisa.',
+  '',
+  'Sua opinião é muito importante e nos ajuda a aprimorar continuamente o *Doctor Prescreve*.',
+  '',
+  'Desejamos saúde e bem-estar. Até a próxima!'
+].join('\n');
 
 function normalizeAnswer(value = '') {
   return String(value || '')
@@ -96,7 +102,6 @@ function parseYesNoAnswer(raw = '') {
 
 module.exports = {
   SURVEY_VERSION,
-  PRESCRIPTION_SENT_MESSAGE,
   SURVEY_OPT_IN_MESSAGE,
   SURVEY_OPT_IN_DECLINED_MESSAGE,
   Q1_MESSAGE,

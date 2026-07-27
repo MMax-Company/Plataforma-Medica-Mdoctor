@@ -1,30 +1,53 @@
+const logger = require('../config/logger');
 const metaProvider = require('./providers/meta.provider');
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
 const {
   getSessionByBsuid,
   getSessionByPhone,
+  getActiveSurveySession,
   setTypebotSessionId,
+  clearTypebotSession,
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
-const { validatePersonalInput } = require('./typebot-personal-data.validation');
-const { getWhatsAppTypebotOfficialConfig } = require('../constants/typebot-whatsapp.official');
+const { validateTypebotInput } = require('./typebot-personal-data.validation');
+const { resolveMetaInboundRouting, handleTypebotSupportChoice } = require('./whatsapp-support.service');
+const { lookupCep } = require('../routes/cep.routes');
+
+// Autopreenchimento de endereço por CEP (correção 2026-07-24): o bloco
+// Webhook do Typebot self-hosted não enxerga variáveis definidas no mesmo
+// turno em que ele próprio roda (confirmado por log — ver commit do patch
+// do Typebot), então a consulta ao CEP é feita aqui e o resultado chega ao
+// Typebot como o próprio texto de resposta do paciente à pergunta de
+// endereço que já existe e já funciona (q78qjnk6ticwkeifl7xe2rju), nunca
+// por variável do Typebot.
+const CEP_INPUT_ID = 'blk_0oydu2f7';
+const ENDERECO_INPUT_ID = 'q78qjnk6ticwkeifl7xe2rju';
+const CEP_NUMERO_COMPLEMENTO_SENTINEL = 'blk_endereco_numero_complemento';
+
+function buildEnderecoFromCepLookup(lookup, numeroComplemento) {
+  // Formato reconhecido por validateStructuredAddress (rua, número, bairro,
+  // cidade, estado — exatamente 5 segmentos por vírgula, mapeados por
+  // posição). O CEP não entra aqui: já é exibido separadamente no resumo
+  // ({{cep}}) e um 6º segmento quebraria o parser. O paciente costuma
+  // responder "número e complemento" com uma vírgula própria (ex.: "500,
+  // apto 12") — vírgulas internas são trocadas por espaço para não virar
+  // um 6º segmento e derrubar silenciosamente o complemento.
+  const numero = String(numeroComplemento || '').trim().replace(/,/g, ' ').replace(/\s+/g, ' ');
+  return [lookup.logradouro, numero, lookup.bairro, lookup.cidade, lookup.estado]
+    .filter(Boolean)
+    .join(', ');
+}
 
 function getConfig() {
-  const official = getWhatsAppTypebotOfficialConfig();
   return {
-    viewerUrl: official.viewerUrl,
-    publicId: official.publicId,
-    welcomeChoiceInputId: String(process.env.TYPEBOT_WELCOME_CHOICE_INPUT_ID || 'sbjZWLJGVkHAkDqS4JQeGow').trim(),
+    viewerUrl: String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, ''),
+    publicId: String(process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu').trim(),
     timeoutMs: Number(process.env.TYPEBOT_RUNTIME_TIMEOUT_MS || 12000),
     retryAttempts: Math.max(1, Number(process.env.TYPEBOT_RETRY_ATTEMPTS || 4)),
     retryBaseDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_BASE_DELAY_MS || 300)),
     retryMaxDelayMs: Math.max(0, Number(process.env.TYPEBOT_RETRY_MAX_DELAY_MS || 2500))
   };
-}
-
-function isConversationGreeting(text) {
-  return /^(oi|olá|ola|hey|hello|bom dia|boa tarde|boa noite)$/i.test(String(text || '').trim());
 }
 
 function richTextToPlainText(nodes = []) {
@@ -48,7 +71,17 @@ function richTextToPlainText(nodes = []) {
         }
         continue;
       }
-      if (typeof item?.text === 'string') parts.push(item.text);
+      if (typeof item?.text === 'string') {
+        // Quando o texto de uma variável interpolada ({{var}}) já contém
+        // "*" literais (ex.: negrito calculado dinamicamente num Set
+        // variable), o Typebot reprocessa o valor substituído como markdown
+        // e devolve os trechos como nós "bold"/"italic" em vez de manter os
+        // asteriscos literais — perdendo-os na extração de texto puro. Como
+        // o WhatsApp usa um único asterisco para negrito nativo, qualquer
+        // trecho marcado bold/italic pelo Typebot é reemitido como
+        // *texto* para preservar a intenção original (negrito no WhatsApp).
+        parts.push(item.bold || item.italic ? `*${item.text}*` : item.text);
+      }
       if (Array.isArray(item?.children)) walk(item.children);
       if (item?.type === 'p') parts.push('\n');
     }
@@ -63,149 +96,150 @@ function typebotText(message = {}) {
   return richTextToPlainText(message.content?.richText || message.content || []);
 }
 
+// WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
+// mensagem de texto simples — o link só fica clicável se aparecer por
+// extenso. Por isso, qualquer parágrafo do Typebot que contenha um link
+// (ex.: os 5 documentos jurídicos) vira um botão de URL (abre o link
+// externamente, sem baixar nada no WhatsApp e sem mostrar a URL), em vez de
+// texto simples.
+// Meta trunca display_text de botão cta_url em 20 unidades UTF-16 (ver
+// sendCtaUrlMessage em providers/meta.provider.js) — os 4 rótulos com
+// emoji pedidos (ex.: "📄 Consentimento LGPD" = 21) não cabem por inteiro;
+// abreviados ao mínimo para caber, mantendo o emoji e a palavra-chave.
+// Chaves = texto do link tal como está publicado hoje no Typebot.
+const DOC_BUTTON_LABELS = {
+  'Consentimento LGPD': '📄Consentimento LGPD',
+  'Política de Privacidade': '🔒 Pol. Privacidade',
+  'Consentimento de Telemedicina': '🩺 Telemedicina',
+  'Aviso de Não Urgência': '⚠️ Não Urgência',
+  'Política e Termos de Uso': 'Termos de Uso'
+};
+
+function docButtonLabel(label) {
+  return DOC_BUTTON_LABELS[label] || String(label || 'Abrir').slice(0, 20);
+}
+
+// Restrito aos choice inputs listados abaixo — LGPD, ciência da
+// telemedicina, confirmação de dados, declaração de elegibilidade, tempo
+// de uso, receita anterior, quantidade de medicamentos, frequência e via
+// de administração do 1º medicamento — única exceção onde a pergunta e os
+// botões formam uma única mensagem (corpo = a própria pergunta, sem
+// "Escolha uma opção:"). Nenhum outro choice input do bot é afetado por
+// este conjunto.
+const QUESTION_MERGE_INPUT_IDS = new Set([
+  'ivbr3o1a7lv8izhfteuerhqx', 'blk_tele_choice', 'plhspmybxbhylbfbsvqyhlmj', 'w9v6g0rlkucnfmxc3qh2a2qt',
+  'r0imrcgaiv1idzkykt891q4u', 'blk_receita_choice', 'w97ho902ina4lg7b6dn0sycw', 'blk_yyroio7i', 'blk_nggi0xs0'
+]);
+
+function richTextContainsLink(nodes = []) {
+  for (const item of nodes || []) {
+    if (item?.type === 'a') return true;
+    if (Array.isArray(item?.children) && richTextContainsLink(item.children)) return true;
+  }
+  return false;
+}
+
+function richTextToOutputs(nodes = []) {
+  const outputs = [];
+  let buffer = [];
+  let sawLink = false;
+  const bufferedText = () => buffer.join('').replace(/\n{3,}/g, '\n\n').trim();
+  const flushText = () => {
+    const text = bufferedText();
+    if (text) outputs.push({ kind: 'text', text });
+    buffer = [];
+  };
+  for (const node of nodes || []) {
+    const anchor = node?.type === 'p' && Array.isArray(node.children)
+      ? node.children.find((child) => child?.type === 'a')
+      : null;
+    if (anchor) {
+      const label = (anchor.children || []).map((c) => (typeof c?.text === 'string' ? c.text : '')).join('').trim();
+      const url = String(anchor.url || '').trim();
+      if (url && label) {
+        // O primeiro link do bloco reaproveita o texto introdutório do grupo
+        // (se houver) como corpo do próprio botão, em vez de mandá-lo numa
+        // mensagem de texto separada. Links seguintes não repetem esse texto.
+        const introText = !sawLink ? bufferedText() : null;
+        buffer = [];
+        outputs.push({ kind: 'document', url, label, introText: introText || null });
+        sawLink = true;
+        continue;
+      }
+    }
+    buffer.push(richTextToPlainText([node]));
+    buffer.push('\n');
+  }
+  flushText();
+  return outputs;
+}
+
 function textInputPrompt(input = {}) {
   const labels = input.options?.labels || input.options || {};
   return String(labels.placeholder || labels.label || '').trim();
-}
-
-/** Inputs múltiplos do Typebot oficial (fallback se a API não enviar options). */
-const OFFICIAL_MULTI_CHOICE_INPUT_IDS = new Set([
-  'b156nm008xh7gb52n7w3egzn', // Doença Cronica
-  's5VQGsVF4hQgziQsXVdwPDW' // Sinais de Alerta
-]);
-
-function isMultipleChoiceInput(input = {}) {
-  if (input?.options?.isMultipleChoice === true) return true;
-  return OFFICIAL_MULTI_CHOICE_INPUT_IDS.has(String(input?.id || '').trim());
-}
-
-function normalizeChoiceKey(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function mapChoiceItems(items = []) {
-  return (items || [])
-    .filter((item) => item?.content || item?.value || item?.id)
-    .map((item, index) => ({
-      id: String(item.id || item.content || item.value || `choice-${index + 1}`),
-      content: String(item.content || item.value || item.id || '').trim(),
-      value: String(item.value ?? item.content ?? item.id ?? '').trim()
-    }));
-}
-
-function findChoiceItem(items, rawText) {
-  const key = normalizeChoiceKey(rawText);
-  if (!key) return null;
-  return (items || []).find((item) => (
-    normalizeChoiceKey(item.content) === key
-    || normalizeChoiceKey(item.value) === key
-    || normalizeChoiceKey(item.id) === key
-  )) || null;
-}
-
-function isExclusiveNoneItem(item) {
-  if (!item) return false;
-  if (String(item.value || '').trim().toUpperCase() === 'NAO') return true;
-  return /^nenhum destes$/i.test(String(item.content || '').trim());
-}
-
-/**
- * Alterna seleção múltipla no WhatsApp.
- * "Nenhum destes" (NAO) é exclusivo e não coexiste com outros sinais.
- */
-function toggleMultiChoiceSelection(state, rawText) {
-  const items = mapChoiceItems(state?.items || []);
-  const matched = findChoiceItem(items, rawText);
-  if (!matched) {
-    return { ok: false, reason: 'not_found', state };
-  }
-
-  const selected = Array.isArray(state?.selected) ? [...state.selected] : [];
-  const already = selected.some((item) => item.id === matched.id || item.value === matched.value);
-  let nextSelected;
-
-  if (isExclusiveNoneItem(matched)) {
-    nextSelected = already ? [] : [{ id: matched.id, content: matched.content, value: matched.value }];
-  } else if (already) {
-    nextSelected = selected.filter((item) => item.id !== matched.id && item.value !== matched.value);
-  } else {
-    nextSelected = [
-      ...selected.filter((item) => !isExclusiveNoneItem(item)),
-      { id: matched.id, content: matched.content, value: matched.value }
-    ];
-  }
-
-  return {
-    ok: true,
-    state: {
-      ...state,
-      items,
-      selected: nextSelected,
-      buttonLabel: state?.buttonLabel || 'Confirmo'
-    }
-  };
-}
-
-/** Formato oficial do Typebot MultipleChoicesForm: values unidos por ", ". */
-function buildMultiChoiceSubmitText(selected = []) {
-  return (selected || [])
-    .map((item) => String(item.value || item.content || '').trim())
-    .filter(Boolean)
-    .join(', ');
-}
-
-function multiChoiceSummary(selected = []) {
-  if (!selected.length) return 'Nenhuma opção selecionada ainda.';
-  return `Selecionado: ${selected.map((item) => item.content || item.value).join(', ')}`;
-}
-
-function buildMultiChoiceOutputs(input = {}, selected = []) {
-  const items = mapChoiceItems(input.items || []);
-  const buttonLabel = String(input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo';
-  const choices = [
-    ...items.map((item) => ({
-      id: item.content || item.value || item.id,
-      title: String(item.content || item.value).slice(0, 24),
-      value: item.content || item.value
-    })),
-    {
-      id: buttonLabel,
-      title: buttonLabel.slice(0, 24),
-      value: buttonLabel
-    }
-  ];
-  const body = `${multiChoiceSummary(selected)}\n\nSelecione opções (pode mais de uma). Depois toque em ${buttonLabel}.`;
-  return [{
-    kind: 'list',
-    body: body.slice(0, 1024),
-    button: 'Ver opções',
-    choices: choices.slice(0, 10)
-  }];
 }
 
 function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
     if (message?.type !== 'text') continue;
+    const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
+    if (richText && richTextContainsLink(richText)) {
+      const linkOutputs = richTextToOutputs(richText);
+      // O Typebot manda a introdução do grupo (ex.: "Antes de continuar,
+      // leia os documentos abaixo:") como uma mensagem de texto própria,
+      // logo ANTES da mensagem com os links — não junto no mesmo richText.
+      // Se o output anterior é só esse texto puro, ele vira o corpo do
+      // primeiro botão de documento, em vez de ficar como mensagem separada.
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text' && linkOutputs[0]?.kind === 'document' && !linkOutputs[0].introText) {
+        linkOutputs[0].introText = previous.text;
+        outputs.pop();
+      }
+      outputs.push(...linkOutputs);
+      continue;
+    }
     const text = typebotText(message);
     if (text) outputs.push({ kind: 'text', text });
   }
 
   const input = response.input || {};
   const items = Array.isArray(input.items) ? input.items.filter((item) => item?.content || item?.value) : [];
-  if (input.type === 'choice input' && items.length) {
-    if (isMultipleChoiceInput(input)) {
-      outputs.push(...buildMultiChoiceOutputs(input, []));
-    } else {
-      const choices = items.map((item, index) => ({
+  // Um único response do Typebot só traz um "input" por pergunta, então só um
+  // bloco de escolha (buttons/list) deveria existir aqui — mas se algo
+  // upstream (ex.: reprocessamento) já tiver deixado outro nos outputs, o
+  // filtro abaixo garante que "Escolha uma opção:" seja enviado uma única vez.
+  if (input.type === 'choice input' && items.length && !outputs.some((o) => o.kind === 'buttons' || o.kind === 'list')) {
+    const choices = items.map((item, index) => {
+      const fullLabel = String(item.content || item.value);
+      // A Meta limita o título da linha de lista a 24 caracteres — quando o
+      // rótulo completo excede isso, a "description" (até 72 caracteres)
+      // carrega o texto integral abaixo do título truncado, sem alterar
+      // id/value usados no roteamento da resposta.
+      const truncated = fullLabel.slice(0, 24);
+      return {
         id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-        title: String(item.content || item.value).slice(0, 24),
-        value: String(item.content || item.value)
-      }));
-      outputs.push(choices.length <= 3
-        ? { kind: 'buttons', body: 'Escolha uma opção:', choices }
-        : { kind: 'list', body: 'Escolha uma opção:', button: 'Ver opções', choices: choices.slice(0, 10) });
+        title: truncated,
+        ...(fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
+        value: fullLabel
+      };
+    });
+    // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS: a
+    // pergunta chegava como mensagem de texto separada, seguida de uma
+    // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
+    // única mensagem de botões com a pergunta como corpo. Nenhum outro
+    // choice input do bot é afetado.
+    let body = 'Escolha uma opção:';
+    if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text') {
+        body = previous.text;
+        outputs.pop();
+      }
     }
+    outputs.push(choices.length <= 3
+      ? { kind: 'buttons', body, choices }
+      : { kind: 'list', body, button: 'Ver opções', choices: choices.slice(0, 10) });
   }
 
   const hasTextOutput = outputs.some((output) => output.kind === 'text');
@@ -321,26 +355,19 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const claim = deps.claimMetaMessage || claimMetaMessage;
   const finish = deps.finishMetaMessage || finishMetaMessage;
   const saveSessionId = deps.setTypebotSessionId || setTypebotSessionId;
+  const resetTypebotSession = deps.clearTypebotSession || clearTypebotSession;
+  const routeInbound = deps.resolveMetaInboundRouting || resolveMetaInboundRouting;
+  const routeSupportChoice = deps.handleTypebotSupportChoice || handleTypebotSupportChoice;
   const logError = deps.createIntegrationError || createIntegrationError;
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
   const now = deps.now || (() => new Date());
-  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId, multiChoice }) => upsertSessionIdentity({
+  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId }) => upsertSessionIdentity({
     phone: identity?.phone,
     bsuid: identity?.bsuid,
     parentBsuid: identity?.parentBsuid,
     username: identity?.username,
-    metadataPatch: {
-      typebot_expected_input_id: inputId || null,
-      ...(multiChoice !== undefined ? { typebot_multi_choice: multiChoice || null } : {})
-    }
-  }));
-  const persistMultiChoice = deps.persistMultiChoice || (async ({ identity, multiChoice }) => upsertSessionIdentity({
-    phone: identity?.phone,
-    bsuid: identity?.bsuid,
-    parentBsuid: identity?.parentBsuid,
-    username: identity?.username,
-    metadataPatch: { typebot_multi_choice: multiChoice || null }
+    metadataPatch: { typebot_expected_input_id: inputId || null }
   }));
   const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
     if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
@@ -355,24 +382,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const sendPaymentIntro = deps.sendPaymentIntro || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').sendPaymentIntro(args));
-  const sendPaymentPendingMenu = deps.sendPaymentPendingMenu || ((args) =>
-    // eslint-disable-next-line global-require
-    require('./typebot-payment-link.service').sendPaymentPendingMenu(args));
-  const handlePaymentChoice = deps.handlePaymentChoice || ((args) =>
-    // eslint-disable-next-line global-require
-    require('./typebot-payment-link.service').handlePaymentChoice(args));
-  const isPaymentStageInput = deps.isPaymentStageInput || ((inputId) =>
-    // eslint-disable-next-line global-require
-    require('./typebot-payment-link.service').isPaymentStageInput(inputId));
-  const sessionHasPendingPayment = deps.sessionHasPendingPayment || ((session) =>
-    // eslint-disable-next-line global-require
-    require('./typebot-payment-link.service').sessionHasPendingPayment(session));
   const completePaymentFlow = deps.completePaymentByToken || ((token, args) =>
     // eslint-disable-next-line global-require
     require('./typebot-payment-link.service').completePaymentByToken(token, args));
-  const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone, opts) =>
+  const findUploadContext = deps.findUploadContextForPhone || deps.findPendingUploadContext || ((phone) =>
     // eslint-disable-next-line global-require
-    require('./typebot-prescription-upload.service').findUploadContextForPhone(phone, opts));
+    require('./typebot-prescription-upload.service').findUploadContextForPhone(phone));
   const persistUploadContext = deps.persistUploadContext || ((args) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').persistUploadContext(args));
@@ -391,150 +406,131 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const isUploadConfirmationText = deps.isUploadConfirmationText || ((value) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').isUploadConfirmationText(value));
+  const stripUploadChoiceOutputs = deps.stripUploadChoiceOutputs || ((outputs) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').stripUploadChoiceOutputs(outputs));
+  const outputsContainUrl = deps.outputsContainUrl || ((outputs, url) =>
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').outputsContainUrl(outputs, url));
+  const uploadSuccessReply = deps.UPLOAD_SUCCESS_REPLY || (
+    // eslint-disable-next-line global-require
+    require('./typebot-prescription-upload.service').UPLOAD_SUCCESS_REPLY
+  );
   const getUploadStatus = deps.getUploadStatus || ((token) =>
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').getUploadStatus(token));
-  const resumeTypebotAfterPrescriptionUpload = deps.resumeTypebotAfterPrescriptionUpload || ((args) =>
-    // eslint-disable-next-line global-require
-    require('./typebot-prescription-upload.service').resumeTypebotAfterPrescriptionUpload(args));
   const sessionQueues = new Map();
   const expectedInputs = new Map();
 
-  async function processInbound({ messageId, text, identity, whatsappSession, menuBootstrap = false }, identityKey) {
+  async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
     if (!claimed.claimed) return { duplicate: true, responsesSent: 0, sessionIdReused: Boolean(whatsappSession?.typebot_session_id) };
 
     const config = getConfig();
     try {
-      const currentSession = await reloadSession({ identity, whatsappSession });
-      const existingSessionId = currentSession?.typebot_session_id || null;
-      const expectedInputId = expectedInputs.has(identityKey)
-        ? expectedInputs.get(identityKey)
-        : currentSession?.metadata?.typebot_expected_input_id || null;
-      let inboundText = String(text || '');
-      let multiChoiceState = currentSession?.metadata?.typebot_multi_choice || null;
+      let currentSession = await reloadSession({ identity, whatsappSession });
+      const routing = await routeInbound({
+        phone: identity?.phone,
+        text,
+        session: currentSession
+      });
 
-      // Múltipla escolha WhatsApp: acumula opções localmente até Confirmo; só então chama Typebot.
-      if (
-        multiChoiceState
-        && expectedInputId
-        && multiChoiceState.inputId === expectedInputId
-        && !menuBootstrap
-      ) {
-        const confirmLabel = String(multiChoiceState.buttonLabel || 'Confirmo').trim();
-        if (normalizeChoiceKey(inboundText) === normalizeChoiceKey(confirmLabel)) {
-          if (!Array.isArray(multiChoiceState.selected) || multiChoiceState.selected.length === 0) {
-            const sent = await provider.sendTextMessage({
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi-empty`,
-              text: `Selecione ao menos uma opção antes de ${confirmLabel}.`
-            });
-            const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
-            const retryOutputs = buildMultiChoiceOutputs({
-              items: multiChoiceState.items,
-              options: { buttonLabel: confirmLabel, isMultipleChoice: true }
-            }, multiChoiceState.selected || []);
-            for (const output of retryOutputs) {
-              const common = {
-                to: identity.phone,
-                bsuid: identity.bsuid,
-                correlationId: messageId,
-                idempotencyKey: `${messageId}:multi-retry:${providerMessageIds.length}`
-              };
-              let sentChoice;
-              if (output.kind === 'list') {
-                sentChoice = await provider.sendListMessage({
-                  ...common,
-                  body: output.body,
-                  button: output.button,
-                  rows: output.choices
-                });
-              }
-              if (sentChoice?.providerMessageId) providerMessageIds.push(sentChoice.providerMessageId);
-            }
-            await finish({ messageId, status: 'processed', providerMessageIds });
-            return {
-              duplicate: false,
-              responsesSent: providerMessageIds.length,
-              sessionId: existingSessionId,
-              sessionIdReused: Boolean(existingSessionId),
-              multiChoicePending: true
-            };
-          }
-          inboundText = buildMultiChoiceSubmitText(multiChoiceState.selected);
-          multiChoiceState = null;
-          await persistMultiChoice({ identity, multiChoice: null });
-        } else {
-          const toggled = toggleMultiChoiceSelection(multiChoiceState, inboundText);
-          if (!toggled.ok) {
-            const sent = await provider.sendTextMessage({
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi-invalid`,
-              text: `Opção inválida. ${multiChoiceSummary(multiChoiceState.selected || [])}`
-            });
-            const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
-            await finish({ messageId, status: 'processed', providerMessageIds });
-            return {
-              duplicate: false,
-              responsesSent: providerMessageIds.length,
-              sessionId: existingSessionId,
-              sessionIdReused: Boolean(existingSessionId),
-              multiChoicePending: true
-            };
-          }
-          multiChoiceState = toggled.state;
-          await persistMultiChoice({ identity, multiChoice: multiChoiceState });
-          const providerMessageIds = [];
-          const summarySent = await provider.sendTextMessage({
+      if (routing?.handled && routing.action === 'reply' && routing.reply) {
+        const sent = await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:menu`,
+          text: routing.reply
+        });
+        const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+        await finish({ messageId, status: 'processed', providerMessageIds });
+        return {
+          duplicate: false,
+          responsesSent: providerMessageIds.length,
+          sessionId: currentSession?.typebot_session_id || null,
+          sessionIdReused: Boolean(currentSession?.typebot_session_id),
+          menuHandled: true
+        };
+      }
+
+      if (getActiveSurveySession(currentSession)?.step) {
+        const { handleSurveyInbound } = require('./post-delivery-survey.service');
+        const surveyResult = await handleSurveyInbound({
+          phone: identity?.phone,
+          text,
+          correlationId: messageId,
+          sendOutbound: false
+        });
+        if (surveyResult.reply) {
+          const sent = await provider.sendTextMessage({
             to: identity.phone,
             bsuid: identity.bsuid,
             correlationId: messageId,
-            idempotencyKey: `${messageId}:multi-summary`,
-            text: multiChoiceSummary(multiChoiceState.selected)
+            idempotencyKey: `${messageId}:survey`,
+            text: surveyResult.reply
           });
-          if (summarySent?.providerMessageId) providerMessageIds.push(summarySent.providerMessageId);
-          const outputs = buildMultiChoiceOutputs({
-            items: multiChoiceState.items,
-            options: { buttonLabel: multiChoiceState.buttonLabel || 'Confirmo', isMultipleChoice: true }
-          }, multiChoiceState.selected);
-          for (const output of outputs) {
-            const common = {
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi:${providerMessageIds.length}`
-            };
-            let sent;
-            if (output.kind === 'list') {
-              sent = await provider.sendListMessage({
-                ...common,
-                body: output.body,
-                button: output.button,
-                rows: output.choices
-              });
-            } else {
-              sent = await provider.sendTextMessage({ ...common, text: output.text });
-            }
-            if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
-          }
+          const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
           await finish({ messageId, status: 'processed', providerMessageIds });
           return {
             duplicate: false,
             responsesSent: providerMessageIds.length,
-            sessionId: existingSessionId,
-            sessionIdReused: Boolean(existingSessionId),
-            multiChoicePending: true,
-            multiChoiceSelected: multiChoiceState.selected.map((item) => item.value)
+            sessionId: currentSession?.typebot_session_id || null,
+            sessionIdReused: Boolean(currentSession?.typebot_session_id),
+            surveyHandled: true
           };
         }
       }
 
-      const validation = validatePersonalInput(expectedInputId, inboundText, { now: now() });
-      if (validation.isPersonal && !validation.valid) {
+      if (routing?.action === 'typebot_clean' && currentSession?.id) {
+        currentSession = await resetTypebotSession({ sessionId: currentSession.id }) || currentSession;
+        expectedInputs.set(identityKey, null);
+      }
+
+      const existingSessionId = routing?.action === 'typebot_clean'
+        ? null
+        : (currentSession?.typebot_session_id || null);
+      let expectedInputId = expectedInputs.has(identityKey)
+        ? expectedInputs.get(identityKey)
+        : currentSession?.metadata?.typebot_expected_input_id || null;
+      const uploadContextBeforeChat = uploadContextFromSession(
+        currentSession,
+        await findUploadContext(identity?.phone)
+      );
+      let inboundText = String(text || '');
+
+      // Segundo turno do autopreenchimento por CEP: o paciente respondeu
+      // número/complemento. O cursor real do Typebot está em
+      // ENDERECO_INPUT_ID (nunca soube do CEP localizado); troca o input
+      // esperado para o real e substitui o texto pelo endereço completo já
+      // montado, para o restante do fluxo seguir 100% inalterado a partir
+      // daqui (mesma validação, mesma chamada ao Typebot que já existiam).
+      if (expectedInputId === CEP_NUMERO_COMPLEMENTO_SENTINEL) {
+        const cepLookup = currentSession?.metadata?.cep_lookup || null;
+        if (cepLookup) {
+          inboundText = buildEnderecoFromCepLookup(cepLookup, text);
+          expectedInputId = ENDERECO_INPUT_ID;
+          expectedInputs.set(identityKey, ENDERECO_INPUT_ID);
+          await upsertSessionIdentity({
+            phone: identity?.phone,
+            bsuid: identity?.bsuid,
+            parentBsuid: identity?.parentBsuid,
+            username: identity?.username,
+            metadataPatch: { cep_lookup: null }
+          });
+        }
+      }
+      const atUploadChoiceStage = isUploadChoiceInput(expectedInputId)
+        || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id);
+      if (uploadContextBeforeChat && atUploadChoiceStage) {
+        const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
+        if (uploadStatus.upload_completed) {
+          inboundText = uploadSuccessReply;
+        }
+      }
+
+      const validation = validateTypebotInput(expectedInputId, inboundText, { now: now() });
+      if ((validation.isPersonal || validation.isClinical) && !validation.valid) {
         const sent = await provider.sendTextMessage({
           to: identity.phone,
           bsuid: identity.bsuid,
@@ -554,190 +550,144 @@ function createTypebotWhatsAppBridge(deps = {}) {
         };
       }
 
-      const uploadContextBeforeChat = uploadContextFromSession(
-        currentSession,
-        await findUploadContext(identity?.phone, { whatsappSession: currentSession })
+      // Primeiro turno do autopreenchimento por CEP: consulta o endereço
+      // assim que o CEP (já normalizado/validado acima) chega. Se
+      // localizado, a chamada ao Typebot mais abaixo continua acontecendo
+      // normalmente (o cursor real do Typebot avança pelo caminho "não
+      // localizado" que já funciona hoje e pousa em ENDERECO_INPUT_ID) —
+      // só a mensagem mostrada ao paciente e o próximo input esperado
+      // guardado na sessão são substituídos logo após essa chamada.
+      let cepLocalizado = null;
+      if (expectedInputId === CEP_INPUT_ID && validation.isPersonal && validation.field === 'cep') {
+        cepLocalizado = await lookupCep(validation.value).catch(() => null);
+        if (!cepLocalizado?.encontrado) cepLocalizado = null;
+      }
+
+      const path = existingSessionId
+        ? `/sessions/${encodeURIComponent(existingSessionId)}/continueChat`
+        : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
+      const message = {
+        type: 'text',
+        text: (validation.isPersonal || validation.isClinical) ? validation.value : inboundText,
+        metadata: { replyId: messageId }
+      };
+      // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
+      // remover após confirmar a causa. Não altera nenhuma decisão, só
+      // registra o estado usado para escolher startChat x continueChat.
+      logger.info('typebot_bridge_call_diagnostic', {
+        messageId,
+        identityKey,
+        routingAction: routing?.action || null,
+        existingSessionId,
+        expectedInputIdBefore: expectedInputId,
+        callPath: existingSessionId ? 'continueChat' : 'startChat'
+      });
+      const typebot = await callWithRetry(
+        () => callTypebot(path, { message }, { config }),
+        {
+          attempts: config.retryAttempts,
+          baseDelayMs: config.retryBaseDelayMs,
+          maxDelayMs: config.retryMaxDelayMs,
+          sleep,
+          onRetry: async (error, retry) => {
+            const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
+            await logError({
+              integration: 'typebot_runtime',
+              correlationId: messageId,
+              error: detailedError,
+              request: {
+                message_id: messageId,
+                whatsapp_session_id: currentSession?.id || null,
+                phase: 'retry',
+                attempt: retry.attempt,
+                next_attempt: retry.nextAttempt,
+                backoff_ms: retry.delayMs
+              }
+            }).catch(() => {});
+          }
+        }
       );
-      if (
-        uploadContextBeforeChat
-        && isUploadConfirmationText(inboundText)
-        && (isUploadChoiceInput(expectedInputId) || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id))
-      ) {
-        const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
-        if (uploadStatus.upload_completed) {
-          const resume = await resumeTypebotAfterPrescriptionUpload({
-            atendimentoId: uploadContextBeforeChat.atendimentoId,
-            token: uploadContextBeforeChat.token,
-            correlationId: messageId,
-            whatsappSession: currentSession,
-            phone: identity?.phone
-          });
-          expectedInputs.set(identityKey, null);
-          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
-          await finish({
-            messageId,
-            status: resume.ok ? 'processed' : 'failed',
-            providerMessageIds: [],
-            errorMessage: resume.ok ? null : resume.error || resume.code
-          });
-          return {
-            duplicate: false,
-            responsesSent: resume.responsesSent || 0,
-            sessionId: existingSessionId,
-            sessionIdReused: Boolean(existingSessionId),
-            uploadConfirmed: true,
-            whatsappResume: resume
-          };
-        }
-      }
 
-      const paymentStageActive = isPaymentStageInput(expectedInputId)
-        || isPaymentStageInput(currentSession?.metadata?.typebot_expected_input_id)
-        || sessionHasPendingPayment(currentSession);
-      if (paymentStageActive && existingSessionId) {
-        const paymentChoice = await handlePaymentChoice({
-          text: inboundText,
-          session: currentSession,
-          correlationId: messageId,
-          provider
-        });
-        if (paymentChoice.handled) {
-          await finish({ messageId, status: 'processed', providerMessageIds: [] });
-          return {
-            duplicate: false,
-            responsesSent: paymentChoice.action === 'completed' || paymentChoice.action === 'already_paid' ? 2 : 1,
-            sessionId: existingSessionId,
-            sessionIdReused: true,
-            paymentHandled: paymentChoice.action
-          };
-        }
-        if (sessionHasPendingPayment(currentSession)) {
-          const pendingSent = await sendPaymentPendingMenu({
-            session: currentSession,
-            correlationId: messageId,
-            provider
-          });
-          await finish({ messageId, status: 'processed', providerMessageIds: pendingSent });
-          return {
-            duplicate: false,
-            responsesSent: pendingSent.length,
-            sessionId: existingSessionId,
-            sessionIdReused: true,
-            paymentPending: true
-          };
-        }
-      }
-
-      let typebot;
-      let sessionIdForChat = existingSessionId;
-      let sessionIdReused = false;
-      if (menuBootstrap) {
-        // Menu 1/2 é do backend. Aqui só inicia o Typebot oficial e apresenta
-        // o primeiro bloco interno (Bem-Vindo / "Vamos Começar"), sem auto-avançar.
-        typebot = await callWithRetry(
-          () => callTypebot(
-            `/typebots/${encodeURIComponent(config.publicId)}/startChat`,
-            {},
-            { config }
-          ),
-          {
-            attempts: config.retryAttempts,
-            baseDelayMs: config.retryBaseDelayMs,
-            maxDelayMs: config.retryMaxDelayMs,
-            sleep
-          }
-        );
-        const bootstrapSessionId = typebot.sessionId;
-        if (!bootstrapSessionId) throw new Error('Typebot não retornou sessionId');
-        await saveSessionId({ sessionId: currentSession.id, typebotSessionId: bootstrapSessionId });
-        sessionIdForChat = bootstrapSessionId;
-      } else {
-        if (
-          sessionIdForChat
-          && expectedInputId === config.welcomeChoiceInputId
-          && isConversationGreeting(inboundText)
-        ) {
-          await saveSessionId({ sessionId: currentSession.id, typebotSessionId: null });
-          sessionIdForChat = null;
-          expectedInputs.set(identityKey, null);
-          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null, multiChoice: null });
-        }
-
-        const path = sessionIdForChat
-          ? `/sessions/${encodeURIComponent(sessionIdForChat)}/continueChat`
-          : `/typebots/${encodeURIComponent(config.publicId)}/startChat`;
-        sessionIdReused = Boolean(sessionIdForChat);
-        const message = {
-          type: 'text',
-          text: validation.isPersonal ? validation.value : String(inboundText || ''),
-          metadata: { replyId: messageId }
-        };
-        typebot = await callWithRetry(
-          () => callTypebot(path, { message }, { config }),
-          {
-            attempts: config.retryAttempts,
-            baseDelayMs: config.retryBaseDelayMs,
-            maxDelayMs: config.retryMaxDelayMs,
-            sleep,
-            onRetry: async (error, retry) => {
-              const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
-              await logError({
-                integration: 'typebot_runtime',
-                correlationId: messageId,
-                error: detailedError,
-                request: {
-                  message_id: messageId,
-                  whatsapp_session_id: currentSession?.id || null,
-                  phase: 'retry',
-                  attempt: retry.attempt,
-                  next_attempt: retry.nextAttempt,
-                  backoff_ms: retry.delayMs
-                }
-              }).catch(() => {});
-            }
-          }
-        );
-      }
-
-      const sessionId = sessionIdForChat || typebot.sessionId;
+      const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
-      if (!existingSessionId || menuBootstrap) {
-        await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
-      }
+      if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
       const nextInputId = typebot.input?.id || null;
       expectedInputs.set(identityKey, nextInputId);
-      let nextMultiChoice = null;
-      if (typebot.input && isMultipleChoiceInput(typebot.input)) {
-        nextMultiChoice = {
-          inputId: typebot.input.id,
-          items: mapChoiceItems(typebot.input.items || []),
-          selected: [],
-          buttonLabel: String(typebot.input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo'
-        };
-      }
-      await persistExpectedInput({
-        identity,
-        whatsappSession: currentSession,
-        inputId: nextInputId,
-        multiChoice: nextMultiChoice
+      await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
+      // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+      logger.info('typebot_bridge_response_diagnostic', {
+        messageId,
+        typebotReturnedSessionId: typebot.sessionId || null,
+        sessionIdUsed: sessionId,
+        sessionIdWasSaved: !existingSessionId,
+        nextInputId,
+        messageTypes: (typebot.messages || []).map((m) => m.type)
+      });
+      // DIAGNÓSTICO TEMPORÁRIO (pedido: distinguir convertTypebotResponse x
+      // falha silenciosa no envio) — remover após confirmar a causa. Os
+      // rótulos de choice input (ex.: "Vamos começar") não são dado pessoal,
+      // só limitados em tamanho por segurança.
+      logger.info('typebot_bridge_input_diagnostic', {
+        messageId,
+        inputType: typebot.input?.type || null,
+        inputId: typebot.input?.id || null,
+        itemsCount: Array.isArray(typebot.input?.items) ? typebot.input.items.length : 0,
+        itemLabels: Array.isArray(typebot.input?.items)
+          ? typebot.input.items.map((i) => String(i?.content ?? i?.value ?? '').slice(0, 60))
+          : []
       });
 
       const providerMessageIds = [];
-      let uploadContext = uploadContextFromSession(
-        currentSession,
-        await findUploadContext(identity?.phone, { whatsappSession: currentSession })
-      );
-      if (uploadContext) await persistUploadContext({ identity, uploadContext });
+      let uploadContext = uploadContextFromSession(currentSession, await findUploadContext(identity?.phone));
+      const uploadMeta = currentSession?.metadata?.typebot_prescription_upload || {};
+      const linkAlreadySent = Boolean(uploadMeta.link_sent_at);
 
       let outputs = convertTypebotResponse(typebot);
-      if (nextMultiChoice) {
-        outputs = [
-          ...outputs.filter((output) => output.kind === 'text'),
-          ...buildMultiChoiceOutputs(typebot.input, nextMultiChoice.selected)
-        ];
-      }
+      // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+      logger.info('typebot_bridge_outputs_generated_diagnostic', {
+        messageId,
+        outputsCount: outputs.length,
+        outputKinds: outputs.map((o) => o.kind)
+      });
       if (uploadContext && responseLooksLikeUploadStage(typebot, nextInputId)) {
-        outputs = augmentUploadOutputs(outputs, uploadContext);
+        outputs = stripUploadChoiceOutputs(outputs);
+        const hasRetryHint = outputs.some((output) => /link abaixo|enviar foto da receita|não localizamos/i.test(String(output.text || '')));
+        outputs = augmentUploadOutputs(outputs, uploadContext, {
+          force: !linkAlreadySent && (isUploadChoiceInput(nextInputId) || isUploadChoiceInput(expectedInputId)),
+          linkAlreadySent
+        });
+        if (!linkAlreadySent && (outputsContainUrl(outputs, uploadContext.uploadUrl) || hasRetryHint)) {
+          await persistUploadContext({
+            identity,
+            uploadContext,
+            whatsappSession: currentSession,
+            linkSentAt: new Date().toISOString()
+          });
+        } else if (uploadContext) {
+          await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
+        }
+      } else if (uploadContext) {
+        await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
+      }
+
+      // CEP localizado (primeiro turno): substitui a mensagem do Typebot
+      // (que seguiu pelo caminho "não localizado" por baixo dos panos) pela
+      // confirmação do endereço encontrado, e aponta o próximo input
+      // esperado para o marcador interno consumido no início desta função.
+      if (cepLocalizado) {
+        outputs = [{
+          kind: 'text',
+          text: `Localizamos o seguinte endereço:\n\n${cepLocalizado.logradouro}, ${cepLocalizado.bairro}, ${cepLocalizado.cidade} – ${cepLocalizado.estado}\n\nInforme o número e, se houver, o complemento do endereço.`
+        }];
+        expectedInputs.set(identityKey, CEP_NUMERO_COMPLEMENTO_SENTINEL);
+        await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: CEP_NUMERO_COMPLEMENTO_SENTINEL });
+        await upsertSessionIdentity({
+          phone: identity?.phone,
+          bsuid: identity?.bsuid,
+          parentBsuid: identity?.parentBsuid,
+          username: identity?.username,
+          metadataPatch: { cep_lookup: cepLocalizado }
+        });
       }
 
       for (const output of outputs) {
@@ -745,26 +695,49 @@ function createTypebotWhatsAppBridge(deps = {}) {
         let sent;
         if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+        // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
+        // espaço em branco é rejeitado com erro 131008 "Required parameter
+        // is missing" — testado ao vivo). O primeiro botão do grupo usa a
+        // introdução do próprio grupo como corpo (nenhuma mensagem de texto
+        // separada antes dele); os botões seguintes usam só um ícone neutro,
+        // sem repetir o nome do documento nem usar frase de instrução.
+        else if (output.kind === 'document') sent = await provider.sendCtaUrlMessage({ ...common, body: output.introText || '📄', displayText: docButtonLabel(output.label), url: output.url });
         else sent = await provider.sendTextMessage({ ...common, text: output.text });
+        // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
+        logger.info('typebot_bridge_output_send_diagnostic', {
+          messageId,
+          outputKind: output.kind,
+          sendFunction: output.kind === 'buttons' ? 'sendButtonMessage'
+            : output.kind === 'list' ? 'sendListMessage'
+              : output.kind === 'document' ? 'sendCtaUrlMessage'
+                : 'sendTextMessage',
+          sentWasNullOrUndefined: sent === null || sent === undefined,
+          providerMessageId: sent?.providerMessageId || null
+        });
         if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
       }
 
-      // Payment input no WhatsApp: mensagem institucional + botão CTA ocultando URL técnica.
+      // Payment input não tem representação nativa no WhatsApp: cria (ou
+      // reaproveita) um Checkout Stripe da MESMA sessão clínica e envia um
+      // botão CTA que abre o link seguro. O Typebot só sinaliza que chegou
+      // nesta etapa (type === 'payment input') — o Checkout e a confirmação
+      // do pagamento são sempre feitos pelo Backend (Fase 2 pedido 2).
       if (typebot.input?.type === 'payment input') {
         try {
           const link = await createPaymentLink({
             identity,
             typebotSessionId: sessionId,
-            // FASE 4B: payment input é só gatilho — não usar PaymentIntent do Typebot.
             runtimeOptions: {},
             existingSession: currentSession
           });
           if (link.alreadyPaid) {
+            // Sessão já paga (ex.: retomada após confirmação): não reabre
+            // Checkout nem reenvia o convite de pagamento, só retoma o fluxo.
             const completed = await completePaymentFlow(link.token, { session: currentSession, provider });
-            await finish({ messageId, status: 'processed', providerMessageIds: [] });
+            await finish({ messageId, status: 'processed', providerMessageIds });
             return {
               duplicate: false,
-              responsesSent: completed.responsesSent || 0,
+              responsesSent: providerMessageIds.length + (completed.responsesSent || 0),
               sessionId,
               sessionIdReused: Boolean(existingSessionId),
               paymentAlreadyPaid: true
@@ -788,20 +761,48 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       }
 
+      // Efeito colateral, best-effort: conecta as escolhas do Typebot pós-
+      // atendimento ("Falar com o suporte" / "Encerrar atendimento" / grupo
+      // "Suporte (fora do fluxo)") à fila de suporte real do backend. O texto
+      // que o paciente já recebeu acima vem do próprio Typebot; aqui só
+      // criamos/fechamos o atendimento de suporte e, em encerramentos,
+      // limpamos a sessão para a próxima mensagem cair no menu inicial.
+      try {
+        const supportChoice = await routeSupportChoice({
+          phone: identity?.phone,
+          expectedInputId,
+          text,
+          correlationId: messageId
+        });
+        if (supportChoice?.action === 'clear_session' && currentSession?.id) {
+          await resetTypebotSession({ sessionId: currentSession.id });
+          expectedInputs.set(identityKey, null);
+          await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
+        }
+      } catch (error) {
+        await logError({
+          integration: 'whatsapp_support',
+          correlationId: messageId,
+          error,
+          request: { message_id: messageId, whatsapp_session_id: currentSession?.id || null, phase: 'post_attendance_support_choice' }
+        }).catch(() => {});
+      }
+
       await finish({ messageId, status: 'processed', providerMessageIds });
       return {
         duplicate: false,
         responsesSent: providerMessageIds.length,
         sessionId,
-        sessionIdReused: sessionIdReused && !menuBootstrap,
+        sessionIdReused: Boolean(existingSessionId),
         retryAttempts: typebot.retryAttempts || undefined
       };
     } catch (error) {
       const exactCause = describeError(error);
       const detailedError = Object.assign(new Error(exactCause), { code: error.code });
       await finish({ messageId, status: 'failed', errorMessage: exactCause }).catch(() => {});
+      const errorCode = String(error.code ?? '');
       await logError({
-        integration: error.code?.startsWith('META_') || error.code === 'PROVIDER_ERROR' ? 'meta_whatsapp' : 'typebot_runtime',
+        integration: errorCode.startsWith('META_') || errorCode === 'PROVIDER_ERROR' ? 'meta_whatsapp' : 'typebot_runtime',
         correlationId: messageId,
         error: detailedError,
         request: {
@@ -829,14 +830,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
 }
 
 module.exports = {
-  buildMultiChoiceSubmitText,
   callWithRetry,
   convertTypebotResponse,
   createTypebotWhatsAppBridge,
   describeError,
   fetchTypebot,
-  isMultipleChoiceInput,
   isRetryableTypebotError,
-  textInputPrompt,
-  toggleMultiChoiceSelection
+  textInputPrompt
 };

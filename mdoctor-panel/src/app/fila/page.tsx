@@ -18,7 +18,7 @@ import { getApiBase } from '@/services/api';
 import { authHeaders, logout, requireSession } from '@/services/auth.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
-import { avatarInitials, formatQueuePatientId, isValidCpf, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
+import { avatarInitials, formatMedicalWaitingTime, formatQueuePatientId, isValidCpf, patientInitials, whatsappContactUrl as waUrlFromPhone } from '@/lib/patient-display';
 import { toPanelAtendimentoStatus, type PanelAtendimentoStatus } from '@/lib/atendimento-status';
 
 type AtendimentoStatus = PanelAtendimentoStatus;
@@ -34,9 +34,13 @@ type Atendimento = {
   risco?: string | null;
   pagamento_status?: string;
   criado_em?: string;
+  atualizado_em?: string;
   dados_clinicos?: {
     condition?: string;
     queue_type?: string;
+    medical_queue_entered_at?: string;
+    previous_prescription_uploaded_at?: string;
+    prescription_upload_session?: { completed_at?: string };
     previous_prescription?: boolean;
     continuous_use_proof?: boolean;
     flags?: string[];
@@ -106,14 +110,6 @@ const columns: Array<{
   }
 ];
 
-
-function waitingTime(value?: string) {
-  if (!value) return 'Agora';
-  const diff = Math.max(0, Date.now() - new Date(value).getTime());
-  const hours = Math.floor(diff / 36e5);
-  const minutes = Math.floor((diff % 36e5) / 6e4);
-  return hours ? `${hours}h ${minutes}min` : `${minutes || 1}min`;
-}
 
 function missingMemedFields(item: Atendimento): string[] {
   const missing: string[] = [];
@@ -518,7 +514,7 @@ export default function FilaPage() {
     if (column === 'queue') {
       return (
         <span className="dp-status-badge dp-status-badge-neutral">
-          {waitingTime(item.criado_em)}
+          {formatMedicalWaitingTime(item)}
         </span>
       );
     }
@@ -794,7 +790,10 @@ export default function FilaPage() {
       <PatientSearchModal
         open={patientSearchOpen}
         onClose={() => setPatientSearchOpen(false)}
-        onSelectAtendimento={(id) => { setPatientSearchOpen(false); openProntuarioModal(id); }}
+        onSelectAtendimento={(id) => {
+          setPatientSearchOpen(false);
+          openProntuarioModal(id, true);
+        }}
       />
 
       <ProntuarioOperacionalModal

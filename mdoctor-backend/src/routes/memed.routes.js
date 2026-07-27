@@ -3,11 +3,12 @@ const memed = require('../integrations/memed.service');
 const { assertRealMemedReceipt, getMemedRuntimeStatus } = require('../config/memed-runtime');
 const { mirrorMemedPdfToStorage } = require('../services/memed-receipt-mirror.service');
 const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
+const { buildMemedPayloadFromAtendimento } = require('../services/memed-payload.service');
 const { requireAuth } = require('../auth/auth.middleware');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
 const { createReceitaLog } = require('../store/receitas.store');
-const { getPrescriptionByAtendimento, savePrescription } = require('../store/prescriptions.store');
+const { getPrescriptionByAtendimento, findPrescriptionByProviderId, savePrescription } = require('../store/prescriptions.store');
 
 const router = express.Router();
 
@@ -82,6 +83,26 @@ router.get('/config', (_req, res) => {
     },
     runtime
   });
+});
+
+/** Preview do payload Memed (setPaciente + addItems) — não emite nem assina receita. */
+router.get('/payload/:atendimentoId', requireAuth, async (req, res) => {
+  const correlationId = req.correlationId || req.get('X-Correlation-Id') || `memed-payload-${Date.now()}`;
+  try {
+    const atendimento = await getAtendimento(req.params.atendimentoId);
+    if (!atendimento) {
+      return res.status(404).json({ success: false, error: 'Atendimento não encontrado', correlationId });
+    }
+    const payload = buildMemedPayloadFromAtendimento(atendimento);
+    return res.json({ success: true, correlationId, payload });
+  } catch (error) {
+    return res.status(422).json({
+      success: false,
+      error: error.message || 'Falha ao montar payload Memed',
+      code: error.code || 'MEMED_PAYLOAD_INVALID',
+      correlationId
+    });
+  }
 });
 
 router.post('/auth', requireAuth, async (req, res) => {
@@ -285,6 +306,27 @@ router.post('/receita', requireAuth, async (req, res) => {
       code: 'MEMED_RECEIPT_ALREADY_VALIDATED',
       correlationId
     });
+  }
+
+  // Vínculo único: um memedId nunca pode ficar associado a um atendimento
+  // diferente do que o originou (nunca reutilizar receita de outro paciente).
+  if (memedId) {
+    const crossLinked = await findPrescriptionByProviderId(memedId, 'memed');
+    if (crossLinked && String(crossLinked.appointment_id) !== String(atendimentoId)) {
+      await createAuditLog({
+        entity_type: 'atendimento',
+        entity_id: atendimentoId,
+        action: 'memed_receipt_cross_link_blocked',
+        actor: resolveDoctorId(req) || 'backend',
+        payload: { correlationId, memed_id: memedId, other_appointment_id: crossLinked.appointment_id }
+      });
+      return res.status(409).json({
+        success: false,
+        error: 'Esta receita Memed já está vinculada a outro atendimento/paciente.',
+        code: 'MEMED_RECEIPT_CROSS_PATIENT_CONFLICT',
+        correlationId
+      });
+    }
   }
 
   const status = String(previous.status || '').toLowerCase();
@@ -671,3 +713,7 @@ router.post('/emitir-silencioso', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Exposto só para teste isolado (Fase 3 pedido 2) — não muda o comportamento da rota.
+module.exports.RECEITA_FLOW_STATUSES = RECEITA_FLOW_STATUSES;
+module.exports.hasPersistedReceipt = hasPersistedReceipt;
+module.exports.existingReceipt = existingReceipt;

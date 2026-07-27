@@ -43,6 +43,24 @@ async function getPrescriptionByAtendimento(id) {
   return data ? normalizePrescription(data) : null;
 }
 
+// Vínculo único: garante que um provider_prescription_id (ex.: memedId) nunca
+// fica associado a mais de um atendimento — busca em QUALQUER atendimento,
+// não só no informado, para detectar reuso indevido entre pacientes.
+async function findPrescriptionByProviderId(providerPrescriptionId, provider = 'memed') {
+  if (!providerPrescriptionId) return null;
+  const data = await dbQuery('buscar prescription por provider_prescription_id', async (supabase) =>
+    supabase
+      .from(T.PRESCRIPTIONS)
+      .select('*')
+      .eq('provider', provider)
+      .eq('provider_prescription_id', String(providerPrescriptionId))
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  );
+  return data ? normalizePrescription(data) : null;
+}
+
 async function savePrescription(input = {}) {
   const prescription = normalizePrescription(input);
   const row = { ...prescription };
@@ -68,6 +86,7 @@ async function savePrescription(input = {}) {
 
 module.exports = {
   getPrescriptionByAtendimento,
+  findPrescriptionByProviderId,
   normalizePrescription,
   savePrescription
 };

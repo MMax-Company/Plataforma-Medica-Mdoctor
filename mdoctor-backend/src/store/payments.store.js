@@ -77,6 +77,19 @@ async function findPaymentByAppointment(appointmentId) {
   return data || null;
 }
 
+async function deletePaymentEvent(paymentEventId, paymentId) {
+  if (paymentEventId) {
+    await dbQuery('reverter payment_event (nova tentativa segura)', async (supabase) =>
+      supabase.from(T.PAYMENT_EVENTS).delete().eq('id', paymentEventId)
+    );
+  }
+  if (paymentId) {
+    await dbQuery('reverter payment (nova tentativa segura)', async (supabase) =>
+      supabase.from(T.PAYMENTS).delete().eq('id', paymentId)
+    );
+  }
+}
+
 async function markPaymentRefunded(paymentId) {
   if (!paymentId) return null;
   const data = await dbQuery('marcar payment como refunded', async (supabase) =>
@@ -86,6 +99,7 @@ async function markPaymentRefunded(paymentId) {
 }
 
 module.exports = {
+  deletePaymentEvent,
   findPaymentEventByProviderId,
   findPaymentByAppointment,
   markPaymentRefunded,

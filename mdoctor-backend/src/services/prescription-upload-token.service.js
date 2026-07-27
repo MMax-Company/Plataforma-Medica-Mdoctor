@@ -141,62 +141,7 @@ async function createPrescriptionUploadSession({ atendimentoId, patientId = null
     payload: { correlationId, expires_at: new Date(expiresAt).toISOString(), upload_url: uploadUrl }
   });
 
-  return { token, uploadUrl, expiresAt: new Date(expiresAt).toISOString(), atendimentoId, reused: false };
-}
-
-/**
- * FASE 5B: todo atendimento em AWAITING deve ter prescription_upload_session.
- * Reutiliza token pendente válido; cria novo apenas se ausente/expirado/concluído.
- */
-async function ensurePrescriptionUploadSession({ atendimentoId, patientId = null, correlationId = null } = {}) {
-  if (!atendimentoId) {
-    const err = new Error('atendimento_id obrigatório para sessão de upload');
-    err.code = 'UPLOAD_SESSION_INVALID';
-    throw err;
-  }
-
-  const atendimento = await getAtendimento(atendimentoId);
-  const clinical = atendimento?.dados_clinicos || {};
-  const existing = clinical.prescription_upload_session || {};
-  const token = String(existing.token || '').trim();
-  const expiresAt = existing.expires_at ? Date.parse(existing.expires_at) : 0;
-  const stillValid =
-    token &&
-    existing.status !== 'completed' &&
-    (!expiresAt || expiresAt > Date.now());
-
-  if (stillValid) {
-    rememberToken({
-      token,
-      tokenHash: existing.token_hash || sha256(token),
-      atendimentoId,
-      patientId: existing.patient_id || patientId || null,
-      expiresAt: expiresAt || Date.now() + TOKEN_TTL_MS,
-      used: false,
-      status: existing.status || 'pending',
-      createdAt: existing.created_at || new Date().toISOString()
-    });
-
-    if (String(atendimento?.status || '').toLowerCase() !== STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
-      await updateAtendimentoStatus(atendimentoId, STATUS.AWAITING_PRESCRIPTION_UPLOAD, {
-        dados_clinicos: {
-          ...clinical,
-          prescription_upload_pending: true,
-          previous_prescription_pending: true
-        }
-      });
-    }
-
-    return {
-      token,
-      uploadUrl: existing.upload_url || buildUploadPageUrl(token),
-      expiresAt: existing.expires_at || new Date(expiresAt).toISOString(),
-      atendimentoId,
-      reused: true
-    };
-  }
-
-  return createPrescriptionUploadSession({ atendimentoId, patientId, correlationId });
+  return { token, uploadUrl, expiresAt: new Date(expiresAt).toISOString(), atendimentoId };
 }
 
 async function markUploadSessionCompleted({ token, atendimentoId, correlationId = null, clinicalPatch = {} }) {
@@ -245,7 +190,6 @@ module.exports = {
   assertTokenActive,
   buildUploadPageUrl,
   createPrescriptionUploadSession,
-  ensurePrescriptionUploadSession,
   findTokenRecordFromStorage,
   generateToken,
   getPublicUploadBaseUrl,

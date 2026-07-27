@@ -65,6 +65,41 @@ export function formatQueuePatientId(id: string): string {
   return compact.length > 8 ? compact.slice(0, 8) : compact;
 }
 
+type MedicalQueueTimingSource = {
+  criado_em?: string;
+  atualizado_em?: string;
+  dados_clinicos?: Record<string, unknown>;
+};
+
+/** Timestamp em que o paciente entrou na fila médica (não a triagem inicial). */
+export function getMedicalQueueEnteredAt(item: MedicalQueueTimingSource): string | undefined {
+  const clinical = item.dados_clinicos || {};
+  const explicit = String(clinical.medical_queue_entered_at || '').trim();
+  if (explicit) return explicit;
+
+  const uploadSession = clinical.prescription_upload_session as { completed_at?: string } | undefined;
+  const candidates = [
+    uploadSession?.completed_at,
+    clinical.previous_prescription_uploaded_at,
+    item.atualizado_em,
+    item.criado_em,
+  ];
+  for (const value of candidates) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return undefined;
+}
+
+export function formatMedicalWaitingTime(item: MedicalQueueTimingSource, nowMs = Date.now()): string {
+  const enteredAt = getMedicalQueueEnteredAt(item);
+  if (!enteredAt) return 'Agora';
+  const diff = Math.max(0, nowMs - new Date(enteredAt).getTime());
+  const hours = Math.floor(diff / 36e5);
+  const minutes = Math.floor((diff % 36e5) / 6e4);
+  return hours ? `${hours}h ${minutes}min` : `${minutes || 1}min`;
+}
+
 export function whatsappContactUrl(phone: string): string | null {
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 10) return null;

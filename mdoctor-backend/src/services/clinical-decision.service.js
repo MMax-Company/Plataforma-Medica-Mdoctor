@@ -1,13 +1,21 @@
 const { PROTOCOL_VERSION } = require('./clinical-intelligence.service');
 const { isVisibleInMedicalPanel } = require('./clinical-payload-normalizer.service');
-const { refundRejectedAtendimento } = require('./stripe-refund.service');
 const { buildRejectMotivoText, validateRejectPayload } = require('../constants/clinical-reject-reasons');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
-const { enqueueClinicalRejection } = require('../store/whatsapp-outbox.store');
+const {
+  enqueueClinicalRejection,
+  enqueueClinicalApproval,
+  findPendingRejectionMessage,
+  findPendingApprovalMessage,
+  claimRejectionMessageForSend,
+  finishRejectionMessage
+} = require('../store/whatsapp-outbox.store');
 
 const CLINICAL_REJECT_WHATSAPP_MESSAGE =
-  'Após análise médica, sua solicitação não foi aprovada. O estorno do pagamento será processado e poderá ser concluído em até 72 horas, conforme os prazos da instituição financeira.';
+  'Após avaliação médica, não foi possível emitir a receita solicitada.\n\nNossa equipe analisará as providências administrativas referentes ao pagamento.\n\nCaso precise de ajuda, digite 2 para falar com o suporte.';
+
+const CLINICAL_APPROVE_WHATSAPP_MESSAGE = '✅ Sua solicitação foi aprovada pelo médico.';
 
 function resolveDecisionRationale(rationale, notes) {
   if (rationale && typeof rationale === 'object') {
@@ -196,6 +204,38 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     return { ok: false, statusCode: 404, error: 'Atendimento não encontrado' };
   }
 
+  // Idempotência do botão APROVAR: clique repetido sobre um atendimento já
+  // aprovado por esta mesma decisão (ainda não avançou para emissão/Memed)
+  // devolve a decisão existente — sem nova decisão, novo status ou nova
+  // mensagem — em vez do erro de bloqueio usado para os demais casos já
+  // cobertos por assertCanApprove (reprovado, em edição, receita emitida...).
+  const previousStatus = String(previous.status || '').toLowerCase();
+  const alreadyApprovedByThisDecision =
+    previousStatus === String(STATUS.APPROVED).toLowerCase() &&
+    Boolean(previous.dados_clinicos?.memed_context?.approved_at);
+  if (alreadyApprovedByThisDecision) {
+    const notification = await sendApprovalNotificationOnce({ atendimento: previous, doctorId, correlationId });
+    await createAuditLog({
+      entity_type: 'atendimento',
+      entity_id: atendimentoId,
+      action: 'clinical_approve_duplicate_ignored',
+      actor: doctorId || 'backend',
+      payload: { correlationId }
+    });
+    return {
+      ok: true,
+      duplicate: true,
+      atendimento: previous,
+      decisao: null,
+      memed: {
+        emission: 'manual_sinapse_required',
+        nextStep: 'POST /api/memed/iniciar-emissao then widget Sinapse + POST /api/memed/receita'
+      },
+      notification,
+      correlationId
+    };
+  }
+
   const guard = assertCanApprove({
     ...previous,
     dados_clinicos: mergeClinicalPayload(previous, body)
@@ -260,6 +300,8 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     };
   }
 
+  const notification = await sendApprovalNotificationOnce({ atendimento, doctorId, correlationId });
+
   await createAuditLog({
     entity_type: 'atendimento',
     entity_id: atendimentoId,
@@ -268,19 +310,110 @@ async function approveAtendimento(atendimentoId, body = {}, meta = {}) {
     payload: {
       correlationId,
       memedEmission: 'manual_sinapse_required',
+      whatsappSent: notification.sent || false,
+      whatsappQueued: notification.queued || false,
+      whatsappQueueId: notification.queueId || null,
+      whatsappSkipped: notification.skipped || false,
+      whatsappError: notification.error || null,
       protocolVersion: PROTOCOL_VERSION
     }
   });
 
   return {
     ok: true,
+    duplicate: false,
     atendimento,
     decisao,
     memed: {
       emission: 'manual_sinapse_required',
       nextStep: 'POST /api/memed/iniciar-emissao then widget Sinapse + POST /api/memed/receita'
     },
+    notification,
     correlationId
+  };
+}
+
+// Envia pela Meta a mensagem já registrada em whatsapp_messages. A reserva
+// (pending/failed -> sending) garante que requisições concorrentes não enviem
+// duas vezes; linha 'sent' devolve o resultado anterior sem novo envio.
+// Genérico por message_kind (reprovação ou aprovação): claim/finish operam
+// só pelo id da linha, sem depender do tipo de decisão.
+async function dispatchQueuedClinicalMessage({ queuedMessage, correlationId }) {
+  if (!queuedMessage) return { sent: false, status: 'sem_linha', queueId: null, providerMessageId: null };
+  if (queuedMessage.status === 'sent') {
+    return {
+      sent: true,
+      status: 'sent',
+      queueId: queuedMessage.id,
+      providerMessageId: queuedMessage.provider_message_id || null
+    };
+  }
+
+  const claimed = await claimRejectionMessageForSend(queuedMessage.id);
+  if (!claimed) {
+    const findCurrent =
+      queuedMessage.metadata?.message_kind === 'clinical_approval'
+        ? findPendingApprovalMessage
+        : findPendingRejectionMessage;
+    const current = await findCurrent(queuedMessage.appointment_id);
+    return {
+      sent: current?.status === 'sent',
+      status: current?.status || 'sending',
+      queueId: queuedMessage.id,
+      providerMessageId: current?.provider_message_id || null
+    };
+  }
+
+  try {
+    // eslint-disable-next-line global-require
+    const { sendWhatsAppText } = require('../delivery/delivery.service');
+    const result = await sendWhatsAppText({
+      to: claimed.phone,
+      text: claimed.body,
+      correlationId,
+      idempotencyKey: claimed.metadata?.idempotency_key || `${claimed.metadata?.message_kind || 'clinical-reject'}:${claimed.appointment_id}`
+    });
+    await finishRejectionMessage({
+      messageId: claimed.id,
+      status: 'sent',
+      providerMessageId: result?.providerMessageId || null,
+      metadata: claimed.metadata
+    });
+    return { sent: true, status: 'sent', queueId: claimed.id, providerMessageId: result?.providerMessageId || null };
+  } catch (error) {
+    await finishRejectionMessage({
+      messageId: claimed.id,
+      status: 'failed',
+      errorMessage: error.message,
+      metadata: claimed.metadata
+    }).catch(() => {});
+    return { sent: false, status: 'failed', queueId: claimed.id, providerMessageId: null, error: error.message };
+  }
+}
+
+// Idempotência do WhatsApp de aprovação: usado tanto no primeiro APROVAR
+// quanto no clique repetido (curto-circuito de duplicidade acima), via a
+// mesma fila/índice único de whatsapp_outbox.store usados na reprovação.
+async function sendApprovalNotificationOnce({ atendimento, doctorId, correlationId }) {
+  if (!atendimento?.paciente_telefone) {
+    return { sent: false, skipped: true, reason: 'telefone_ausente' };
+  }
+  const queued = await enqueueClinicalApproval({
+    atendimentoId: atendimento.id,
+    phone: atendimento.paciente_telefone,
+    message: CLINICAL_APPROVE_WHATSAPP_MESSAGE,
+    doctorId,
+    correlationId
+  });
+  const dispatch = await dispatchQueuedClinicalMessage({ queuedMessage: queued.message, correlationId });
+  return {
+    sent: dispatch.sent,
+    queued: true,
+    status: dispatch.status,
+    queueId: dispatch.queueId || queued.message.id,
+    providerMessageId: dispatch.providerMessageId || null,
+    error: dispatch.error || null,
+    duplicate: queued.duplicate
   };
 }
 
@@ -294,26 +427,35 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
 
   // Idempotência do botão REPROVAR: um atendimento já reprovado pelo médico
   // (status rejected + motivo_rejeicao registrado) devolve o resultado
-  // anterior sem novo estorno, nova mensagem ou nova decisão.
+  // anterior sem nova pendência administrativa, nova mensagem ou nova decisão.
   const previousStatus = String(previous.status || '').toLowerCase();
   const previousRejection = previous.dados_clinicos?.motivo_rejeicao || null;
   if ((previousStatus === 'rejected' || previousStatus === 'recusado') && previousRejection) {
     let notification = previous.dados_clinicos?.notificacao_reprovacao || null;
-    if (!notification?.queued && previous.paciente_telefone) {
-      const queued = await enqueueClinicalRejection({
-        atendimentoId,
-        phone: previous.paciente_telefone,
-        message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
-        doctorId: previousRejection.rejected_by || doctorId,
-        correlationId
-      });
+    if (!notification?.sent && previous.paciente_telefone) {
+      let queueRow = await findPendingRejectionMessage(atendimentoId);
+      let duplicateRow = true;
+      if (!queueRow) {
+        const queued = await enqueueClinicalRejection({
+          atendimentoId,
+          phone: previous.paciente_telefone,
+          message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
+          doctorId: previousRejection.rejected_by || doctorId,
+          correlationId
+        });
+        queueRow = queued.message;
+        duplicateRow = queued.duplicate;
+      }
+      const dispatch = await dispatchQueuedClinicalMessage({ queuedMessage: queueRow, correlationId });
       notification = {
-        sent: false,
+        sent: dispatch.sent,
         queued: true,
-        status: queued.message.status,
-        queueId: queued.message.id,
-        duplicate: queued.duplicate,
-        queued_at: queued.message.created_at || new Date().toISOString()
+        status: dispatch.status,
+        queueId: dispatch.queueId || queueRow.id,
+        providerMessageId: dispatch.providerMessageId || null,
+        error: dispatch.error || null,
+        duplicate: duplicateRow,
+        queued_at: queueRow.created_at || new Date().toISOString()
       };
       await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
         motivo: previous.motivo_decisao,
@@ -329,14 +471,14 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       entity_id: atendimentoId,
       action: 'clinical_reject_duplicate_ignored',
       actor: doctorId || 'backend',
-      payload: { correlationId, estorno_status: previous.dados_clinicos?.estorno?.status || null }
+      payload: { correlationId, pendencia_pagamento_status: previous.dados_clinicos?.pendencia_pagamento?.status || null }
     });
     return {
       ok: true,
       duplicate: true,
       atendimento: previous,
       decisao: null,
-      estorno: previous.dados_clinicos?.estorno || null,
+      pendencia_pagamento: previous.dados_clinicos?.pendencia_pagamento || null,
       notification: notification || { sent: false, skipped: true, reason: 'telefone_ausente' },
       correlationId,
       reason_code: previousRejection.code || null,
@@ -395,27 +537,28 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     }
   });
 
-  // Estorno somente na reprovação médica (este é o único caminho que chama
-  // refundRejectedAtendimento). Sem pagamento confirmado não há o que
-  // estornar; sem payment_intent localizável o estado fica registrado como
-  // payment_not_found e a reprovação segue valendo.
+  // Reprovação médica NÃO estorna automaticamente (Fase 3 Pedido 1): nenhum
+  // código de estorno é chamado aqui. Quando há pagamento confirmado, fica
+  // apenas registrada a pendência administrativa para tratamento manual
+  // futuro; sem pagamento confirmado não há pendência a registrar.
   const paymentConfirmed = String(previous.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
-  const estorno = paymentConfirmed
-    ? await refundRejectedAtendimento({
-        atendimento: previous,
-        requestedPaymentIntent: body.payment_intent || null,
-        doctorId,
-        correlationId
-      })
+  const pendenciaPagamento = paymentConfirmed
+    ? {
+        status: 'pendente_analise_administrativa',
+        motivo: 'Reprovação médica sem estorno automático — aguardando tratamento administrativo do pagamento',
+        registered_at: new Date().toISOString(),
+        registered_by: doctorId || null,
+        correlation_id: correlationId
+      }
     : {
-        status: 'no_payment_to_refund',
-        reason: `Pagamento não confirmado (${previous.pagamento_status || 'ausente'}) — nada a estornar`,
-        checked_at: new Date().toISOString()
+        status: 'sem_pagamento_confirmado',
+        motivo: `Pagamento não confirmado (${previous.pagamento_status || 'ausente'}) — nenhuma pendência administrativa a registrar`,
+        registered_at: new Date().toISOString()
       };
 
-  // Persiste o estado do estorno antes de enfileirar. Se o banco recusar a
-  // mensagem, uma repetição da rota recupera este estado sem novo estorno.
-  mergedClinical.estorno = estorno;
+  // Persiste o estado da pendência antes de enfileirar. Se o banco recusar a
+  // mensagem, uma repetição da rota recupera este estado sem duplicar o registro.
+  mergedClinical.pendencia_pagamento = pendenciaPagamento;
   await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
     motivo,
     medicoId: doctorId,
@@ -432,11 +575,14 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       doctorId,
       correlationId
     });
+    const dispatch = await dispatchQueuedClinicalMessage({ queuedMessage: queued.message, correlationId });
     notification = {
-      sent: false,
+      sent: dispatch.sent,
       queued: true,
-      status: queued.message.status,
-      queueId: queued.message.id,
+      status: dispatch.status,
+      queueId: dispatch.queueId || queued.message.id,
+      providerMessageId: dispatch.providerMessageId || null,
+      error: dispatch.error || null,
       duplicate: queued.duplicate
     };
   } else {
@@ -464,13 +610,12 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       reason_code: reasonCode,
       reason_label: reasonMeta.label,
       motivo_resumido: motivo,
-      whatsappSent: false,
+      whatsappSent: notification.sent || false,
       whatsappQueued: notification.queued || false,
       whatsappQueueId: notification.queueId || null,
       whatsappSkipped: notification.skipped || false,
       whatsappError: notification.error || null,
-      estorno_status: estorno?.status || null,
-      estorno_refund_id: estorno?.refund_id || null,
+      pendencia_pagamento_status: pendenciaPagamento?.status || null,
       protocolVersion: PROTOCOL_VERSION
     }
   });
@@ -483,7 +628,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     atendimento: finalAtendimento,
     decisao,
     notification,
-    estorno,
+    pendencia_pagamento: pendenciaPagamento,
     correlationId,
     reason_code: reasonCode,
     reason_label: reasonMeta.label
@@ -492,6 +637,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
 
 module.exports = {
   CLINICAL_REJECT_WHATSAPP_MESSAGE,
+  CLINICAL_APPROVE_WHATSAPP_MESSAGE,
   approveAtendimento,
   rejectAtendimento,
   assertCanApprove,

@@ -100,6 +100,10 @@ app.use(requestLogger);
 app.use(cors({
   origin(origin, callback) {
     if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) return callback(null, true);
+    // Webviews (ex.: WhatsApp/Android) enviam "Origin: null" em navegações de
+    // formulário same-origin (página de upload). Segue sem headers CORS em vez
+    // de responder 500 — o navegador continua aplicando as restrições normais.
+    if (origin === 'null') return callback(null, false);
     return callback(new Error('Origem nao autorizada pelo CORS'));
   },
   credentials: true
@@ -135,10 +139,13 @@ const triagemWebhookRateLimit = makeRateLimit({
 });
 
 app.use('/api/webhook', triagemWebhookRateLimit);
+// Meta Cloud API envia sent/delivered/read de cada mensagem pelo mesmo IP:
+// um fluxo completo ultrapassa 20 req/min e o webhook com a mídia do paciente
+// era descartado com 429. Limite próprio, folgado o bastante para os bursts.
 app.use('/api/whatsapp/webhook', makeRateLimit({
   name: 'whatsapp_webhook',
-  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 20),
-  windowMs: Number(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
+  max: Number(process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_MAX || 300),
+  windowMs: Number(process.env.WHATSAPP_WEBHOOK_RATE_LIMIT_WINDOW_MS || 60 * 1000),
   errorMessage: 'Webhook temporariamente limitado. Tente novamente em instantes.',
   onLimit: async (req, meta) => {
     await createAuditLog({
@@ -215,6 +222,7 @@ app.use('/api/auth',require('./src/auth/auth.routes'));
 app.use('/api/admin',require('./src/routes/admin.routes'));
 app.use('/api/patient-outcomes', require('./src/routes/patient-outcomes.routes'));
 app.use('/api/diagnostics', require('./src/routes/diagnostics.routes'));
+app.use('/api/cep', require('./src/routes/cep.routes'));
 
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Rota nao encontrada' });

@@ -276,9 +276,39 @@ async function ingestPreviousPrescription({
   return result;
 }
 
+async function storageObjectExists(storagePath) {
+  if (!storagePath || !isSupabaseConfigured()) return false;
+  const supabase = getSupabase();
+  const parts = String(storagePath).split('/');
+  const fileName = parts.pop();
+  const folder = parts.join('/');
+  if (!fileName || !folder) return false;
+  const { data, error } = await supabase.storage.from(BUCKET).list(folder, { limit: 100 });
+  if (error || !Array.isArray(data)) return false;
+  return data.some((entry) => entry.name === fileName);
+}
+
+async function findLatestPrescriptionObjectForAtendimento(atendimentoId) {
+  if (!atendimentoId || !isSupabaseConfigured()) return null;
+  const supabase = getSupabase();
+  const prefix = `atendimentos/${atendimentoId}`;
+  const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 100 });
+  if (error || !Array.isArray(data) || !data.length) return null;
+  const sorted = [...data].sort(
+    (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+  );
+  return `${prefix}/${sorted[0].name}`;
+}
+
 async function createViewSignedUrl(storagePath) {
   if (!storagePath) return null;
   if (!isSupabaseConfigured()) return null;
+  const exists = await storageObjectExists(storagePath);
+  if (!exists) {
+    const err = new Error('Arquivo da receita anterior não encontrado no storage');
+    err.code = 'PRESCRIPTION_STORAGE_NOT_FOUND';
+    throw err;
+  }
   const supabase = getSupabase();
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS);
   if (error) {
@@ -287,6 +317,38 @@ async function createViewSignedUrl(storagePath) {
     throw err;
   }
   return data.signedUrl;
+}
+
+async function resolvePreviousPrescriptionStoragePath(atendimentoId, clinical = {}) {
+  const current = clinical.previous_prescription_storage_path || null;
+  if (current && (await storageObjectExists(current))) return current;
+  const latest = await findLatestPrescriptionObjectForAtendimento(atendimentoId);
+  if (latest && (await storageObjectExists(latest))) return latest;
+  return null;
+}
+
+function buildInvalidatedPrescriptionClinical(clinical = {}) {
+  const next = { ...clinical };
+  delete next.previous_prescription_storage_path;
+  delete next.previous_prescription_url;
+  delete next.previous_prescription_file;
+  delete next.foto_receita_url;
+  delete next.previous_prescription_mime_type;
+  delete next.previous_prescription_size;
+  delete next.previous_prescription_uploaded_at;
+  next.previous_prescription = false;
+  next.has_previous_prescription = false;
+  next.receita_anterior = false;
+  next.prescription_upload_pending = true;
+  if (next.prescription_upload_session) {
+    next.prescription_upload_session = {
+      ...next.prescription_upload_session,
+      status: 'invalidated',
+      invalidated_at: new Date().toISOString()
+    };
+  }
+  next.prescription_ingest = { ok: false, reason: 'storage_not_found' };
+  return next;
 }
 
 function applyPrescriptionMetadataToClinical(clinical = {}, meta = {}) {
@@ -320,8 +382,12 @@ module.exports = {
   applyPrescriptionMetadataToClinical,
   buildMetadataFromExisting,
   buildStoragePath,
+  buildInvalidatedPrescriptionClinical,
   createViewSignedUrl,
   extensionFromMime,
+  findLatestPrescriptionObjectForAtendimento,
+  resolvePreviousPrescriptionStoragePath,
+  storageObjectExists,
   formatIngestError,
   getBucketName,
   ingestPreviousPrescription,

@@ -11,11 +11,41 @@ function normalizeIdentifier(value) {
   return str || '';
 }
 
+// Gera as duas variantes plausíveis (com/sem o 9º dígito, formato BR) do
+// mesmo número. Achado em homologação real (26/07): o WhatsApp real manda o
+// telefone sem o 9 (formato antigo), mas o telefone estruturado coletado
+// pelo Typebot pode vir com o 9 — sem isso, getSessionByPhone nunca casava
+// e resolveConfirmedPaymentFromSession (triagem-webhook.service.js) nunca
+// encontrava a sessão com pagamento já confirmado, mesmo com o Stripe tendo
+// confirmado antes da triagem rodar.
+function phoneVariants(digits) {
+  let core = digits;
+  let prefix = '';
+  if ((core.length === 12 || core.length === 13) && core.startsWith('55')) {
+    prefix = '55';
+    core = core.slice(2);
+  }
+  const variants = new Set([digits]);
+  if (core.length === 11 && core[2] === '9') {
+    variants.add(prefix + core.slice(0, 2) + core.slice(3));
+  } else if (core.length === 10) {
+    variants.add(prefix + core.slice(0, 2) + '9' + core.slice(2));
+  }
+  return Array.from(variants);
+}
+
 async function getSessionByPhone(phone) {
   const digits = normalizePhone(phone);
   if (!digits) return null;
+  const candidates = phoneVariants(digits);
   const data = await dbQuery('buscar whatsapp session por phone', async (supabase) =>
-    supabase.from(T.WHATSAPP_SESSIONS).select('*').eq('phone', digits).order('updated_at', { ascending: false }).limit(1).maybeSingle()
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .select('*')
+      .in('phone', candidates)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
   );
   return data || null;
 }
@@ -147,46 +177,45 @@ async function clearSurveySession(phone) {
   return data;
 }
 
-const TRANSIENT_CLINICAL_METADATA_KEYS = [
-  'typebot_expected_input_id',
-  'typebot_multi_choice',
-  'typebot_payment',
-  'typebot_prescription_upload'
-];
-
-/**
- * FASE 6B — remove metadata transitória da sessão WhatsApp ao entrar em suporte.
- * Não altera atendimentos clínicos, pagamentos confirmados ou arquivos já salvos.
- */
-async function clearTransientClinicalSessionMetadata({ whatsappSession }) {
-  if (!whatsappSession?.id) return null;
-
-  const metadata = { ...(whatsappSession.metadata || {}) };
-  for (const key of TRANSIENT_CLINICAL_METADATA_KEYS) {
-    delete metadata[key];
-  }
-
-  const data = await dbQuery('limpar metadata clínica transitória whatsapp session', async (supabase) =>
+async function setTypebotSessionId({ sessionId, typebotSessionId }) {
+  if (!sessionId || !typebotSessionId) return null;
+  const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
-      .update({
-        typebot_session_id: null,
-        metadata,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', whatsappSession.id)
+      .update({ typebot_session_id: typebotSessionId, updated_at: new Date().toISOString() })
+      .eq('id', sessionId)
       .select('*')
       .single()
   );
   return data;
 }
 
-async function setTypebotSessionId({ sessionId, typebotSessionId }) {
+const TYPEBOT_METADATA_KEYS = [
+  'typebot_expected_input_id',
+  'typebot_payment',
+  'typebot_prescription_upload',
+  'whatsapp_menu_state'
+];
+
+async function clearTypebotSession({ sessionId, metadataPatch = {} }) {
   if (!sessionId) return null;
-  const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
+  const existing = await dbQuery('buscar whatsapp session para limpar typebot', async (supabase) =>
+    supabase.from(T.WHATSAPP_SESSIONS).select('*').eq('id', sessionId).maybeSingle()
+  );
+  if (!existing?.id) return null;
+
+  const metadata = { ...(existing.metadata || {}), ...metadataPatch };
+  for (const key of TYPEBOT_METADATA_KEYS) delete metadata[key];
+
+  const now = new Date().toISOString();
+  const data = await dbQuery('limpar sessão Typebot no WhatsApp', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
-      .update({ typebot_session_id: typebotSessionId || null, updated_at: new Date().toISOString() })
+      .update({
+        typebot_session_id: null,
+        metadata,
+        updated_at: now
+      })
       .eq('id', sessionId)
       .select('*')
       .single()
@@ -200,13 +229,12 @@ function getActiveSurveySession(session = {}) {
 
 module.exports = {
   clearSurveySession,
-  clearTransientClinicalSessionMetadata,
+  clearTypebotSession,
   getActiveSurveySession,
   getSessionByBsuid,
   getSessionByPhone,
   normalizePhone,
   setTypebotSessionId,
   upsertSessionIdentity,
-  upsertSessionMetadata,
-  TRANSIENT_CLINICAL_METADATA_KEYS
+  upsertSessionMetadata
 };

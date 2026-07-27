@@ -2,7 +2,6 @@ const logger = require('../config/logger');
 const { isDryRunMode, resolveWhatsAppProvider, sendWhatsAppText } = require('../delivery/delivery.service');
 const {
   SURVEY_VERSION,
-  PRESCRIPTION_SENT_MESSAGE,
   SURVEY_OPT_IN_MESSAGE,
   SURVEY_OPT_IN_DECLINED_MESSAGE,
   Q1_MESSAGE,
@@ -20,6 +19,7 @@ const {
 } = require('../store/patient-outcomes.store');
 const {
   clearSurveySession,
+  clearTypebotSession,
   getActiveSurveySession,
   getSessionByPhone,
   normalizePhone,
@@ -28,6 +28,15 @@ const {
 const { createAuditLog } = require('../store/audit.store');
 
 const INVALID_ANSWER_MESSAGE = 'Não entendi sua resposta. Responda apenas com o número da opção indicada.';
+
+function isSurveySkipText(raw = '') {
+  const normalized = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  return ['encerrar', 'pular', 'skip', 'sair', 'cancelar'].includes(normalized);
+}
 
 function isSurveyEnabled() {
   const flag = String(process.env.POST_DELIVERY_SURVEY_ENABLED || '').trim().toLowerCase();
@@ -38,7 +47,11 @@ function isSurveyEnabled() {
 }
 
 function isSurveyComplete(outcome = {}) {
-  return Boolean(outcome.q1_access_alternative && outcome.q2_avoided_interruption && outcome.q3_would_use_again);
+  return Boolean(
+    outcome.final_question_access_alternative &&
+      outcome.final_question_avoided_interruption &&
+      outcome.final_question_use_again
+  );
 }
 
 async function sendSurveyWhatsApp({ phone, text, correlationId, idempotencyKey }) {
@@ -68,8 +81,9 @@ async function sendSurveyWhatsApp({ phone, text, correlationId, idempotencyKey }
 }
 
 async function setSurveySession({ phone, patientId, outcomeId, attendanceId, step }) {
+  const digits = normalizePhone(phone);
   await upsertSessionMetadata({
-    phone,
+    phone: digits,
     patientId,
     metadataPatch: {
       post_delivery_survey: {
@@ -81,6 +95,18 @@ async function setSurveySession({ phone, patientId, outcomeId, attendanceId, ste
       }
     }
   });
+
+  // Sempre limpa os marcadores de fluxo do Typebot (typebot_session_id e as
+  // TYPEBOT_METADATA_KEYS, incluindo typebot_prescription_upload) ao entrar
+  // no survey — mesmo quando typebot_session_id já está null, essas outras
+  // chaves podem ter sobrado de uma etapa anterior (ex.: link de upload já
+  // usado) e ficariam presas na sessão indefinidamente, sem outro ponto do
+  // código que as limpe. clearTypebotSession já é seguro/idempotente quando
+  // não há nada para limpar.
+  const waSession = await getSessionByPhone(digits);
+  if (waSession?.id) {
+    await clearTypebotSession({ sessionId: waSession.id });
+  }
 }
 
 async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, correlationId = 'post-delivery-survey' }) {
@@ -93,18 +119,23 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     return { skipped: true, reason: 'missing_attendance_or_phone' };
   }
 
+  // Fase 3 pedido 3: evento repetido (retry, novo webhook de entrega) nunca
+  // reinicia o survey — uma vez que a linha existe (completa ou em
+  // andamento), as mensagens de abertura já foram enviadas uma vez.
   const existing = await getOutcomeByAttendance(attendanceId, SURVEY_VERSION);
-  if (existing && isSurveyComplete(existing)) {
-    return { skipped: true, reason: 'already_completed', outcome: existing };
+  if (existing) {
+    return {
+      skipped: true,
+      reason: isSurveyComplete(existing) ? 'already_completed' : 'already_in_progress',
+      outcome: existing
+    };
   }
 
-  const outcome =
-    existing ||
-    (await createPendingOutcome({
-      attendanceId,
-      patientId: patientId || null,
-      surveyVersion: SURVEY_VERSION
-    }));
+  const outcome = await createPendingOutcome({
+    attendanceId,
+    patientId: patientId || null,
+    surveyVersion: SURVEY_VERSION
+  });
 
   await setSurveySession({
     phone: digits,
@@ -114,13 +145,6 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     step: 'opt_in'
   });
 
-  // Send messages sequentially — ordering matters (closing first, then opt-in offer)
-  await sendSurveyWhatsApp({
-    phone: digits,
-    text: PRESCRIPTION_SENT_MESSAGE,
-    correlationId,
-    idempotencyKey: `survey-closing:${attendanceId}:${outcome.id}`
-  });
   const sendResult = await sendSurveyWhatsApp({
     phone: digits,
     text: SURVEY_OPT_IN_MESSAGE,
@@ -145,7 +169,7 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
   return { triggered: true, outcome, sendResult };
 }
 
-async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound' }) {
+async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound', sendOutbound = true }) {
   if (!isSurveyEnabled()) {
     return { handled: false, reason: 'survey_disabled' };
   }
@@ -178,6 +202,32 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
   let reply = null;
   let patch = {};
 
+  if (isSurveySkipText(rawText)) {
+    await clearSurveySession(digits);
+    if (sendOutbound) {
+      await sendSurveyWhatsApp({
+        phone: digits,
+        text: SURVEY_OPT_IN_DECLINED_MESSAGE,
+        correlationId,
+        idempotencyKey: `survey-skipped:${outcome.id}:${Date.now()}`
+      });
+    }
+    await createAuditLog({
+      entity_type: 'patient_outcome_survey',
+      entity_id: outcome.id,
+      action: 'survey_skipped',
+      actor: 'patient',
+      payload: { correlationId, attendance_id: outcome.attendance_id, step }
+    });
+    return {
+      handled: true,
+      step: 'skipped',
+      completed: false,
+      outcome,
+      reply: SURVEY_OPT_IN_DECLINED_MESSAGE
+    };
+  }
+
   if (step === 'opt_in') {
     const answer = parseYesNoAnswer(rawText);
     if (answer === 'nao') {
@@ -208,7 +258,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q1_MESSAGE}`;
     } else {
-      patch.q1_access_alternative = answer;
+      patch.final_question_access_alternative = answer;
       nextStep = 'q2';
       reply = Q2_MESSAGE;
     }
@@ -217,7 +267,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q2_MESSAGE}`;
     } else {
-      patch.q2_avoided_interruption = answer;
+      patch.final_question_avoided_interruption = answer;
       nextStep = 'q3';
       reply = Q3_MESSAGE;
     }
@@ -226,7 +276,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     if (!answer) {
       reply = `${INVALID_ANSWER_MESSAGE}\n\n${Q3_MESSAGE}`;
     } else {
-      patch.q3_would_use_again = answer;
+      patch.final_question_use_again = answer;
       nextStep = 'done';
       reply = THANK_YOU_MESSAGE;
     }
@@ -260,7 +310,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     });
   }
 
-  if (reply) {
+  if (reply && sendOutbound) {
     await sendSurveyWhatsApp({
       phone: digits,
       text: reply,
