@@ -3,6 +3,7 @@ const T = require('../db/tables');
 const { dbQuery } = require('../db/persistence');
 const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
+const { recordStripePaymentEvent, deletePaymentEvent } = require('../store/payments.store');
 const metaProvider = require('./providers/meta.provider');
 const {
   PAYMENT_AMOUNT_CENTS,
@@ -19,6 +20,15 @@ const {
 
 const TOKEN_TTL_MS = Number(process.env.TYPEBOT_PAYMENT_LINK_TTL_MS || 24 * 60 * 60 * 1000);
 const PAYMENT_SUCCESS_REPLY = 'Success';
+
+// Reentrega do MESMO event.id do Stripe (inclusive concorrente) precisa
+// falhar a reivindicação em payment_events, não travar o webhook.
+function isUniqueViolationError(error) {
+  const code = error?.cause?.code || error?.code;
+  if (code === '23505') return true;
+  const message = String(error?.cause?.message || error?.message || '');
+  return /duplicate key value violates unique constraint/i.test(message);
+}
 
 function generateToken() {
   return crypto.randomBytes(32).toString('base64url');
@@ -452,13 +462,47 @@ async function applyCheckoutWebhook(event, deps = {}) {
     return { ok: false, code: 'NOT_PAID' };
   }
 
+  // Idempotência da retomada por reentrega do MESMO evento Stripe (mesma
+  // proteção do canal painel/Memed: payment_events.provider_event_id, índice
+  // único parcial — supabase/migrations/20260602_fechamento_stripe_payments_
+  // idempotency.sql). Reivindica o event.id ANTES de marcar o pagamento: a
+  // reivindicação em si é atômica no banco (constraint única), então mesmo
+  // duas entregas concorrentes só deixam uma passar, sem depender de timing.
+  const recordEvent = deps.recordStripePaymentEvent || recordStripePaymentEvent;
+  let claim;
+  try {
+    claim = await recordEvent({
+      appointmentId: null,
+      patientId: null,
+      providerEventId: event.id,
+      eventType: event.type,
+      amountCents: object.amount_total || null,
+      currency: String(object.currency || 'brl').toUpperCase(),
+      payload: { channel: 'whatsapp', checkout_session_id: object.id, payment_token: token, phone: session.phone || null }
+    });
+  } catch (error) {
+    if (!isUniqueViolationError(error)) throw error;
+    claim = { duplicate: true };
+  }
+  if (claim.duplicate) {
+    return { ok: true, alreadyPaid: true, token: payment.token, session };
+  }
+
   const markStatus = deps.markPaymentStatus || markPaymentStatus;
-  await markStatus(session, 'paid', {
-    status: 'completed',
-    paid_at: new Date().toISOString(),
-    checkout_session_id: object.id,
-    stripe_event_id: event.id
-  });
+  try {
+    await markStatus(session, 'paid', {
+      status: 'completed',
+      paid_at: new Date().toISOString(),
+      checkout_session_id: object.id,
+      stripe_event_id: event.id
+    });
+  } catch (error) {
+    // Falha antes da retomada: desfaz a reivindicação para permitir nova
+    // tentativa segura na próxima reentrega do mesmo evento.
+    const revertClaim = deps.deletePaymentEvent || deletePaymentEvent;
+    await revertClaim(claim.paymentEvent?.id, claim.payment?.id).catch(() => {});
+    throw error;
+  }
   return { ok: true, token: payment.token, session, justPaid: true };
 }
 
@@ -558,6 +602,36 @@ async function completePaymentByToken(token, deps = {}) {
       `/sessions/${encodeURIComponent(payment.typebot_session_id)}/continueChat`,
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
     );
+
+    // O Typebot já envia o texto de pagamento confirmado/orientação (grupo
+    // "Aguardando envio da receita") — enviar PAYMENT_CONFIRMED_MESSAGE aqui
+    // duplicava essa mensagem. Antes de entregar a resposta do Typebot ao
+    // paciente, se o próximo passo já for a etapa de upload da receita
+    // (decisão do webhook de triagem, não alterada aqui), grava
+    // atomicamente o contexto de upload na sessão — fecha a janela em que a
+    // mídia podia chegar antes desse estado existir.
+    const uploadHelpers = deps.uploadHelpers || require('./typebot-prescription-upload.service');
+    if (uploadHelpers.responseLooksLikeUploadStage(typebot, typebot.input?.id)) {
+      let uploadContext = await uploadHelpers.findUploadContextForPhone(session.phone);
+      if (!uploadContext) {
+        // Achado 24/07/2026 (atendimento do Willian): se o webhook de
+        // triagem rodou ANTES da confirmação do Stripe, o atendimento
+        // nasceu rejeitado só por "pagamento_pendente" — agora que o
+        // pagamento está confirmado de fato, revalida esse atendimento em
+        // vez de deixar o paciente sem nenhum atendimento aguardando a
+        // receita. Só reabre quando o ÚNICO motivo da rejeição foi
+        // pagamento; nunca toca em rejeição por motivo clínico/dados.
+        uploadContext = await uploadHelpers.reconcileRejectedPaymentPendingAppointment(session.phone, { correlationId });
+      }
+      if (uploadContext) {
+        await uploadHelpers.persistUploadContext({
+          identity: { phone: session.phone, bsuid: session.bsuid },
+          uploadContext,
+          whatsappSession: session
+        });
+      }
+    }
+
     const providerMessageIds = await sendTypebotOutputs({
       session,
       outputs: convertResponse(typebot),

@@ -18,6 +18,8 @@ export type ProntuarioAtendimento = {
   paciente_email?: string;
   condicao?: string;
   pagamento_status?: string;
+  criado_em?: string;
+  atualizado_em?: string;
   elegibilidade?: { eligible?: boolean; reason?: string } | null;
   dados_clinicos?: Record<string, unknown> & {
     condition?: string;
@@ -286,23 +288,18 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
     setError(null);
     const c = atendimento.dados_clinicos || {};
     const storagePath = String(c.previous_prescription_storage_path || '');
-    const directUrl = String(c.previous_prescription_url || c.foto_receita_url || c.previous_prescription_file || '');
 
     try {
-      if (storagePath || directUrl.includes('/storage/v1/object/')) {
-        const res = await fetch(`${getApiBase()}/api/atendimentos/${atendimento.id}/previous-prescription/view-url`, {
-          headers: authHeaders(),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.viewUrl) throw new Error(data.error || 'Não foi possível abrir a receita anexada.');
-        window.open(String(data.viewUrl), '_blank', 'noopener,noreferrer');
-        return;
-      }
-      if (!directUrl) {
+      if (!storagePath) {
         setError('Nenhuma receita anexada foi informada na triagem.');
         return;
       }
-      window.open(directUrl, '_blank', 'noopener,noreferrer');
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${atendimento.id}/previous-prescription/view-url`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.viewUrl) throw new Error(data.error || 'Não foi possível abrir a receita anexada.');
+      window.open(String(data.viewUrl), '_blank', 'noopener,noreferrer');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao abrir receita anexada.');
     }

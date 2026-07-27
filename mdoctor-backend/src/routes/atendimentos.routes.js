@@ -1,7 +1,19 @@
 const { randomUUID } = require('crypto');
 const express = require('express');
 const eligibilityEngine = require('../eligibility/engine');
-const { sendPrescription, sendWhatsAppText, resolveWhatsAppProvider, isDryRunMode } = require('../delivery/delivery.service');
+const {
+  sendPrescription,
+  sendWhatsAppText,
+  resolveWhatsAppProvider,
+  isDryRunMode,
+  buildPrescriptionDeliveryWhatsAppMessage
+} = require('../delivery/delivery.service');
+const {
+  enqueueClinicalPrescriptionDelivery,
+  findPendingPrescriptionDeliveryMessage,
+  claimRejectionMessageForSend,
+  finishRejectionMessage
+} = require('../store/whatsapp-outbox.store');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const { requireIngressOrAuth } = require('../middlewares/ingress-service-auth');
 const { createAuditLog } = require('../store/audit.store');
@@ -23,7 +35,11 @@ const { listRejectReasons } = require('../constants/clinical-reject-reasons');
 const { isMedicalQueue, isSupportQueue, isMedicalSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
-const { createViewSignedUrl } = require('../services/previous-prescription-storage.service');
+const {
+  buildInvalidatedPrescriptionClinical,
+  createViewSignedUrl,
+  resolvePreviousPrescriptionStoragePath
+} = require('../services/previous-prescription-storage.service');
 const { isDeliveryMockEnabled } = require('../config/memed-runtime');
 const { fetchPrescriptionArtifacts } = require('../services/memed-prescription-api.service');
 const { triggerPostDeliverySurvey } = require('../services/post-delivery-survey.service');
@@ -68,10 +84,10 @@ function assertCanDeliverPrescription(atendimento = {}) {
     };
   }
 
+  // Fase 3 pedido 2: entrega exige emissão E validação médica confirmadas —
+  // sem exceção por status (receita_emitida sozinho não basta mais).
   const receipt = atendimento.dados_clinicos?.memed_receita || {};
-  // validated_at só é obrigatório quando o fluxo de validação explícita ocorreu (status ready/validated).
-  // Para receita_emitida (validate ainda não disparou), exigir apenas que a receita exista com URL.
-  if (status !== 'receita_emitida' && !receipt.validated_at && !receipt.validatedAt) {
+  if (!receipt.validated_at && !receipt.validatedAt) {
     return { ok: false, statusCode: 422, error: 'Receita ainda não foi validada pelo médico.' };
   }
 
@@ -410,44 +426,58 @@ router.get('/:id/previous-prescription/view-url', requireAuth, async (req, res) 
   if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
 
   const clinical = atendimento.dados_clinicos || {};
-  if (!hasStoredPreviousPrescription(clinical)) {
-    return res.status(404).json({ success: false, error: 'Nenhuma receita anterior anexada neste atendimento' });
+  let storagePath = await resolvePreviousPrescriptionStoragePath(atendimento.id, clinical);
+
+  if (!storagePath) {
+    const invalidatedClinical = buildInvalidatedPrescriptionClinical(clinical);
+    await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+      dados_clinicos: invalidatedClinical,
+      motivo: 'Upload de receita invalidado — arquivo ausente no storage'
+    });
+    return res.status(404).json({
+      success: false,
+      error: 'Nenhuma receita válida encontrada para este atendimento. Envie novamente pelo link de upload.',
+      code: 'PRESCRIPTION_STORAGE_NOT_FOUND'
+    });
   }
 
-  const storagePath = clinical.previous_prescription_storage_path;
-  if (storagePath) {
-    try {
-      const viewUrl = await createViewSignedUrl(storagePath);
-      return res.json({
-        success: true,
-        viewUrl,
-        mimeType: clinical.previous_prescription_mime_type || null,
-        uploadedAt: clinical.previous_prescription_uploaded_at || null
+  if (storagePath !== clinical.previous_prescription_storage_path) {
+    await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+      dados_clinicos: {
+        ...clinical,
+        previous_prescription_storage_path: storagePath,
+        previous_prescription_url: null,
+        previous_prescription_file: null,
+        foto_receita_url: null
+      }
+    });
+  }
+
+  try {
+    const viewUrl = await createViewSignedUrl(storagePath);
+    return res.json({
+      success: true,
+      viewUrl,
+      storagePath,
+      mimeType: clinical.previous_prescription_mime_type || null,
+      uploadedAt: clinical.previous_prescription_uploaded_at || null
+    });
+  } catch (error) {
+    if (error.code === 'PRESCRIPTION_STORAGE_NOT_FOUND') {
+      await updateAtendimentoStatus(atendimento.id, atendimento.status, {
+        dados_clinicos: buildInvalidatedPrescriptionClinical(clinical)
       });
-    } catch (error) {
-      return res.status(502).json({
+      return res.status(404).json({
         success: false,
-        error: error.message || 'Falha ao gerar link de visualização'
+        error: 'Arquivo da receita anterior não encontrado. Upload invalidado.',
+        code: error.code
       });
     }
+    return res.status(502).json({
+      success: false,
+      error: error.message || 'Falha ao gerar link de visualização'
+    });
   }
-
-  const fallbackUrl =
-    clinical.previous_prescription_url ||
-    clinical.foto_receita_url ||
-    clinical.previous_prescription_file ||
-    null;
-
-  if (!fallbackUrl) {
-    return res.status(404).json({ success: false, error: 'URL da receita anterior indisponível' });
-  }
-
-  return res.json({
-    success: true,
-    viewUrl: fallbackUrl,
-    mimeType: clinical.previous_prescription_mime_type || null,
-    uploadedAt: clinical.previous_prescription_uploaded_at || null
-  });
 });
 
 router.get('/:id/decisoes', requireAuth, async (req, res) => {
@@ -523,9 +553,11 @@ router.post('/:id/clinical/approve', requireRole('admin', 'doctor'), async (req,
   return res.json({
     success: true,
     correlationId,
+    duplicate: result.duplicate === true,
     atendimento: result.atendimento,
     decisao: result.decisao,
-    memed: result.memed
+    memed: result.memed,
+    notification: result.notification
   });
 });
 
@@ -545,7 +577,7 @@ router.post('/:id/clinical/reject', requireRole('admin', 'doctor'), async (req, 
     atendimento: result.atendimento,
     decisao: result.decisao,
     notification: result.notification,
-    estorno: result.estorno || null,
+    pendencia_pagamento: result.pendencia_pagamento || null,
     reason_code: result.reason_code,
     reason_label: result.reason_label
   });
@@ -730,6 +762,39 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
     });
   }
 
+  // Fase 3 pedido 2 — trava atômica (índice único em whatsapp_messages,
+  // mesmo mecanismo já usado para aprovação/reprovação clínica) contra
+  // clique repetido e retry concorrente do Backend: hasSuccessfulDelivery
+  // acima é leitura-antes-de-escrever (janela de corrida); esta reserva é
+  // quem garante "apenas uma vez" de fato para o canal WhatsApp.
+  let outboxClaim = null;
+  if (channel === 'whatsapp' && !isContingency) {
+    const enqueueResult = await enqueueClinicalPrescriptionDelivery({
+      atendimentoId: req.params.id,
+      phone: target,
+      message: buildPrescriptionDeliveryWhatsAppMessage(receiptUrl),
+      doctorId: authenticatedDoctorId,
+      correlationId
+    });
+    if (enqueueResult.duplicate && enqueueResult.message.status === 'sent') {
+      return res.status(409).json({
+        success: false,
+        error: `Receita já enviada por ${channel} para este atendimento.`,
+        code: 'DELIVERY_ALREADY_SENT',
+        correlationId
+      });
+    }
+    outboxClaim = await claimRejectionMessageForSend(enqueueResult.message.id);
+    if (!outboxClaim) {
+      return res.status(409).json({
+        success: false,
+        error: 'Envio da receita por WhatsApp já está em andamento.',
+        code: 'DELIVERY_IN_PROGRESS',
+        correlationId
+      });
+    }
+  }
+
   let delivery;
   try {
     if (isContingency) {
@@ -772,6 +837,15 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
       });
     }
   } catch (error) {
+    if (outboxClaim) {
+      await finishRejectionMessage({
+        messageId: outboxClaim.id,
+        status: 'failed',
+        errorMessage: error.message,
+        metadata: outboxClaim.metadata
+      }).catch(() => {});
+    }
+
     const failedDelivery = {
       id: randomUUID(),
       channel,
@@ -828,6 +902,15 @@ router.post('/:id/deliver', requireIngressOrAuth, async (req, res) => {
       correlationId,
       atendimento,
       delivery: failedDelivery
+    });
+  }
+
+  if (outboxClaim) {
+    await finishRejectionMessage({
+      messageId: outboxClaim.id,
+      status: 'sent',
+      providerMessageId: delivery.providerMessageId || null,
+      metadata: outboxClaim.metadata
     });
   }
 
@@ -992,3 +1075,7 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 });
 
 module.exports = router;
+// Exposto só para teste isolado (Fase 3 pedido 2) — não muda o comportamento da rota.
+module.exports.assertCanDeliverPrescription = assertCanDeliverPrescription;
+module.exports.hasSuccessfulDelivery = hasSuccessfulDelivery;
+module.exports.listPreviousDeliveries = listPreviousDeliveries;

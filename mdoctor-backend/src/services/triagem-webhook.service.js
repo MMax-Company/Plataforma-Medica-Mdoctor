@@ -11,6 +11,7 @@ const {
   listAtendimentos
 } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
+const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
 const {
   buildClinicalNarrative,
   PROTOCOL_VERSION
@@ -29,6 +30,27 @@ const {
 } = require('./triagem-nested.mapper');
 
 const ORIGEM = 'typebot-triagem';
+
+// Sincronização de pagamento: a confirmação real do Stripe já vive em
+// whatsapp_sessions.metadata.typebot_payment (Fase 2 pedido 2), mas o
+// payload da triagem (n8n) não a repassa — normalizePaymentStatus só lê
+// campos do próprio payload. Busca pelo MESMO telefone desta triagem (nunca
+// de outro paciente/sessão) e usa como fonte de verdade quando confirmado.
+async function resolveConfirmedPaymentFromSession(phone) {
+  if (!phone) return null;
+  const session = await getSessionByPhone(phone).catch(() => null);
+  const payment = session?.metadata?.typebot_payment;
+  const confirmed = payment?.status === 'completed' || payment?.payment_status === 'paid';
+  if (!confirmed) return null;
+  return {
+    checkout_session_id: payment.checkout_session_id || null,
+    paid_at: payment.paid_at || null,
+    stripe_event_id: payment.stripe_event_id || null,
+    amount_cents: payment.amount_cents || null,
+    amount_label: payment.amount_label || null,
+    currency: 'brl'
+  };
+}
 
 async function findDuplicateAtendimento(idempotencyKey) {
   if (!idempotencyKey) return null;
@@ -100,20 +122,24 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     triagem: validation.triagem
   };
 
+  const sessionPayment = await resolveConfirmedPaymentFromSession(
+    normalized.whatsapp || validation.paciente.telefone
+  );
+
   const patientData = {
     ...mapped.patientData,
     idempotency_key: idempotencyKey || null,
     protocol_version: PROTOCOL_VERSION,
-    pagamento_status: normalized.pagamento_status,
-    payment_status: normalized.payment_status,
-    payment_confirmed: normalized.payment_confirmed,
+    pagamento_status: sessionPayment ? 'CONFIRMADO' : normalized.pagamento_status,
+    payment_status: sessionPayment ? 'paid' : normalized.payment_status,
+    payment_confirmed: sessionPayment ? true : normalized.payment_confirmed,
     queue_type: 'medical',
     validation: normalized.validation,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
-  const paymentConfirmed = normalized.payment_confirmed === true;
+  const paymentConfirmed = patientData.payment_confirmed === true;
   const externalUpload = isExternalUploadMode() || isExternalUploadEnabled();
   const awaitingExternalUpload = normalized.validation?.awaiting_prescription_upload === true;
 
@@ -144,7 +170,10 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   if (!decision.eligible || normalized.eligibility_status === 'ineligible') {
     atendimentoStatus = STATUS.REJECTED;
-  } else if (awaitingExternalUpload && externalUpload) {
+  } else if (paymentConfirmed && awaitingExternalUpload && externalUpload) {
+    // awaitingExternalUpload agora só reflete prontidão clínica/documental
+    // (normalizador não decide pagamento); o pagamento confirmado pela
+    // sessão do WhatsApp (paymentConfirmed) é quem autoriza aqui.
     atendimentoStatus = STATUS.AWAITING_PRESCRIPTION_UPLOAD;
   } else if (paymentConfirmed && decision.eligible) {
     atendimentoStatus = STATUS.WAITING;
@@ -185,7 +214,18 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
       source: ORIGEM
     },
     prescription_upload_pending: atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD,
-    external_upload_mode: externalUpload
+    external_upload_mode: externalUpload,
+    ...(sessionPayment
+      ? {
+          payment_sync_source: 'whatsapp_session',
+          stripe_checkout_session_id: sessionPayment.checkout_session_id,
+          stripe_paid_at: sessionPayment.paid_at,
+          stripe_event_id: sessionPayment.stripe_event_id,
+          stripe_amount_cents: sessionPayment.amount_cents,
+          stripe_amount_label: sessionPayment.amount_label,
+          stripe_currency: sessionPayment.currency
+        }
+      : {})
   };
 
   const patient = await findOrCreatePatient({
@@ -203,7 +243,7 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     paciente_cpf: normalized.cpf,
     paciente_email: normalized.email,
     condicao: normalized.chronic_condition_label || normalized.chronic_condition || validation.triagem.doencas,
-    pagamento_status: normalized.pagamento_status,
+    pagamento_status: patientData.pagamento_status,
     status: atendimentoStatus,
     risco: decision.eligible ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,

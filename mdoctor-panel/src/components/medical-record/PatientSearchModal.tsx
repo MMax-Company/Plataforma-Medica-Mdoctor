@@ -5,6 +5,12 @@ import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { getApiBase } from '@/services/api';
 import { authHeaders } from '@/services/auth.service';
+import {
+  buildSearchQuery,
+  formatCpfInput,
+  validateCpfSearch,
+  validateNameBirthSearch,
+} from '@/lib/patient-search';
 
 type SearchResult = {
   id: string;
@@ -44,7 +50,6 @@ function formatDate(iso: string): string {
 
 function formatDob(v: string): string {
   if (!v) return '—';
-  // YYYY-MM-DD → DD/MM/YYYY
   const m = v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return `${m[3]}/${m[2]}/${m[1]}`;
   return v;
@@ -56,18 +61,8 @@ function maskCpf(v: string) {
   return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
 }
 
-function maskPhone(v: string) {
-  if (!v) return '—';
-  const d = v.replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return v;
-}
-
 const inputClass =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] text-slate-800 placeholder-slate-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200';
-
-const sectionClass = 'rounded-xl border border-slate-100 bg-slate-50 p-3';
 
 const btnSearch =
   'flex items-center gap-1.5 rounded-lg border border-blue-200 bg-[#1557FF] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 shrink-0';
@@ -85,8 +80,6 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
   const [mounted, setMounted] = useState(false);
 
   const [cpf, setCpf] = useState('');
-  const [atendimentoId, setAtendimentoId] = useState('');
-  const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [birthDate, setBirthDate] = useState('');
 
@@ -97,13 +90,17 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
 
   const cpfRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
     window.addEventListener('keydown', onKey);
     setTimeout(() => cpfRef.current?.focus(), 50);
     return () => {
@@ -114,14 +111,31 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
 
   if (!open || !mounted) return null;
 
-  async function doSearch(params: Record<string, string>) {
-    const nonEmpty = Object.fromEntries(Object.entries(params).filter(([, v]) => Boolean(v.trim())));
-    if (Object.keys(nonEmpty).length === 0) return;
-    const q = new URLSearchParams(nonEmpty);
-    setLoading(true);
+  async function doSearch(mode: 'cpf' | 'name') {
     setSearchError(null);
     setResults([]);
     setSearched(false);
+
+    if (mode === 'cpf') {
+      const cpfError = validateCpfSearch(cpf);
+      if (cpfError) {
+        setSearchError(cpfError);
+        return;
+      }
+    } else {
+      const nameError = validateNameBirthSearch(name, birthDate);
+      if (nameError) {
+        setSearchError(nameError);
+        return;
+      }
+    }
+
+    const q =
+      mode === 'cpf'
+        ? buildSearchQuery({ cpf })
+        : buildSearchQuery({ name, birthDate });
+
+    setLoading(true);
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/search?${q}`, { headers: authHeaders() });
       const data = await res.json();
@@ -141,204 +155,188 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
   }
 
   function clearAll() {
-    setAtendimentoId(''); setCpf(''); setPhone(''); setName(''); setBirthDate('');
-    setResults([]); setSearched(false); setSearchError(null);
+    setCpf('');
+    setName('');
+    setBirthDate('');
+    setResults([]);
+    setSearched(false);
+    setSearchError(null);
   }
+
+  const hasFilters = Boolean(cpf || name || birthDate);
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 backdrop-blur-[2px] sm:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div className="relative flex max-h-[88vh] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div className="relative flex h-[min(88vh,760px)] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <div>
-            <h2 className="text-[15px] font-black uppercase tracking-tight text-slate-900">Buscar Prontuário</h2>
-            <p className="mt-0.5 text-[10px] text-slate-400">Localize por ID do atendimento, CPF, telefone ou nome</p>
+        <div className="flex max-h-[25%] min-h-0 shrink-0 flex-col border-b border-slate-100">
+          <div className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <h2 className="text-[15px] font-black uppercase tracking-tight text-slate-900">Buscar Prontuário</h2>
+              <p className="mt-0.5 text-[10px] text-slate-400">Busque por CPF ou por nome + data de nascimento</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:bg-slate-100"
+              aria-label="Fechar busca"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 text-slate-400 hover:bg-slate-100"
-            aria-label="Fechar busca"
-          >
-            <X className="h-4 w-4" />
-          </button>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-5">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">CPF</p>
+                <div className="flex gap-2">
+                  <input
+                    ref={cpfRef}
+                    type="text"
+                    inputMode="numeric"
+                    className={inputClass}
+                    placeholder="000.000.000-00"
+                    value={cpf}
+                    maxLength={14}
+                    onChange={(e) => setCpf(formatCpfInput(e.target.value))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void doSearch('cpf');
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className={btnSearch}
+                    disabled={!cpf.trim() || loading}
+                    onClick={() => void doSearch('cpf')}
+                  >
+                    <Search className="h-3 w-3" />
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                  Nome + nascimento
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    className={inputClass}
+                    placeholder="Primeiro e segundo nome ou nome completo"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void doSearch('name');
+                    }}
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      className={`${inputClass} min-w-[130px] shrink-0`}
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void doSearch('name');
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className={btnSearch}
+                      disabled={!name.trim() || !birthDate || loading}
+                      onClick={() => void doSearch('name')}
+                    >
+                      <Search className="h-3 w-3" />
+                      Buscar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {(searched || hasFilters) && (
+              <div className="mt-2 flex justify-end">
+                <button type="button" className={btnClear} onClick={clearAll}>
+                  Limpar busca
+                </button>
+              </div>
+            )}
+
+            {searchError && !loading ? (
+              <div className="mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-[11px] text-red-700">
+                {searchError}
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {/* Search sections */}
-        <div className="shrink-0 space-y-2 overflow-y-auto px-5 py-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center text-[12px] text-slate-400">Buscando...</div>
+          ) : null}
 
-          {/* Atendimento ID */}
-          <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">1. Buscar por ID do atendimento</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className={inputClass}
-                placeholder="UUID completo do atendimento"
-                value={atendimentoId}
-                onChange={(e) => setAtendimentoId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && atendimentoId.trim()) void doSearch({ id: atendimentoId }); }}
-              />
-              <button type="button" className={btnSearch} disabled={!atendimentoId.trim() || loading} onClick={() => void doSearch({ id: atendimentoId })}>
-                <Search className="h-3 w-3" />
-                Buscar
-              </button>
-            </div>
-          </div>
-
-          {/* CPF */}
-          <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">2. Buscar por CPF</p>
-            <div className="flex gap-2">
-              <input
-                ref={cpfRef}
-                type="text"
-                inputMode="numeric"
-                className={inputClass}
-                placeholder="000.000.000-00"
-                value={cpf}
-                maxLength={14}
-                onChange={(e) => setCpf(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && cpf.trim()) void doSearch({ cpf }); }}
-              />
-              <button type="button" className={btnSearch} disabled={!cpf.trim() || loading} onClick={() => void doSearch({ cpf })}>
-                <Search className="h-3 w-3" />
-                Buscar
-              </button>
-            </div>
-          </div>
-
-          {/* Phone */}
-          <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">3. Buscar por Telefone / WhatsApp</p>
-            <div className="flex gap-2">
-              <input
-                type="tel"
-                className={inputClass}
-                placeholder="(11) 99999-9999 ou DDD + número"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && phone.trim()) void doSearch({ phone }); }}
-              />
-              <button type="button" className={btnSearch} disabled={!phone.trim() || loading} onClick={() => void doSearch({ phone })}>
-                <Search className="h-3 w-3" />
-                Buscar
-              </button>
-            </div>
-          </div>
-
-          {/* Name + DOB */}
-          <div className={sectionClass}>
-            <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">4. Buscar por Nome (nascimento opcional)</p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                className={inputClass}
-                placeholder="Nome completo do paciente"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void doSearch({ name, birth_date: birthDate }); }}
-              />
-              <input
-                type="date"
-                className={`${inputClass} w-40 shrink-0`}
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) void doSearch({ name, birth_date: birthDate }); }}
-              />
-              <button
-                type="button"
-                className={btnSearch}
-                disabled={!name.trim() || loading}
-                onClick={() => void doSearch({ name, birth_date: birthDate })}
-              >
-                <Search className="h-3 w-3" />
-                Buscar
-              </button>
-            </div>
-          </div>
-
-          {(searched || atendimentoId || cpf || phone || name || birthDate) && (
-            <div className="flex justify-end">
-              <button type="button" className={btnClear} onClick={clearAll}>Limpar busca</button>
-            </div>
-          )}
-        </div>
-
-        {/* Results */}
-        <div className="min-h-0 flex-1 overflow-y-auto border-t border-slate-100">
-          {loading && (
-            <div className="flex items-center justify-center py-10 text-[12px] text-slate-400">
-              Buscando...
-            </div>
-          )}
-
-          {searchError && !loading && (
-            <div className="px-5 py-4 text-[12px] text-red-700">
-              {searchError}
-            </div>
-          )}
-
-          {searched && !loading && !searchError && results.length === 0 && (
-            <div className="px-5 py-10 text-center text-[12px] text-slate-400">
+          {searched && !loading && !searchError && results.length === 0 ? (
+            <div className="flex flex-1 items-center justify-center px-5 py-10 text-center text-[12px] text-slate-400">
               Nenhum atendimento encontrado para os critérios informados.
             </div>
-          )}
+          ) : null}
 
-          {results.length > 0 && !loading && (
-            <table className="w-full border-collapse text-[11px]">
-              <thead className="sticky top-0 bg-slate-50">
-                <tr>
-                  {['Nome completo', 'CPF', 'Data de nasc.', 'Telefone', 'Último atend.', 'Status'].map((h) => (
-                    <th key={h} className="border-b border-slate-100 px-3 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => {
-                  const s = statusStyle(r.status);
-                  return (
-                    <tr
-                      key={r.id}
-                      className={`cursor-pointer transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
-                      onClick={() => handleSelect(r.id)}
-                      title="Clique para abrir o prontuário"
-                    >
-                      <td className="px-3 py-2.5 font-semibold text-slate-900">
-                        <span className="block">{r.paciente_nome || '—'}</span>
-                        <span className="block font-mono text-[8px] font-normal text-slate-400">{r.id}</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-600">{r.paciente_cpf ? maskCpf(r.paciente_cpf) : '—'}</td>
-                      <td className="px-3 py-2.5 text-slate-600">{formatDob(r.data_nascimento)}</td>
-                      <td className="px-3 py-2.5 text-slate-600">{maskPhone(r.paciente_telefone)}</td>
-                      <td className="px-3 py-2.5 text-slate-500">{formatDate(r.criado_em)}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${s.bg} ${s.text}`}>
-                          {s.label}
-                        </span>
-                      </td>
+          {results.length > 0 && !loading ? (
+            <>
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+                <table className="w-full min-w-[560px] border-collapse text-[11px]">
+                  <thead className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_#e2e8f0]">
+                    <tr>
+                      {['Nome', 'CPF', 'Nascimento', 'Atendimento', 'Status'].map((h) => (
+                        <th
+                          key={h}
+                          className="border-b border-slate-100 px-3 py-2 text-left text-[9px] font-bold uppercase tracking-wider text-slate-400"
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-
-          {results.length > 0 && (
-            <p className="px-5 py-2.5 text-[10px] text-slate-400">
-              {results.length} resultado{results.length !== 1 ? 's' : ''} — clique em um paciente para abrir o prontuário
-            </p>
-          )}
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => {
+                      const s = statusStyle(r.status);
+                      return (
+                        <tr
+                          key={r.id}
+                          className={`cursor-pointer transition-colors hover:bg-blue-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}
+                          onClick={() => handleSelect(r.id)}
+                          title="Clique para abrir o prontuário arquivado"
+                        >
+                          <td className="px-3 py-2.5 font-semibold text-slate-900">{r.paciente_nome || '—'}</td>
+                          <td className="px-3 py-2.5 text-slate-600">{r.paciente_cpf ? maskCpf(r.paciente_cpf) : '—'}</td>
+                          <td className="px-3 py-2.5 text-slate-600">{formatDob(r.data_nascimento)}</td>
+                          <td className="px-3 py-2.5 text-slate-500">{formatDate(r.criado_em)}</td>
+                          <td className="px-3 py-2.5">
+                            <span
+                              className={`inline-block rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${s.bg} ${s.text}`}
+                            >
+                              {s.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="shrink-0 border-t border-slate-100 px-4 py-2 text-[10px] text-slate-400 sm:px-5">
+                {results.length} resultado{results.length !== 1 ? 's' : ''} — clique para consultar o prontuário arquivado
+              </p>
+            </>
+          ) : null}
         </div>
-
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }

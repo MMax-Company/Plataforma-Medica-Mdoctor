@@ -10,6 +10,8 @@ const {
 
 const router = express.Router();
 
+// Checkout Stripe é hospedado (redirect), não Elements embutido — o CSP não
+// precisa mais liberar js.stripe.com/api.stripe.com nesta página.
 const PAYMENT_PAGE_CSP = [
   "default-src 'self'",
   "script-src 'self'",

@@ -1,7 +1,7 @@
-import { buildMemedItemsFromAtendimento } from './buildClinicalPrescriptionFromAtendimento';
+import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 import type { MemedPrescriptionItem } from './clinicalPrescription.types';
 import { sendAddItemWithDiagnostic } from './memedCommandDiagnostic';
-import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
+import { apiClient } from '@/services/api';
 
 export type AddMedicationsResult = {
   added: number;
@@ -10,10 +10,27 @@ export type AddMedicationsResult = {
   pending_reasons: string[];
 };
 
+type BackendMemedAddItem = {
+  nome: string;
+  posologia: string;
+  quantidade: number;
+  unidade: string;
+  frequencia: string;
+  duracao_dias: number;
+};
+
+type BackendMemedPayloadResponse = {
+  success: boolean;
+  payload?: {
+    addItems: BackendMemedAddItem[];
+  };
+  error?: string;
+  code?: string;
+};
+
 /**
- * Adiciona itens (addItem) a uma prescrição já existente.
- * NÃO chama newPrescription — responsabilidade do caller (prepareAndShowPrescription).
- * Chamar newPrescription aqui resetaria o contexto e apagaria o paciente já setado.
+ * Adiciona itens (addItem) a partir do payload oficial do backend (/api/memed/payload).
+ * Bloqueia payload vazio, divergente ou com unidade diferente de comprimidos.
  */
 export async function addMedicationsFromAtendimento(
   atendimento: AtendimentoForMemed,
@@ -22,14 +39,55 @@ export async function addMedicationsFromAtendimento(
     return { added: 0, memed_items_sent: [], pending_medical_review: false, pending_reasons: [] };
   }
 
-  const { memed_items, pending_medical_review, pending_reasons } = buildMemedItemsFromAtendimento(atendimento);
+  let memed_items: MemedPrescriptionItem[] = [];
+  const pending_reasons: string[] = [];
 
-  if (memed_items.length === 0) {
+  try {
+    const data = await apiClient.get<BackendMemedPayloadResponse>(`/api/memed/payload/${atendimento.id}`);
+    const items = data.payload?.addItems || [];
+    if (!data.success || !items.length) {
+      return {
+        added: 0,
+        memed_items_sent: [],
+        pending_medical_review: true,
+        pending_reasons: [data.error || 'Payload Memed vazio ou indisponível'],
+      };
+    }
+
+    for (const item of items) {
+      if (!item.nome || !item.posologia || !item.frequencia) {
+        pending_reasons.push('Item Memed incompleto (nome, posologia ou frequência ausente)');
+        continue;
+      }
+      if (item.unidade !== 'comprimidos') {
+        pending_reasons.push(`Unidade inválida: ${item.unidade || 'desconhecida'}`);
+        continue;
+      }
+      if (!Number.isFinite(item.quantidade) || item.quantidade < 1 || item.duracao_dias !== 60) {
+        pending_reasons.push(`Quantidade/duração divergente (${item.quantidade}/${item.duracao_dias})`);
+        continue;
+      }
+      memed_items.push({
+        nome: item.nome,
+        posologia: item.posologia,
+        quantidade: item.quantidade,
+      });
+    }
+  } catch (error) {
     return {
       added: 0,
       memed_items_sent: [],
-      pending_medical_review,
-      pending_reasons,
+      pending_medical_review: true,
+      pending_reasons: [error instanceof Error ? error.message : 'Falha ao carregar payload Memed'],
+    };
+  }
+
+  if (!memed_items.length) {
+    return {
+      added: 0,
+      memed_items_sent: [],
+      pending_medical_review: true,
+      pending_reasons: pending_reasons.length ? pending_reasons : ['Nenhum item Memed válido'],
     };
   }
 
@@ -37,27 +95,30 @@ export async function addMedicationsFromAtendimento(
   const memed_items_sent: MemedPrescriptionItem[] = [];
 
   for (const item of memed_items) {
+    // quantidade NUNCA é enviada ao addItem: para item de texto livre (sem id
+    // de catálogo), a Memed sempre renderiza "N embalagem(ns)" no PDF a
+    // partir desse campo — mesmo quantidade:1 aparece como "1 embalagem" em
+    // destaque. Validado em homologação (26/07): só nome+posologia faz essa
+    // linha desaparecer por completo. A quantidade real (comprimidos) já vai
+    // embutida em item.nome pelo backend (memed-payload.service.js).
     const payload: MemedPrescriptionItem = {
       nome: item.nome,
       posologia: item.posologia,
     };
-    if (typeof item.quantidade === 'number' && item.quantidade > 0) {
-      payload.quantidade = item.quantidade;
-    }
 
     try {
       await sendAddItemWithDiagnostic(payload as Record<string, unknown>);
       added += 1;
       memed_items_sent.push(payload);
     } catch {
-      // item pode exigir seleção manual no catálogo — não bloqueia abertura do widget
+      pending_reasons.push(`Falha ao adicionar item: ${item.nome}`);
     }
   }
 
   return {
     added,
     memed_items_sent,
-    pending_medical_review,
+    pending_medical_review: pending_reasons.length > 0,
     pending_reasons,
   };
 }

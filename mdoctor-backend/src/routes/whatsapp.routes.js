@@ -499,6 +499,13 @@ router.post('/webhook', async (req, res) => {
                         status: 'failed',
                         errorMessage: 'no_upload_session'
                       });
+                      await metaProvider.sendTextMessage({
+                        to: identity.phone,
+                        bsuid: identity.bsuid,
+                        correlationId: msg.id,
+                        idempotencyKey: `${msg.id}:no-upload-session`,
+                        text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
+                      }).catch(() => {});
                       continue;
                     }
 

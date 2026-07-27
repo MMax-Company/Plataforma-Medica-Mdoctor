@@ -9,6 +9,11 @@ const {
   mapTypebotWarningFlags,
   parseClinicalFlags
 } = require('./clinical-intelligence.service');
+const {
+  isInvalidClinicalValue,
+  sanitizeMedications,
+  normalizeStructuredAddress
+} = require('./typebot-clinical-data.validation');
 
 const INELIGIBLE_USER_MESSAGE =
   'Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação.';
@@ -29,6 +34,20 @@ function asBool(value) {
   if (['sim', 'true', '1', 'yes', 's'].includes(normalized)) return true;
   if (['nao', 'não', 'false', '0', 'no', 'n'].includes(normalized)) return false;
   return null;
+}
+
+// blk_receita_choice (Typebot) usa os values "available"/"none"/"send_later"
+// para "Sim, possuo"/"Não possuo"/"Enviar depois" — asBool() genérico não
+// reconhece esse vocabulário (só sim/não), então "available" nunca virava
+// true e o atendimento era reprovado por "has_previous_prescription" mesmo
+// quando o paciente respondia que possuía a receita. Reconhece "available"
+// especificamente para este campo, sem alterar o comportamento de
+// "none"/"send_later" (preservados como já eram).
+function asPreviousPrescriptionBool(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'available') return true;
+  if (normalized === 'none') return false;
+  return asBool(value);
 }
 
 function normalizeDigits(value = '', maxLength = null) {
@@ -166,21 +185,35 @@ function mapFrequency(text = '') {
 function mapRoute(text = '') {
   const t = String(text || '').toLowerCase();
   if (t.includes('subling')) return 'sublingual';
+  if (t.includes('subcut')) return 'subcutânea';
   if (t.includes('inal') || t.includes('spray')) return 'inalatória';
   if (t.includes('injet') || t.includes('sc') || t.includes('im')) return 'injetável';
   if (t.includes('topico') || t.includes('tópico') || t.includes('pomada')) return 'tópica';
   return 'oral';
 }
 
-function buildPosology({ dose, unit, frequency, route }) {
-  const doseLabel = dose ? `${dose}${unit || 'mg'}` : '';
-  const routeLabel = route === 'oral' ? 'por via oral' : `por via ${route}`;
-  if (frequency === '12/12h') return `Tomar 1 comprimido ${routeLabel} a cada 12 horas${doseLabel ? ` (${doseLabel})` : ''}.`;
-  if (frequency === '8/8h') return `Tomar 1 comprimido ${routeLabel} a cada 8 horas${doseLabel ? ` (${doseLabel})` : ''}.`;
-  if (frequency === '24h' || frequency === '1x pela manhã' || frequency === '1x à noite') {
-    return `Tomar 1 comprimido ${routeLabel} ${frequency.replace('24h', '1 vez ao dia')}${doseLabel ? ` (${doseLabel})` : ''}.`;
-  }
-  return `Tomar conforme prescrição anterior${doseLabel ? ` — ${doseLabel}` : ''}.`;
+// Palavra de dosagem na posologia: "comprimido" para vias orais/sublinguais
+// (a grande maioria dos casos — renovação de receita por via oral), mantendo
+// "unidade" só para injetável/subcutânea (ex.: insulina, onde "comprimido"
+// não faz sentido clínico). Achado em homologação real (26/07): a palavra
+// genérica "unidade" confundia a leitura da receita na farmácia.
+function dosageUnitWord(route = '') {
+  const r = String(route || '').toLowerCase();
+  return r.includes('subcut') || r.includes('injet') ? 'unidade' : 'comprimido';
+}
+
+// Posologia compatível com a Memed a partir das opções fechadas do chatbot
+// (1/2/3 vezes ao dia x via oral/sublingual/subcutânea). Nunca cai mais na
+// frase genérica "Tomar conforme prescrição anterior" — casos não mapeados
+// (ou legados) recebem a mesma redação de "uma vez ao dia".
+function buildPosology({ frequency, route }) {
+  const routeLabel = route === 'oral' || !route ? 'por via oral' : `por via ${route}`;
+  const unit = dosageUnitWord(route);
+  if (frequency === '12/12h') return `Tomar 1 ${unit} ${routeLabel}, a cada 12 horas.`;
+  if (frequency === '8/8h') return `Tomar 1 ${unit} ${routeLabel}, a cada 8 horas.`;
+  if (frequency === '1x à noite') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (à noite).`;
+  if (frequency === '1x pela manhã') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (pela manhã).`;
+  return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia.`;
 }
 
 function parseMedicationFreeText(text = '', overrides = {}) {
@@ -196,10 +229,17 @@ function parseMedicationFreeText(text = '', overrides = {}) {
   let frequency = overrides.frequency || '';
   let route = overrides.route || '';
 
-  const doseMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
+  const doseSource = dose || raw;
+  const doseMatch = String(doseSource).match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
   if (doseMatch) {
-    dose = String(overrides.dose || doseMatch[1] || '').replace(',', '.');
+    dose = String(doseMatch[1] || '').replace(',', '.');
     unit = (overrides.unit || doseMatch[2] || unit || 'mg').toLowerCase();
+  }
+
+  const rawDoseMatch = raw.match(/(\d+(?:[.,]\d+)?)\s*(mg|g|ml|mcg|ui|%)?/i);
+  if (!dose && rawDoseMatch) {
+    dose = String(rawDoseMatch[1] || '').replace(',', '.');
+    unit = (overrides.unit || rawDoseMatch[2] || unit || 'mg').toLowerCase();
   }
 
   if (!name) {
@@ -208,8 +248,12 @@ function parseMedicationFreeText(text = '', overrides = {}) {
   }
 
   name = capitalizeMedicationName(name);
-  frequency = frequency || mapFrequency(lower);
-  route = route || mapRoute(lower);
+  // Normaliza sempre (mesmo quando vem de override estruturado med{n}_frequencia/med{n}_via)
+  // — o texto bruto do botão do Typebot ("1x ao dia", "Via sublingual") precisa virar os
+  // códigos que buildPosology() reconhece ('12/12h', 'sublingual' etc.), senão a posologia
+  // nunca bate com a frequência/via realmente selecionada pelo paciente.
+  frequency = mapFrequency(frequency || lower);
+  route = mapRoute(route || lower);
 
   return {
     name,
@@ -217,19 +261,26 @@ function parseMedicationFreeText(text = '', overrides = {}) {
     unit: unit || 'mg',
     route,
     frequency,
-    posology: buildPosology({ dose, unit, frequency, route }),
+    posology: buildPosology({ frequency, route }),
     usage: 'contínuo',
     raw_text: raw || null,
     label: raw || `${name} ${dose || ''}${unit || ''}`.trim()
   };
 }
 
-function normalizeMedications(payload = {}, maxItems = 3) {
-  const count = Math.min(
-    maxItems,
-    Math.max(1, Number(pickFirst(payload.medication_count, payload.qtd_medicamentos) || 1))
+function medicationHasStructuredFields(item = {}) {
+  return Boolean(
+    item?.name ||
+      item?.dose ||
+      item?.frequency ||
+      item?.route ||
+      item?.label ||
+      item?.raw_text
   );
+}
 
+function normalizeMedicationBundle(payload = {}, maxItems = 3) {
+  const declaredCount = Number(pickFirst(payload.medication_count, payload.qtd_medicamentos) || 0) || null;
   const slots = [
     {
       text: pickFirst(payload.primeiro_medicamento, payload.medication_name, payload.medicamento),
@@ -260,29 +311,49 @@ function normalizeMedications(payload = {}, maxItems = 3) {
     }
   ];
 
+  let medications = [];
+
   if (Array.isArray(payload.medications) && payload.medications.length) {
-    return payload.medications.slice(0, maxItems).map((item, index) => {
-      const parsed =
-        parseMedicationFreeText(item.label || item.raw_text || item.name || '', {
-          name: item.name,
-          dose: item.dose,
-          unit: item.unit,
-          frequency: item.frequency,
-          route: item.route
-        }) || {};
-      return { index: index + 1, ...parsed, ...item, name: parsed.name || item.name };
-    });
+    medications = payload.medications
+      .slice(0, maxItems)
+      .filter(medicationHasStructuredFields)
+      .map((item) => {
+        const parsed =
+          parseMedicationFreeText(item.label || item.raw_text || item.name || '', {
+            name: item.name,
+            dose: item.dose,
+            unit: item.unit,
+            frequency: item.frequency,
+            route: item.route
+          }) || {};
+        return {
+          ...parsed,
+          ...item,
+          name: parsed.name || item.name,
+          dose: parsed.dose || item.dose,
+          frequency: parsed.frequency || item.frequency,
+          route: parsed.route || item.route
+        };
+      });
+  } else {
+    const slotLimit = declaredCount
+      ? Math.min(maxItems, Math.max(1, declaredCount))
+      : maxItems;
+    for (let i = 0; i < slotLimit; i += 1) {
+      const slot = slots[i];
+      if (!slot?.text && !slot?.overrides?.name) continue;
+      const parsed = parseMedicationFreeText(slot.text || '', slot.overrides);
+      if (parsed) medications.push(parsed);
+    }
   }
 
-  const medications = [];
-  for (let i = 0; i < count; i += 1) {
-    const slot = slots[i];
-    if (!slot?.text && !slot?.overrides?.name) continue;
-    const parsed = parseMedicationFreeText(slot.text || '', slot.overrides);
-    if (parsed) medications.push({ index: i + 1, ...parsed });
-  }
-
-  return medications;
+  const sanitized = sanitizeMedications(medications, declaredCount);
+  return {
+    medications: sanitized.medications,
+    medication_count: sanitized.medication_count,
+    declared_medication_count: declaredCount,
+    countMismatch: sanitized.countMismatch
+  };
 }
 
 function normalizeWarningSigns(payload = {}) {
@@ -318,11 +389,28 @@ function validateRequiredFields(normalized = {}, options = {}) {
   if (!normalized.whatsapp) missing.push('whatsapp');
   if (!normalized.email) missing.push('email');
   if (!normalized.address) missing.push('address');
+  if (!normalized.address_structured?.rua) missing.push('address.rua');
+  if (!normalized.address_structured?.numero) missing.push('address.numero');
+  if (!normalized.address_structured?.bairro) missing.push('address.bairro');
+  if (!normalized.address_structured?.cidade) missing.push('address.cidade');
+  if (!normalized.address_structured?.estado) missing.push('address.estado');
   if (!normalized.cep) missing.push('cep');
   if (!normalized.chronic_condition) missing.push('chronic_condition');
   if (!normalized.medications?.length) missing.push('medications');
+  if (normalized.medications?.some((med) => isInvalidClinicalValue(med.dose) || isInvalidClinicalValue(med.name))) {
+    missing.push('medications.invalid_values');
+  }
+  const declaredCount = Number(normalized.declared_medication_count || 0);
+  if (declaredCount > 0 && declaredCount !== normalized.medication_count) {
+    missing.push('medication_count.mismatch');
+  }
   if (normalized.has_previous_prescription !== true) missing.push('has_previous_prescription');
   if (!externalUpload && !normalized.previous_prescription_file) missing.push('previous_prescription_file');
+  if (normalized.lgpd_accepted !== true) missing.push('lgpd_accepted');
+  if (normalized.privacy_policy_accepted !== true) missing.push('privacy_policy_accepted');
+  if (normalized.telemedicine_consent_accepted !== true) missing.push('telemedicine_consent_accepted');
+  if (normalized.non_urgency_notice_accepted !== true) missing.push('non_urgency_notice_accepted');
+  if (normalized.terms_of_use_accepted !== true) missing.push('terms_of_use_accepted');
 
   if (missing.length) {
     return { ok: false, reason: `Dados obrigatórios incompletos: ${missing.join(', ')}`, missing };
@@ -339,10 +427,16 @@ function normalizeTypebotPayload(body = {}) {
   const cpf = normalizeCpf(pickFirst(original.cpf, original.cpf_paciente, body.cpf));
   const whatsapp = normalizeWhatsapp(pickFirst(original.whatsapp, original.telefone, body.from, body.telefone));
   const email = normalizeEmail(pickFirst(original.email, original.Email, body.email));
-  const address = pickFirst(original.address, original.Endereco, original.endereco, body.address);
-  const cep = normalizeCep(pickFirst(original.cep, original.CEP, body.cep));
+  const addressStructured = normalizeStructuredAddress({
+    ...original,
+    address: pickFirst(original.address, original.Endereco, original.endereco, body.address),
+    cep: pickFirst(original.cep, original.CEP, body.cep)
+  });
+  const address = addressStructured?.formatted || pickFirst(original.address, original.Endereco, original.endereco, body.address);
+  const cep = normalizeCep(pickFirst(original.cep, original.CEP, body.cep, addressStructured?.cep));
   const chronic = normalizeChronicCondition(pickFirst(original.chronic_condition, original.doenca_cronica, body.doenca_cronica));
-  const medications = normalizeMedications(original);
+  const medicationBundle = normalizeMedicationBundle(original);
+  const medications = medicationBundle.medications;
   const payment = normalizePaymentStatus(original);
   const usageDays = extractUsageDays({
     continuous_use_days: original.continuous_use_days,
@@ -351,8 +445,8 @@ function normalizeTypebotPayload(body = {}) {
   });
 
   const hasPreviousRx =
-    asBool(original.has_previous_prescription) ??
-    asBool(original.receita_anterior) ??
+    asPreviousPrescriptionBool(original.has_previous_prescription) ??
+    asPreviousPrescriptionBool(original.receita_anterior) ??
     hasPreviousPrescription({ has_previous_prescription: original.has_previous_prescription, receita_anterior: original.receita_anterior });
 
   const prescriptionFile = pickFirst(
@@ -375,10 +469,20 @@ function normalizeTypebotPayload(body = {}) {
     whatsapp,
     email,
     address,
+    address_structured: addressStructured
+      ? {
+          rua: addressStructured.rua,
+          numero: addressStructured.numero,
+          bairro: addressStructured.bairro,
+          cidade: addressStructured.cidade,
+          estado: addressStructured.estado
+        }
+      : null,
     cep,
     chronic_condition: chronic?.normalized || null,
     chronic_condition_label: chronic?.raw || null,
-    medication_count: medications.length,
+    medication_count: medicationBundle.medication_count,
+    declared_medication_count: medicationBundle.declared_medication_count,
     medications,
     medication_name: medications[0]?.name || null,
     medication_dose: medications[0]?.dose || null,
@@ -404,8 +508,14 @@ function normalizeTypebotPayload(body = {}) {
 
   const externalUpload = isExternalUploadMode();
   const requiredCheck = validateRequiredFields(base, { externalUpload });
+  // O normalizador não tem acesso à sessão do WhatsApp (fonte confiável do
+  // pagamento) — só ao payload bruto do Typebot, que nunca preenche a
+  // variável de pagamento nesta etapa. Por isso ele apenas normaliza
+  // "awaiting_prescription_upload" pela prontidão clínica/documental, sem
+  // decidir por pagamento; quem decide pagamento confirmado é
+  // triagem-webhook.service.js, usando resolveConfirmedPaymentFromSession().
   const awaitingExternalUpload =
-    externalUpload && hasPreviousRx === true && !prescriptionFile && requiredCheck.ok && payment.paid;
+    externalUpload && hasPreviousRx === true && !prescriptionFile && requiredCheck.ok;
   const clinicalFlags = [
     ...warnings.warning_flags,
     ...parseClinicalFlags([original.text, original.sinais_alerta].filter(Boolean).join(' ')),
@@ -418,7 +528,6 @@ function normalizeTypebotPayload(body = {}) {
 
   let validationReason = null;
   if (!requiredCheck.ok) validationReason = requiredCheck.reason;
-  else if (!payment.paid) validationReason = 'Pagamento não confirmado';
   else if (warnings.has_warning_signs) validationReason = 'Sinais de alerta relatados na triagem';
   else if (controlled) validationReason = 'Medicamento controlado ou fora do protocolo';
   else if (usageDays !== null && usageDays < 30) validationReason = 'Tempo de uso insuficiente para renovação remota';
@@ -462,6 +571,7 @@ function toPatientEvaluationShape(normalized = {}) {
     email: normalized.email,
     cpf: normalized.cpf,
     address: normalized.address,
+    address_structured: normalized.address_structured,
     cep: normalized.cep,
     birth_date: normalized.birth_date,
     data_nascimento: normalized.birth_date,
@@ -514,6 +624,7 @@ function buildCleanBackendPayload(normalized = {}, meta = {}) {
     whatsapp: normalized.whatsapp,
     email: normalized.email,
     address: normalized.address,
+    address_structured: normalized.address_structured,
     cep: normalized.cep,
     chronic_condition: normalized.chronic_condition,
     medication_count: normalized.medication_count,
@@ -579,6 +690,8 @@ module.exports = {
   isExternalUploadMode,
   isVisibleInMedicalPanel,
   parseMedicationFreeText,
+  normalizeMedicationBundle,
+  normalizeMedications: (payload, maxItems) => normalizeMedicationBundle(payload, maxItems).medications,
   normalizeBirthDate,
   normalizeCpf,
   normalizeWhatsapp,
