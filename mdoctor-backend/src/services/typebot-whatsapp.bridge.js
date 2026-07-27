@@ -186,129 +186,6 @@ function textInputPrompt(input = {}) {
   return String(labels.placeholder || labels.label || '').trim();
 }
 
-/**
- * Inputs múltiplos do Typebot oficial (fallback se a API não enviar options).
- * Doença Crônica (b156nm008xh7gb52n7w3egzn) NÃO entra aqui: desde 3a786ef
- * (24/07) esse bloco é um text input no Typebot publicado (pergunta com
- * opções numeradas no próprio texto, resposta livre "1, 3"), não um choice
- * input — forçá-lo neste fallback gera uma lista sem os itens reais
- * (Typebot não manda input.items para text input), travando o fluxo em
- * loop no botão Confirmo. Ver typebot-clinical-data.validation.js
- * (validateChronicConditions), que já trata esse input como texto livre.
- */
-const OFFICIAL_MULTI_CHOICE_INPUT_IDS = new Set([
-  's5VQGsVF4hQgziQsXVdwPDW' // Sinais de Alerta
-]);
-
-function isMultipleChoiceInput(input = {}) {
-  if (input?.options?.isMultipleChoice === true) return true;
-  return OFFICIAL_MULTI_CHOICE_INPUT_IDS.has(String(input?.id || '').trim());
-}
-
-function normalizeChoiceKey(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function mapChoiceItems(items = []) {
-  return (items || [])
-    .filter((item) => item?.content || item?.value || item?.id)
-    .map((item, index) => ({
-      id: String(item.id || item.content || item.value || `choice-${index + 1}`),
-      content: String(item.content || item.value || item.id || '').trim(),
-      value: String(item.value ?? item.content ?? item.id ?? '').trim()
-    }));
-}
-
-function findChoiceItem(items, rawText) {
-  const key = normalizeChoiceKey(rawText);
-  if (!key) return null;
-  return (items || []).find((item) => (
-    normalizeChoiceKey(item.content) === key
-    || normalizeChoiceKey(item.value) === key
-    || normalizeChoiceKey(item.id) === key
-  )) || null;
-}
-
-function isExclusiveNoneItem(item) {
-  if (!item) return false;
-  if (String(item.value || '').trim().toUpperCase() === 'NAO') return true;
-  return /^nenhum destes$/i.test(String(item.content || '').trim());
-}
-
-/**
- * Alterna seleção múltipla no WhatsApp.
- * "Nenhum destes" (NAO) é exclusivo e não coexiste com outros sinais.
- */
-function toggleMultiChoiceSelection(state, rawText) {
-  const items = mapChoiceItems(state?.items || []);
-  const matched = findChoiceItem(items, rawText);
-  if (!matched) {
-    return { ok: false, reason: 'not_found', state };
-  }
-
-  const selected = Array.isArray(state?.selected) ? [...state.selected] : [];
-  const already = selected.some((item) => item.id === matched.id || item.value === matched.value);
-  let nextSelected;
-
-  if (isExclusiveNoneItem(matched)) {
-    nextSelected = already ? [] : [{ id: matched.id, content: matched.content, value: matched.value }];
-  } else if (already) {
-    nextSelected = selected.filter((item) => item.id !== matched.id && item.value !== matched.value);
-  } else {
-    nextSelected = [
-      ...selected.filter((item) => !isExclusiveNoneItem(item)),
-      { id: matched.id, content: matched.content, value: matched.value }
-    ];
-  }
-
-  return {
-    ok: true,
-    state: {
-      ...state,
-      items,
-      selected: nextSelected,
-      buttonLabel: state?.buttonLabel || 'Confirmo'
-    }
-  };
-}
-
-/** Formato oficial do Typebot MultipleChoicesForm: values unidos por ", ". */
-function buildMultiChoiceSubmitText(selected = []) {
-  return (selected || [])
-    .map((item) => String(item.value || item.content || '').trim())
-    .filter(Boolean)
-    .join(', ');
-}
-
-function multiChoiceSummary(selected = []) {
-  if (!selected.length) return 'Nenhuma opção selecionada ainda.';
-  return `Selecionado: ${selected.map((item) => item.content || item.value).join(', ')}`;
-}
-
-function buildMultiChoiceOutputs(input = {}, selected = []) {
-  const items = mapChoiceItems(input.items || []);
-  const buttonLabel = String(input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo';
-  const choices = [
-    ...items.map((item) => ({
-      id: item.content || item.value || item.id,
-      title: String(item.content || item.value).slice(0, 24),
-      value: item.content || item.value
-    })),
-    {
-      id: buttonLabel,
-      title: buttonLabel.slice(0, 24),
-      value: buttonLabel
-    }
-  ];
-  const body = `${multiChoiceSummary(selected)}\n\nSelecione opções (pode mais de uma). Depois toque em ${buttonLabel}.`;
-  return [{
-    kind: 'list',
-    body: body.slice(0, 1024),
-    button: 'Ver opções',
-    choices: choices.slice(0, 10)
-  }];
-}
-
 function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
@@ -340,40 +217,36 @@ function convertTypebotResponse(response = {}) {
   // upstream (ex.: reprocessamento) já tiver deixado outro nos outputs, o
   // filtro abaixo garante que "Escolha uma opção:" seja enviado uma única vez.
   if (input.type === 'choice input' && items.length && !outputs.some((o) => o.kind === 'buttons' || o.kind === 'list')) {
-    if (isMultipleChoiceInput(input)) {
-      outputs.push(...buildMultiChoiceOutputs(input, []));
-    } else {
-      const choices = items.map((item, index) => {
-        const fullLabel = String(item.content || item.value);
-        // A Meta limita o título da linha de lista a 24 caracteres — quando o
-        // rótulo completo excede isso, a "description" (até 72 caracteres)
-        // carrega o texto integral abaixo do título truncado, sem alterar
-        // id/value usados no roteamento da resposta.
-        const truncated = fullLabel.slice(0, 24);
-        return {
-          id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-          title: truncated,
-          ...(fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
-          value: fullLabel
-        };
-      });
-      // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS: a
-      // pergunta chegava como mensagem de texto separada, seguida de uma
-      // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
-      // única mensagem de botões com a pergunta como corpo. Nenhum outro
-      // choice input do bot é afetado.
-      let body = 'Escolha uma opção:';
-      if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
-        const previous = outputs[outputs.length - 1];
-        if (previous?.kind === 'text') {
-          body = previous.text;
-          outputs.pop();
-        }
+    const choices = items.map((item, index) => {
+      const fullLabel = String(item.content || item.value);
+      // A Meta limita o título da linha de lista a 24 caracteres — quando o
+      // rótulo completo excede isso, a "description" (até 72 caracteres)
+      // carrega o texto integral abaixo do título truncado, sem alterar
+      // id/value usados no roteamento da resposta.
+      const truncated = fullLabel.slice(0, 24);
+      return {
+        id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
+        title: truncated,
+        ...(fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
+        value: fullLabel
+      };
+    });
+    // Correção restrita aos inputs listados em QUESTION_MERGE_INPUT_IDS: a
+    // pergunta chegava como mensagem de texto separada, seguida de uma
+    // segunda mensagem com corpo genérico "Escolha uma opção:" — vira uma
+    // única mensagem de botões com a pergunta como corpo. Nenhum outro
+    // choice input do bot é afetado.
+    let body = 'Escolha uma opção:';
+    if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
+      const previous = outputs[outputs.length - 1];
+      if (previous?.kind === 'text') {
+        body = previous.text;
+        outputs.pop();
       }
-      outputs.push(choices.length <= 3
-        ? { kind: 'buttons', body, choices }
-        : { kind: 'list', body, button: 'Ver opções', choices: choices.slice(0, 10) });
     }
+    outputs.push(choices.length <= 3
+      ? { kind: 'buttons', body, choices }
+      : { kind: 'list', body, button: 'Ver opções', choices: choices.slice(0, 10) });
   }
 
   const hasTextOutput = outputs.some((output) => output.kind === 'text');
@@ -496,22 +369,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
   const now = deps.now || (() => new Date());
-  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId, multiChoice }) => upsertSessionIdentity({
+  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId }) => upsertSessionIdentity({
     phone: identity?.phone,
     bsuid: identity?.bsuid,
     parentBsuid: identity?.parentBsuid,
     username: identity?.username,
-    metadataPatch: {
-      typebot_expected_input_id: inputId || null,
-      ...(multiChoice !== undefined ? { typebot_multi_choice: multiChoice || null } : {})
-    }
-  }));
-  const persistMultiChoice = deps.persistMultiChoice || (async ({ identity, multiChoice }) => upsertSessionIdentity({
-    phone: identity?.phone,
-    bsuid: identity?.bsuid,
-    parentBsuid: identity?.parentBsuid,
-    username: identity?.username,
-    metadataPatch: { typebot_multi_choice: multiChoice || null }
+    metadataPatch: { typebot_expected_input_id: inputId || null }
   }));
   const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
     if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
@@ -657,130 +520,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
         ? expectedInputs.get(identityKey)
         : currentSession?.metadata?.typebot_expected_input_id || null;
       let inboundText = String(text || '');
-      let multiChoiceState = menuBootstrap ? null : (currentSession?.metadata?.typebot_multi_choice || null);
-
-      // Múltipla escolha WhatsApp (mecanismo próprio da main): acumula opções
-      // localmente até "Confirmo"; só então chama o Typebot. Autocontido — só
-      // ativa quando typebot_multi_choice já foi setado por este mesmo
-      // mecanismo (buildMultiChoiceOutputs/isMultipleChoiceInput mais abaixo),
-      // não interfere na validação clínica homologada (validateTypebotInput).
-      if (
-        multiChoiceState
-        && expectedInputId
-        && multiChoiceState.inputId === expectedInputId
-        && !menuBootstrap
-      ) {
-        const confirmLabel = String(multiChoiceState.buttonLabel || 'Confirmo').trim();
-        if (normalizeChoiceKey(inboundText) === normalizeChoiceKey(confirmLabel)) {
-          if (!Array.isArray(multiChoiceState.selected) || multiChoiceState.selected.length === 0) {
-            const sent = await provider.sendTextMessage({
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi-empty`,
-              text: `Selecione ao menos uma opção antes de ${confirmLabel}.`
-            });
-            const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
-            const retryOutputs = buildMultiChoiceOutputs({
-              items: multiChoiceState.items,
-              options: { buttonLabel: confirmLabel, isMultipleChoice: true }
-            }, multiChoiceState.selected || []);
-            for (const output of retryOutputs) {
-              const common = {
-                to: identity.phone,
-                bsuid: identity.bsuid,
-                correlationId: messageId,
-                idempotencyKey: `${messageId}:multi-retry:${providerMessageIds.length}`
-              };
-              let sentChoice;
-              if (output.kind === 'list') {
-                sentChoice = await provider.sendListMessage({
-                  ...common,
-                  body: output.body,
-                  button: output.button,
-                  rows: output.choices
-                });
-              }
-              if (sentChoice?.providerMessageId) providerMessageIds.push(sentChoice.providerMessageId);
-            }
-            await finish({ messageId, status: 'processed', providerMessageIds });
-            return {
-              duplicate: false,
-              responsesSent: providerMessageIds.length,
-              sessionId: existingSessionId,
-              sessionIdReused: Boolean(existingSessionId),
-              multiChoicePending: true
-            };
-          }
-          inboundText = buildMultiChoiceSubmitText(multiChoiceState.selected);
-          multiChoiceState = null;
-          await persistMultiChoice({ identity, multiChoice: null });
-        } else {
-          const toggled = toggleMultiChoiceSelection(multiChoiceState, inboundText);
-          if (!toggled.ok) {
-            const sent = await provider.sendTextMessage({
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi-invalid`,
-              text: `Opção inválida. ${multiChoiceSummary(multiChoiceState.selected || [])}`
-            });
-            const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
-            await finish({ messageId, status: 'processed', providerMessageIds });
-            return {
-              duplicate: false,
-              responsesSent: providerMessageIds.length,
-              sessionId: existingSessionId,
-              sessionIdReused: Boolean(existingSessionId),
-              multiChoicePending: true
-            };
-          }
-          multiChoiceState = toggled.state;
-          await persistMultiChoice({ identity, multiChoice: multiChoiceState });
-          const providerMessageIds = [];
-          const summarySent = await provider.sendTextMessage({
-            to: identity.phone,
-            bsuid: identity.bsuid,
-            correlationId: messageId,
-            idempotencyKey: `${messageId}:multi-summary`,
-            text: multiChoiceSummary(multiChoiceState.selected)
-          });
-          if (summarySent?.providerMessageId) providerMessageIds.push(summarySent.providerMessageId);
-          const outputs = buildMultiChoiceOutputs({
-            items: multiChoiceState.items,
-            options: { buttonLabel: multiChoiceState.buttonLabel || 'Confirmo', isMultipleChoice: true }
-          }, multiChoiceState.selected);
-          for (const output of outputs) {
-            const common = {
-              to: identity.phone,
-              bsuid: identity.bsuid,
-              correlationId: messageId,
-              idempotencyKey: `${messageId}:multi:${providerMessageIds.length}`
-            };
-            let sent;
-            if (output.kind === 'list') {
-              sent = await provider.sendListMessage({
-                ...common,
-                body: output.body,
-                button: output.button,
-                rows: output.choices
-              });
-            } else {
-              sent = await provider.sendTextMessage({ ...common, text: output.text });
-            }
-            if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
-          }
-          await finish({ messageId, status: 'processed', providerMessageIds });
-          return {
-            duplicate: false,
-            responsesSent: providerMessageIds.length,
-            sessionId: existingSessionId,
-            sessionIdReused: Boolean(existingSessionId),
-            multiChoicePending: true,
-            multiChoiceSelected: multiChoiceState.selected.map((item) => item.value)
-          };
-        }
-      }
 
       const uploadContextBeforeChat = uploadContextFromSession(
         currentSession,
@@ -942,20 +681,10 @@ function createTypebotWhatsAppBridge(deps = {}) {
       if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
       const nextInputId = typebot.input?.id || null;
       expectedInputs.set(identityKey, nextInputId);
-      let nextMultiChoice = null;
-      if (typebot.input && isMultipleChoiceInput(typebot.input)) {
-        nextMultiChoice = {
-          inputId: typebot.input.id,
-          items: mapChoiceItems(typebot.input.items || []),
-          selected: [],
-          buttonLabel: String(typebot.input.options?.buttonLabel || 'Confirmo').trim() || 'Confirmo'
-        };
-      }
       await persistExpectedInput({
         identity,
         whatsappSession: currentSession,
-        inputId: nextInputId,
-        multiChoice: nextMultiChoice
+        inputId: nextInputId
       });
       // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
       logger.info('typebot_bridge_response_diagnostic', {
@@ -986,12 +715,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const linkAlreadySent = Boolean(uploadMeta.link_sent_at);
 
       let outputs = convertTypebotResponse(typebot);
-      if (nextMultiChoice) {
-        outputs = [
-          ...outputs.filter((output) => output.kind === 'text'),
-          ...buildMultiChoiceOutputs(typebot.input, nextMultiChoice.selected)
-        ];
-      }
       // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
       logger.info('typebot_bridge_outputs_generated_diagnostic', {
         messageId,
@@ -1180,14 +903,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
 }
 
 module.exports = {
-  buildMultiChoiceSubmitText,
   callWithRetry,
   convertTypebotResponse,
   createTypebotWhatsAppBridge,
   describeError,
   fetchTypebot,
-  isMultipleChoiceInput,
   isRetryableTypebotError,
-  textInputPrompt,
-  toggleMultiChoiceSelection
+  textInputPrompt
 };

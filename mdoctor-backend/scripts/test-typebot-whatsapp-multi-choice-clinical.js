@@ -2,11 +2,8 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const {
-  buildMultiChoiceSubmitText,
   convertTypebotResponse,
-  createTypebotWhatsAppBridge,
-  isMultipleChoiceInput,
-  toggleMultiChoiceSelection
+  createTypebotWhatsAppBridge
 } = require('../src/services/typebot-whatsapp.bridge');
 
 // Doença Crônica (b156nm008xh7gb52n7w3egzn) NÃO usa mais lista+Confirmo desde
@@ -18,14 +15,25 @@ const DISEASE_TEXT_INPUT = {
   type: 'text input'
 };
 
+// Sinais de Alerta (s5VQGsVF4hQgziQsXVdwPDW): confirmado via API do Typebot
+// publicado que o campo isMultipleChoice:true não tem contrapartida real de
+// seleção múltipla no WhatsApp (nem nunca teve no fluxo homologado, commit
+// 21b5463) — o mecanismo de lista+Confirmo/acumulação (removido nesta
+// restauração) era uma adição própria da main, não validada, e causava loop.
+// Comportamento homologado: escolha única e imediata, igual a qualquer outro
+// choice input do bot (ex.: LGPD, Telemedicina) — a linha selecionada já
+// envia a resposta ao Typebot, sem etapa de confirmação.
 const SINAIS_INPUT = {
   id: 's5VQGsVF4hQgziQsXVdwPDW',
   type: 'choice input',
-  options: { isMultipleChoice: true, buttonLabel: 'Confirmo', variableId: 'he7ry4ccuhoyy3k2p11ryeuc' },
+  options: { isMultipleChoice: true, variableId: 'he7ry4ccuhoyy3k2p11ryeuc' },
   items: [
     { id: 'it_og22qc8c', content: 'Dor no peito', value: 'dor_peito' },
     { id: 'it_wbbj4nvy', content: 'Falta de ar', value: 'falta_ar' },
-    { id: 'it_l4dxjewc', content: 'Nenhum destes', value: 'NAO' }
+    { id: 'it_mnd00o3r', content: 'Desmaio', value: 'desmaio' },
+    { id: 'it_im14r5sw', content: 'Febre alta persistente', value: 'febre' },
+    { id: 'it_dbk5a6g7', content: 'Sangramento', value: 'sangramento' },
+    { id: 'it_l4dxjewc', content: 'Nenhum sinal/sintoma', value: 'NAO' }
   ]
 };
 
@@ -61,8 +69,6 @@ async function assertChronicConditionsFreeText() {
   // input.items para text input), travando o fluxo em loop. Homologado:
   // pergunta com opções numeradas no texto, resposta livre convertida em
   // códigos por validateChronicConditions.
-  assert.equal(isMultipleChoiceInput(DISEASE_TEXT_INPUT), false);
-
   const outputs = convertTypebotResponse({
     messages: [{ type: 'text', content: { plainText: 'Olá, você faz tratamento para:\n1. Hipertensão Arterial\n2. Diabetes Melitus\n3. Dislipidemia\n4. Hipotireidismo\n\nDigite os números correspondentes separados por vírgula (ex.: 1, 3). Pode escolher mais de uma opção.' } }],
     input: DISEASE_TEXT_INPUT
@@ -78,13 +84,9 @@ async function assertChronicConditionsFreeText() {
       reloadSession: async ({ whatsappSession }) => ({
         ...whatsappSession,
         typebot_session_id: 'sess-disease',
-        metadata: {
-          typebot_expected_input_id: DISEASE_TEXT_INPUT.id,
-          typebot_multi_choice: null
-        }
+        metadata: { typebot_expected_input_id: DISEASE_TEXT_INPUT.id }
       }),
       persistExpectedInput: async () => {},
-      persistMultiChoice: async () => {},
       createIntegrationError: async () => {},
       findPendingUploadContext: async () => null,
       findUploadContextForPhone: async () => null,
@@ -141,142 +143,93 @@ async function assertChronicConditionsFreeText() {
 }
 
 async function assertBridgeSinaisBranches() {
-  let state = {
-    inputId: SINAIS_INPUT.id,
-    items: SINAIS_INPUT.items,
-    selected: [],
-    buttonLabel: 'Confirmo'
-  };
-  state = toggleMultiChoiceSelection(state, 'Nenhum destes').state;
-  assert.deepEqual(state.selected.map((s) => s.value), ['NAO']);
-  assert.equal(buildMultiChoiceSubmitText(state.selected), 'NAO');
-
-  // exclusivity: signal clears NAO
-  state = toggleMultiChoiceSelection(state, 'Dor no peito').state;
-  assert.deepEqual(state.selected.map((s) => s.value), ['dor_peito']);
-  // exclusivity: NAO clears signals
-  state = toggleMultiChoiceSelection(state, 'Nenhum destes').state;
-  assert.deepEqual(state.selected.map((s) => s.value), ['NAO']);
-  state = toggleMultiChoiceSelection(state, 'Falta de ar').state;
-  assert.ok(!state.selected.some((s) => s.value === 'NAO'));
-  assert.deepEqual(state.selected.map((s) => s.value), ['falta_ar']);
-
-  const typebotCalls = [];
-  let multiMeta = {
-    inputId: SINAIS_INPUT.id,
-    items: SINAIS_INPUT.items,
-    selected: [{ id: 'it_l4dxjewc', content: 'Nenhum destes', value: 'NAO' }],
-    buttonLabel: 'Confirmo'
-  };
-  const bridgeNone = createTypebotWhatsAppBridge({
-    claimMetaMessage: async () => ({ claimed: true }),
-    finishMetaMessage: async () => {},
-    setTypebotSessionId: async () => {},
-    reloadSession: async ({ whatsappSession }) => ({
-      ...whatsappSession,
-      typebot_session_id: 'sess-sinais',
-      metadata: {
-        typebot_expected_input_id: SINAIS_INPUT.id,
-        typebot_multi_choice: multiMeta
-      }
-    }),
-    persistExpectedInput: async () => {},
-    persistMultiChoice: async ({ multiChoice }) => { multiMeta = multiChoice; },
-    createIntegrationError: async () => {},
-    findPendingUploadContext: async () => null,
-    findUploadContextForPhone: async () => null,
-    persistUploadContext: async () => {},
-    uploadContextFromSession: () => null,
-    augmentOutputsWithUploadLink: (o) => o,
-    responseLooksLikeUploadStage: () => false,
-    isUploadChoiceInput: () => false,
-    callTypebot: async (path, body) => {
-      typebotCalls.push(body.message.text);
-      // Simula condição NAO → telemedicina
-      if (body.message.text === 'NAO') {
-        return {
-          messages: [{ type: 'text', content: { plainText: 'Este atendimento é realizado por teleconsulta...' } }],
-          input: {
-            id: 'blk_tele_choice',
-            type: 'choice input',
-            items: [
-              { content: 'Estou ciente e desejo continuar', value: 'sim' },
-              { content: 'Não desejo continuar', value: 'nao' }
-            ]
-          }
-        };
-      }
-      return {
-        messages: [{ type: 'text', content: { plainText: 'Pelas informações fornecidas, não será possível seguir...' } }]
-      };
-    },
-    provider: {
-      sendTextMessage: async () => ({ providerMessageId: 't1' }),
-      sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
-      sendListMessage: async () => ({ providerMessageId: 'l1' })
-    }
+  // convertTypebotResponse deve gerar uma lista de seleção única (6 itens > 3
+  // vira "list", nunca "buttons"), sem nenhuma etapa de Confirmo/acumulação.
+  const outputs = convertTypebotResponse({
+    messages: [{ type: 'text', content: { plainText: 'Você sente algum destes sinais?' } }],
+    input: SINAIS_INPUT
   });
+  const list = outputs.find((o) => o.kind === 'list');
+  assert.ok(list, 'esperava um output kind=list');
+  assert.ok(!list.choices.some((c) => c.title === 'Confirmo' || c.value === 'Confirmo'));
+  assert.deepEqual(list.choices.map((c) => c.title), [
+    'Dor no peito', 'Falta de ar', 'Desmaio', 'Febre alta persistente', 'Sangramento', 'Nenhum sinal/sintoma'
+  ]);
+
+  function makeBridge(typebotCalls, callTypebotImpl) {
+    return createTypebotWhatsAppBridge({
+      claimMetaMessage: async () => ({ claimed: true }),
+      finishMetaMessage: async () => {},
+      setTypebotSessionId: async () => {},
+      reloadSession: async ({ whatsappSession }) => ({
+        ...whatsappSession,
+        typebot_session_id: 'sess-sinais',
+        metadata: { typebot_expected_input_id: SINAIS_INPUT.id }
+      }),
+      persistExpectedInput: async () => {},
+      createIntegrationError: async () => {},
+      findPendingUploadContext: async () => null,
+      findUploadContextForPhone: async () => null,
+      persistUploadContext: async () => {},
+      uploadContextFromSession: () => null,
+      augmentOutputsWithUploadLink: (o) => o,
+      responseLooksLikeUploadStage: () => false,
+      isUploadChoiceInput: () => false,
+      callTypebot: async (path, body) => {
+        typebotCalls.push(body.message.text);
+        return callTypebotImpl(body.message.text);
+      },
+      provider: {
+        sendTextMessage: async () => ({ providerMessageId: 't1' }),
+        sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
+        sendListMessage: async () => ({ providerMessageId: 'l1' })
+      }
+    });
+  }
 
   process.env.TYPEBOT_PUBLIC_ID = 'doctor-prescreve-8rmljgu';
   process.env.TYPEBOT_VIEWER_URL = 'https://typebot.io';
 
-  const noneResult = await bridgeNone({
-    messageId: 'sinais-nao',
-    text: 'Confirmo',
+  // Escolha única e imediata: o texto do list_reply (título/conteúdo do item,
+  // ex.: "Nenhum sinal/sintoma") já vai direto ao Typebot no mesmo turno —
+  // sem esperar um "Confirmo" separado.
+  const noneCalls = [];
+  const noneResult = await makeBridge(noneCalls, (text) => {
+    if (text === 'Nenhum sinal/sintoma') {
+      return {
+        messages: [{ type: 'text', content: { plainText: 'Este atendimento é realizado por teleconsulta...' } }],
+        input: {
+          id: 'blk_tele_choice',
+          type: 'choice input',
+          items: [
+            { content: 'Estou ciente e desejo continuar', value: 'sim' },
+            { content: 'Não desejo continuar', value: 'nao' }
+          ]
+        }
+      };
+    }
+    return { messages: [{ type: 'text', content: { plainText: 'inesperado' } }] };
+  })({
+    messageId: 'sinais-nenhum',
+    text: 'Nenhum sinal/sintoma',
     identity: { phone: '5511999990002', bsuid: null },
     whatsappSession: { id: 'wa-2', typebot_session_id: 'sess-sinais' }
   });
-  assert.equal(typebotCalls[0], 'NAO');
+  assert.equal(noneCalls.length, 1);
+  assert.equal(noneCalls[0], 'Nenhum sinal/sintoma');
   assert.equal(noneResult.responsesSent >= 1, true);
 
-  typebotCalls.length = 0;
-  multiMeta = {
-    inputId: SINAIS_INPUT.id,
-    items: SINAIS_INPUT.items,
-    selected: [{ id: 'it_og22qc8c', content: 'Dor no peito', value: 'dor_peito' }],
-    buttonLabel: 'Confirmo'
-  };
-  const bridgeAlert = createTypebotWhatsAppBridge({
-    claimMetaMessage: async () => ({ claimed: true }),
-    finishMetaMessage: async () => {},
-    setTypebotSessionId: async () => {},
-    reloadSession: async ({ whatsappSession }) => ({
-      ...whatsappSession,
-      typebot_session_id: 'sess-sinais-2',
-      metadata: {
-        typebot_expected_input_id: SINAIS_INPUT.id,
-        typebot_multi_choice: multiMeta
-      }
-    }),
-    persistExpectedInput: async () => {},
-    persistMultiChoice: async ({ multiChoice }) => { multiMeta = multiChoice; },
-    createIntegrationError: async () => {},
-    findPendingUploadContext: async () => null,
-    findUploadContextForPhone: async () => null,
-    persistUploadContext: async () => {},
-    uploadContextFromSession: () => null,
-    augmentOutputsWithUploadLink: (o) => o,
-    responseLooksLikeUploadStage: () => false,
-    isUploadChoiceInput: () => false,
-    callTypebot: async (path, body) => {
-      typebotCalls.push(body.message.text);
-      return {
-        messages: [{ type: 'text', content: { plainText: 'Pelas informações fornecidas, não será possível seguir...' } }]
-      };
-    },
-    provider: {
-      sendTextMessage: async () => ({ providerMessageId: 't1' }),
-      sendButtonMessage: async () => ({ providerMessageId: 'b1' }),
-      sendListMessage: async () => ({ providerMessageId: 'l1' })
-    }
-  });
-  const alertResult = await bridgeAlert({
+  const alertCalls = [];
+  const alertResult = await makeBridge(alertCalls, () => ({
+    messages: [{ type: 'text', content: { plainText: 'Pelas informações fornecidas, não será possível seguir...' } }]
+  }))({
     messageId: 'sinais-alerta',
-    text: 'Confirmo',
+    text: 'Dor no peito',
     identity: { phone: '5511999990003', bsuid: null },
     whatsappSession: { id: 'wa-3', typebot_session_id: 'sess-sinais-2' }
   });
-  assert.equal(typebotCalls[0], 'dor_peito');
+  assert.equal(alertCalls.length, 1);
+  assert.equal(alertCalls[0], 'Dor no peito');
   assert.equal(alertResult.responsesSent >= 1, true);
 }
 
@@ -289,9 +242,8 @@ async function main() {
     welcomeUntouched: true,
     chronicConditionsIsFreeText: true,
     chronicConditionsSubmit: 'has,dlp',
-    nenhumDestesSubmitsNAO: true,
-    signalSubmitsValue: true,
-    nenhumExclusive: true
+    sinaisIsSingleSelectList: true,
+    sinaisSelectionSubmitsImmediately: true
   }, null, 2));
 }
 

@@ -29,14 +29,13 @@ const {
   createWhatsAppSupportEntry
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
-const {
-  upsertSessionIdentity,
-  setTypebotSessionId,
-  clearTransientClinicalSessionMetadata
-} = require('../store/whatsapp-sessions.store');
+const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
-const { routeMetaWhatsAppInbound } = require('../services/whatsapp-meta-inbound.service');
+// NOTA (restauração homologada, ver commit 21b5463): whatsapp-meta-inbound.service.js
+// deixou de ser chamado aqui — no fluxo homologado, toda mensagem de texto do Meta vai
+// direto para a bridge, que já roteia via resolveMetaInboundRouting (whatsapp-support.service.js).
+// Arquivo mantido intocado (não removido) até validação manual completa do fluxo.
 const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
 const {
   findPendingUploadContext,
@@ -565,66 +564,17 @@ router.post('/webhook', async (req, res) => {
                     }
                   }
 
-                  const inboundRoute = await routeMetaWhatsAppInbound({
-                    phone: identity.phone,
-                    text,
-                    whatsappSession,
-                    messageId: msg.id
-                  });
-
-                  if (inboundRoute.clearClinicalMetadata) {
-                    const cleared = await clearTransientClinicalSessionMetadata({ whatsappSession });
-                    if (cleared) {
-                      whatsappSession = cleared;
-                    }
-                  } else if (inboundRoute.clearTypebotSession) {
-                    await setTypebotSessionId({
-                      sessionId: whatsappSession.id,
-                      typebotSessionId: null
-                    });
-                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
-                  }
-
-                  if (inboundRoute.action === 'reply') {
-                    const claimed = await claimMetaMessage({
-                      messageId: msg.id,
-                      whatsappSessionId: whatsappSession.id
-                    });
-                    if (!claimed.claimed) continue;
-
-                    const sent = await metaProvider.sendTextMessage({
-                      to: identity.phone,
-                      bsuid: identity.bsuid,
-                      correlationId: msg.id,
-                      idempotencyKey: `${msg.id}:menu`,
-                      text: inboundRoute.reply
-                    });
-                    await finishMetaMessage({
-                      messageId: msg.id,
-                      status: 'processed',
-                      providerMessageIds: sent?.providerMessageId ? [sent.providerMessageId] : []
-                    });
-                    logger.info('WhatsApp business menu reply sent', {
-                      from: maskedFrom,
-                      messageId: msg.id
-                    });
-                    continue;
-                  }
-
-                  if (inboundRoute.action === 'typebot_bootstrap') {
-                    await setTypebotSessionId({
-                      sessionId: whatsappSession.id,
-                      typebotSessionId: null
-                    });
-                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
-                  }
-
+                  // Restaurado ao comportamento homologado (commit 21b5463): a bridge já
+                  // roteia via resolveMetaInboundRouting (whatsapp-support.service.js),
+                  // que trata saudação/menu/suporte/fluxo ativo. O gate extra de
+                  // whatsapp-meta-inbound.service.js divergiu desse texto/lógica e
+                  // causava as regressões de saudação e loop de lista — removido daqui,
+                  // sem apagar o arquivo/serviço (ver nota no topo do módulo).
                   const result = await handleTypebotWhatsAppInbound({
                     messageId: msg.id,
-                    text: inboundRoute.text ?? text,
+                    text,
                     identity,
-                    whatsappSession,
-                    menuBootstrap: inboundRoute.action === 'typebot_bootstrap'
+                    whatsappSession
                   });
                   logger.info('WhatsApp business message processed', {
                     from: maskedFrom,
