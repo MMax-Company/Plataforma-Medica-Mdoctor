@@ -7,15 +7,13 @@ import {
   addAdminNote,
   fetchAdminAtendimento,
   forwardToDoctor,
-  medicoResponsavel,
   resendPaymentLink,
   resendTypebotLink,
   resolveAdminNote,
   type AdminAtendimento,
   type AdminNote,
 } from '@/services/admin.service';
-import { Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
-import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
+import { AppShell, Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
 
 function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
   const status = String(atendimento.status || '').trim().toLowerCase();
@@ -225,7 +223,6 @@ export default function AdminPacientePage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
-
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardMotivo, setForwardMotivo] = useState('');
   const [forwardLoading, setForwardLoading] = useState(false);
@@ -367,18 +364,22 @@ export default function AdminPacientePage() {
   const notes: AdminNote[] = a?.dados_clinicos?.observacoes_admin || [];
   const journey = a ? deriveJourney(a) : [];
 
-  return (
-    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
-      <MedicalPanelHeader
-        operational
-        title={a?.paciente_nome || 'Paciente'}
-        titleAlign="left"
-        subtitle="Jornada do atendimento"
-        recordButtonLabel="← Pacientes"
-        onOpenMedicalRecord={() => router.push('/admin/pacientes')}
-        onLogout={handleLogout}
-      />
+  const navLinks = (
+    <a
+      href="/admin/pacientes"
+      className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
+    >
+      ← Pacientes
+    </a>
+  );
 
+  return (
+    <AppShell
+      title={a?.paciente_nome || 'Paciente'}
+      subtitle="Jornada do atendimento"
+      actions={navLinks}
+      onLogout={handleLogout}
+    >
       {toast && (
         <div className="fixed right-5 top-20 z-50 rounded-[14px] border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-[#0BA84F] shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
           {toast}
@@ -455,7 +456,7 @@ export default function AdminPacientePage() {
                   />
                   <FieldRow label="Entrada" value={fmt(a.criado_em)} />
                   <FieldRow label="Última atualização" value={fmt(a.atualizado_em)} />
-                  {medicoResponsavel(a) && <FieldRow label="Médico responsável" value={medicoResponsavel(a)!} />}
+                  {a.medico_id && <FieldRow label="Médico responsável" value={a.medico_id} />}
                 </dl>
               </Card>
             </div>
@@ -491,12 +492,12 @@ export default function AdminPacientePage() {
                       </div>
                       <div className="mt-2 max-w-[90px] text-center">
                         <p
-                          className={`text-[12.5px] font-bold leading-tight ${stepLabelColor(step.state)}`}
+                          className={`text-[11px] font-bold leading-tight ${stepLabelColor(step.state)}`}
                         >
                           {step.label}
                         </p>
                         {step.detail && (
-                          <p className="mt-0.5 text-[11px] leading-tight text-[#94A3B8]">
+                          <p className="mt-0.5 text-[10px] leading-tight text-[#94A3B8]">
                             {step.detail}
                           </p>
                         )}
@@ -549,16 +550,16 @@ export default function AdminPacientePage() {
                     href={`https://wa.me/${a.paciente_telefone.replace(/\D/g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-[#25D366] bg-[#25D366] px-3.5 text-panel-sm font-bold text-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#1ebe5b]"
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5EAF2] bg-white px-3.5 text-sm font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:bg-[#F8FAFC]"
                   >
-                    WhatsApp
+                    <span className="text-[#25D366]">WhatsApp</span> direto
                   </a>
                 )}
                 {canForwardToMedicalSupport(a) &&
                   (a.dados_clinicos?.queue_type === 'medical_support' ? (
                     <StatusPill tone="gold">Aguardando resposta médica</StatusPill>
                   ) : (
-                    <Button onClick={() => setForwardOpen((v) => !v)} tone="primary">
+                    <Button onClick={() => setForwardOpen((value) => !value)} tone="primary">
                       🩺 Encaminhar ao Médico
                     </Button>
                   ))}
@@ -571,8 +572,8 @@ export default function AdminPacientePage() {
                   </p>
                   <textarea
                     value={forwardMotivo}
-                    onChange={(e) => setForwardMotivo(e.target.value)}
-                    placeholder="Ex.: paciente relata dúvida sobre a posologia da receita emitida..."
+                    onChange={(event) => setForwardMotivo(event.target.value)}
+                    placeholder="Ex.: paciente relata dúvida sobre a orientação da receita entregue..."
                     rows={2}
                     className="w-full resize-none rounded-[10px] border border-[#E5EAF2] bg-white px-3 py-2 text-sm text-[#1E1E1E] outline-none transition focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF] placeholder:text-[#94A3B8]"
                   />
@@ -668,6 +669,6 @@ export default function AdminPacientePage() {
           </>
         )}
       </div>
-    </main>
+    </AppShell>
   );
 }
