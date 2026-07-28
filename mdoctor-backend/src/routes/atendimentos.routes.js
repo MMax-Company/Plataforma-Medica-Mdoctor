@@ -32,7 +32,7 @@ const {
 const { buildClinicalNarrative, PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
 const { approveAtendimento, rejectAtendimento } = require('../services/clinical-decision.service');
 const { listRejectReasons } = require('../constants/clinical-reject-reasons');
-const { isMedicalQueue, isSupportQueue } = require('../constants/whatsapp-queue');
+const { isMedicalQueue, isSupportQueue, isMedicalSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
 const {
@@ -147,6 +147,126 @@ router.post('/:id/support/finalize', requireAuth, async (req, res) => {
     return res.json({ success: true, messageText: result.messageText });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── Suporte Médico: fila de encaminhamento (admin → médico) ────────────────
+// Diferente de /support/*, que é Suporte Geral (WhatsApp, sem revisão clínica).
+// Aqui o atendimento já é um caso clínico real, temporariamente marcado com
+// dados_clinicos.queue_type='medical_support' por admin.routes.js
+// (forward-to-doctor). requireRole('admin','doctor') porque é decisão médica,
+// no mesmo padrão de /clinical/approve|reject|validate.
+
+router.get('/medical-support-queue', requireAuth, requireRole('admin', 'doctor'), async (_req, res) => {
+  const atendimentos = (await listAtendimentos()).filter((item) => isMedicalSupportQueue(item));
+  res.json({ success: true, atendimentos, total: atendimentos.length });
+});
+
+router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
+  try {
+    const resposta = String(req.body?.resposta || '').trim();
+    if (!resposta) {
+      return res.status(400).json({
+        success: false,
+        error: 'A orientação médica é obrigatória para devolver o caso ao suporte administrativo',
+      });
+    }
+
+    const atendimento = await getAtendimento(req.params.id);
+    if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+    if (!isMedicalSupportQueue(atendimento)) {
+      return res.status(400).json({ success: false, error: 'Atendimento não está na fila de suporte médico' });
+    }
+
+    const { queue_type, ...restClinical } = atendimento.dados_clinicos || {};
+    const now = new Date().toISOString();
+    const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
+    const nota = {
+      id: randomUUID(),
+      texto: `Orientação médica: ${resposta}`,
+      autor: req.user?.name || req.user?.username || 'médico',
+      criado_em: now,
+      resolvido: false,
+      origem: 'medical_support',
+    };
+    const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
+      // preserva medico_id/motivo_decisao — updateAtendimentoStatus os zera se
+      // não forem repassados explicitamente, e esta ação não deve alterá-los.
+      medicoId: atendimento.medico_id,
+      motivo: atendimento.motivo_decisao,
+      dados_clinicos: {
+        ...restClinical,
+        medical_support_status: 'awaiting_admin_reply',
+        medical_support_response: resposta,
+        medical_support_resolved_at: now,
+        medical_support_resolved_by: req.user?.name || req.user?.username || null,
+        observacoes_admin: [...notasExistentes, nota],
+      },
+    });
+
+    await createAuditLog({
+      entity_type: 'atendimento',
+      entity_id: req.params.id,
+      action: 'medical_support_resolved',
+      actor: req.user?.name || req.user?.username || 'doctor',
+      payload: { atendimento_id: req.params.id, response_registered: true },
+    });
+
+    res.json({ success: true, atendimento: updated });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
+  try {
+    const motivo = String(req.body?.motivo || '').trim();
+    if (!motivo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Informe por que o caso está sendo devolvido ao suporte administrativo',
+      });
+    }
+
+    const atendimento = await getAtendimento(req.params.id);
+    if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
+    if (!isMedicalSupportQueue(atendimento)) {
+      return res.status(400).json({ success: false, error: 'Atendimento não está na fila de suporte médico' });
+    }
+
+    const { queue_type, ...restClinical } = atendimento.dados_clinicos || {};
+    const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
+    const nota = {
+      id: randomUUID(),
+      texto: `Devolvido pelo médico ao suporte administrativo: ${motivo}`,
+      autor: req.user?.name || req.user?.username || 'médico',
+      criado_em: new Date().toISOString(),
+      resolvido: false,
+      origem: 'medical_support',
+    };
+
+    const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
+      medicoId: atendimento.medico_id,
+      motivo: atendimento.motivo_decisao,
+      dados_clinicos: {
+        ...restClinical,
+        medical_support_status: 'returned_to_admin',
+        medical_support_returned_at: new Date().toISOString(),
+        observacoes_admin: [...notasExistentes, nota],
+      },
+    });
+
+    await createAuditLog({
+      entity_type: 'atendimento',
+      entity_id: req.params.id,
+      action: 'medical_support_returned_to_admin',
+      actor: req.user?.name || req.user?.username || 'doctor',
+      payload: { atendimento_id: req.params.id, reason_registered: true },
+    });
+
+    res.json({ success: true, atendimento: updated });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, Headphones, Users } from 'lucide-react';
+import { CheckCircle2, Clock, Headphones, Stethoscope, Undo2, Users } from 'lucide-react';
 
 export type SupportQueueItem = {
   id: string;
@@ -9,6 +9,9 @@ export type SupportQueueItem = {
   criado_em?: string;
   status?: string;
   support_sub_status?: string;
+  /** Só preenchido no modo 'medical_support' — motivo registrado pelo suporte
+   * administrativo ao encaminhar (ver admin.routes.js forward-to-doctor). */
+  medical_support_reason?: string | null;
 };
 
 function whatsappUrl(phone?: string) {
@@ -58,12 +61,34 @@ interface MedicalSupportBandProps {
    * layout/lógica do Painel Médico, só maior. Default preserva o visual
    * atual do Painel Médico sem nenhuma mudança. */
   size?: 'compact' | 'lg';
+  /**
+   * 'whatsapp_support' (default) — Suporte Geral, fila de tickets criados
+   * antes do chatbot (Atender abre WhatsApp + inicia; ✓ finaliza e devolve a
+   * decisão ao paciente). Usado no Painel Administrativo.
+   *
+   * 'medical_support' — Suporte Médico: atendimentos clínicos reais
+   * encaminhados pelo suporte administrativo para esclarecimento pontual.
+   * Usado no Painel Médico — nunca mistura com Suporte Geral (regra de
+   * negócio: tickets de Suporte Geral nunca vão ao médico). Cada item abre o
+   * prontuário em modo consulta antes de decidir; ações são "Dúvida
+   * resolvida" e "Retornar ao Suporte Administrativo".
+   */
+  mode?: 'whatsapp_support' | 'medical_support';
+  /** Obrigatório no modo 'medical_support' — abre o prontuário (consultMode). */
+  onOpenProntuario?: (id: string) => void;
 }
 
-export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' }: MedicalSupportBandProps) {
+export function MedicalSupportBand({
+  patients,
+  onQueueRefresh,
+  size = 'compact',
+  mode = 'whatsapp_support',
+  onOpenProntuario,
+}: MedicalSupportBandProps) {
   const visible = patients.slice(0, 10);
   const extra = Math.max(0, patients.length - 10);
   const lg = size === 'lg';
+  const isMedicalSupport = mode === 'medical_support';
 
   async function handleAttend(patient: SupportQueueItem) {
     try {
@@ -101,47 +126,161 @@ export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' 
     onQueueRefresh?.();
   }
 
+  async function handleResolve(patient: SupportQueueItem) {
+    const resposta = window.prompt(
+      `Registre a orientação médica para ${patient.paciente_nome}. Ela será devolvida ao suporte administrativo:`,
+    )?.trim();
+    if (!resposta) return;
+
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/resolve`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ resposta }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Erro ao encerrar dúvida médica');
+        return;
+      }
+    } catch {
+      // best-effort
+    }
+    onQueueRefresh?.();
+  }
+
+  async function handleReturn(patient: SupportQueueItem) {
+    const motivo = window.prompt(
+      `Informe por que o caso de ${patient.paciente_nome} deve voltar ao suporte administrativo:`,
+    )?.trim();
+    if (!motivo) return;
+
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/return`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ motivo }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Erro ao retornar ao suporte administrativo');
+        return;
+      }
+    } catch {
+      // best-effort
+    }
+    onQueueRefresh?.();
+  }
+
+  const theme = isMedicalSupport
+    ? {
+        section: 'border-[#F3D9BF] bg-[#FFF7ED]',
+        divider: 'border-[#D9E6FF] border-r-[#F3D9BF]',
+        iconBg: 'bg-[#FDE7CE] text-[#9A5B12]',
+        title: 'text-[#9A5B12]',
+        chip: 'border-[#F0CBA0]',
+        Icon: Stethoscope,
+      }
+    : {
+        section: 'border-[#D9E6FF] bg-[#EEF4FF]',
+        divider: 'border-[#D9E6FF]',
+        iconBg: 'bg-[#D9E6FF] text-[#1A3F8F]',
+        title: 'text-[#1A3F8F]',
+        chip: 'border-[#C5D8F5]',
+        Icon: Headphones,
+      };
+
   return (
     <section
-      className={`panel-support-band${lg ? ' panel-support-band--lg' : ''} flex shrink-0 items-center bg-[#EEF4FF] ${
-        lg ? 'border-2 border-[#BFD0FF]' : 'border border-[#D9E6FF]'
+      className={`panel-support-band${lg ? ' panel-support-band--lg' : ''} flex shrink-0 items-center ${theme.section} ${
+        lg ? 'border-2' : 'border'
       }`}
     >
       <div className="grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
-        <div className={`flex min-w-0 items-center border-r border-[#D9E6FF] ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
+        <div className={`flex min-w-0 items-center border-r ${theme.divider} ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
           <div
-            className={`flex shrink-0 items-center justify-center rounded-full bg-[#D9E6FF] text-[#1A3F8F] ${lg ? 'h-14 w-14' : 'h-8 w-8'}`}
+            className={`flex shrink-0 items-center justify-center rounded-full ${theme.iconBg} ${lg ? 'h-14 w-14' : 'h-8 w-8'}`}
           >
-            <Headphones className={lg ? 'h-7 w-7' : 'h-4 w-4'} strokeWidth={2.2} aria-hidden="true" />
+            <theme.Icon className={lg ? 'h-7 w-7' : 'h-4 w-4'} strokeWidth={2.2} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h2 className={`font-black leading-tight text-[#1A3F8F] ${lg ? 'text-[23px]' : 'text-[14px]'}`}>
-              SUPORTE MÉDICO VIA WHATSAPP
+            <h2 className={`flex items-center gap-2 font-black leading-tight ${theme.title} ${lg ? 'text-[23px]' : 'text-[14px]'}`}>
+              {isMedicalSupport ? 'DÚVIDAS ENCAMINHADAS PELO SUPORTE' : 'SUPORTE MÉDICO VIA WHATSAPP'}
+              {isMedicalSupport && patients.length > 0 && (
+                <span
+                  className="dp-col-count-alert inline-flex items-center justify-center"
+                  title={`${patients.length} pendência(s) nova(s)`}
+                >
+                  {patients.length}
+                </span>
+              )}
             </h2>
             <p className={`dp-text-muted mt-0.5 leading-snug ${lg ? 'text-[14px]' : 'text-[11px]'}`}>
-              Pacientes aguardando atendimento da equipe de suporte via WhatsApp.
+              {isMedicalSupport
+                ? 'Atendimentos clínicos encaminhados pelo suporte para esclarecimento médico pontual.'
+                : 'Pacientes aguardando atendimento da equipe de suporte via WhatsApp.'}
             </p>
           </div>
         </div>
 
-        <div className={`flex flex-col justify-center border-r border-[#D9E6FF] ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
+        <div className={`flex flex-col justify-center border-r ${theme.divider} ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
           <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[17px]' : 'text-[12px]'}`}>
-            <Users className={lg ? 'h-5 w-5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
+            <Users className={`${lg ? 'h-5 w-5' : 'h-3.5 w-3.5'} shrink-0 ${theme.title}`} aria-hidden="true" />
             <span>
-              <strong className="font-black">{patients.length}</strong> aguardando atendimento
+              <strong className="font-black">{patients.length}</strong>{' '}
+              {isMedicalSupport ? 'aguardando resposta médica' : 'aguardando atendimento'}
             </span>
           </p>
           <p className={`dp-text-muted flex items-center gap-1.5 ${lg ? 'text-[14px]' : 'text-[11px]'}`}>
-            <Clock className={lg ? 'h-5 w-5 shrink-0 text-[#1A3F8F]' : 'h-3.5 w-3.5 shrink-0 text-[#1A3F8F]'} aria-hidden="true" />
+            <Clock className={`${lg ? 'h-5 w-5' : 'h-3.5 w-3.5'} shrink-0 ${theme.title}`} aria-hidden="true" />
             Esperando há{' '}
-            <span className={`font-black text-[#1A3F8F] ${lg ? 'text-[26px]' : 'text-[15px]'}`}>{minutesWaiting(patients)}</span>
+            <span className={`font-black ${theme.title} ${lg ? 'text-[26px]' : 'text-[15px]'}`}>{minutesWaiting(patients)}</span>
           </p>
         </div>
 
         <div className={`flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
           <div className={`flex flex-wrap items-center justify-end gap-1.5 ${lg ? 'min-h-[36px]' : 'min-h-[28px]'}`}>
             {visible.length === 0 ? (
-              <span className={`dp-text-subtle font-medium ${lg ? 'text-[13px]' : 'text-[11px]'}`}>Nenhum paciente na fila de suporte</span>
+              <span className={`dp-text-subtle font-medium ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
+                {isMedicalSupport ? 'Nenhuma dúvida encaminhada' : 'Nenhum paciente na fila de suporte'}
+              </span>
+            ) : isMedicalSupport ? (
+              visible.map((patient) => (
+                <span
+                  key={patient.id}
+                  className={`inline-flex items-center gap-0.5 rounded-[8px] border ${theme.chip} bg-white px-1 py-0.5`}
+                  title={patient.medical_support_reason || patient.paciente_nome}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onOpenProntuario?.(patient.id)}
+                    className={`inline-flex cursor-pointer items-center justify-center rounded-[8px] font-black text-[#9A5B12] hover:bg-[#FBD9AE] ${
+                      lg ? 'h-10 px-3 text-[13px]' : 'h-7 px-2 text-[11px]'
+                    } bg-[#FDE7CE]`}
+                    aria-label={`Ver jornada de ${patient.paciente_nome}`}
+                  >
+                    Ver jornada
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleResolve(patient)}
+                    className="inline-flex h-5 cursor-pointer items-center justify-center rounded-[4px] bg-emerald-50 px-1 text-emerald-700 hover:bg-emerald-100"
+                    aria-label={`Dúvida resolvida — ${patient.paciente_nome}`}
+                    title="Registrar orientação e devolver ao suporte"
+                  >
+                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleReturn(patient)}
+                    className="inline-flex h-5 cursor-pointer items-center justify-center rounded-[4px] bg-slate-100 px-1 text-slate-600 hover:bg-slate-200"
+                    aria-label={`Retornar ao suporte administrativo — ${patient.paciente_nome}`}
+                    title="Retornar ao suporte administrativo"
+                  >
+                    <Undo2 className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </span>
+              ))
             ) : (
               visible.map((patient, index) => {
                 const sub = patient.support_sub_status;
@@ -189,14 +328,18 @@ export function MedicalSupportBand({ patients, onQueueRefresh, size = 'compact' 
             )}
             {extra > 0 ? (
               <span
-                className="inline-flex h-7 min-w-7 items-center justify-center rounded-[8px] border border-[#C5D8F5] bg-white px-1.5 text-[12px] font-bold text-[#1A3F8F]"
+                className={`inline-flex h-7 min-w-7 items-center justify-center rounded-[8px] border ${theme.chip} bg-white px-1.5 text-[12px] font-bold ${theme.title}`}
                 title={`Mais ${extra} paciente(s) na fila`}
               >
                 +{extra}
               </span>
             ) : null}
           </div>
-          <p className={`dp-text-subtle mt-1 ${lg ? 'text-[11px]' : 'text-[10px]'}`}>Clique no número para abrir WhatsApp · ✓ para finalizar</p>
+          <p className={`dp-text-subtle mt-1 ${lg ? 'text-[11px]' : 'text-[10px]'}`}>
+            {isMedicalSupport
+              ? 'Ver jornada abre o prontuário (somente leitura) · ✓ registra orientação · ↩ devolve ao suporte'
+              : 'Clique no número para abrir WhatsApp · ✓ para finalizar'}
+          </p>
         </div>
       </div>
     </section>

@@ -32,6 +32,10 @@ export type AdminAtendimento = {
     memed_receita?: { pdfUrl?: string; receitaUrl?: string; receitaId?: string };
     entrega_receita?: { channel?: string; status?: string; sent_at?: string };
     motivo_rejeicao?: { code?: string; label?: string; detail?: string | null; rejected_at?: string } | null;
+    support_sub_status?: string | null;
+    queue_type?: string | null;
+    medical_support_reason?: string | null;
+    medical_support_requested_at?: string | null;
   };
 };
 
@@ -109,6 +113,17 @@ export async function resendPaymentLink(id: string): Promise<{
   return apiClient.post(
     `/api/admin/atendimentos/${id}/resend-payment`,
     {},
+    { headers: authHeaders() },
+  );
+}
+
+export async function forwardToDoctor(
+  id: string,
+  motivo: string,
+): Promise<{ success: boolean; atendimento: AdminAtendimento }> {
+  return apiClient.post(
+    `/api/admin/atendimentos/${id}/forward-to-doctor`,
+    { motivo },
     { headers: authHeaders() },
   );
 }

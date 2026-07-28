@@ -6,6 +6,7 @@ import { logout, requireSession } from '@/services/auth.service';
 import {
   addAdminNote,
   fetchAdminAtendimento,
+  forwardToDoctor,
   resendPaymentLink,
   resendTypebotLink,
   resolveAdminNote,
@@ -13,6 +14,20 @@ import {
   type AdminNote,
 } from '@/services/admin.service';
 import { AppShell, Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
+
+function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
+  const status = String(atendimento.status || '').trim().toLowerCase();
+  const delivered =
+    status === 'delivered' ||
+    status === 'finished' ||
+    atendimento.dados_clinicos?.entrega_receita?.status === 'sent';
+
+  return (
+    delivered &&
+    atendimento.condicao !== 'suporte_whatsapp' &&
+    atendimento.dados_clinicos?.queue_type !== 'support'
+  );
+}
 
 // ─── Journey derivation ───────────────────────────────────────────────────────
 
@@ -208,6 +223,9 @@ export default function AdminPacientePage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
+  const [forwardOpen, setForwardOpen] = useState(false);
+  const [forwardMotivo, setForwardMotivo] = useState('');
+  const [forwardLoading, setForwardLoading] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -310,6 +328,22 @@ export default function AdminPacientePage() {
       showToast('Erro ao reenviar link de pagamento.');
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleForwardToDoctor() {
+    if (!forwardMotivo.trim()) return;
+    setForwardLoading(true);
+    try {
+      const r = await forwardToDoctor(id, forwardMotivo.trim());
+      setAtendimento(r.atendimento);
+      setForwardOpen(false);
+      setForwardMotivo('');
+      showToast('Atendimento encaminhado ao médico.');
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Erro ao encaminhar ao médico.');
+    } finally {
+      setForwardLoading(false);
     }
   }
 
@@ -521,7 +555,44 @@ export default function AdminPacientePage() {
                     <span className="text-[#25D366]">WhatsApp</span> direto
                   </a>
                 )}
+                {canForwardToMedicalSupport(a) &&
+                  (a.dados_clinicos?.queue_type === 'medical_support' ? (
+                    <StatusPill tone="gold">Aguardando resposta médica</StatusPill>
+                  ) : (
+                    <Button onClick={() => setForwardOpen((value) => !value)} tone="primary">
+                      🩺 Encaminhar ao Médico
+                    </Button>
+                  ))}
               </div>
+
+              {forwardOpen && (
+                <div className="mt-3 space-y-2 rounded-[14px] border border-[#E5EAF2] bg-[#F8FAFC] p-4">
+                  <p className="text-xs font-bold text-[#5B6475]">
+                    Descreva a dúvida clínica a ser esclarecida pelo médico:
+                  </p>
+                  <textarea
+                    value={forwardMotivo}
+                    onChange={(event) => setForwardMotivo(event.target.value)}
+                    placeholder="Ex.: paciente relata dúvida sobre a orientação da receita entregue..."
+                    rows={2}
+                    className="w-full resize-none rounded-[10px] border border-[#E5EAF2] bg-white px-3 py-2 text-sm text-[#1E1E1E] outline-none transition focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF] placeholder:text-[#94A3B8]"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <Button onClick={() => setForwardOpen(false)} tone="soft" className="h-9 text-xs">
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleForwardToDoctor}
+                      disabled={forwardLoading || !forwardMotivo.trim()}
+                      tone="primary"
+                      className="h-9 text-xs"
+                    >
+                      {forwardLoading ? 'Encaminhando...' : 'Confirmar encaminhamento'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {copyLabel && (
                 <div className="mt-3 rounded-[14px] border border-[#E5EAF2] bg-[#F8FAFC] px-4 py-3 font-mono text-xs text-[#5B6475]">
                   {copyLabel}
