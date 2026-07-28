@@ -164,6 +164,14 @@ router.get('/medical-support-queue', requireAuth, requireRole('admin', 'doctor')
 
 router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
   try {
+    const resposta = String(req.body?.resposta || '').trim();
+    if (!resposta) {
+      return res.status(400).json({
+        success: false,
+        error: 'A orientação médica é obrigatória para devolver o caso ao suporte administrativo',
+      });
+    }
+
     const atendimento = await getAtendimento(req.params.id);
     if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
     if (!isMedicalSupportQueue(atendimento)) {
@@ -171,6 +179,16 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
     }
 
     const { queue_type, ...restClinical } = atendimento.dados_clinicos || {};
+    const now = new Date().toISOString();
+    const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
+    const nota = {
+      id: randomUUID(),
+      texto: `Orientação médica: ${resposta}`,
+      autor: req.user?.name || req.user?.username || 'médico',
+      criado_em: now,
+      resolvido: false,
+      origem: 'medical_support',
+    };
     const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
       // preserva medico_id/motivo_decisao — updateAtendimentoStatus os zera se
       // não forem repassados explicitamente, e esta ação não deve alterá-los.
@@ -178,8 +196,11 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
       motivo: atendimento.motivo_decisao,
       dados_clinicos: {
         ...restClinical,
-        medical_support_resolved_at: new Date().toISOString(),
+        medical_support_status: 'awaiting_admin_reply',
+        medical_support_response: resposta,
+        medical_support_resolved_at: now,
         medical_support_resolved_by: req.user?.name || req.user?.username || null,
+        observacoes_admin: [...notasExistentes, nota],
       },
     });
 
@@ -188,7 +209,7 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
       entity_id: req.params.id,
       action: 'medical_support_resolved',
       actor: req.user?.name || req.user?.username || 'doctor',
-      payload: { atendimento_id: req.params.id },
+      payload: { atendimento_id: req.params.id, response_registered: true },
     });
 
     res.json({ success: true, atendimento: updated });
@@ -199,6 +220,14 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
 
 router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
   try {
+    const motivo = String(req.body?.motivo || '').trim();
+    if (!motivo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Informe por que o caso está sendo devolvido ao suporte administrativo',
+      });
+    }
+
     const atendimento = await getAtendimento(req.params.id);
     if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
     if (!isMedicalSupportQueue(atendimento)) {
@@ -209,10 +238,11 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
     const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
     const nota = {
       id: randomUUID(),
-      texto: 'Retornado pelo médico após esclarecimento — ver jornada para detalhes.',
+      texto: `Devolvido pelo médico ao suporte administrativo: ${motivo}`,
       autor: req.user?.name || req.user?.username || 'médico',
       criado_em: new Date().toISOString(),
       resolvido: false,
+      origem: 'medical_support',
     };
 
     const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
@@ -220,6 +250,7 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
       motivo: atendimento.motivo_decisao,
       dados_clinicos: {
         ...restClinical,
+        medical_support_status: 'returned_to_admin',
         medical_support_returned_at: new Date().toISOString(),
         observacoes_admin: [...notasExistentes, nota],
       },
@@ -230,7 +261,7 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
       entity_id: req.params.id,
       action: 'medical_support_returned_to_admin',
       actor: req.user?.name || req.user?.username || 'doctor',
-      payload: { atendimento_id: req.params.id },
+      payload: { atendimento_id: req.params.id, reason_registered: true },
     });
 
     res.json({ success: true, atendimento: updated });
