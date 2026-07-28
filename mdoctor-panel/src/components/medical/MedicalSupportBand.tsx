@@ -85,8 +85,10 @@ export function MedicalSupportBand({
   mode = 'whatsapp_support',
   onOpenProntuario,
 }: MedicalSupportBandProps) {
-  const visible = patients.slice(0, 10);
-  const extra = Math.max(0, patients.length - 10);
+  // A faixa nunca ultrapassa dez indicadores. Quando a fila passa de dez,
+  // os nove primeiros continuam acionáveis e o décimo mostra o total real.
+  const hasGroupedCount = patients.length > 10;
+  const visible = patients.slice(0, hasGroupedCount ? 9 : 10);
   const lg = size === 'lg';
   const isMedicalSupport = mode === 'medical_support';
 
@@ -326,12 +328,12 @@ export function MedicalSupportBand({
                 );
               })
             )}
-            {extra > 0 ? (
+            {hasGroupedCount ? (
               <span
                 className={`inline-flex h-7 min-w-7 items-center justify-center rounded-[8px] border ${theme.chip} bg-white px-1.5 text-[12px] font-bold ${theme.title}`}
-                title={`Mais ${extra} paciente(s) na fila`}
+                title={`${patients.length} paciente(s) na fila`}
               >
-                +{extra}
+                {patients.length}
               </span>
             ) : null}
           </div>
