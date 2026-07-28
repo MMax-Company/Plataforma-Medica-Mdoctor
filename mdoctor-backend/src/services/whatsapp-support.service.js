@@ -4,7 +4,7 @@ const { recordSupportTicket, recordWhatsappMessage } = require('./clinical-persi
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
-const { getActiveSurveySession, getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { getActiveSurveySession, getSessionByPhone, clearTypebotSession } = require('../store/whatsapp-sessions.store');
 const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
@@ -264,9 +264,26 @@ async function finalizeSupportAttendance(atendimentoId) {
     }
   });
 
-  // Best-effort send via provider WhatsApp configurado (meta)
   const phone = atendimento.paciente_telefone;
   if (phone) {
+    // Causa raiz do bug de roteamento pós-finalização (2026-07-28): uma
+    // sessão presa num choice input antigo do Typebot (ex.: WELCOME_CHOICE_
+    // INPUT_ID, de uma tentativa abandonada de "1 - Iniciar atendimento")
+    // sequestrava permanentemente o roteamento das respostas 1/2 a esta
+    // pergunta — "2" reabria o suporte e "1" reiniciava o Typebot do zero,
+    // nunca chegando a respondToFinalization. Limpa qualquer marcador de
+    // sessão do Typebot AQUI, antes de perguntar 1/2, para que nenhum
+    // artefato de fluxo antigo possa interferir na decisão do paciente.
+    try {
+      const waSession = await getSessionByPhone(phone);
+      if (waSession?.id) {
+        await clearTypebotSession({ sessionId: waSession.id });
+      }
+    } catch (e) {
+      logger.warn('support_finalization_session_clear_failed', { atendimentoId, error: e.message });
+    }
+
+    // Best-effort send via provider WhatsApp configurado (meta)
     try {
       const { sendWhatsAppText } = require('../delivery/delivery.service');
       await sendWhatsAppText({ to: phone, text: FINALIZATION_TEXT });
@@ -315,10 +332,18 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
   });
 
   if (!match) {
-    return { handled: false, reply: 'Nenhum atendimento aguardando decisão. Digite *2* para acessar o suporte.' };
+    return { handled: false, action: 'reply', reply: 'Nenhum atendimento aguardando decisão. Digite *2* para acessar o suporte.' };
   }
 
   const choiceStr = String(choice || '').trim();
+
+  // Limpa qualquer marcador de sessão do Typebot antes de aplicar a decisão
+  // — nem "encerrar" nem "iniciar nova avaliação" podem herdar um choice
+  // input travado de uma sessão antiga (ver finalizeSupportAttendance).
+  const waSession = await getSessionByPhone(digits);
+  if (waSession?.id) {
+    await clearTypebotSession({ sessionId: waSession.id });
+  }
 
   if (choiceStr === '1') {
     await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
@@ -334,7 +359,10 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
       action: 'support_closed_by_patient', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
-    return { handled: true, sub_status: SUPPORT_SUB.CLOSED_PATIENT, reply: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.' };
+    return {
+      handled: true, action: 'reply', sub_status: SUPPORT_SUB.CLOSED_PATIENT,
+      reply: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.'
+    };
   }
 
   if (choiceStr === '2') {
@@ -362,7 +390,10 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
     };
   }
 
-  return { handled: false, reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita' };
+  return {
+    handled: false, action: 'reply',
+    reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita'
+  };
 }
 
 async function handleRejectionResponse({ phone, text }) {
@@ -558,6 +589,49 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
   }
 
+  // Estado do ticket de suporte (se houver) tem prioridade ABSOLUTA sobre
+  // qualquer atalho/artefato de sessão do Typebot (stuckAtWelcomeChoice e
+  // isActiveTypebotFlow, mais abaixo). Causa raiz do bug de roteamento
+  // pós-finalização (2026-07-28): uma sessão presa em
+  // typebot_expected_input_id = WELCOME_CHOICE_INPUT_ID (de uma tentativa
+  // antiga e abandonada de "1 - Iniciar atendimento") sequestrava
+  // permanentemente o roteamento de QUALQUER "1"/"2" seguinte — inclusive a
+  // pergunta pós-finalização de suporte — porque esse artefato era checado
+  // ANTES do estado do ticket. "2" reabria o suporte
+  // (createWhatsAppSupportEntry, via o bloco stuckAtWelcomeChoice) e "1"
+  // reiniciava o Typebot do zero, nunca chegando a respondToFinalization.
+  // Ver finalizeSupportAttendance/respondToFinalization, que agora também
+  // limpam esse marcador — esta reordenação é a segunda camada de defesa,
+  // cobrindo qualquer ticket que já estivesse aguardando decisão antes
+  // desta correção.
+  const textNorm = normalizeMenuText(text);
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+  logger.info('typebot_routing_support_context_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    textNorm,
+    supportSubStatus: sub
+  });
+
+  if (sub === SUPPORT_SUB.AWAITING_DECISION) {
+    if (textNorm === '1' || textNorm === '2') {
+      const result = await respondToFinalization(phone, textNorm);
+      if (result.action === 'typebot_clean') {
+        return { handled: true, action: 'typebot_clean' };
+      }
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+    return {
+      handled: true,
+      action: 'reply',
+      reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita'
+    };
+  }
+
+  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    return handleSupportQueueInput({ phone, textNorm });
+  }
+
   // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
   // remover após confirmar a causa. Não altera nenhuma decisão de roteamento,
   // só registra os componentes que a alimentam.
@@ -577,14 +651,15 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
   // "1"/"2" aqui não podem virar resposta ao choice input via continueChat
   // (isso gera "Invalid message..." do próprio Typebot — ver comentário de
   // WELCOME_CHOICE_INPUT_ID). Restrito a este input específico — não vira
-  // comando global em nenhuma outra etapa do fluxo.
+  // comando global em nenhuma outra etapa do fluxo. Só é avaliado quando NÃO
+  // há ticket de suporte ativo (checado acima) — do contrário sequestraria o
+  // roteamento pós-suporte de novo.
   const stuckAtWelcomeChoice = diagSession?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID;
   if (stuckAtWelcomeChoice) {
-    const textNormEarly = normalizeMenuText(text);
-    if (textNormEarly === '1') {
+    if (textNorm === '1') {
       return { handled: true, action: 'typebot_clean' };
     }
-    if (textNormEarly === '2') {
+    if (textNorm === '2') {
       const result = await createWhatsAppSupportEntry({ phone });
       return { handled: true, action: 'reply', reply: result.reply };
     }
@@ -592,31 +667,6 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
 
   if (diagActiveFlow && !diagGreeting) {
     return { handled: false, action: 'typebot' };
-  }
-
-  const textNorm = normalizeMenuText(text);
-  const ctx = await getPatientSupportContext(phone);
-  const sub = ctx?.support_sub_status || null;
-  logger.info('typebot_routing_fallthrough_diagnostic', {
-    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
-    textNorm,
-    supportSubStatus: sub
-  });
-
-  if (sub === SUPPORT_SUB.AWAITING_DECISION) {
-    if (textNorm === '1' || textNorm === '2') {
-      const result = await respondToFinalization(phone, textNorm);
-      return { handled: true, action: 'reply', reply: result.reply };
-    }
-    return {
-      handled: true,
-      action: 'reply',
-      reply: 'Por favor, responda:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita'
-    };
-  }
-
-  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
-    return handleSupportQueueInput({ phone, textNorm });
   }
 
   if (textNorm === '1') {
