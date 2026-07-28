@@ -625,10 +625,24 @@ router.post(
         return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
       }
 
-      if (atendimento.condicao === 'suporte_whatsapp') {
+      if (isSupportQueue(atendimento)) {
         return res.status(400).json({
           success: false,
           error: 'Tickets de Suporte Geral não podem ser encaminhados ao médico — não são atendimentos clínicos.',
+        });
+      }
+
+      if (!statusInGroup(atendimento.status, 'delivered')) {
+        return res.status(409).json({
+          success: false,
+          error: 'Somente atendimentos clínicos concluídos, com receita entregue, podem ser encaminhados ao suporte médico.',
+        });
+      }
+
+      if (atendimento.dados_clinicos?.queue_type === QUEUE_TYPE_MEDICAL_SUPPORT) {
+        return res.status(409).json({
+          success: false,
+          error: 'Este atendimento já aguarda resposta do suporte médico.',
         });
       }
 
