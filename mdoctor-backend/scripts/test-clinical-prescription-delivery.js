@@ -75,7 +75,7 @@ const results = {};
   assert(text.includes('📄 Sua receita foi emitida com sucesso.'));
   assert(text.includes('Acesse sua receita pelo link seguro abaixo:'));
   assert(text.includes('https://memed.example/receita/abc123'));
-  assert(text.includes('Se precisar de ajuda, digite 2 para falar com o suporte.'));
+  assert(text.includes('Se precisar de ajuda, digite 3 para falar com o suporte.'));
   results.textoDeEntregaExato = 'ok';
 }
 

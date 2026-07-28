@@ -47,7 +47,7 @@ function normalizePhone(phone = '') {
 // Fase 3 pedido 2 — texto fixo exigido para a entrega da receita pelo WhatsApp
 // (só após emissão + validação). Demais canais (email/sms) mantêm o texto anterior.
 function buildPrescriptionDeliveryWhatsAppMessage(receiptUrl) {
-  return `📄 Sua receita foi emitida com sucesso.\n\nAcesse sua receita pelo link seguro abaixo:\n\n${receiptUrl}\n\nSe precisar de ajuda, digite 2 para falar com o suporte.`;
+  return `📄 Sua receita foi emitida com sucesso.\n\nAcesse sua receita pelo link seguro abaixo:\n\n${receiptUrl}\n\nSe precisar de ajuda, digite 3 para falar com o suporte.`;
 }
 
 function buildMessage({ pacienteNome, receiptUrl, channel }) {
