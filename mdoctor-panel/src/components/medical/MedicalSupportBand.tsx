@@ -127,10 +127,16 @@ export function MedicalSupportBand({
   }
 
   async function handleResolve(patient: SupportQueueItem) {
+    const resposta = window.prompt(
+      `Registre a orientação médica para ${patient.paciente_nome}. Ela será devolvida ao suporte administrativo:`,
+    )?.trim();
+    if (!resposta) return;
+
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/resolve`, {
         method: 'POST',
-        headers: authHeaders()
+        headers: authHeaders(),
+        body: JSON.stringify({ resposta }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -144,10 +150,16 @@ export function MedicalSupportBand({
   }
 
   async function handleReturn(patient: SupportQueueItem) {
+    const motivo = window.prompt(
+      `Informe por que o caso de ${patient.paciente_nome} deve voltar ao suporte administrativo:`,
+    )?.trim();
+    if (!motivo) return;
+
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/return`, {
         method: 'POST',
-        headers: authHeaders()
+        headers: authHeaders(),
+        body: JSON.stringify({ motivo }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -254,7 +266,7 @@ export function MedicalSupportBand({
                     onClick={() => handleResolve(patient)}
                     className="inline-flex h-5 cursor-pointer items-center justify-center rounded-[4px] bg-emerald-50 px-1 text-emerald-700 hover:bg-emerald-100"
                     aria-label={`Dúvida resolvida — ${patient.paciente_nome}`}
-                    title="Dúvida resolvida"
+                    title="Registrar orientação e devolver ao suporte"
                   >
                     <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                   </button>
@@ -325,7 +337,7 @@ export function MedicalSupportBand({
           </div>
           <p className={`dp-text-subtle mt-1 ${lg ? 'text-[11px]' : 'text-[10px]'}`}>
             {isMedicalSupport
-              ? 'Ver jornada abre o prontuário (somente leitura) · ✓ resolve · ↩ retorna ao suporte'
+              ? 'Ver jornada abre o prontuário (somente leitura) · ✓ registra orientação · ↩ devolve ao suporte'
               : 'Clique no número para abrir WhatsApp · ✓ para finalizar'}
           </p>
         </div>
