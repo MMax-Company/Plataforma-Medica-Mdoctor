@@ -26,13 +26,16 @@ const {
 } = require('../services/prescription-upload-token.service');
 const {
   closeWhatsAppSupportEntry,
-  createWhatsAppSupportEntry
+  createWhatsAppSupportEntry,
+  WELCOME_CHOICE_INPUT_ID
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
 const {
   upsertSessionIdentity,
   setTypebotSessionId,
-  clearTransientClinicalSessionMetadata
+  clearTransientClinicalSessionMetadata,
+  getSessionByPhone,
+  clearJourneyMarkers
 } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
@@ -431,6 +434,30 @@ router.post('/webhook', async (req, res) => {
                     type: msg.type
                   });
 
+                  // Marcadores de jornada (métrica de tempo do painel admin — ver
+                  // admin.routes.js computeTempos / whatsapp-sessions.store.js
+                  // clearJourneyMarkers): "journey_started_at" grava o primeiro "Oi"
+                  // do ciclo atual (só quando ainda não há marcador pendente — o
+                  // anterior já foi consumido e limpo ao criar o atendimento
+                  // anterior, então sua ausência aqui significa "jornada nova").
+                  // "welcome_clicked_at" grava a resposta ao choice "Vamos começar"
+                  // (primeiro input do Typebot), detectada pelo estado da sessão
+                  // ANTES deste upsert (typebot_expected_input_id ainda aponta pra
+                  // esse input). Peek somente leitura — não altera nada por si só.
+                  const priorSessionForJourney = identity.phone
+                    ? await getSessionByPhone(identity.phone).catch(() => null)
+                    : null;
+                  const journeyMarkerPatch = {};
+                  if (!priorSessionForJourney?.metadata?.journey_started_at) {
+                    journeyMarkerPatch.journey_started_at = new Date().toISOString();
+                  }
+                  if (
+                    priorSessionForJourney?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID &&
+                    !priorSessionForJourney?.metadata?.welcome_clicked_at
+                  ) {
+                    journeyMarkerPatch.welcome_clicked_at = new Date().toISOString();
+                  }
+
                   let whatsappSession;
                   try {
                     whatsappSession = await upsertSessionIdentity({
@@ -442,7 +469,8 @@ router.post('/webhook', async (req, res) => {
                         last_inbound_message_id: msg.id,
                         // parentBsuid é best-effort (ver whatsapp-meta-identity.service.js) —
                         // guardamos a proveniência para não ser lido como dado confirmado.
-                        ...(identity.parentBsuid ? { parent_bsuid_confirmed: identity.parentBsuidConfirmed } : {})
+                        ...(identity.parentBsuid ? { parent_bsuid_confirmed: identity.parentBsuidConfirmed } : {}),
+                        ...journeyMarkerPatch
                       }
                     });
                   } catch (e) {
@@ -962,6 +990,20 @@ router.post('/webhook', async (req, res) => {
     atendimentoStatus = STATUS.AWAITING_PRESCRIPTION_UPLOAD;
   }
 
+  // Marcadores de jornada (métrica de tempo do painel admin — ver
+  // admin.routes.js computeTempos): consumidos aqui, no exato momento em que
+  // "o n8n envia os dados para o painel médico" (fim do Tempo de Triagem —
+  // atendimento.criado_em já cumpre esse papel; nada novo precisa ser
+  // gravado para ele). Copiados para dados_clinicos.jornada e, logo após a
+  // criação do atendimento, removidos da sessão (best-effort) para que a
+  // PRÓXIMA jornada deste telefone não herde os marcadores desta.
+  const journeyPhone = normalized.whatsapp || from;
+  const journeySession = journeyPhone ? await getSessionByPhone(journeyPhone).catch(() => null) : null;
+  const jornada = {
+    primeiro_oi_em: journeySession?.metadata?.journey_started_at || null,
+    triagem_iniciada_em: journeySession?.metadata?.welcome_clicked_at || null
+  };
+
   const enrichedClinicalData = applyPrescriptionMetadataToClinical(
     {
     ...patientData,
@@ -984,6 +1026,7 @@ router.post('/webhook', async (req, res) => {
           reason: stripePayment.reason || null
         }
       : null,
+    jornada,
     clinical_summary: clinicalNarrative.summary,
     queixa_principal: clinicalNarrative.chiefComplaint,
     historico_clinico: clinicalNarrative.clinicalHistory,
@@ -1052,6 +1095,18 @@ router.post('/webhook', async (req, res) => {
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
+
+  if (journeySession?.id) {
+    try {
+      await clearJourneyMarkers(journeyPhone);
+    } catch (e) {
+      logger.warn('whatsapp_journey_markers_clear_failed', {
+        atendimentoId: atendimento.id,
+        correlationId,
+        error: e.message
+      });
+    }
+  }
 
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
     uploadSession = await ensurePrescriptionUploadSession({

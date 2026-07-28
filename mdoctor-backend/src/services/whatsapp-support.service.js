@@ -697,6 +697,7 @@ module.exports = {
   SUPPORT_CLOSED_TEXT,
   POST_ATTENDANCE_CHOICE_INPUT_ID,
   SUPPORT_SUBFLOW_CHOICE_INPUT_ID,
+  WELCOME_CHOICE_INPUT_ID,
   normalizePhone,
   normalizeMenuText,
   isActiveTypebotFlow,

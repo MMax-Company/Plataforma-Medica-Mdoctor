@@ -197,12 +197,14 @@ const bodyColumns: Array<{
 ];
 
 // Seção 4 — Indicadores de Tempo Médio: calculados pelo backend
-// (/api/admin/dashboard → tempos) a partir de timestamps reais já gravados
-// no fluxo de aprovação/emissão/entrega (clinical_audit.approvedAt,
-// memed_context.emitida_em, historico_receita.finalizado_em). Rótulos sem
-// evento real e distinto registrado no modelo de dados atual (Triagem,
-// Avaliação, Suporte administrativo, Suporte médico) recebem "—" em vez de
-// um número fabricado — o backend já retorna null nesses casos.
+// (/api/admin/dashboard → tempos, ver computeTempos em admin.routes.js) a
+// partir de timestamps reais já gravados no fluxo (marcadores de jornada
+// staged em whatsapp_sessions.metadata para Triagem/Jornada completa,
+// criado_em da entrada na fila, medical_decisions da transição
+// "em_atendimento", clinical_audit.approvedAt/rejectedAt,
+// entrega_receita.sent_at). "Suporte administrativo"/"Suporte médico" não
+// têm evento distinto no modelo de dados atual e recebem "—" em vez de um
+// número fabricado (o backend retorna null nesses casos).
 const TIME_METRIC_KEYS = [
   'triagem',
   'espera_medica',
@@ -507,9 +509,7 @@ export default function AdminDashboardPage() {
                  do restante do painel (ver MedicalSupportBand size default). */}
             <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
 
-            {/* Indicadores de Tempo Médio — calculados a partir de timestamps
-                 reais (ver computeTempos no backend); rótulos sem evento
-                 distinto registrado mostram "—", nunca um número inventado. */}
+            {/* Indicadores de Tempo Médio — ver comentário da seção 4 acima. */}
             <section>
               <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
                 Indicadores de tempo médio
