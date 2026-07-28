@@ -19,7 +19,7 @@ const {
 const { mapTypebotPayload } = require('./typebot-payload.mapper');
 const { isExternalUploadMode, isVisibleInMedicalPanel } = require('./clinical-payload-normalizer.service');
 const {
-  createPrescriptionUploadSession,
+  ensurePrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
 const { persistTriagemFlow } = require('./clinical-persistence.service');
@@ -273,7 +273,7 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   let uploadSession = null;
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
-    uploadSession = await createPrescriptionUploadSession({
+    uploadSession = await ensurePrescriptionUploadSession({
       atendimentoId: atendimento.id,
       correlationId
     });

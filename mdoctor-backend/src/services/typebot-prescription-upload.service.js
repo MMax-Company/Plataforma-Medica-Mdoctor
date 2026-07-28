@@ -5,7 +5,7 @@ const { upsertSessionIdentity, getSessionByPhone } = require('../store/whatsapp-
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
-const { resolveTokenRecord, createPrescriptionUploadSession } = require('./prescription-upload-token.service');
+const { resolveTokenRecord, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
@@ -76,7 +76,15 @@ function extractUploadSession(atendimento = {}) {
   };
 }
 
-async function findPendingUploadContext(phone) {
+async function findPendingUploadContext(phone, { whatsappSession = null } = {}) {
+  // Resolução por sessão tem prioridade: se esta conversa do WhatsApp já
+  // sabe (via whatsapp_sessions.metadata) qual atendimento está aguardando
+  // a receita, usa esse vínculo direto e nunca cai na busca por telefone —
+  // isso evita o erro de ambiguidade (2+ atendimentos pendentes pro mesmo
+  // telefone) quando a sessão já resolve isso sem ambiguidade nenhuma.
+  const sessionContext = uploadContextFromSession(whatsappSession);
+  if (sessionContext) return sessionContext;
+
   const rows = await listAtendimentos({ status: STATUS.AWAITING_PRESCRIPTION_UPLOAD });
   const matches = rows.filter(
     (row) => phonesMatch(row.paciente_telefone, phone) && !hasStoredPreviousPrescription(row.dados_clinicos || {})
@@ -116,8 +124,8 @@ async function findUploadContextForPhone(phone) {
 // (ou seja, nunca interfere no caminho feliz). Só reabre o atendimento
 // quando o ÚNICO motivo da rejeição foi pagamento — nunca toca em
 // atendimentos rejeitados por motivo clínico/dados incompletos. Reaproveita
-// createPrescriptionUploadSession (mesma função do caminho normal) para
-// criar o token de upload e virar o status — sem duplicar lógica.
+// ensurePrescriptionUploadSession (mesma função do caminho normal) para
+// criar/reaproveitar o token de upload e virar o status — sem duplicar lógica.
 async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId = null } = {}) {
   const rows = await listAtendimentos({ status: STATUS.REJECTED });
   const match = rows.find(
@@ -153,7 +161,7 @@ async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId
     }
   });
 
-  const session = await createPrescriptionUploadSession({ atendimentoId: match.id, correlationId });
+  const session = await ensurePrescriptionUploadSession({ atendimentoId: match.id, correlationId });
   return {
     atendimentoId: match.id,
     token: session.token,
@@ -468,7 +476,7 @@ async function ingestWhatsAppPrescriptionMedia({
     return { handled: true, duplicate: true };
   }
 
-  const uploadContext = uploadContextFromSession(whatsappSession, await findPending(identity?.phone));
+  const uploadContext = await findPending(identity?.phone, { whatsappSession });
   if (!uploadContext?.token) {
     const err = new Error('Nenhuma sessão de upload de receita pendente para este contato');
     err.code = 'WHATSAPP_UPLOAD_NO_SESSION';

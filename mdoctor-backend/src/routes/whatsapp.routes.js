@@ -16,9 +16,10 @@ const {
 const { mapTypebotPayload, INELIGIBLE_USER_MESSAGE } = require('../services/typebot-payload.mapper');
 const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
 const {
-  createPrescriptionUploadSession,
+  ensurePrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('../services/prescription-upload-token.service');
+const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
 const {
   createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry,
@@ -423,19 +424,30 @@ router.post('/webhook', async (req, res) => {
                   }
 
                   if (mediaPayload) {
-                    const pendingUpload = await findPendingUploadContext(identity.phone);
-                    if (!pendingUpload) {
-                      logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
-                      await metaProvider.sendTextMessage({
-                        to: identity.phone,
-                        bsuid: identity.bsuid,
-                        correlationId: msg.id,
-                        idempotencyKey: `${msg.id}:no-upload-session`,
-                        text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
-                      }).catch(() => {});
+                    // Mesma trava atômica (unique constraint em meta_message_id)
+                    // já usada no caminho de texto (typebot-whatsapp.bridge.js),
+                    // agora também no caminho de mídia: uma reentrega do mesmo
+                    // webhook da Meta não pode baixar/gravar a mesma foto/PDF
+                    // duas vezes nem disparar retomada duplicada do Typebot.
+                    const mediaClaim = await claimMetaMessage({ messageId: msg.id, whatsappSessionId: whatsappSession.id });
+                    if (!mediaClaim.claimed) {
+                      logger.info('whatsapp_business_media_duplicate_skipped', { messageId: msg.id });
                       continue;
                     }
                     try {
+                      const pendingUpload = await findPendingUploadContext(identity.phone, { whatsappSession });
+                      if (!pendingUpload) {
+                        logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                        await metaProvider.sendTextMessage({
+                          to: identity.phone,
+                          bsuid: identity.bsuid,
+                          correlationId: msg.id,
+                          idempotencyKey: `${msg.id}:no-upload-session`,
+                          text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
+                        }).catch(() => {});
+                        await finishMetaMessage({ messageId: msg.id, status: 'processed' }).catch(() => {});
+                        continue;
+                      }
                       await ingestWhatsAppPrescriptionMedia({
                         ...mediaPayload,
                         identity,
@@ -443,19 +455,27 @@ router.post('/webhook', async (req, res) => {
                         messageId: msg.id
                       });
                       logger.info('whatsapp_business_prescription_media_handled', { messageId: msg.id });
+                      await finishMetaMessage({ messageId: msg.id, status: 'processed' }).catch(() => {});
                       continue;
                     } catch (error) {
                       logger.error('whatsapp_business_prescription_media_failed', {
                         messageId: msg.id,
                         error: error.message,
-                        code: error.code || null
+                        code: error.code || null,
+                        // IDs técnicos só no log — nunca expostos ao paciente
+                        // (ver mensagem genérica abaixo para o caso de ambiguidade).
+                        ...(error.atendimentoIds ? { atendimentoIds: error.atendimentoIds } : {})
                       });
+                      await finishMetaMessage({ messageId: msg.id, status: 'failed', errorMessage: error.message }).catch(() => {});
+                      const patientMessage = error.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
+                        ? 'Encontramos mais de uma solicitação em aberto para este número. Para sua segurança, um atendente vai verificar manualmente — digite 2 para falar com o suporte.'
+                        : `Não foi possível receber a foto da receita: ${error.message}`;
                       await metaProvider.sendTextMessage({
                         to: identity.phone,
                         bsuid: identity.bsuid,
                         correlationId: msg.id,
                         idempotencyKey: `${msg.id}:upload-error`,
-                        text: `Não foi possível receber a foto da receita: ${error.message}`
+                        text: patientMessage
                       }).catch(() => {});
                       continue;
                     }
@@ -870,7 +890,7 @@ router.post('/webhook', async (req, res) => {
   }
 
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
-    uploadSession = await createPrescriptionUploadSession({
+    uploadSession = await ensurePrescriptionUploadSession({
       atendimentoId: atendimento.id,
       correlationId
     });

@@ -144,6 +144,54 @@ async function createPrescriptionUploadSession({ atendimentoId, patientId = null
   return { token, uploadUrl, expiresAt: new Date(expiresAt).toISOString(), atendimentoId };
 }
 
+// Evita mintar um novo token toda vez que o atendimento (re)entra em
+// AWAITING_PRESCRIPTION_UPLOAD (webhook de triagem, confirmação de
+// pagamento, retomada pós-rejeição): reaproveita a sessão de upload já
+// gravada em dados_clinicos.prescription_upload_session enquanto ela ainda
+// não expirou nem foi concluída; só cria uma nova via
+// createPrescriptionUploadSession quando não há sessão anterior válida.
+async function ensurePrescriptionUploadSession({ atendimentoId, patientId = null, correlationId = null } = {}) {
+  if (!atendimentoId) {
+    const err = new Error('atendimento_id obrigatório para sessão de upload');
+    err.code = 'UPLOAD_SESSION_INVALID';
+    throw err;
+  }
+
+  const atendimento = await getAtendimento(atendimentoId);
+  const existing = atendimento?.dados_clinicos?.prescription_upload_session;
+  const stillValid = existing?.token
+    && existing?.upload_url
+    && existing.status !== 'completed'
+    && new Date(existing.expires_at).getTime() > Date.now();
+
+  if (stillValid) {
+    rememberToken({
+      token: existing.token,
+      tokenHash: existing.token_hash || sha256(existing.token),
+      atendimentoId,
+      patientId: existing.patient_id || patientId,
+      expiresAt: new Date(existing.expires_at).getTime(),
+      used: false,
+      status: existing.status || 'pending',
+      createdAt: existing.created_at
+    });
+
+    if (atendimento.status !== STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
+      await updateAtendimentoStatus(atendimentoId, STATUS.AWAITING_PRESCRIPTION_UPLOAD, {
+        dados_clinicos: {
+          ...atendimento.dados_clinicos,
+          prescription_upload_pending: true,
+          previous_prescription_pending: true
+        }
+      });
+    }
+
+    return { token: existing.token, uploadUrl: existing.upload_url, expiresAt: existing.expires_at, atendimentoId };
+  }
+
+  return createPrescriptionUploadSession({ atendimentoId, patientId, correlationId });
+}
+
 async function markUploadSessionCompleted({ token, atendimentoId, correlationId = null, clinicalPatch = {} }) {
   const record = (await resolveTokenRecord(token)) || { token, atendimentoId };
   record.used = true;
@@ -190,6 +238,7 @@ module.exports = {
   assertTokenActive,
   buildUploadPageUrl,
   createPrescriptionUploadSession,
+  ensurePrescriptionUploadSession,
   findTokenRecordFromStorage,
   generateToken,
   getPublicUploadBaseUrl,

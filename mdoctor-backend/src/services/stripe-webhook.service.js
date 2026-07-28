@@ -7,7 +7,7 @@ const {
 } = require('../store/atendimentos.store');
 const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
-const { isExternalUploadEnabled } = require('./prescription-upload-token.service');
+const { isExternalUploadEnabled, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const {
   applyCheckoutWebhook,
   completePaymentByToken,
@@ -101,6 +101,15 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
     requestPayload: { atendimentoId, type: stripeMeta.eventType },
     responsePayload: { status: updated?.status, pagamento_status: 'CONFIRMADO' }
   });
+
+  // Gap real corrigido: esta confirmação de pagamento (fluxo painel/Memed,
+  // client_reference_id) podia virar o status para AWAITING_PRESCRIPTION_UPLOAD
+  // sem nunca criar a sessão/token de upload — o paciente ficava "aguardando
+  // receita" sem nenhum vínculo em dados_clinicos.prescription_upload_session,
+  // e findPendingUploadContext nunca encontrava nada quando a foto chegasse.
+  if (nextStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
+    await ensurePrescriptionUploadSession({ atendimentoId, correlationId: stripeMeta.eventId });
+  }
 
   return { ok: true, duplicate: false, atendimento: updated || atendimento };
 }
