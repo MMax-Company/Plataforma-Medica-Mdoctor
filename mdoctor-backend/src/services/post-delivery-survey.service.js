@@ -38,6 +38,13 @@ function isSurveySkipText(raw = '') {
   return ['encerrar', 'pular', 'skip', 'sair', 'cancelar'].includes(normalized);
 }
 
+// "3" e o atalho de suporte anunciado na mensagem de entrega da receita
+// ("digite 3 para falar com o suporte"). Nao intercepta no passo q1: la o "3"
+// e uma resposta legitima do questionario ("Consultorio particular").
+function isSurveySupportRequestText(raw = '') {
+  return String(raw || '').trim() === '3';
+}
+
 function isSurveyEnabled() {
   const flag = String(process.env.POST_DELIVERY_SURVEY_ENABLED || '').trim().toLowerCase();
   if (flag === 'true') return true;
@@ -225,6 +232,35 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
       completed: false,
       outcome,
       reply: SURVEY_OPT_IN_DECLINED_MESSAGE
+    };
+  }
+
+  if (step !== 'q1' && isSurveySupportRequestText(rawText)) {
+    await clearSurveySession(digits);
+    // eslint-disable-next-line global-require
+    const { createWhatsAppSupportEntry } = require('./whatsapp-support.service');
+    const supportResult = await createWhatsAppSupportEntry({ phone: digits, correlationId });
+    if (sendOutbound) {
+      await sendSurveyWhatsApp({
+        phone: digits,
+        text: supportResult.reply,
+        correlationId,
+        idempotencyKey: `survey-support:${outcome.id}:${Date.now()}`
+      });
+    }
+    await createAuditLog({
+      entity_type: 'patient_outcome_survey',
+      entity_id: outcome.id,
+      action: 'survey_interrupted_support',
+      actor: 'patient',
+      payload: { correlationId, attendance_id: outcome.attendance_id, step }
+    });
+    return {
+      handled: true,
+      step: 'support_requested',
+      completed: false,
+      outcome,
+      reply: supportResult.reply
     };
   }
 
