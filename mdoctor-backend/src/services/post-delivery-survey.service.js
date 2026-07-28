@@ -26,6 +26,7 @@ const {
   upsertSessionMetadata
 } = require('../store/whatsapp-sessions.store');
 const { createAuditLog } = require('../store/audit.store');
+const { getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 
 const INVALID_ANSWER_MESSAGE = 'Não entendi sua resposta. Responda apenas com o número da opção indicada.';
 
@@ -116,6 +117,32 @@ async function setSurveySession({ phone, patientId, outcomeId, attendanceId, ste
   }
 }
 
+// Marcador de jornada (métrica de tempo do painel admin — ver
+// admin.routes.js computeTempos): grava o fim da Jornada Completa no exato
+// momento em que a mensagem pós-entrega (convite ao questionário 1/2/3) é
+// enviada — best-effort, nunca bloqueia nem falha o disparo do survey em si.
+// Idempotente por construção: triggerPostDeliverySurvey só chega até aqui
+// uma vez por atendimento (guarda de "existing" acima já impede reentrada).
+async function recordJourneyCompletedAt(attendanceId, timestamp) {
+  try {
+    const atendimento = await getAtendimento(attendanceId);
+    if (!atendimento) return;
+    await updateAtendimentoStatus(attendanceId, atendimento.status, {
+      medicoId: atendimento.medico_id,
+      motivo: atendimento.motivo_decisao,
+      dados_clinicos: {
+        ...(atendimento.dados_clinicos || {}),
+        jornada: {
+          ...(atendimento.dados_clinicos?.jornada || {}),
+          pos_entrega_enviada_em: timestamp
+        }
+      }
+    });
+  } catch (error) {
+    logger.warn('post_delivery_survey_journey_marker_failed', { attendanceId, error: error.message });
+  }
+}
+
 async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, correlationId = 'post-delivery-survey' }) {
   if (!isSurveyEnabled()) {
     return { skipped: true, reason: 'survey_disabled' };
@@ -158,6 +185,8 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     correlationId,
     idempotencyKey: `survey-opt-in:${attendanceId}:${outcome.id}`
   });
+
+  await recordJourneyCompletedAt(attendanceId, new Date().toISOString());
 
   await createAuditLog({
     entity_type: 'patient_outcome_survey',

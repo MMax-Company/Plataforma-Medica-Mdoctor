@@ -227,7 +227,30 @@ function getActiveSurveySession(session = {}) {
   return session?.metadata?.post_delivery_survey || null;
 }
 
+// Marcadores de jornada (metrica de tempo do painel admin — ver
+// admin.routes.js computeTempos): staged em whatsapp_sessions.metadata no
+// momento em que ocorrem (primeiro "Oi" e clique em "Vamos começar"), e
+// consumidos (copiados para dados_clinicos.jornada do atendimento) no
+// webhook do n8n que cria o atendimento — ver whatsapp.routes.js. Limpos
+// aqui logo após o consumo para que a PRÓXIMA jornada do mesmo telefone
+// (ex.: renovação) comece com marcadores zerados, em vez de herdar os
+// valores da jornada anterior.
+const JOURNEY_METADATA_KEYS = ['journey_started_at', 'welcome_clicked_at'];
+
+async function clearJourneyMarkers(phone) {
+  const session = await getSessionByPhone(phone);
+  if (!session?.id) return null;
+  const metadata = { ...(session.metadata || {}) };
+  for (const key of JOURNEY_METADATA_KEYS) delete metadata[key];
+  const now = new Date().toISOString();
+  const data = await dbQuery('limpar marcadores de jornada whatsapp session', async (supabase) =>
+    supabase.from(T.WHATSAPP_SESSIONS).update({ metadata, updated_at: now }).eq('id', session.id).select('*').single()
+  );
+  return data;
+}
+
 module.exports = {
+  clearJourneyMarkers,
   clearSurveySession,
   clearTypebotSession,
   getActiveSurveySession,
