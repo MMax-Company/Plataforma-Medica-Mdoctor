@@ -28,17 +28,10 @@ const UPLOAD_CONFIRM_VALUES = new Set([
   'check'
 ]);
 
-// Canonicaliza para DDD + 8 dígitos, removendo o 9º dígito quando presente.
-// Achado em homologação real (26/07, atendimento da Eunice): o WhatsApp real
-// manda o número sem o 9 (formato antigo), mas o telefone estruturado
-// coletado pelo Typebot pode vir com o 9 — a comparação por sufixo antiga
-// não cobria esse caso (o 9 é inserido no meio do número local, não é uma
-// diferença de prefixo/país), então findPendingUploadContext e a
-// reconciliação de pagamento pós-rejeição nunca encontravam o atendimento.
 function normalizePhone(value = '') {
   let digits = String(value).replace(/\D/g, '');
   if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) digits = digits.slice(2);
-  if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
+  if (digits.length === 11 || digits.length === 10) digits = `55${digits}`;
   return digits;
 }
 
@@ -46,7 +39,7 @@ function phonesMatch(a, b) {
   const left = normalizePhone(a);
   const right = normalizePhone(b);
   if (!left || !right) return false;
-  return left === right;
+  return left === right || left.endsWith(right.slice(-11)) || right.endsWith(left.slice(-11));
 }
 
 function getPublicBackendBaseUrl() {

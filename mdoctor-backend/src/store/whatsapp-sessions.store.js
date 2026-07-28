@@ -11,41 +11,11 @@ function normalizeIdentifier(value) {
   return str || '';
 }
 
-// Gera as duas variantes plausíveis (com/sem o 9º dígito, formato BR) do
-// mesmo número. Achado em homologação real (26/07): o WhatsApp real manda o
-// telefone sem o 9 (formato antigo), mas o telefone estruturado coletado
-// pelo Typebot pode vir com o 9 — sem isso, getSessionByPhone nunca casava
-// e resolveConfirmedPaymentFromSession (triagem-webhook.service.js) nunca
-// encontrava a sessão com pagamento já confirmado, mesmo com o Stripe tendo
-// confirmado antes da triagem rodar.
-function phoneVariants(digits) {
-  let core = digits;
-  let prefix = '';
-  if ((core.length === 12 || core.length === 13) && core.startsWith('55')) {
-    prefix = '55';
-    core = core.slice(2);
-  }
-  const variants = new Set([digits]);
-  if (core.length === 11 && core[2] === '9') {
-    variants.add(prefix + core.slice(0, 2) + core.slice(3));
-  } else if (core.length === 10) {
-    variants.add(prefix + core.slice(0, 2) + '9' + core.slice(2));
-  }
-  return Array.from(variants);
-}
-
 async function getSessionByPhone(phone) {
   const digits = normalizePhone(phone);
   if (!digits) return null;
-  const candidates = phoneVariants(digits);
   const data = await dbQuery('buscar whatsapp session por phone', async (supabase) =>
-    supabase
-      .from(T.WHATSAPP_SESSIONS)
-      .select('*')
-      .in('phone', candidates)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    supabase.from(T.WHATSAPP_SESSIONS).select('*').eq('phone', digits).order('updated_at', { ascending: false }).limit(1).maybeSingle()
   );
   return data || null;
 }
