@@ -178,28 +178,17 @@ function mapRoute(text = '') {
   return 'oral';
 }
 
-// Palavra de dosagem na posologia: "comprimido" para vias orais/sublinguais
-// (a grande maioria dos casos — renovação de receita por via oral), mantendo
-// "unidade" só para injetável/subcutânea (ex.: insulina, onde "comprimido"
-// não faz sentido clínico). Achado em homologação real (26/07): a palavra
-// genérica "unidade" confundia a leitura da receita na farmácia.
-function dosageUnitWord(route = '') {
-  const r = String(route || '').toLowerCase();
-  return r.includes('subcut') || r.includes('injet') ? 'unidade' : 'comprimido';
-}
-
 // Posologia compatível com a Memed a partir das opções fechadas do chatbot
 // (1/2/3 vezes ao dia x via oral/sublingual/subcutânea). Nunca cai mais na
 // frase genérica "Tomar conforme prescrição anterior" — casos não mapeados
 // (ou legados) recebem a mesma redação de "uma vez ao dia".
 function buildPosology({ frequency, route }) {
   const routeLabel = route === 'oral' || !route ? 'por via oral' : `por via ${route}`;
-  const unit = dosageUnitWord(route);
-  if (frequency === '12/12h') return `Tomar 1 ${unit} ${routeLabel}, a cada 12 horas.`;
-  if (frequency === '8/8h') return `Tomar 1 ${unit} ${routeLabel}, a cada 8 horas.`;
-  if (frequency === '1x à noite') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (à noite).`;
-  if (frequency === '1x pela manhã') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (pela manhã).`;
-  return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia.`;
+  if (frequency === '12/12h') return `Tomar 1 unidade ${routeLabel}, a cada 12 horas.`;
+  if (frequency === '8/8h') return `Tomar 1 unidade ${routeLabel}, a cada 8 horas.`;
+  if (frequency === '1x à noite') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (à noite).`;
+  if (frequency === '1x pela manhã') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (pela manhã).`;
+  return `Tomar 1 unidade ${routeLabel}, uma vez ao dia.`;
 }
 
 function parseMedicationFreeText(text = '', overrides = {}) {
