@@ -12,7 +12,6 @@ export type AdminNote = {
 
 export type AdminAtendimento = {
   id: string;
-  numero_curto?: number | null;
   paciente_nome: string;
   paciente_telefone?: string;
   paciente_cpf?: string;
@@ -24,7 +23,7 @@ export type AdminAtendimento = {
   criado_em?: string;
   atualizado_em?: string;
   medico_id?: string | null;
-  elegibilidade?: { eligible?: boolean; reason?: string; reasonCode?: string | null } | null;
+  elegibilidade?: { eligible?: boolean; reason?: string } | null;
   dados_clinicos?: {
     previous_prescription?: boolean;
     foto_receita_url?: string;
@@ -37,25 +36,8 @@ export type AdminAtendimento = {
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
-    // medico_id (coluna) só aceita ID numérico (resolveMedicoIdForDb em
-    // atendimentos.store.js) — o login atual usa username (ex.:
-    // "dr_max_vinicius_001"), então medico_id nunca é preenchido na prática.
-    // O responsável real fica registrado aqui por clinical-decision.service.js.
-    clinical_audit?: { approvedBy?: string | null; rejectedBy?: string | null } | null;
   };
 };
-
-// Nome do responsável clínico para exibição — medico_id (coluna) é
-// estruturalmente sempre null com o esquema de login atual (ver comentário
-// acima); usa o fallback real gravado em dados_clinicos.clinical_audit.
-export function medicoResponsavel(a: AdminAtendimento): string | null {
-  return (
-    a.medico_id ||
-    a.dados_clinicos?.clinical_audit?.approvedBy ||
-    a.dados_clinicos?.clinical_audit?.rejectedBy ||
-    null
-  );
-}
 
 export type AdminDashboard = {
   cards: {
@@ -65,23 +47,6 @@ export type AdminDashboard = {
     em_atendimento: number;
     receitas_prontas: number;
     pendencias_admin: number;
-  };
-  financeiro: {
-    atendimentos_pagos: number;
-    valor_unitario_centavos: number;
-    valor_unitario_label: string;
-    receita_total_centavos: number;
-    receita_total_label: string;
-  };
-  tempos: {
-    amostra: number;
-    triagem: string | null;
-    espera_medica: string | null;
-    avaliacao: string | null;
-    emissao_receita: string | null;
-    jornada_completa: string | null;
-    suporte_administrativo: string | null;
-    suporte_medico: string | null;
   };
   total: number;
   recentes: AdminAtendimento[];
