@@ -151,13 +151,15 @@ async function main() {
   assert.doesNotMatch(storeSrc, /atendimentos\.store/);
   report['6_dados_clinicos_persistidos_intactos'] = 'ok';
 
-  // 7) Encerramento fecha ticket (closeWhatsAppSupportEntry usa REJECTED)
+  // 7) Encerramento fecha o support_tickets diretamente
   const supportSrc = fs.readFileSync(
     path.join(__dirname, '../src/services/whatsapp-support.service.js'),
     'utf8'
   );
   assert.match(supportSrc, /closeWhatsAppSupportEntry/);
-  assert.match(supportSrc, /STATUS\.REJECTED/);
+  assert.match(supportSrc, /updateSupportTicket/);
+  assert.match(supportSrc, /status:\s*'closed'/);
+  assert.doesNotMatch(supportSrc, /createAtendimento/);
   report['7_encerramento_fecha_ticket'] = 'ok';
 
   // 8) Após encerramento menu 1/2

@@ -79,6 +79,7 @@ async function routeMetaWhatsAppInbound({ phone, text, whatsappSession, messageI
     await logSupportInboundMessage({
       phone,
       text,
+      ticketId: ctx?.ticket_id || null,
       atendimentoId: ctx?.atendimento_id || null
     });
     return {

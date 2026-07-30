@@ -3,7 +3,12 @@
 import { CheckCircle2, Clock, Headphones, Stethoscope, Undo2, Users } from 'lucide-react';
 
 export type SupportQueueItem = {
+  /** Identificador próprio do ticket de suporte (support_tickets.id). */
   id: string;
+  ticket_id?: string;
+  /** Atendimento clínico relacionado; nunca é usado como identificador do ticket. */
+  atendimento_id?: string | null;
+  patient_id?: string | null;
   paciente_nome: string;
   paciente_telefone?: string;
   criado_em?: string;

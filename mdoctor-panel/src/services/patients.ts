@@ -131,6 +131,10 @@ export const mockPatients: Patient[] = [
 ];
 
 type BackendPatient = Partial<Patient> & {
+  ticket_id?: string;
+  atendimento_id?: string | null;
+  patient_id?: string | null;
+  support_sub_status?: string;
   nome?: string;
   telefone?: string;
   idade?: number;
@@ -313,7 +317,12 @@ function normalizePatient(item: BackendPatient, index: number): Patient {
       : undefined,
     clinicalData: clinicalObject,
     queueType:
-      clinicalObject.queue_type === 'support' || item.condicao === 'suporte_whatsapp' ? 'support' : 'medical',
+      item.ticket_id ||
+      item.support_sub_status ||
+      clinicalObject.queue_type === 'support' ||
+      item.condicao === 'suporte_whatsapp'
+        ? 'support'
+        : 'medical',
     sentDeliveryChannels: extractSentChannelsFromClinical(clinicalObject),
     prescriptionValidated: isReceiptValidated(clinicalObject) || normalizeStatus(item.status) === 'ready',
   };
@@ -321,10 +330,12 @@ function normalizePatient(item: BackendPatient, index: number): Patient {
 
 export async function getSupportPatients(): Promise<ServiceResult<Patient[]>> {
   try {
-    const data = await apiClient.get<BackendPatient[] | { atendimentos?: BackendPatient[] }>(
+    const data = await apiClient.get<
+      BackendPatient[] | { tickets?: BackendPatient[]; atendimentos?: BackendPatient[] }
+    >(
       '/api/atendimentos/support-queue',
     );
-    const rows = Array.isArray(data) ? data : data.atendimentos || [];
+    const rows = Array.isArray(data) ? data : data.tickets || data.atendimentos || [];
     return {
       data: rows.map(normalizePatient),
       usingMockFallback: false,

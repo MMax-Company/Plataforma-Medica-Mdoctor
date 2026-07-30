@@ -268,7 +268,11 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     await clearSurveySession(digits);
     // eslint-disable-next-line global-require
     const { createWhatsAppSupportEntry } = require('./whatsapp-support.service');
-    const supportResult = await createWhatsAppSupportEntry({ phone: digits, correlationId });
+    const supportResult = await createWhatsAppSupportEntry({
+      phone: digits,
+      appointmentId: outcome.attendance_id || null,
+      correlationId
+    });
     if (sendOutbound) {
       await sendSurveyWhatsApp({
         phone: digits,

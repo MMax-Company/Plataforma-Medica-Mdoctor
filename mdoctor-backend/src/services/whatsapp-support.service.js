@@ -1,11 +1,28 @@
-const { STATUS, createAtendimento, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
+const {
+  STATUS,
+  listAtendimentos,
+  getAtendimento,
+  updateAtendimentoStatus
+} = require('../store/atendimentos.store');
 const { createAuditLog } = require('../store/audit.store');
-const { recordSupportTicket, recordWhatsappMessage } = require('./clinical-persistence.service');
-const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
+const { recordWhatsappMessage } = require('./clinical-persistence.service');
+const { isSupportQueue } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const { getActiveSurveySession, getSessionByPhone, clearTypebotSession } = require('../store/whatsapp-sessions.store');
 const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
+const { findOrCreatePatient } = require('../store/patients.store');
+const {
+  ticketPhone,
+  ticketSubStatus,
+  listSupportTickets,
+  getSupportTicket,
+  findOpenSupportTicketByPhone,
+  findSupportTicketByIdempotencyKey,
+  createSupportTicket,
+  updateSupportTicket,
+  recordSupportMessage
+} = require('../store/support-tickets.store');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
 
@@ -36,52 +53,47 @@ const SUPPORT_SUB = {
   INACTIVE: 'closed_inactive'
 };
 
-function getSupportSubStatus(atendimento = {}) {
-  return String(atendimento?.dados_clinicos?.support_sub_status || SUPPORT_SUB.WAITING);
+function getSupportSubStatus(ticket = {}) {
+  return ticketSubStatus(ticket);
 }
 
 function normalizePhone(value = '') {
   return String(value).replace(/\D/g, '').trim();
 }
 
-function supportIsOpen(atendimento) {
-  const status = String(atendimento?.status || '').toLowerCase();
-  const sub = getSupportSubStatus(atendimento);
-  return status === STATUS.WAITING || status === STATUS.EM_ATENDIMENTO || sub === SUPPORT_SUB.AWAITING_DECISION;
+function supportIsOpen(ticket) {
+  return String(ticket?.status || '').toLowerCase() === 'open';
 }
 
 async function findOpenSupportByPhone(phone) {
-  const digits = normalizePhone(phone);
-  if (!digits) return null;
-
-  const rows = await listAtendimentos();
-  return (
-    rows.find((item) => {
-      if (!isSupportQueue(item)) return false;
-      if (!supportIsOpen(item)) return false;
-      return normalizePhone(item.paciente_telefone) === digits;
-    }) || null
-  );
+  return findOpenSupportTicketByPhone(phone);
 }
 
 async function findSupportByCreationIdempotencyKey(idempotencyKey) {
-  const normalized = String(idempotencyKey || '').trim();
-  if (!normalized) return null;
-
-  const rows = await listAtendimentos();
-  return (
-    rows.find((item) => {
-      if (!isSupportQueue(item)) return false;
-      const stored = String(item.dados_clinicos?.idempotency_key || '').trim();
-      return stored && stored === normalized;
-    }) || null
-  );
+  return findSupportTicketByIdempotencyKey(idempotencyKey);
 }
 
-async function logSupportInboundMessage({ phone, text, atendimentoId = null }) {
+function ticketToQueueItem(ticket = {}) {
+  const metadata = ticket.metadata || {};
+  return {
+    id: ticket.id,
+    ticket_id: ticket.id,
+    atendimento_id: ticket.appointment_id || null,
+    patient_id: ticket.patient_id || null,
+    paciente_nome: metadata.patient_name || ticket.subject || 'Paciente',
+    paciente_telefone: ticketPhone(ticket),
+    criado_em: ticket.created_at,
+    atualizado_em: ticket.updated_at,
+    status: ticket.status,
+    support_sub_status: getSupportSubStatus(ticket)
+  };
+}
+
+async function logSupportInboundMessage({ phone, text, ticketId = null, atendimentoId = null }) {
   const digits = normalizePhone(phone);
   if (!digits || !String(text || '').trim()) return;
   logger.info('whatsapp_support_inbound_message', {
+    ticket_id: ticketId || null,
     atendimento_id: atendimentoId || null,
     phone: digits.replace(/\d(?=\d{4})/g, '*'),
     body_length: String(text).length
@@ -92,11 +104,17 @@ async function logSupportInboundMessage({ phone, text, atendimentoId = null }) {
     body: String(text),
     direction: 'inbound',
     status: 'received',
-    metadata: { channel: 'whatsapp_support' }
+    metadata: { channel: 'whatsapp_support', support_ticket_id: ticketId || null }
+  }).catch(() => {});
+  await recordSupportMessage({
+    ticketId,
+    direction: 'inbound',
+    body: String(text),
+    metadata: { appointment_id: atendimentoId || null }
   }).catch(() => {});
 }
 
-async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey, requestId }) {
+async function createWhatsAppSupportEntry({ phone, appointmentId = null, correlationId, idempotencyKey, requestId }) {
   const digits = normalizePhone(phone);
   if (!digits) {
     const error = new Error('telefone obrigatório');
@@ -111,7 +129,8 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
       return {
         duplicate: true,
         idempotentReplay: true,
-        atendimento: byKey,
+        ticket: byKey,
+        atendimento: ticketToQueueItem(byKey),
         reply: supportIsOpen(byKey) ? SUPPORT_ALREADY_OPEN_REPLY : 'Solicitação de suporte já registrada.'
       };
     }
@@ -119,63 +138,61 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
 
   const existing = await findOpenSupportByPhone(digits);
   if (existing) {
-    return { duplicate: true, atendimento: existing, reply: SUPPORT_ALREADY_OPEN_REPLY };
+    return {
+      duplicate: true,
+      ticket: existing,
+      atendimento: ticketToQueueItem(existing),
+      reply: SUPPORT_ALREADY_OPEN_REPLY
+    };
   }
 
   const suffix = digits.slice(-4);
-  const atendimento = await createAtendimento({
-    paciente_nome: `Suporte WhatsApp ${suffix}`,
-    paciente_telefone: digits,
-    paciente_cpf: '',
-    paciente_email: '',
-    condicao: 'suporte_whatsapp',
-    medicacao_em_uso: '',
-    origem: 'whatsapp',
-    status: STATUS.WAITING,
-    pagamento_status: 'CONFIRMADO',
-    risco: 'BAIXO',
-    elegibilidade: {
-      eligible: false,
-      reason: 'Aguardando atendimento humano via WhatsApp',
-      reasonCode: 'human_support',
-      riskLevel: 'BAIXO',
-      protocolVersion: 'whatsapp-support-v1'
-    },
-    dados_clinicos: {
-      queue_type: QUEUE_TYPE_SUPPORT,
-      whatsapp_support: true,
+  const requestedAtendimento = appointmentId ? await getAtendimento(appointmentId) : null;
+  const relatedAtendimento =
+    requestedAtendimento &&
+    !isSupportQueue(requestedAtendimento) &&
+    normalizePhone(requestedAtendimento.paciente_telefone) === digits
+      ? requestedAtendimento
+      : null;
+  const patient = await findOrCreatePatient({
+    phone: digits,
+    name: relatedAtendimento?.paciente_nome || `Paciente ${suffix}`,
+    source: 'whatsapp_support'
+  });
+  const openedAt = new Date().toISOString();
+  const ticket = await createSupportTicket({
+    patientId: patient.id,
+    appointmentId: relatedAtendimento?.id || null,
+    phone: digits,
+    subject: `Suporte via WhatsApp — ${patient.nome || suffix}`,
+    metadata: {
+      patient_name: patient.nome || relatedAtendimento?.paciente_nome || `Paciente ${suffix}`,
+      support_sub_status: SUPPORT_SUB.WAITING,
       correlationId: correlationId || null,
       idempotency_key: idempotencyKey || null,
-      opened_at: new Date().toISOString()
-    }
-  });
-
-  await recordSupportTicket({
-    appointmentId: atendimento.id,
-    phone: digits,
-    subject: `Suporte WhatsApp ${suffix}`,
-    metadata: {
-      correlationId: correlationId || null,
-      idempotency_key: idempotencyKey || null
+      opened_at: openedAt
     }
   });
 
   await createAuditLog({
     entity_type: 'whatsapp_support',
-    entity_id: atendimento.id,
+    entity_id: ticket.id,
     action: 'support_queue_created',
     actor: 'n8n',
     payload: {
       requestId: requestId || null,
       correlationId: correlationId || null,
       phone: digits.replace(/\d(?=\d{4})/g, '*'),
-      atendimento_id: atendimento.id
+      support_ticket_id: ticket.id,
+      patient_id: patient.id,
+      atendimento_id: relatedAtendimento?.id || null
     }
   });
 
   return {
     duplicate: false,
-    atendimento,
+    ticket,
+    atendimento: ticketToQueueItem(ticket),
     reply: SUPPORT_WAITING_TEXT
   };
 }
@@ -188,10 +205,9 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
     return { closed: false, atendimento: null, reply: 'Nenhum atendimento de suporte ativo encontrado.' };
   }
 
-  const updated = await updateAtendimentoStatus(existing.id, STATUS.REJECTED, {
-    motivo: 'Encerrado pelo paciente via WhatsApp',
-    dados_clinicos: {
-      ...(existing.dados_clinicos || {}),
+  const updated = await updateSupportTicket(existing.id, {
+    status: 'closed',
+    metadata: {
       support_sub_status: SUPPORT_SUB.CLOSED_PATIENT,
       support_closed_at: new Date().toISOString(),
       support_closed_by: 'patient'
@@ -206,65 +222,66 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
     payload: {
       requestId: requestId || null,
       correlationId: correlationId || null,
-      phone: digits.replace(/\d(?=\d{4})/g, '*')
+      phone: digits.replace(/\d(?=\d{4})/g, '*'),
+      support_ticket_id: existing.id,
+      atendimento_id: existing.appointment_id || null
     }
   });
 
   return {
     closed: true,
-    atendimento: updated,
+    ticket: updated,
+    atendimento: ticketToQueueItem(updated),
     reply: SUPPORT_CLOSED_TEXT
   };
 }
 
 async function listWhatsAppSupportQueue() {
-  const rows = await listAtendimentos();
-  return rows
-    .filter((item) => isSupportQueue(item) && supportIsOpen(item))
+  const rows = await listSupportTickets({ status: 'open' });
+  return (rows || [])
+    .map(ticketToQueueItem)
     .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
 }
 
-async function startSupportAttendance(atendimentoId) {
-  const atendimento = await getAtendimento(atendimentoId);
-  if (!atendimento) { const e = new Error('Atendimento não encontrado'); e.statusCode = 404; throw e; }
-  if (!isSupportQueue(atendimento)) { const e = new Error('Atendimento não é de suporte'); e.statusCode = 400; throw e; }
+async function startSupportAttendance(ticketId) {
+  const ticket = await getSupportTicket(ticketId);
+  if (!ticket) { const e = new Error('Ticket de suporte não encontrado'); e.statusCode = 404; throw e; }
+  if (!supportIsOpen(ticket)) { const e = new Error('Ticket de suporte encerrado'); e.statusCode = 409; throw e; }
 
-  const updated = await updateAtendimentoStatus(atendimentoId, STATUS.EM_ATENDIMENTO, {
-    dados_clinicos: {
-      ...(atendimento.dados_clinicos || {}),
+  const updated = await updateSupportTicket(ticketId, {
+    metadata: {
       support_sub_status: SUPPORT_SUB.EM_ATENDIMENTO,
       support_started_at: new Date().toISOString()
     }
   });
 
   await createAuditLog({
-    entity_type: 'whatsapp_support', entity_id: atendimentoId,
+    entity_type: 'whatsapp_support', entity_id: ticketId,
     action: 'support_attendance_started', actor: 'panel',
-    payload: { atendimento_id: atendimentoId }
+    payload: { support_ticket_id: ticketId, atendimento_id: ticket.appointment_id || null }
   });
 
-  return updated;
+  return ticketToQueueItem(updated);
 }
 
-async function finalizeSupportAttendance(atendimentoId) {
-  const atendimento = await getAtendimento(atendimentoId);
-  if (!atendimento) { const e = new Error('Atendimento não encontrado'); e.statusCode = 404; throw e; }
-  if (!isSupportQueue(atendimento)) { const e = new Error('Atendimento não é de suporte'); e.statusCode = 400; throw e; }
+async function finalizeSupportAttendance(ticketId) {
+  const ticket = await getSupportTicket(ticketId);
+  if (!ticket) { const e = new Error('Ticket de suporte não encontrado'); e.statusCode = 404; throw e; }
+  if (!supportIsOpen(ticket)) { const e = new Error('Ticket de suporte encerrado'); e.statusCode = 409; throw e; }
 
   const deadline = new Date(Date.now() + SUPPORT_TIMEOUT_MS).toISOString();
   const FINALIZATION_TEXT =
     'Seu atendimento de suporte foi finalizado.\n\nDigite:\n*1* - Encerrar atendimento\n*2* - Iniciar avaliação para renovação de receita';
 
-  await updateAtendimentoStatus(atendimentoId, STATUS.WAITING, {
-    dados_clinicos: {
-      ...(atendimento.dados_clinicos || {}),
+  await updateSupportTicket(ticketId, {
+    metadata: {
       support_sub_status: SUPPORT_SUB.AWAITING_DECISION,
       support_finalized_at: new Date().toISOString(),
       support_decision_deadline: deadline
     }
   });
 
-  const phone = atendimento.paciente_telefone;
+  const phone = ticketPhone(ticket);
   if (phone) {
     // Causa raiz do bug de roteamento pós-finalização (2026-07-28): uma
     // sessão presa num choice input antigo do Typebot (ex.: WELCOME_CHOICE_
@@ -280,22 +297,33 @@ async function finalizeSupportAttendance(atendimentoId) {
         await clearTypebotSession({ sessionId: waSession.id });
       }
     } catch (e) {
-      logger.warn('support_finalization_session_clear_failed', { atendimentoId, error: e.message });
+      logger.warn('support_finalization_session_clear_failed', { ticketId, error: e.message });
     }
 
     // Best-effort send via provider WhatsApp configurado (meta)
     try {
       const { sendWhatsAppText } = require('../delivery/delivery.service');
-      await sendWhatsAppText({ to: phone, text: FINALIZATION_TEXT });
+      const sent = await sendWhatsAppText({ to: phone, text: FINALIZATION_TEXT });
+      await recordSupportMessage({
+        ticketId,
+        direction: 'outbound',
+        body: FINALIZATION_TEXT,
+        providerMessageId: sent?.providerMessageId || sent?.messageId || null,
+        metadata: { appointment_id: ticket.appointment_id || null }
+      }).catch(() => {});
     } catch (e) {
-      logger.warn('support_finalization_send_failed', { atendimentoId, error: e.message });
+      logger.warn('support_finalization_send_failed', { ticketId, error: e.message });
     }
   }
 
   await createAuditLog({
-    entity_type: 'whatsapp_support', entity_id: atendimentoId,
+    entity_type: 'whatsapp_support', entity_id: ticketId,
     action: 'support_attendance_finalized', actor: 'panel',
-    payload: { atendimento_id: atendimentoId, decision_deadline: deadline }
+    payload: {
+      support_ticket_id: ticketId,
+      atendimento_id: ticket.appointment_id || null,
+      decision_deadline: deadline
+    }
   });
 
   return { messageText: FINALIZATION_TEXT };
@@ -304,34 +332,24 @@ async function finalizeSupportAttendance(atendimentoId) {
 async function getPatientSupportContext(phone) {
   const digits = normalizePhone(phone);
   if (!digits) return null;
-
-  const rows = await listAtendimentos();
-  const match = rows.find((item) => {
-    if (!isSupportQueue(item)) return false;
-    if (!supportIsOpen(item)) return false;
-    return normalizePhone(item.paciente_telefone) === digits;
-  });
-
+  const match = await findOpenSupportByPhone(digits);
   if (!match) return null;
 
   return {
-    atendimento_id: match.id,
+    ticket_id: match.id,
+    atendimento_id: match.appointment_id || null,
+    patient_id: match.patient_id || null,
     status: match.status,
     support_sub_status: getSupportSubStatus(match),
-    opened_at: match.dados_clinicos?.opened_at || match.criado_em
+    opened_at: match.metadata?.opened_at || match.created_at
   };
 }
 
 async function respondToFinalization(phone, choice, { inlineTypebot = false } = {}) {
   const digits = normalizePhone(phone);
-  const rows = await listAtendimentos();
-  const match = rows.find((item) => {
-    if (!isSupportQueue(item)) return false;
-    return getSupportSubStatus(item) === SUPPORT_SUB.AWAITING_DECISION
-      && normalizePhone(item.paciente_telefone) === digits;
-  });
+  const match = await findOpenSupportByPhone(digits);
 
-  if (!match) {
+  if (!match || getSupportSubStatus(match) !== SUPPORT_SUB.AWAITING_DECISION) {
     return { handled: false, action: 'reply', reply: 'Nenhum atendimento aguardando decisão. Digite *2* para acessar o suporte.' };
   }
 
@@ -346,9 +364,9 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
   }
 
   if (choiceStr === '1') {
-    await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
-      dados_clinicos: {
-        ...(match.dados_clinicos || {}),
+    await updateSupportTicket(match.id, {
+      status: 'closed',
+      metadata: {
         support_sub_status: SUPPORT_SUB.CLOSED_PATIENT,
         support_closed_at: new Date().toISOString(),
         support_closed_by: 'patient'
@@ -357,7 +375,11 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
     await createAuditLog({
       entity_type: 'whatsapp_support', entity_id: match.id,
       action: 'support_closed_by_patient', actor: 'n8n',
-      payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
+      payload: {
+        phone: digits.replace(/\d(?=\d{4})/g, '*'),
+        support_ticket_id: match.id,
+        atendimento_id: match.appointment_id || null
+      }
     });
     return {
       handled: true, action: 'reply', sub_status: SUPPORT_SUB.CLOSED_PATIENT,
@@ -366,9 +388,9 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
   }
 
   if (choiceStr === '2') {
-    await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
-      dados_clinicos: {
-        ...(match.dados_clinicos || {}),
+    await updateSupportTicket(match.id, {
+      status: 'closed',
+      metadata: {
         support_sub_status: SUPPORT_SUB.CONVERTED,
         support_converted_at: new Date().toISOString()
       }
@@ -376,7 +398,11 @@ async function respondToFinalization(phone, choice, { inlineTypebot = false } = 
     await createAuditLog({
       entity_type: 'whatsapp_support', entity_id: match.id,
       action: 'support_converted_to_renewal', actor: 'n8n',
-      payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
+      payload: {
+        phone: digits.replace(/\d(?=\d{4})/g, '*'),
+        support_ticket_id: match.id,
+        atendimento_id: match.appointment_id || null
+      }
     });
     if (inlineTypebot) {
       return { handled: true, sub_status: SUPPORT_SUB.CONVERTED, startTypebot: true };
@@ -447,7 +473,7 @@ async function handleRejectionResponse({ phone, text }) {
       action: 'rejection_converted_to_support', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
-    const supportResult = await createWhatsAppSupportEntry({ phone: digits });
+    const supportResult = await createWhatsAppSupportEntry({ phone: digits, appointmentId: match.id });
     return { handled: true, reply: supportResult.reply, enteredSupport: true };
   }
 
@@ -699,15 +725,14 @@ async function processIncomingMessage({ phone, text }) {
 
 async function closeInactiveSessions() {
   const now = Date.now();
-  const rows = await listAtendimentos();
+  const rows = await listSupportTickets({ status: 'open' });
   let closed = 0;
 
   for (const item of rows) {
-    if (!isSupportQueue(item)) continue;
     if (getSupportSubStatus(item) !== SUPPORT_SUB.AWAITING_DECISION) continue;
 
-    const deadline = item.dados_clinicos?.support_decision_deadline;
-    const finalizedAt = item.dados_clinicos?.support_finalized_at;
+    const deadline = item.metadata?.support_decision_deadline;
+    const finalizedAt = item.metadata?.support_finalized_at;
     const isExpired = deadline
       ? now > new Date(deadline).getTime()
       : finalizedAt && (now - new Date(finalizedAt).getTime()) > SUPPORT_TIMEOUT_MS;
@@ -715,9 +740,9 @@ async function closeInactiveSessions() {
     if (!isExpired) continue;
 
     try {
-      await updateAtendimentoStatus(item.id, STATUS.REJECTED, {
-        dados_clinicos: {
-          ...(item.dados_clinicos || {}),
+      await updateSupportTicket(item.id, {
+        status: 'closed',
+        metadata: {
           support_sub_status: SUPPORT_SUB.INACTIVE,
           support_closed_at: new Date().toISOString(),
           support_closed_by: 'inactivity'
@@ -726,7 +751,10 @@ async function closeInactiveSessions() {
       await createAuditLog({
         entity_type: 'whatsapp_support', entity_id: item.id,
         action: 'support_closed_inactive', actor: 'system',
-        payload: { atendimento_id: item.id }
+        payload: {
+          support_ticket_id: item.id,
+          atendimento_id: item.appointment_id || null
+        }
       });
       closed++;
     } catch (e) {

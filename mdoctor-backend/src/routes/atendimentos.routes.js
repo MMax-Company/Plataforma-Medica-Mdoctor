@@ -32,7 +32,7 @@ const {
 const { buildClinicalNarrative, PROTOCOL_VERSION } = require('../services/clinical-intelligence.service');
 const { approveAtendimento, rejectAtendimento } = require('../services/clinical-decision.service');
 const { listRejectReasons } = require('../constants/clinical-reject-reasons');
-const { isMedicalQueue, isSupportQueue, isMedicalSupportQueue } = require('../constants/whatsapp-queue');
+const { isMedicalQueue, isMedicalSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
 const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
 const {
@@ -116,26 +116,31 @@ function buildHistoricoReceita(receipt = {}, doctorId = null, delivery = null) {
 }
 
 router.get('/', requireAuth, async (req, res) => {
-  const atendimentos = await listAtendimentos({ status: req.query.status });
   const scope = String(req.query.scope || 'medical').toLowerCase();
-  const filtered =
-    scope === 'all'
-      ? atendimentos
-      : scope === 'support'
-        ? atendimentos.filter((item) => isSupportQueue(item))
-        : atendimentos.filter((item) => isMedicalQueue(item) && isVisibleInMedicalPanel(item));
+  if (scope === 'support') {
+    const tickets = await listWhatsAppSupportQueue();
+    return res.json({ success: true, tickets, atendimentos: tickets, scope });
+  }
+
+  const atendimentos = await listAtendimentos({ status: req.query.status });
+  const filtered = scope === 'all'
+    ? atendimentos
+    : atendimentos.filter((item) => isMedicalQueue(item) && isVisibleInMedicalPanel(item));
   res.json({ success: true, atendimentos: filtered, scope });
 });
 
 router.get('/support-queue', requireAuth, async (_req, res) => {
-  const atendimentos = await listWhatsAppSupportQueue();
-  res.json({ success: true, atendimentos, total: atendimentos.length });
+  const tickets = await listWhatsAppSupportQueue();
+  // `atendimentos` permanece como alias temporário para não quebrar o painel
+  // atual; cada item usa `id`/`ticket_id` do support_tickets e traz o
+  // atendimento clínico relacionado separadamente em `atendimento_id`.
+  res.json({ success: true, tickets, atendimentos: tickets, total: tickets.length });
 });
 
 router.post('/:id/support/start', requireAuth, async (req, res) => {
   try {
-    const atendimento = await startSupportAttendance(req.params.id);
-    return res.json({ success: true, atendimento });
+    const ticket = await startSupportAttendance(req.params.id);
+    return res.json({ success: true, ticket });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }

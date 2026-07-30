@@ -16,7 +16,7 @@ const {
   SUPPORT_SUB
 } = require('../src/services/whatsapp-support.service');
 const { upsertSessionMetadata, getSessionByPhone } = require('../src/store/whatsapp-sessions.store');
-const { getAtendimento } = require('../src/store/atendimentos.store');
+const { getSupportTicket } = require('../src/store/support-tickets.store');
 
 const WELCOME_CHOICE_INPUT_ID = 'sbjZWLJGVkHAkDqS4JQeGow';
 
@@ -37,9 +37,10 @@ async function testCaminho2_IniciaAvaliacao() {
 
   const created = await createWhatsAppSupportEntry({ phone });
   assert.equal(created.duplicate, false);
-  const atendimentoId = created.atendimento.id;
+  assert.equal(created.ticket.appointment_id, null, 'suporte geral sem contexto clínico não cria nem vincula atendimento falso');
+  const ticketId = created.ticket.id;
 
-  await finalizeSupportAttendance(atendimentoId);
+  await finalizeSupportAttendance(ticketId);
 
   const ctxAfterFinalize = await getPatientSupportContext(phone);
   assert.equal(ctxAfterFinalize.support_sub_status, SUPPORT_SUB.AWAITING_DECISION, 'ticket está aguardando decisão após finalizar');
@@ -63,9 +64,9 @@ async function testCaminho2_IniciaAvaliacao() {
   assert.equal(routing.action, 'typebot_clean', `"2" pós-finalização deve iniciar nova avaliação no Typebot (action=typebot_clean), recebido: ${JSON.stringify(routing)}`);
   assert.notEqual(routing.reply, 'Você já está na fila de suporte. Aguarde o contato da equipe.', 'não pode reencaminhar para a fila de suporte');
 
-  const atendimentoAfter = await getAtendimento(atendimentoId);
-  assert.equal(atendimentoAfter.status, 'rejected', 'ticket de suporte é fechado (rejected) ao converter para avaliação');
-  assert.equal(atendimentoAfter.dados_clinicos.support_sub_status, SUPPORT_SUB.CONVERTED);
+  const ticketAfter = await getSupportTicket(ticketId);
+  assert.equal(ticketAfter.status, 'closed', 'ticket de suporte é encerrado ao converter para avaliação');
+  assert.equal(ticketAfter.metadata.support_sub_status, SUPPORT_SUB.CONVERTED);
 
   const ctxAfter = await getPatientSupportContext(phone);
   assert.equal(ctxAfter, null, 'paciente NÃO pode ser reenviado ao suporte: nenhum ticket aberto permanece após a conversão');
@@ -78,9 +79,10 @@ async function testCaminho1_EncerraELimpaSessao() {
   await stageStuckWelcomeSession(phone);
 
   const created = await createWhatsAppSupportEntry({ phone });
-  const atendimentoId = created.atendimento.id;
+  assert.equal(created.ticket.appointment_id, null, 'suporte geral sem contexto clínico mantém appointment_id nulo');
+  const ticketId = created.ticket.id;
 
-  await finalizeSupportAttendance(atendimentoId);
+  await finalizeSupportAttendance(ticketId);
 
   const sessionAfterFinalize = await getSessionByPhone(phone);
   assert.equal(sessionAfterFinalize.metadata.typebot_expected_input_id, undefined, 'finalizeSupportAttendance já limpa o marcador travado do Typebot');
@@ -96,9 +98,9 @@ async function testCaminho1_EncerraELimpaSessao() {
   assert.equal(routing.reply, 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.', `"1" pós-finalização deve encerrar, recebido: ${JSON.stringify(routing)}`);
   assert.notEqual(routing.action, 'typebot_clean', '"1" pós-finalização NUNCA pode iniciar o Typebot');
 
-  const atendimentoAfter = await getAtendimento(atendimentoId);
-  assert.equal(atendimentoAfter.status, 'rejected');
-  assert.equal(atendimentoAfter.dados_clinicos.support_sub_status, SUPPORT_SUB.CLOSED_PATIENT);
+  const ticketAfter = await getSupportTicket(ticketId);
+  assert.equal(ticketAfter.status, 'closed');
+  assert.equal(ticketAfter.metadata.support_sub_status, SUPPORT_SUB.CLOSED_PATIENT);
 
   const sessionAfter = await getSessionByPhone(phone);
   assert.equal(sessionAfter.metadata.typebot_expected_input_id, undefined, 'sessão do Typebot é limpa ao encerrar — marcador travado não pode sobreviver');
@@ -113,7 +115,7 @@ async function testCaminho1_EncerraELimpaSessao() {
   assert.equal(routingAfterClose.action, 'reply');
   assert.equal(routingAfterClose.reply, 'Seu atendimento foi encaminhado para o suporte.\n\nAguarde. Nossa equipe responderá assim que possível.\n\nPara encerrar o suporte, envie 0 ou ENCERRAR.', 'depois de encerrado, "2" abre um ticket NOVO (não reaproveita o antigo)');
   const newCtx = await getPatientSupportContext(phone);
-  assert.notEqual(newCtx.atendimento_id, atendimentoId, 'o novo ticket é diferente do já finalizado');
+  assert.notEqual(newCtx.ticket_id, ticketId, 'o novo ticket é diferente do já finalizado');
 
   console.log('OK: caminho "1" pós-finalização encerra e limpa a sessão; suporte antigo não é reaberto');
 }

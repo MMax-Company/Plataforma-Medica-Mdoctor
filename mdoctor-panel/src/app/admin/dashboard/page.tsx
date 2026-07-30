@@ -374,15 +374,18 @@ export default function AdminDashboardPage() {
       const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
       const json = await res.json();
       if (!res.ok) return;
-      const rows = Array.isArray(json) ? json : json.atendimentos || json.data || [];
+      const rows = Array.isArray(json) ? json : json.tickets || json.atendimentos || json.data || [];
       setSupportPatients(
         rows.map((item: any) => ({
           id: item.id,
+          ticket_id: item.ticket_id || item.id,
+          atendimento_id: item.atendimento_id || null,
+          patient_id: item.patient_id || null,
           paciente_nome: item.paciente_nome,
           paciente_telefone: item.paciente_telefone,
           criado_em: item.criado_em,
           status: item.status,
-          support_sub_status: item?.dados_clinicos?.support_sub_status,
+          support_sub_status: item.support_sub_status,
         })),
       );
     } catch {
