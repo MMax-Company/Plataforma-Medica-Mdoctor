@@ -189,10 +189,14 @@ export default function FilaPage() {
   // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
   const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
-  // Suporte Geral (tickets pré-triagem) nunca chega ao médico — só o
-  // Suporte Médico (atendimentos clínicos encaminhados pelo admin) aparece
-  // aqui. Ver MedicalSupportBand mode="medical_support".
+  // Suporte Médico: atendimentos clínicos reais encaminhados pelo admin.
+  // Ver MedicalSupportBand mode="medical_support".
   const [medicalSupportItems, setMedicalSupportItems] = useState<SupportQueueItem[]>([]);
+  // Ciclo administrativo → médico → administrativo do próprio ticket de
+  // Suporte Geral (endpoint e dado totalmente separados do medical-support-
+  // queue acima — nunca é atendimento clínico). Ver MedicalSupportBand
+  // mode="ticket_medical".
+  const [ticketMedicalItems, setTicketMedicalItems] = useState<SupportQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -290,10 +294,34 @@ export default function FilaPage() {
     }
   }
 
+  async function fetchTicketMedicalQueue() {
+    try {
+      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue/medical`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) return;
+      const rows = Array.isArray(data) ? data : data.tickets || [];
+      setTicketMedicalItems(
+        rows.map((item: any) => ({
+          id: item.id,
+          ticket_id: item.ticket_id || item.id,
+          atendimento_id: item.atendimento_id || null,
+          patient_id: item.patient_id || null,
+          paciente_nome: item.paciente_nome,
+          paciente_telefone: item.paciente_telefone,
+          criado_em: item.criado_em,
+          support_sub_status: item.support_sub_status,
+          medical_forward_reason: item.medical_forward_reason || null,
+        })),
+      );
+    } catch {
+      setTicketMedicalItems([]);
+    }
+  }
+
   useEffect(() => {
     requireSession()
       .then(async () => {
-        await Promise.all([fetchAtendimentos(), fetchMedicalSupportQueue()]);
+        await Promise.all([fetchAtendimentos(), fetchMedicalSupportQueue(), fetchTicketMedicalQueue()]);
       })
       .catch((e: any) => {
         setError(e.message || 'Sessão expirada. Faça login novamente.');
@@ -572,12 +600,19 @@ export default function FilaPage() {
           onOpenProntuario={(id) => openProntuarioModal(id, true)}
         />
 
+        <MedicalSupportBand
+          patients={ticketMedicalItems}
+          onQueueRefresh={fetchTicketMedicalQueue}
+          mode="ticket_medical"
+        />
+
         <div className="sr-only" aria-hidden>
           <button
             type="button"
             onClick={() => {
               fetchAtendimentos();
               fetchMedicalSupportQueue();
+              fetchTicketMedicalQueue();
             }}
           >
             Atualizar

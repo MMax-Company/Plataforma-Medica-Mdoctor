@@ -386,6 +386,8 @@ export default function AdminDashboardPage() {
           criado_em: item.criado_em,
           status: item.status,
           support_sub_status: item.support_sub_status,
+          medical_forward_reason: item.medical_forward_reason || null,
+          medical_response: item.medical_response || null,
         })),
       );
     } catch {
