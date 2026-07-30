@@ -56,6 +56,18 @@ const logger = require('../config/logger');
 
 const router = express.Router();
 
+// Diferente de ADMIN_ROLES (admin.routes.js), que mistura os dois perfis de
+// painel ('admin' e 'administrativo') porque o médico também usa role=
+// 'admin' por padrão (ver MEDICO_ROLE=admin no .env.example/README) — aqui
+// precisamos separar de verdade quem é administrativo de quem é médico.
+// 'administrativo' é o único papel que NUNCA é usado pelo login médico.
+const SUPPORT_ADMIN_ROLES = ['administrativo'];
+// Mesmo padrão já usado nas demais decisões médicas deste arquivo
+// (/clinical/approve|reject|validate, /medical-support/resolve): 'admin' é o
+// role real do médico (MEDICO_ROLE=admin); 'doctor' cobre deployments que
+// configurem esse role de forma diferente. Nunca inclui 'administrativo'.
+const SUPPORT_DOCTOR_ROLES = ['admin', 'doctor'];
+
 function isPaid(atendimento = {}) {
   return String(atendimento.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
 }
@@ -145,7 +157,7 @@ router.get('/support-queue', requireAuth, async (_req, res) => {
   res.json({ success: true, tickets, atendimentos: tickets, total: tickets.length });
 });
 
-router.post('/:id/support/start', requireAuth, async (req, res) => {
+router.post('/:id/support/start', requireAuth, requireRole(...SUPPORT_ADMIN_ROLES), async (req, res) => {
   try {
     const ticket = await startSupportAttendance(req.params.id);
     return res.json({ success: true, ticket });
@@ -154,7 +166,7 @@ router.post('/:id/support/start', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/:id/support/finalize', requireAuth, async (req, res) => {
+router.post('/:id/support/finalize', requireAuth, requireRole(...SUPPORT_ADMIN_ROLES), async (req, res) => {
   try {
     const result = await finalizeSupportAttendance(req.params.id);
     return res.json({ success: true, messageText: result.messageText });
@@ -167,29 +179,44 @@ router.post('/:id/support/finalize', requireAuth, async (req, res) => {
 // Opera sobre o próprio support_ticket (nunca sobre um atendimento clínico
 // nem cria um). Distinto e independente do bloco "Suporte Médico" abaixo,
 // que escala atendimentos clínicos reais — os dois fluxos não se cruzam.
+// Regra de negócio (perfil): abrir/encaminhar/encerrar são exclusivamente do
+// perfil administrativo (SUPPORT_ADMIN_ROLES); responder ao ticket
+// encaminhado é exclusivo do perfil médico (SUPPORT_DOCTOR_ROLES) —
+// administrativo nunca pode registrar resposta médica, e médico nunca abre/
+// encaminha/encerra ticket. Ver scripts/test-support-ticket-rbac.js.
 
-router.get('/support-queue/medical', requireAuth, async (_req, res) => {
-  try {
-    const tickets = await listMedicalForwardedTickets();
-    res.json({ success: true, tickets, total: tickets.length });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+router.get(
+  '/support-queue/medical',
+  requireAuth,
+  requireRole(...SUPPORT_ADMIN_ROLES, ...SUPPORT_DOCTOR_ROLES),
+  async (_req, res) => {
+    try {
+      const tickets = await listMedicalForwardedTickets();
+      res.json({ success: true, tickets, total: tickets.length });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
   }
-});
+);
 
-router.post('/:id/support/forward-to-doctor', requireAuth, async (req, res) => {
-  try {
-    const ticket = await forwardSupportTicketToDoctor(req.params.id, {
-      motivo: req.body?.motivo,
-      actor: req.user?.name || req.user?.username || null
-    });
-    return res.json({ success: true, ticket });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+router.post(
+  '/:id/support/forward-to-doctor',
+  requireAuth,
+  requireRole(...SUPPORT_ADMIN_ROLES),
+  async (req, res) => {
+    try {
+      const ticket = await forwardSupportTicketToDoctor(req.params.id, {
+        motivo: req.body?.motivo,
+        actor: req.user?.name || req.user?.username || null
+      });
+      return res.json({ success: true, ticket });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
   }
-});
+);
 
-router.post('/:id/support/answer', requireAuth, async (req, res) => {
+router.post('/:id/support/answer', requireAuth, requireRole(...SUPPORT_DOCTOR_ROLES), async (req, res) => {
   try {
     const ticket = await answerSupportTicketAsDoctor(req.params.id, {
       resposta: req.body?.resposta,
@@ -201,16 +228,21 @@ router.post('/:id/support/answer', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/:id/support/close', requireAuth, async (req, res) => {
-  try {
-    const ticket = await closeSupportTicketByAdmin(req.params.id, {
-      actor: req.user?.name || req.user?.username || null
-    });
-    return res.json({ success: true, ticket });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+router.post(
+  '/:id/support/close',
+  requireAuth,
+  requireRole(...SUPPORT_ADMIN_ROLES),
+  async (req, res) => {
+    try {
+      const ticket = await closeSupportTicketByAdmin(req.params.id, {
+        actor: req.user?.name || req.user?.username || null
+      });
+      return res.json({ success: true, ticket });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
   }
-});
+);
 
 // ─── Suporte Médico: fila de encaminhamento (admin → médico) ────────────────
 // Diferente de /support/*, que é Suporte Geral (WhatsApp, sem revisão clínica).
