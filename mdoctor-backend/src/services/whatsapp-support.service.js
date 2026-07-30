@@ -50,7 +50,13 @@ const SUPPORT_SUB = {
   AWAITING_DECISION: 'awaiting_patient_decision',
   CLOSED_PATIENT: 'closed_by_patient',
   CONVERTED: 'converted_to_renewal',
-  INACTIVE: 'closed_inactive'
+  INACTIVE: 'closed_inactive',
+  // Ciclo administrativo → médico → administrativo do próprio ticket de
+  // Suporte Geral (nunca cria/usa atendimento clínico — ver
+  // forwardSupportTicketToDoctor/answerSupportTicketAsDoctor abaixo).
+  FORWARDED_TO_DOCTOR: 'forwarded_to_doctor',
+  ANSWERED_BY_DOCTOR: 'answered_by_doctor',
+  CLOSED_BY_ADMIN: 'closed_by_admin'
 };
 
 function getSupportSubStatus(ticket = {}) {
@@ -85,7 +91,9 @@ function ticketToQueueItem(ticket = {}) {
     criado_em: ticket.created_at,
     atualizado_em: ticket.updated_at,
     status: ticket.status,
-    support_sub_status: getSupportSubStatus(ticket)
+    support_sub_status: getSupportSubStatus(ticket),
+    medical_forward_reason: metadata.medical_forward_reason || null,
+    medical_response: metadata.medical_response || null
   };
 }
 
@@ -327,6 +335,107 @@ async function finalizeSupportAttendance(ticketId) {
   });
 
   return { messageText: FINALIZATION_TEXT };
+}
+
+// ─── Ciclo administrativo → médico → administrativo (Suporte Geral) ────────
+// Opera exclusivamente sobre o próprio support_ticket — nunca cria, usa ou
+// substitui atendimento clínico. Distinto e independente do fluxo de
+// "Suporte Médico" (medical-support-queue), que escala atendimentos reais.
+
+async function forwardSupportTicketToDoctor(ticketId, { motivo, actor } = {}) {
+  const reason = String(motivo || '').trim();
+  if (!reason) {
+    const e = new Error('Motivo do encaminhamento é obrigatório');
+    e.statusCode = 400;
+    throw e;
+  }
+
+  const ticket = await getSupportTicket(ticketId);
+  if (!ticket) { const e = new Error('Ticket de suporte não encontrado'); e.statusCode = 404; throw e; }
+  if (!supportIsOpen(ticket)) { const e = new Error('Ticket de suporte encerrado'); e.statusCode = 409; throw e; }
+
+  const updated = await updateSupportTicket(ticketId, {
+    metadata: {
+      support_sub_status: SUPPORT_SUB.FORWARDED_TO_DOCTOR,
+      medical_forward_reason: reason,
+      medical_forwarded_at: new Date().toISOString(),
+      medical_forwarded_by: actor || null
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'whatsapp_support', entity_id: ticketId,
+    action: 'support_forwarded_to_doctor', actor: actor || 'admin',
+    payload: { support_ticket_id: ticketId, atendimento_id: ticket.appointment_id || null, motivo: reason }
+  });
+
+  return ticketToQueueItem(updated);
+}
+
+async function answerSupportTicketAsDoctor(ticketId, { resposta, actor } = {}) {
+  const answer = String(resposta || '').trim();
+  if (!answer) {
+    const e = new Error('Resposta médica é obrigatória');
+    e.statusCode = 400;
+    throw e;
+  }
+
+  const ticket = await getSupportTicket(ticketId);
+  if (!ticket) { const e = new Error('Ticket de suporte não encontrado'); e.statusCode = 404; throw e; }
+  if (!supportIsOpen(ticket)) { const e = new Error('Ticket de suporte encerrado'); e.statusCode = 409; throw e; }
+  if (getSupportSubStatus(ticket) !== SUPPORT_SUB.FORWARDED_TO_DOCTOR) {
+    const e = new Error('Ticket não está aguardando resposta médica');
+    e.statusCode = 409;
+    throw e;
+  }
+
+  const updated = await updateSupportTicket(ticketId, {
+    metadata: {
+      support_sub_status: SUPPORT_SUB.ANSWERED_BY_DOCTOR,
+      medical_response: answer,
+      medical_responded_at: new Date().toISOString(),
+      medical_responded_by: actor || null
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'whatsapp_support', entity_id: ticketId,
+    action: 'support_answered_by_doctor', actor: actor || 'doctor',
+    payload: { support_ticket_id: ticketId, atendimento_id: ticket.appointment_id || null }
+  });
+
+  return ticketToQueueItem(updated);
+}
+
+async function closeSupportTicketByAdmin(ticketId, { actor } = {}) {
+  const ticket = await getSupportTicket(ticketId);
+  if (!ticket) { const e = new Error('Ticket de suporte não encontrado'); e.statusCode = 404; throw e; }
+  if (!supportIsOpen(ticket)) { const e = new Error('Ticket de suporte encerrado'); e.statusCode = 409; throw e; }
+
+  const updated = await updateSupportTicket(ticketId, {
+    status: 'closed',
+    metadata: {
+      support_sub_status: SUPPORT_SUB.CLOSED_BY_ADMIN,
+      support_closed_at: new Date().toISOString(),
+      support_closed_by: actor || 'admin'
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'whatsapp_support', entity_id: ticketId,
+    action: 'support_closed_by_admin', actor: actor || 'admin',
+    payload: { support_ticket_id: ticketId, atendimento_id: ticket.appointment_id || null }
+  });
+
+  return ticketToQueueItem(updated);
+}
+
+async function listMedicalForwardedTickets() {
+  const rows = await listSupportTickets({ status: 'open' });
+  return (rows || [])
+    .filter((ticket) => ticketSubStatus(ticket) === SUPPORT_SUB.FORWARDED_TO_DOCTOR)
+    .map(ticketToQueueItem)
+    .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
 }
 
 async function getPatientSupportContext(phone) {
@@ -654,7 +763,17 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     };
   }
 
-  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+  // FORWARDED_TO_DOCTOR/ANSWERED_BY_DOCTOR também contam como "ticket aberto,
+  // equipe trabalhando" — o ciclo médico interno não fecha o ticket, então
+  // sem isso uma mensagem do paciente durante esse intervalo cairia (por
+  // ausência de outro match) no roteamento de Typebot/menu abaixo, saindo do
+  // contexto de suporte no meio do encaminhamento ao médico.
+  if (
+    sub === SUPPORT_SUB.WAITING ||
+    sub === SUPPORT_SUB.EM_ATENDIMENTO ||
+    sub === SUPPORT_SUB.FORWARDED_TO_DOCTOR ||
+    sub === SUPPORT_SUB.ANSWERED_BY_DOCTOR
+  ) {
     return handleSupportQueueInput({ phone, textNorm });
   }
 
@@ -788,6 +907,10 @@ module.exports = {
   supportIsOpen,
   startSupportAttendance,
   finalizeSupportAttendance,
+  forwardSupportTicketToDoctor,
+  answerSupportTicketAsDoctor,
+  closeSupportTicketByAdmin,
+  listMedicalForwardedTickets,
   getPatientSupportContext,
   respondToFinalization,
   handleRejectionResponse,

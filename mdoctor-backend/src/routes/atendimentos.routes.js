@@ -34,7 +34,15 @@ const { approveAtendimento, rejectAtendimento } = require('../services/clinical-
 const { listRejectReasons } = require('../constants/clinical-reject-reasons');
 const { isMedicalQueue, isMedicalSupportQueue } = require('../constants/whatsapp-queue');
 const { isVisibleInMedicalPanel, hasStoredPreviousPrescription } = require('../services/clinical-payload-normalizer.service');
-const { listWhatsAppSupportQueue, startSupportAttendance, finalizeSupportAttendance } = require('../services/whatsapp-support.service');
+const {
+  listWhatsAppSupportQueue,
+  startSupportAttendance,
+  finalizeSupportAttendance,
+  forwardSupportTicketToDoctor,
+  answerSupportTicketAsDoctor,
+  closeSupportTicketByAdmin,
+  listMedicalForwardedTickets
+} = require('../services/whatsapp-support.service');
 const {
   buildInvalidatedPrescriptionClinical,
   createViewSignedUrl,
@@ -150,6 +158,55 @@ router.post('/:id/support/finalize', requireAuth, async (req, res) => {
   try {
     const result = await finalizeSupportAttendance(req.params.id);
     return res.json({ success: true, messageText: result.messageText });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+// ─── Suporte Geral: ciclo administrativo → médico → administrativo ─────────
+// Opera sobre o próprio support_ticket (nunca sobre um atendimento clínico
+// nem cria um). Distinto e independente do bloco "Suporte Médico" abaixo,
+// que escala atendimentos clínicos reais — os dois fluxos não se cruzam.
+
+router.get('/support-queue/medical', requireAuth, async (_req, res) => {
+  try {
+    const tickets = await listMedicalForwardedTickets();
+    res.json({ success: true, tickets, total: tickets.length });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:id/support/forward-to-doctor', requireAuth, async (req, res) => {
+  try {
+    const ticket = await forwardSupportTicketToDoctor(req.params.id, {
+      motivo: req.body?.motivo,
+      actor: req.user?.name || req.user?.username || null
+    });
+    return res.json({ success: true, ticket });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:id/support/answer', requireAuth, async (req, res) => {
+  try {
+    const ticket = await answerSupportTicketAsDoctor(req.params.id, {
+      resposta: req.body?.resposta,
+      actor: req.user?.name || req.user?.username || null
+    });
+    return res.json({ success: true, ticket });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/:id/support/close', requireAuth, async (req, res) => {
+  try {
+    const ticket = await closeSupportTicketByAdmin(req.params.id, {
+      actor: req.user?.name || req.user?.username || null
+    });
+    return res.json({ success: true, ticket });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
