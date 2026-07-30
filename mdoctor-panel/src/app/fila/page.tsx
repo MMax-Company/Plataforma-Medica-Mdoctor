@@ -189,9 +189,6 @@ export default function FilaPage() {
   // Destroying the container causes the Memed SDK to lose its iframes → null.style on P2.
   const [memedOverlayMounted, setMemedOverlayMounted] = useState(false);
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
-  // Suporte Médico: atendimentos clínicos reais encaminhados pelo admin.
-  // Ver MedicalSupportBand mode="medical_support".
-  const [medicalSupportItems, setMedicalSupportItems] = useState<SupportQueueItem[]>([]);
   // Ciclo administrativo → médico → administrativo do próprio ticket de
   // Suporte Geral (endpoint e dado totalmente separados do medical-support-
   // queue acima — nunca é atendimento clínico). Ver MedicalSupportBand
@@ -275,25 +272,6 @@ export default function FilaPage() {
     }
   }
 
-  async function fetchMedicalSupportQueue() {
-    try {
-      const res = await fetch(`${getApiBase()}/api/atendimentos/medical-support-queue`, { headers: authHeaders() });
-      const data = await res.json();
-      if (!res.ok) return;
-      const rows = Array.isArray(data) ? data : data.atendimentos || data.data || [];
-      setMedicalSupportItems(
-        rows.map((item: Atendimento) => ({
-          id: item.id,
-          paciente_nome: item.paciente_nome,
-          criado_em: item.criado_em,
-          medical_support_reason: (item as any).dados_clinicos?.medical_support_reason || null,
-        })),
-      );
-    } catch {
-      setMedicalSupportItems([]);
-    }
-  }
-
   async function fetchTicketMedicalQueue() {
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue/medical`, { headers: authHeaders() });
@@ -321,7 +299,7 @@ export default function FilaPage() {
   useEffect(() => {
     requireSession()
       .then(async () => {
-        await Promise.all([fetchAtendimentos(), fetchMedicalSupportQueue(), fetchTicketMedicalQueue()]);
+        await Promise.all([fetchAtendimentos(), fetchTicketMedicalQueue()]);
       })
       .catch((e: any) => {
         setError(e.message || 'Sessão expirada. Faça login novamente.');
@@ -360,7 +338,6 @@ export default function FilaPage() {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void fetchAtendimentos();
-        void fetchMedicalSupportQueue();
       }
     }, 30000);
     return () => window.clearInterval(timer);
@@ -594,13 +571,6 @@ export default function FilaPage() {
 
       <div className="panel-page-body">
         <MedicalSupportBand
-          patients={medicalSupportItems}
-          onQueueRefresh={fetchMedicalSupportQueue}
-          mode="medical_support"
-          onOpenProntuario={(id) => openProntuarioModal(id, true)}
-        />
-
-        <MedicalSupportBand
           patients={ticketMedicalItems}
           onQueueRefresh={fetchTicketMedicalQueue}
           mode="ticket_medical"
@@ -611,7 +581,6 @@ export default function FilaPage() {
             type="button"
             onClick={() => {
               fetchAtendimentos();
-              fetchMedicalSupportQueue();
               fetchTicketMedicalQueue();
             }}
           >
