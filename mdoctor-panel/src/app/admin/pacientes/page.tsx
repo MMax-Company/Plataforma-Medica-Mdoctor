@@ -6,6 +6,7 @@ import { LayoutDashboard } from 'lucide-react';
 import { logout, requireSession } from '@/services/auth.service';
 import {
   fetchAdminAtendimentos,
+  medicoResponsavel,
   type AdminAtendimento,
 } from '@/services/admin.service';
 import { Card, EmptyState, StatusPill, TextInput } from '@/components/ui/DesignSystem';
@@ -153,10 +154,11 @@ function PacientesContent() {
       : `${filtered.length} atendimento${filtered.length !== 1 ? 's' : ''}`;
 
   return (
-    <main className="flex min-h-screen w-full flex-col bg-[#F8FAFC] text-[#1E1E1E]">
+    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
       <MedicalPanelHeader
         operational
         title="Relação de Pacientes"
+        subtitle={subtitle}
         titleAlign="left"
         recordButtonLabel="Dashboard"
         recordButtonIcon={<LayoutDashboard className="h-4 w-4" aria-hidden="true" />}
@@ -164,7 +166,6 @@ function PacientesContent() {
         onLogout={handleLogout}
       />
       <div className="space-y-4 p-4 sm:p-6">
-        <p className="text-sm text-[#5B6475]">{subtitle}</p>
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
@@ -256,7 +257,7 @@ function PacientesContent() {
                           </StatusPill>
                         </td>
                         <td className="px-4 py-3 text-[#5B6475]">
-                          {a.medico_id || '—'}
+                          {medicoResponsavel(a) || '—'}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

@@ -259,6 +259,7 @@ function normalizeAtendimento(input = {}) {
     },
     motivo_decisao: input.motivo_decisao || input.motivo || input.reason || null,
     medico_id: input.medico_id || input.doctorId || null,
+    numero_curto: input.numero_curto ?? null,
     criado_em: input.criado_em || input.created_at || now,
     atualizado_em: input.atualizado_em || input.updated_at || now
   };
