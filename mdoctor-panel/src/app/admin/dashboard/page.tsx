@@ -90,8 +90,28 @@ function firstPendingAdminNote(a: AdminAtendimento) {
   return (a.dados_clinicos?.observacoes_admin || []).find((n) => !n.resolvido) || null;
 }
 
-function hasPendingAdminNote(a: AdminAtendimento) {
-  return firstPendingAdminNote(a) !== null;
+function isWaitingForPayment(a: AdminAtendimento) {
+  const status = (a.status || '').toLowerCase();
+  const waiting = ['waiting', 'queue', 'fila', 'triaged'].includes(status);
+  return waiting && String(a.pagamento_status || '').toUpperCase() !== 'CONFIRMADO';
+}
+
+function isAdministrativePending(a: AdminAtendimento) {
+  return (
+    firstPendingAdminNote(a) !== null ||
+    (a.status || '').toLowerCase() === 'awaiting_prescription_upload' ||
+    isWaitingForPayment(a)
+  );
+}
+
+function administrativePendingReason(a: AdminAtendimento): string {
+  const note = firstPendingAdminNote(a);
+  if (note) return note.texto;
+  if ((a.status || '').toLowerCase() === 'awaiting_prescription_upload') {
+    return 'Receita anterior não enviada';
+  }
+  if (isWaitingForPayment(a)) return 'Pagamento não confirmado';
+  return 'Pendência administrativa';
 }
 
 // Rótulos de encerramento de suporte via WhatsApp (whatsapp-support.service.js
@@ -192,16 +212,16 @@ const bodyColumns: Array<{
     topBorderClass: 'border-t-4 border-t-amber-500',
     headBgClass: 'bg-amber-50',
     countBadgeClass: 'border-amber-500/30 bg-amber-500 text-white',
-    match: hasPendingAdminNote,
+    match: isAdministrativePending,
   },
 ];
 
 // Seção 4 — Indicadores de Tempo Médio: calculados pelo backend
 // (/api/admin/dashboard → tempos, ver computeTempos em admin.routes.js) a
-// partir de timestamps reais já gravados no fluxo (jornada.primeiro_oi_em,
+// partir de timestamps reais já gravados no fluxo (jornada.triagem_iniciada_em,
 // criado_em da entrada na fila, medical_decisions da transição
 // "em_atendimento", clinical_audit.approvedAt/rejectedAt,
-// entrega_receita.sent_at, jornada.pos_entrega_enviada_em). "Suporte
+// entrega_receita.sent_at e jornada.primeiro_oi_em). "Suporte
 // administrativo"/"Suporte médico" não têm evento distinto — recebem "—" em
 // vez de um número fabricado (o backend retorna null nesses casos).
 const TIME_METRIC_KEYS = [
@@ -318,19 +338,21 @@ function PatientRow({
         const resolving = note ? resolvingNoteId === note.id : false;
         return (
           <>
-            <span className="min-w-[90px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={note?.texto || '—'}>
-              {note?.texto || '—'}
+            <span className="min-w-[90px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={administrativePendingReason(item)}>
+              {administrativePendingReason(item)}
             </span>
-            <div className="w-[84px] shrink-0">
-              <button
-                type="button"
-                disabled={!note || resolving}
-                onClick={() => note && onResolveNote(item.id, note.id)}
-                className="w-full rounded-[7px] border-2 border-[#B45309] bg-white px-2 py-1 text-[9.5px] font-bold text-[#B45309] hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {resolving ? 'Resolvendo...' : 'Resolver'}
-              </button>
-            </div>
+            {note ? (
+              <div className="w-[84px] shrink-0">
+                <button
+                  type="button"
+                  disabled={resolving}
+                  onClick={() => onResolveNote(item.id, note.id)}
+                  className="w-full rounded-[7px] border-2 border-[#B45309] bg-white px-2 py-1 text-[9.5px] font-bold text-[#B45309] hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resolving ? 'Resolvendo...' : 'Resolver'}
+                </button>
+              </div>
+            ) : verJornadaBtn}
           </>
         );
       })()}

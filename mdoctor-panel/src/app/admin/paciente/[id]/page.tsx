@@ -8,6 +8,7 @@ import {
   addAdminNote,
   fetchAdminAtendimento,
   forwardToDoctor,
+  hasPreviousPrescriptionFile,
   medicoResponsavel,
   resendPaymentLink,
   resendTypebotLink,
@@ -46,7 +47,7 @@ type JourneyStep = {
 function deriveJourney(a: AdminAtendimento): JourneyStep[] {
   const s = (a.status || '').toLowerCase();
   const paid = String(a.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
-  const prevPrescription = a.dados_clinicos?.previous_prescription;
+  const prevPrescription = hasPreviousPrescriptionFile(a);
 
   const isWaiting = ['waiting', 'queue', 'fila', 'triaged'].includes(s);
   const isAwaitingReceipt = s === 'awaiting_prescription_upload';
@@ -447,7 +448,7 @@ export default function AdminPacientePage() {
                   <FieldRow
                     label="Receita anterior"
                     value={
-                      a.dados_clinicos?.previous_prescription ? (
+                      hasPreviousPrescriptionFile(a) ? (
                         <StatusPill tone="success">Recebida</StatusPill>
                       ) : (
                         <StatusPill tone="gold">Pendente</StatusPill>

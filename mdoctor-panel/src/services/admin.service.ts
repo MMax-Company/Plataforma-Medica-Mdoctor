@@ -28,6 +28,10 @@ export type AdminAtendimento = {
   dados_clinicos?: {
     previous_prescription?: boolean;
     foto_receita_url?: string;
+    previous_prescription_file?: string;
+    prescription_photo_url?: string;
+    upload_completed?: boolean | string;
+    upload_status?: string;
     observacoes_admin?: AdminNote[];
     stripe_checkout_url?: string;
     memed_receita?: { pdfUrl?: string; receitaUrl?: string; receitaId?: string };
@@ -40,6 +44,18 @@ export type AdminAtendimento = {
     clinical_audit?: { approvedBy?: string | null; rejectedBy?: string | null } | null;
   };
 };
+
+export function hasPreviousPrescriptionFile(a: AdminAtendimento): boolean {
+  const clinical = a.dados_clinicos;
+  return Boolean(
+    clinical?.foto_receita_url ||
+      clinical?.previous_prescription_file ||
+      clinical?.prescription_photo_url ||
+      clinical?.upload_completed === true ||
+      String(clinical?.upload_completed || '').toLowerCase() === 'true' ||
+      String(clinical?.upload_status || '').toLowerCase() === 'completed'
+  );
+}
 
 // clinical_audit.approvedBy/rejectedBy grava req.user.sub (identificador
 // técnico de login, ex.: "dr_max_vinicius_001") — nunca um nome de exibição.
