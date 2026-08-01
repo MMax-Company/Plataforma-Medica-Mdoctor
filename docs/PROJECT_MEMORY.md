@@ -24,9 +24,15 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 foi o commit `3dfa5e8`
-  (só painel) na branch `fix/cep-upload-prescription-20260728`. Backend
-  segue no `812bf8f`. Confirmar sincronização entre Git local, remoto e
+- O último deploy de staging informado em 01/08/2026 (backend + painel) foi o
+  commit `051545b` na branch `fix/cep-upload-prescription-20260728`. Esse
+  commit corresponde ao patch preparado pelo Codex como `1067d99`
+  ("docs: registra regras finais de tempos e pendencias", em cima de
+  `5b2f843`/`06cf593`) — aplicado via `git am` a partir de
+  `af52f93`; o hash local difere do original só porque o committer muda a
+  cada `git am` (autor `Codex <codex@openai.com>` e datas originais foram
+  preservados; árvore/conteúdo idênticos, confirmado por `git apply --check`
+  limpo antes de aplicar). Confirmar sincronização entre Git local, remoto e
   Railway antes do próximo trabalho.
 
 ## 3. Definição de pedido econômico
