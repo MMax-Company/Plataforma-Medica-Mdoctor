@@ -372,6 +372,7 @@ export default function AdminPacientePage() {
       <MedicalPanelHeader
         operational
         title={a?.paciente_nome || 'Paciente'}
+        subtitle="Jornada do atendimento"
         titleAlign="left"
         recordButtonLabel="Relação de Pacientes"
         recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
@@ -385,8 +386,7 @@ export default function AdminPacientePage() {
         </div>
       )}
 
-      <div className="mx-auto w-full max-w-[1280px] space-y-6 p-4 sm:p-6">
-        <p className="text-sm text-[#5B6475]">Jornada do atendimento</p>
+      <div className="space-y-6 p-4 sm:p-6">
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}

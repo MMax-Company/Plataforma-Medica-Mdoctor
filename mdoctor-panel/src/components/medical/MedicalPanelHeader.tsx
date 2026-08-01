@@ -62,6 +62,9 @@ interface MedicalPanelHeaderProps {
   onOpenMedicalRecord?: () => void;
   operational?: boolean;
   title?: string;
+  /** Linha secundária opcional abaixo do título (ex.: contagem de
+   * atendimentos, nome do paciente na Jornada). Não usada no Painel Médico. */
+  subtitle?: string;
   titleAlign?: 'center' | 'left';
   recordButtonLabel?: string;
   recordButtonIcon?: ReactNode;
@@ -72,6 +75,7 @@ export function MedicalPanelHeader({
   onOpenMedicalRecord,
   operational = false,
   title = 'Painel Médico',
+  subtitle,
   titleAlign = 'center',
   recordButtonLabel = 'PRONTUÁRIO',
   recordButtonIcon = <ClipboardList className="h-4 w-4" aria-hidden="true" />,
@@ -116,7 +120,14 @@ export function MedicalPanelHeader({
             titleAlign === 'left' ? ' panel-header__col--title-left' : ''
           }`}
         >
-          <h1 className="panel-header__title">{title}</h1>
+          <div>
+            <h1 className="panel-header__title">{title}</h1>
+            {subtitle && (
+              <p className="mt-0.5 whitespace-nowrap text-[11px] font-semibold leading-tight text-[#5B6475]">
+                {subtitle}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Direita — PRONTUÁRIO isolado | gap | bloco ops (Memed · Perfil · SAIR) */}
