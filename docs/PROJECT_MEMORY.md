@@ -24,10 +24,10 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 foi o commit `812bf8f`
-  (backend + painel) na branch `fix/cep-upload-prescription-20260728`.
-  Confirmar sincronização entre Git local, remoto e Railway antes do próximo
-  trabalho.
+- O último deploy de staging informado em 01/08/2026 foi o commit `3dfa5e8`
+  (só painel) na branch `fix/cep-upload-prescription-20260728`. Backend
+  segue no `812bf8f`. Confirmar sincronização entre Git local, remoto e
+  Railway antes do próximo trabalho.
 
 ## 3. Definição de pedido econômico
 
@@ -107,6 +107,28 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   pagos; confirmar novamente no ambiente antes de usar esses números no futuro.
 - Triagem e jornada completa podem aparecer como `—` em registros antigos sem
   marcadores; isso não significa que os indicadores estejam desligados.
+- `medicoResponsavel()` mapeia identificadores técnicos conhecidos de login
+  (ex.: `dr_max_vinicius_001`, `drmax.matos`) para o nome de exibição
+  ("Dr. Max Matos") só na apresentação — `clinical_audit.approvedBy/rejectedBy`
+  continua gravando o identificador técnico sem alteração. Se um novo médico
+  for cadastrado com identificador diferente, adicionar o mapeamento em
+  `admin.service.ts` (`KNOWN_DOCTOR_DISPLAY_NAMES`).
+- `.panel-header--operational` usa colunas `auto minmax(0,1fr) auto` (não mais
+  3 colunas iguais) para o título (nome do paciente na Jornada) não colidir
+  com o botão à direita em nomes longos; título permite quebra de linha sem
+  truncar. Escopado à variante operacional — não afeta o header do Painel
+  Médico (`fila/page.tsx`).
+- Amostra do cabeçalho de indicadores (`data.tempos.amostra`) agora sempre
+  aparece, inclusive `0` — antes ficava oculta quando zero (checagem por
+  valor truthy tratava `0` como ausente).
+- Números clínicos confirmados na fonte (não só na UI) em 01/08/2026: 18
+  atendimentos clínicos (11 aprovados, 6 rejeitados, 1 aguardando receita
+  anterior — soma bate), 12 pagos, R$ 69,90/consulta, R$ 838,80 confirmado
+  (12 × 69,90 = 838,80). `amostra_por_indicador`: espera_medica/avaliacao/
+  emissao_receita = 11, triagem/jornada_completa = 0 (nenhum atendimento
+  atual tem os dois marcadores de jornada completos ainda). Nenhum valor é
+  hardcoded — tudo calculado a partir do conjunto já filtrado (sem teste,
+  sem suporte).
 
 ## 8. Canais de WhatsApp protegidos
 
