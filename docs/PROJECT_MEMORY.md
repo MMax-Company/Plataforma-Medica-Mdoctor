@@ -70,11 +70,14 @@ representa receita e nunca deve ser somado ao financeiro clínico.
 
 Ativos e conectados a timestamps reais:
 
-- **Triagem clínica:** primeira mensagem (`primeiro_oi_em`) até entrada na fila.
+- **Triagem clínica:** resposta ao botão/choice "Vamos começar"
+  (`triagem_iniciada_em`) até a criação do atendimento pelo webhook do n8n.
 - **Espera médica:** entrada na fila até início do atendimento médico.
 - **Avaliação médica:** início do atendimento até aprovação ou reprovação.
 - **Emissão da receita:** aprovação/início da emissão até entrega da receita.
-- **Jornada completa:** primeira mensagem até pós-entrega da receita.
+- **Jornada completa:** primeira mensagem (`primeiro_oi_em`) até o envio da
+  receita com link e opção 3 (`entrega_receita.sent_at`). A pesquisa posterior
+  não encerra nem integra essa métrica.
 
 Suporte administrativo e suporte médico permanecem exibindo `—` enquanto não
 houver marcadores próprios. Nunca fabricar média. A amostra do cabeçalho usa
@@ -107,6 +110,19 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   pagos; confirmar novamente no ambiente antes de usar esses números no futuro.
 - Triagem e jornada completa podem aparecer como `—` em registros antigos sem
   marcadores; isso não significa que os indicadores estejam desligados.
+- Normalização dos indicadores e das pendências administrativas preparada em
+  `5b2f843` (backend) e `06cf593` (painel): clique em "Atender" não grava mais
+  uma aprovação falsa; avaliação usa as transições reais para
+  `em_atendimento` e `approved/rejected`; médias positivas abaixo de um minuto
+  exibem `< 1 min`; Pendências Administrativas inclui pagamento não confirmado,
+  upload de receita anterior pendente e observações não resolvidas. O estado
+  "Receita anterior: Recebida" exige evidência de arquivo/upload concluído,
+  não apenas a declaração `previous_prescription=true`.
+- Nos 18 atendimentos clínicos atuais do staging há 1 pendência administrativa
+  paga aguardando upload, 11 envios de receita registrados e avaliação média
+  real de 22,3 segundos. Os 18 registros históricos não têm
+  `primeiro_oi_em`/`triagem_iniciada_em`; nenhum backfill foi aplicado porque
+  o banco não contém uma fonte exata para esses dois instantes históricos.
 - `medicoResponsavel()` mapeia identificadores técnicos conhecidos de login
   (ex.: `dr_max_vinicius_001`, `drmax.matos`) para o nome de exibição
   ("Dr. Max Matos") só na apresentação — `clinical_audit.approvedBy/rejectedBy`
