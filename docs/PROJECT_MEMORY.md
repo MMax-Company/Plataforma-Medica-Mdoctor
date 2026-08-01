@@ -24,9 +24,11 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 foi o commit `8ed5292` na
-  branch `fix/cep-upload-prescription-20260728`. Confirmar sincronização entre
-  Git local, remoto e Railway antes do próximo trabalho.
+- O último deploy de staging informado em 01/08/2026 foi o commit `76245f1` na
+  branch `fix/cep-upload-prescription-20260728` (docs-only: incorpora
+  CLAUDE.md/AGENTS.md/PROJECT_MEMORY.md em cima do commit funcional `8ed5292`).
+  Confirmar sincronização entre Git local, remoto e Railway antes do próximo
+  trabalho.
 
 ## 3. Definição de pedido econômico
 
