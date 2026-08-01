@@ -327,7 +327,14 @@ router.get('/dashboard', requireAuth, requireRole(...ADMIN_ROLES), async (req, r
     const allRaw = await listAtendimentos();
     // Atendimentos de teste (seeds/scripts de staging — ver isTestAtendimento)
     // nunca devem aparecer nos cards, indicadores ou receita do painel.
-    const all = allRaw.filter((a) => !isTestAtendimento(a));
+    const semTeste = allRaw.filter((a) => !isTestAtendimento(a));
+    // Ticket de Suporte Geral via WhatsApp (isSupportQueue: queue_type
+    // "support", whatsapp_support ou condicao "suporte_whatsapp") não é
+    // atendimento clínico — nunca entra em cards, financeiro, indicadores,
+    // total ou recentes. Não confundir com "medical_support" (atendimento
+    // clínico real, só temporariamente encaminhado ao suporte médico — esse
+    // continua clínico e segue a exclusão própria dos cards logo abaixo).
+    const all = semTeste.filter((a) => !isSupportQueue(a));
     // Atendimentos encaminhados ao médico somem das colunas do corpo principal
     // (ver admin/dashboard/page.tsx) — os 6 cards precisam da mesma exclusão,
     // senão "Pendências administrativas" pode contar um caso que já não
@@ -397,7 +404,11 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
   try {
     const { status, search } = req.query;
     let all = await listAtendimentos(status ? { status } : {});
-    all = all.filter((a) => !isTestAtendimento(a));
+    // Ticket de Suporte Geral via WhatsApp não é atendimento clínico — nunca
+    // aparece na Relação de Pacientes nem nas colunas do dashboard (esta
+    // rota alimenta as duas telas). Tickets ativos seguem visíveis só na
+    // faixa/fila própria de suporte (/api/atendimentos/support-queue).
+    all = all.filter((a) => !isTestAtendimento(a) && !isSupportQueue(a));
 
     if (search) {
       const q = String(search).toLowerCase();
