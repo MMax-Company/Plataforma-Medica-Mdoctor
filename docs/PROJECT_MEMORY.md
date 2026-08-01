@@ -24,11 +24,11 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 foi o commit `76245f1` na
-  branch `fix/cep-upload-prescription-20260728` (docs-only: incorpora
-  CLAUDE.md/AGENTS.md/PROJECT_MEMORY.md em cima do commit funcional `8ed5292`).
-  Confirmar sincronização entre Git local, remoto e Railway antes do próximo
-  trabalho.
+- O último deploy de staging informado em 01/08/2026 foi o commit `54aa164` na
+  branch `fix/cep-upload-prescription-20260728` (painel: restaura
+  MedicalPanelHeader/medicoResponsavel na jornada individual, sobre o commit
+  funcional `8ed5292` e o docs-only `76245f1`). Confirmar sincronização entre
+  Git local, remoto e Railway antes do próximo trabalho.
 
 ## 3. Definição de pedido econômico
 
@@ -85,7 +85,13 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 - Filtro de testes automáticos aplicado ao painel sem apagar registros do banco.
 - Tickets de suporte geral separados do universo clínico e do financeiro.
-- Relação de Pacientes usa o cabeçalho operacional do Painel Administrativo.
+- Relação de Pacientes e a jornada individual (`admin/paciente/[id]`) usam o
+  mesmo `MedicalPanelHeader` operacional do Dashboard. A jornada individual
+  tinha regredido para o `AppShell` antigo e exibia `medico_id` bruto; corrigida
+  em `54aa164` reaproveitando `medicoResponsavel()` (`admin.service.ts`) sem
+  tocar em `deriveJourney`, `canForwardToMedicalSupport` ou nas ações
+  administrativas. Build/type-check confirmados; confirmação visual em
+  navegador ainda pendente (extensão Chrome indisponível nesta sessão).
 - No staging, após a separação informada: 18 atendimentos clínicos totais e 12
   pagos; confirmar novamente no ambiente antes de usar esses números no futuro.
 - Triagem e jornada completa podem aparecer como `—` em registros antigos sem
