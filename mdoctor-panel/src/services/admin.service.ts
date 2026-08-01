@@ -23,7 +23,7 @@ export type AdminAtendimento = {
   criado_em?: string;
   atualizado_em?: string;
   medico_id?: string | null;
-  elegibilidade?: { eligible?: boolean; reason?: string } | null;
+  elegibilidade?: { eligible?: boolean; reason?: string; reasonCode?: string | null } | null;
   dados_clinicos?: {
     previous_prescription?: boolean;
     foto_receita_url?: string;
