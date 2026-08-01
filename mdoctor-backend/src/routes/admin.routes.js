@@ -104,6 +104,14 @@ function hasUnresolvedAdminNote(atendimento) {
   return notes.some((n) => !n.resolvido);
 }
 
+function isAdministrativePending(atendimento) {
+  return (
+    hasUnresolvedAdminNote(atendimento) ||
+    atendimento.status === 'awaiting_prescription_upload' ||
+    (isWaiting(atendimento) && !isPaid(atendimento))
+  );
+}
+
 // Indicador financeiro: soma o valor real da consulta (mesmo preço fixo usado
 // no link de pagamento Stripe, typebot-payment.constants.js) para cada
 // atendimento com pagamento efetivamente confirmado. Não é um valor
@@ -138,6 +146,7 @@ function average(values) {
 
 function formatMinutes(minutes) {
   if (minutes === null) return null;
+  if (minutes > 0 && minutes < 1) return '< 1 min';
   if (minutes < 60) return `${Math.round(minutes)} min`;
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
@@ -149,8 +158,8 @@ function formatMinutes(minutes) {
 // (status "delivered" ou "rejected").
 //
 // Fontes usadas por indicador:
-//   - Triagem clínica: dados_clinicos.jornada.primeiro_oi_em (primeira
-//                       mensagem do paciente no ciclo atual — marcador staged
+//   - Triagem clínica: dados_clinicos.jornada.triagem_iniciada_em (resposta
+//                       ao choice "Vamos começar" — marcador staged
 //                       em whatsapp_sessions.metadata e consumido no webhook
 //                       do n8n, ver whatsapp.routes.js e
 //                       whatsapp-sessions.store.js) → atendimentos.criado_em
@@ -159,20 +168,18 @@ function formatMinutes(minutes) {
 //                       da PRIMEIRA transição para status "em_atendimento"
 //                       (clique em "Atender" no painel médico — PATCH
 //                       /:id/status).
-//   - Avaliação médica: mesma transição "em_atendimento" acima →
-//                       dados_clinicos.clinical_audit.approvedAt ou
-//                       .rejectedAt (clique em Aprovar/Reprovar).
+//   - Avaliação médica: mesma transição "em_atendimento" acima → primeira
+//                       transição real para "approved" ou "rejected"
+//                       (clique em Aprovar/Reprovar), com clinical_audit como
+//                       fallback para registros legados.
 //   - Emissão da receita: clinical_audit.approvedAt (Aprovar, abertura do
 //                       fluxo Memed) → dados_clinicos.entrega_receita.sent_at
 //                       (receita entregue ao WhatsApp para envio ao
 //                       paciente) — só se aplica a atendimentos "delivered".
-//   - Jornada completa: dados_clinicos.jornada.primeiro_oi_em (mesmo marcador
-//                       da Triagem clínica, é o início do ciclo) →
-//                       dados_clinicos.jornada.pos_entrega_enviada_em
-//                       (envio da mensagem pós-entrega com as opções
-//                       1/2/3 — gravado em post-delivery-survey.service.js)
-//                       — só se aplica a atendimentos "delivered"; as
-//                       respostas do questionário não entram na métrica.
+//   - Jornada completa: dados_clinicos.jornada.primeiro_oi_em (primeiro "Oi",
+//                       início do ciclo) → dados_clinicos.entrega_receita.sent_at
+//                       (envio da receita com o link e a opção 3). A pesquisa
+//                       pós-entrega é posterior e não integra essa métrica.
 //
 // O marcador de jornada (primeiro_oi_em) só existe para atendimentos criados
 // PELO fluxo real WhatsApp → n8n → webhook a partir desta implementação —
@@ -181,14 +188,20 @@ function formatMinutes(minutes) {
 // amostra desses dois indicadores especificamente (nunca um número
 // fabricado). "Suporte administrativo" e "Suporte médico" seguem sem evento
 // distinto no modelo de dados atual.
-async function findPrimeiraTransicaoEmAtendimento(atendimentoId) {
+async function findEventosMedicos(atendimentoId) {
   const decisoes = await listDecisoesLog(atendimentoId);
-  const transicoes = decisoes.filter((d) => d.status_novo === STATUS.EM_ATENDIMENTO);
-  if (!transicoes.length) return null;
-  return transicoes.reduce(
-    (earliest, d) => (!earliest || new Date(d.criado_em) < new Date(earliest) ? d.criado_em : earliest),
-    null,
-  );
+  const firstAt = (statuses) => {
+    const transicoes = decisoes.filter((d) => statuses.includes(String(d.status_novo || '').toLowerCase()));
+    return transicoes.reduce(
+      (earliest, d) => (!earliest || new Date(d.criado_em) < new Date(earliest) ? d.criado_em : earliest),
+      null,
+    );
+  };
+  return {
+    atendidoEm: firstAt([STATUS.EM_ATENDIMENTO]),
+    aprovadoEm: firstAt([STATUS.APPROVED, 'approved']),
+    decisaoEm: firstAt([STATUS.APPROVED, 'approved', STATUS.REJECTED, 'rejected']),
+  };
 }
 
 async function computeTempos(atendimentos) {
@@ -199,8 +212,8 @@ async function computeTempos(atendimentos) {
     (a) => (a.status === STATUS.DELIVERED || a.status === STATUS.REJECTED) && !isSupportQueue(a),
   );
 
-  const comAtendidoEm = await Promise.all(
-    concluidos.map(async (a) => ({ atendimento: a, atendidoEm: await findPrimeiraTransicaoEmAtendimento(a.id) })),
+  const comEventosMedicos = await Promise.all(
+    concluidos.map(async (a) => ({ atendimento: a, eventos: await findEventosMedicos(a.id) })),
   );
 
   const triagemValues = [];
@@ -209,13 +222,15 @@ async function computeTempos(atendimentos) {
   const emissaoReceitaValues = [];
   const jornadaCompletaValues = [];
 
-  for (const { atendimento: a, atendidoEm } of comAtendidoEm) {
+  for (const { atendimento: a, eventos } of comEventosMedicos) {
     const c = a.dados_clinicos || {};
-    const decisaoEm = c.clinical_audit?.approvedAt || c.clinical_audit?.rejectedAt || null;
+    const atendidoEm = eventos.atendidoEm;
+    const decisaoEm = eventos.decisaoEm || c.clinical_audit?.approvedAt || c.clinical_audit?.rejectedAt || null;
+    const aprovadoEm = eventos.aprovadoEm || c.clinical_audit?.approvedAt || null;
     const jornada = c.jornada || {};
 
-    if (jornada.primeiro_oi_em) {
-      const triagem = minutesBetween(jornada.primeiro_oi_em, a.criado_em);
+    if (jornada.triagem_iniciada_em) {
+      const triagem = minutesBetween(jornada.triagem_iniciada_em, a.criado_em);
       if (triagem !== null) triagemValues.push(triagem);
     }
 
@@ -229,23 +244,24 @@ async function computeTempos(atendimentos) {
       }
     }
 
-    if (a.status === STATUS.DELIVERED && c.clinical_audit?.approvedAt) {
+    if (a.status === STATUS.DELIVERED && aprovadoEm) {
       const entregaEm = c.entrega_receita?.sent_at || c.historico_receita?.ultimo_envio_em || null;
       if (entregaEm) {
-        const emissao = minutesBetween(c.clinical_audit.approvedAt, entregaEm);
+        const emissao = minutesBetween(aprovadoEm, entregaEm);
         if (emissao !== null) emissaoReceitaValues.push(emissao);
       }
     }
 
-    if (a.status === STATUS.DELIVERED && jornada.primeiro_oi_em && jornada.pos_entrega_enviada_em) {
-      const jornadaCompleta = minutesBetween(jornada.primeiro_oi_em, jornada.pos_entrega_enviada_em);
+    const entregaEm = c.entrega_receita?.sent_at || c.historico_receita?.ultimo_envio_em || null;
+    if (a.status === STATUS.DELIVERED && jornada.primeiro_oi_em && entregaEm) {
+      const jornadaCompleta = minutesBetween(jornada.primeiro_oi_em, entregaEm);
       if (jornadaCompleta !== null) jornadaCompletaValues.push(jornadaCompleta);
     }
   }
 
   return {
     // Amostra do cabeçalho: só atendimentos com jornada completa (marcadores
-    // primeiro_oi_em + pos_entrega_enviada_em) E receita entregue (status
+    // primeiro_oi_em + entrega_receita.sent_at) E receita entregue (status
     // delivered) — mesmo critério de jornadaCompletaValues acima. Rejeitados
     // e entregues sem marcador de jornada ficam de fora daqui (mas seguem
     // contando nos indicadores que não dependem desses dois marcadores).
@@ -360,7 +376,7 @@ router.get('/dashboard', requireAuth, requireRole(...ADMIN_ROLES), async (req, r
       (a) => statusInGroup(a.status, 'readyToDeliver'),
     ).length;
 
-    const pendenciasAdmin = cardsVisiveis.filter(hasUnresolvedAdminNote).length;
+    const pendenciasAdmin = cardsVisiveis.filter(isAdministrativePending).length;
 
     const tempos = await computeTempos(all);
 
@@ -439,6 +455,10 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
       dados_clinicos: {
         previous_prescription: a.dados_clinicos?.previous_prescription,
         foto_receita_url: a.dados_clinicos?.foto_receita_url,
+        previous_prescription_file: a.dados_clinicos?.previous_prescription_file,
+        prescription_photo_url: a.dados_clinicos?.prescription_photo_url,
+        upload_completed: a.dados_clinicos?.upload_completed,
+        upload_status: a.dados_clinicos?.upload_status,
         observacoes_admin: a.dados_clinicos?.observacoes_admin || [],
         stripe_checkout_url: a.dados_clinicos?.stripe_checkout_url,
         memed_receita: a.dados_clinicos?.memed_receita,
@@ -890,3 +910,4 @@ module.exports = router;
 // servidor HTTP nem autenticação.
 module.exports.computeTempos = computeTempos;
 module.exports.isTestAtendimento = isTestAtendimento;
+module.exports.isAdministrativePending = isAdministrativePending;

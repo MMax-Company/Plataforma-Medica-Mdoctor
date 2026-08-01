@@ -1,10 +1,8 @@
-// Testa isoladamente (sem rede/banco, mesmo padrão de stub de require.cache
-// dos demais testes da Fase 3) os dois marcadores de jornada novos:
-//   1) recordJourneyCompletedAt (post-delivery-survey.service.js) — grava
-//      dados_clinicos.jornada.pos_entrega_enviada_em no atendimento no
-//      momento em que a mensagem pós-entrega é enviada.
-//   2) computeTempos (admin.routes.js) — lê dados_clinicos.jornada.* para
-//      calcular Triagem e Jornada Completa.
+// Testa isoladamente (sem rede/banco, mesmo padrão de stub de require.cache):
+//   1) o marcador próprio da pesquisa pós-entrega continua idempotente e não
+//      altera o status do atendimento;
+//   2) computeTempos usa os eventos clínicos corretos: "Vamos começar" para
+//      Triagem e envio da receita/opção 3 para encerrar a Jornada Completa.
 const assert = require('assert');
 const path = require('path');
 
@@ -100,7 +98,12 @@ async function testComputeTemposComJornada() {
   const resolveFrom = (p) => path.join(path.dirname(base), p);
 
   stub(resolveFrom('../store/atendimentos.store'), {
-    STATUS: { DELIVERED: 'delivered', REJECTED: 'rejected', EM_ATENDIMENTO: 'em_atendimento' },
+    STATUS: {
+      DELIVERED: 'delivered',
+      REJECTED: 'rejected',
+      APPROVED: 'approved',
+      EM_ATENDIMENTO: 'em_atendimento'
+    },
     listAtendimentos: async () => [],
     getAtendimento: async () => null,
     updateAtendimentoStatus: async () => null,
@@ -108,10 +111,11 @@ async function testComputeTemposComJornada() {
     listDecisoesLog: async (atendimentoId) => {
       if (atendimentoId !== 'at-jornada-1') return [];
       return [
-        { atendimento_id: 'at-jornada-1', status_novo: 'em_atendimento', criado_em: '2026-07-01T10:20:00.000Z' }
+        { atendimento_id: 'at-jornada-1', status_novo: 'em_atendimento', criado_em: '2026-07-01T10:20:00.000Z' },
+        { atendimento_id: 'at-jornada-1', status_novo: 'approved', criado_em: '2026-07-01T10:20:22.000Z' }
       ];
     },
-    statusInGroup: () => false
+    statusInGroup: (status, group) => group === 'queue' && status === 'waiting'
   });
   stub(resolveFrom('../constants/whatsapp-queue'), {
     QUEUE_TYPE_MEDICAL_SUPPORT: 'medical_support',
@@ -152,14 +156,29 @@ async function testComputeTemposComJornada() {
 
   const tempos = await admin.computeTempos(atendimentos);
 
-  // Triagem clínica: primeiro_oi_em 10:00:00 -> 10:15:00 (criado_em) = 15 min
-  assert.equal(tempos.triagem, '15 min');
-  // Jornada completa: 10:00:00 -> 10:40:00 = 40 min
-  assert.equal(tempos.jornada_completa, '40 min');
+  // Triagem clínica: clique "Vamos começar" 10:02 -> criado_em 10:15 = 13 min.
+  assert.equal(tempos.triagem, '13 min');
+  // Avaliação real: clique "Atender" 10:20 -> decisão 10:20:22; não arredonda para zero.
+  assert.equal(tempos.avaliacao, '< 1 min');
+  // Jornada completa: primeiro Oi 10:00 -> envio da receita/opção 3 às 10:35 = 35 min.
+  assert.equal(tempos.jornada_completa, '35 min');
   assert.equal(tempos.amostra_por_indicador.triagem, 1, 'só o atendimento com marcador entra na amostra');
   assert.equal(tempos.amostra_por_indicador.jornada_completa, 1);
   assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue');
   results.computeTemposLeJornadaCorretamente = 'ok';
+
+  assert.equal(admin.isAdministrativePending({ status: 'awaiting_prescription_upload', dados_clinicos: {} }), true);
+  assert.equal(admin.isAdministrativePending({ status: 'waiting', pagamento_status: 'PENDENTE', dados_clinicos: {} }), true);
+  assert.equal(admin.isAdministrativePending({ status: 'waiting', pagamento_status: 'CONFIRMADO', dados_clinicos: {} }), false);
+  assert.equal(
+    admin.isAdministrativePending({
+      status: 'delivered',
+      pagamento_status: 'CONFIRMADO',
+      dados_clinicos: { observacoes_admin: [{ resolvido: false }] }
+    }),
+    true
+  );
+  results.pendenciasAdministrativas = 'ok';
 
   return 'ok';
 }

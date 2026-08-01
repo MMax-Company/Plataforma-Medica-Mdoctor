@@ -1022,16 +1022,6 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   const criteriaUsed = previous?.elegibilidade?.criteriaUsed || [];
-  const clinicalAudit = {
-    ...(previous?.dados_clinicos?.clinical_audit || {}),
-    approvedBy: authenticatedDoctorId,
-    approvedAt: new Date().toISOString(),
-    criteriaUsed,
-    protocolVersion: previous?.elegibilidade?.protocolVersion || previous?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
-    mode: previous?.dados_clinicos?.clinical_audit?.mode || 'mock',
-    correlationId,
-    decisionRationale: motivo || notes || previous?.elegibilidade?.reason || null
-  };
 
   const atendimento = await updateAtendimentoStatus(req.params.id, normalizedStatus, {
     motivo,
@@ -1040,7 +1030,10 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     medicoId: authenticatedDoctorId,
     dados_clinicos: {
       ...(previous?.dados_clinicos || {}),
-      clinical_audit: clinicalAudit
+      // Mudança operacional (inclusive o clique em "Atender") não é uma
+      // aprovação clínica. approvedAt/approvedBy são gravados exclusivamente
+      // pelo fluxo /clinical/approve em clinical-decision.service.js.
+      clinical_audit: previous?.dados_clinicos?.clinical_audit || null
     }
   });
 
@@ -1073,8 +1066,8 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       protocolVersion: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
       mode: atendimento?.dados_clinicos?.clinical_audit?.mode || 'mock',
       criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
-      approvedBy: clinicalAudit.approvedBy,
-      approvedAt: clinicalAudit.approvedAt,
+      doctorId: authenticatedDoctorId,
+      statusChangedAt: new Date().toISOString(),
       correlationId
     }
   });
