@@ -609,7 +609,7 @@ body {
   }
 
   .panel-header--operational {
-    height: 72px;
+    min-height: 72px;
     border-bottom: 1px solid #e4ecf7;
   }
 
@@ -617,6 +617,12 @@ body {
     align-items: center;
     padding-top: 8px;
     padding-bottom: 8px;
+    /* Colunas de logo/ops ficam do tamanho do próprio conteúdo — o título
+       (nome do paciente na Jornada) recebe todo o espaço restante, em vez de
+       1/3 fixo da largura. Corrige nomes longos colidindo com o botão à
+       direita (ex.: "Max Vinícius Ferreira Matos") sem afetar o Painel
+       Médico (usa .panel-header__shell base, não esta variante). */
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .panel-header--operational .panel-header__col {
@@ -636,6 +642,9 @@ body {
 
   .panel-header--operational .panel-header__title {
     font-size: 26px;
+    line-height: 1.15;
+    white-space: normal;
+    overflow-wrap: break-word;
     transform: none;
   }
 
