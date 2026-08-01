@@ -41,16 +41,25 @@ export type AdminAtendimento = {
   };
 };
 
+// clinical_audit.approvedBy/rejectedBy grava req.user.sub (identificador
+// técnico de login, ex.: "dr_max_vinicius_001") — nunca um nome de exibição.
+// Mapeia só para apresentação; o valor histórico gravado não é alterado.
+const KNOWN_DOCTOR_DISPLAY_NAMES: Record<string, string> = {
+  dr_max_vinicius_001: 'Dr. Max Matos',
+  'drmax.matos': 'Dr. Max Matos',
+};
+
 // Nome do responsável clínico para exibição — medico_id (coluna) é
 // estruturalmente sempre null com o esquema de login atual (username, não
 // numérico); usa o fallback real gravado em dados_clinicos.clinical_audit.
 export function medicoResponsavel(a: AdminAtendimento): string | null {
-  return (
+  const raw =
     a.medico_id ||
     a.dados_clinicos?.clinical_audit?.approvedBy ||
     a.dados_clinicos?.clinical_audit?.rejectedBy ||
-    null
-  );
+    null;
+  if (!raw) return null;
+  return KNOWN_DOCTOR_DISPLAY_NAMES[raw.trim().toLowerCase()] || raw;
 }
 
 export type AdminDashboard = {

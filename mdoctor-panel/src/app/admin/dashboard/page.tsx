@@ -512,7 +512,7 @@ export default function AdminDashboardPage() {
             <section>
               <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
                 Indicadores de tempo médio
-                {data.tempos.amostra ? ` · amostra: ${data.tempos.amostra} atendimento${data.tempos.amostra !== 1 ? 's' : ''}` : ''}
+                {` · amostra: ${data.tempos.amostra} atendimento${data.tempos.amostra !== 1 ? 's' : ''}`}
               </p>
               <div className="admin-dashboard__time grid grid-cols-7 gap-1.5">
                 {TIME_METRIC_KEYS.map((key) => (
