@@ -12,6 +12,7 @@ export type AdminNote = {
 
 export type AdminAtendimento = {
   id: string;
+  numero_curto?: number | null;
   paciente_nome: string;
   paciente_telefone?: string;
   paciente_cpf?: string;
@@ -47,6 +48,23 @@ export type AdminDashboard = {
     em_atendimento: number;
     receitas_prontas: number;
     pendencias_admin: number;
+  };
+  financeiro: {
+    atendimentos_pagos: number;
+    valor_unitario_centavos: number;
+    valor_unitario_label: string;
+    receita_total_centavos: number;
+    receita_total_label: string;
+  };
+  tempos: {
+    amostra: number;
+    triagem: string | null;
+    espera_medica: string | null;
+    avaliacao: string | null;
+    emissao_receita: string | null;
+    jornada_completa: string | null;
+    suporte_administrativo: string | null;
+    suporte_medico: string | null;
   };
   total: number;
   recentes: AdminAtendimento[];
