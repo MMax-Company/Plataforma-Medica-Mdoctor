@@ -152,13 +152,13 @@ async function testComputeTemposComJornada() {
 
   const tempos = await admin.computeTempos(atendimentos);
 
-  // Triagem: 10:02:00 -> 10:15:00 (criado_em) = 13 min
-  assert.equal(tempos.triagem, '13 min');
+  // Triagem clínica: primeiro_oi_em 10:00:00 -> 10:15:00 (criado_em) = 15 min
+  assert.equal(tempos.triagem, '15 min');
   // Jornada completa: 10:00:00 -> 10:40:00 = 40 min
   assert.equal(tempos.jornada_completa, '40 min');
   assert.equal(tempos.amostra_por_indicador.triagem, 1, 'só o atendimento com marcador entra na amostra');
   assert.equal(tempos.amostra_por_indicador.jornada_completa, 1);
-  assert.equal(tempos.amostra, 2, 'amostra geral inclui os dois atendimentos concluídos');
+  assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue');
   results.computeTemposLeJornadaCorretamente = 'ok';
 
   return 'ok';

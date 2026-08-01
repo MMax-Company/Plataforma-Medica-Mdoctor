@@ -198,13 +198,12 @@ const bodyColumns: Array<{
 
 // Seção 4 — Indicadores de Tempo Médio: calculados pelo backend
 // (/api/admin/dashboard → tempos, ver computeTempos em admin.routes.js) a
-// partir de timestamps reais já gravados no fluxo (criado_em da entrada na
-// fila, medical_decisions da transição "em_atendimento", clinical_audit.
-// approvedAt/rejectedAt, entrega_receita.sent_at). "Triagem" (clique em
-// "Vamos começar") e "Jornada completa" (primeiro "Oi") não têm hoje um
-// evento gravado no sistema para o início da contagem, e "Suporte
-// administrativo"/"Suporte médico" não têm evento distinto — todos recebem
-// "—" em vez de um número fabricado (o backend retorna null nesses casos).
+// partir de timestamps reais já gravados no fluxo (jornada.primeiro_oi_em,
+// criado_em da entrada na fila, medical_decisions da transição
+// "em_atendimento", clinical_audit.approvedAt/rejectedAt,
+// entrega_receita.sent_at, jornada.pos_entrega_enviada_em). "Suporte
+// administrativo"/"Suporte médico" não têm evento distinto — recebem "—" em
+// vez de um número fabricado (o backend retorna null nesses casos).
 const TIME_METRIC_KEYS = [
   'triagem',
   'espera_medica',
@@ -216,9 +215,9 @@ const TIME_METRIC_KEYS = [
 ] as const;
 
 const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
-  triagem: 'Triagem',
+  triagem: 'Triagem clínica',
   espera_medica: 'Espera médica',
-  avaliacao: 'Avaliação',
+  avaliacao: 'Avaliação médica',
   emissao_receita: 'Emissão da receita',
   jornada_completa: 'Jornada completa',
   suporte_administrativo: 'Suporte administrativo',

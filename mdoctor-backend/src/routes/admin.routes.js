@@ -30,6 +30,62 @@ function countByStatus(atendimentos) {
   }, {});
 }
 
+// Exclusão de atendimentos de teste do painel: não existe campo no banco que
+// marque um registro como teste (levantado em auditoria pontual, 01/08) —
+// scripts de seed/homologação/staging inserem pelo mesmo caminho de um
+// atendimento real. A lista abaixo cobre os telefones fixos e padrões de
+// nome usados por esses scripts (mdoctor-backend/scripts/seed-*.js,
+// test-*.js, prepare-staging-test-patients.js etc.). Registros reais nunca
+// batem com isso — só exclui o que é comprovadamente sintético.
+const RAW_TEST_PHONES = [
+  '11999999999',
+  '5511999999999',
+  '11987654321',
+  '11976543210',
+  '11965432109',
+  '11991230001',
+  '21992340002',
+  '31993450003',
+  '41994560004',
+  '51995670005',
+  '62996780006',
+  '71997890007',
+  '81998900008',
+  '85999010009',
+  '91990120010',
+  '11999990000',
+  '5511999990000',
+  '11968123900',
+  '5511900000009',
+  '5511900000000',
+  '11985485777',
+  '5511985485777',
+];
+
+function normalizeTestPhone(value) {
+  let digits = String(value || '').replace(/\D/g, '');
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) digits = digits.slice(2);
+  if (digits.length === 11 && digits[2] === '9') digits = digits.slice(0, 2) + digits.slice(3);
+  return digits;
+}
+
+const TEST_PHONES_NORMALIZED = new Set(RAW_TEST_PHONES.map(normalizeTestPhone));
+
+// supabase-production-persistence-test.js gera telefone dinâmico
+// `5511977${Date.now()}`.slice(-6) — normalizado sempre cai em "1177" + 6
+// dígitos.
+const TEST_PHONE_PREFIX_RE = /^1177\d{6}$/;
+
+const TEST_NAME_RE =
+  /\bteste\b|\btest\b|\bhom ?p\d|\bsim ?p\d|playwright|simula[cç][aã]o|persist[eê]ncia|\bqa\b|fict[ií]cio|valida[cç][aã]o/i;
+
+function isTestAtendimento(atendimento) {
+  if (TEST_NAME_RE.test(String(atendimento.paciente_nome || ''))) return true;
+  const phone = normalizeTestPhone(atendimento.paciente_telefone);
+  if (!phone) return false;
+  return TEST_PHONES_NORMALIZED.has(phone) || TEST_PHONE_PREFIX_RE.test(phone);
+}
+
 function isPaid(atendimento) {
   return String(atendimento.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
 }
@@ -93,10 +149,10 @@ function formatMinutes(minutes) {
 // (status "delivered" ou "rejected").
 //
 // Fontes usadas por indicador:
-//   - Triagem        : dados_clinicos.jornada.triagem_iniciada_em (clique no
-//                       choice "Vamos começar", primeiro input do Typebot —
-//                       marcador staged em whatsapp_sessions.metadata e
-//                       consumido no webhook do n8n, ver whatsapp.routes.js e
+//   - Triagem clínica: dados_clinicos.jornada.primeiro_oi_em (primeira
+//                       mensagem do paciente no ciclo atual — marcador staged
+//                       em whatsapp_sessions.metadata e consumido no webhook
+//                       do n8n, ver whatsapp.routes.js e
 //                       whatsapp-sessions.store.js) → atendimentos.criado_em
 //                       (entrada na fila médica, mesmo webhook do n8n).
 //   - Espera médica  : atendimentos.criado_em → medical_decisions.criado_em
@@ -110,22 +166,21 @@ function formatMinutes(minutes) {
 //                       fluxo Memed) → dados_clinicos.entrega_receita.sent_at
 //                       (receita entregue ao WhatsApp para envio ao
 //                       paciente) — só se aplica a atendimentos "delivered".
-//   - Jornada completa: dados_clinicos.jornada.primeiro_oi_em (primeira
-//                       mensagem do ciclo atual, marcador staged na sessão
-//                       da mesma forma que triagem_iniciada_em) →
+//   - Jornada completa: dados_clinicos.jornada.primeiro_oi_em (mesmo marcador
+//                       da Triagem clínica, é o início do ciclo) →
 //                       dados_clinicos.jornada.pos_entrega_enviada_em
 //                       (envio da mensagem pós-entrega com as opções
 //                       1/2/3 — gravado em post-delivery-survey.service.js)
 //                       — só se aplica a atendimentos "delivered"; as
 //                       respostas do questionário não entram na métrica.
 //
-// Os marcadores de jornada (triagem_iniciada_em, primeiro_oi_em) só existem
-// para atendimentos criados PELO fluxo real WhatsApp → n8n → webhook a
-// partir desta implementação — atendimentos concluídos antes dela, criados
-// por outra via (teste manual, migração) ou cujo telefone não bateu com
-// nenhuma sessão ficam de fora da amostra desses dois indicadores
-// especificamente (nunca um número fabricado). "Suporte administrativo" e
-// "Suporte médico" seguem sem evento distinto no modelo de dados atual.
+// O marcador de jornada (primeiro_oi_em) só existe para atendimentos criados
+// PELO fluxo real WhatsApp → n8n → webhook a partir desta implementação —
+// atendimentos concluídos antes dela, criados por outra via (teste manual,
+// migração) ou cujo telefone não bateu com nenhuma sessão ficam de fora da
+// amostra desses dois indicadores especificamente (nunca um número
+// fabricado). "Suporte administrativo" e "Suporte médico" seguem sem evento
+// distinto no modelo de dados atual.
 async function findPrimeiraTransicaoEmAtendimento(atendimentoId) {
   const decisoes = await listDecisoesLog(atendimentoId);
   const transicoes = decisoes.filter((d) => d.status_novo === STATUS.EM_ATENDIMENTO);
@@ -159,8 +214,8 @@ async function computeTempos(atendimentos) {
     const decisaoEm = c.clinical_audit?.approvedAt || c.clinical_audit?.rejectedAt || null;
     const jornada = c.jornada || {};
 
-    if (jornada.triagem_iniciada_em) {
-      const triagem = minutesBetween(jornada.triagem_iniciada_em, a.criado_em);
+    if (jornada.primeiro_oi_em) {
+      const triagem = minutesBetween(jornada.primeiro_oi_em, a.criado_em);
       if (triagem !== null) triagemValues.push(triagem);
     }
 
@@ -189,7 +244,12 @@ async function computeTempos(atendimentos) {
   }
 
   return {
-    amostra: concluidos.length,
+    // Amostra do cabeçalho: só atendimentos com jornada completa (marcadores
+    // primeiro_oi_em + pos_entrega_enviada_em) E receita entregue (status
+    // delivered) — mesmo critério de jornadaCompletaValues acima. Rejeitados
+    // e entregues sem marcador de jornada ficam de fora daqui (mas seguem
+    // contando nos indicadores que não dependem desses dois marcadores).
+    amostra: jornadaCompletaValues.length,
     amostra_por_indicador: {
       triagem: triagemValues.length,
       espera_medica: esperaMedicaValues.length,
@@ -264,7 +324,10 @@ router.get('/status', requireAuth, requireRole('admin'), async (req, res) => {
 
 router.get('/dashboard', requireAuth, requireRole(...ADMIN_ROLES), async (req, res) => {
   try {
-    const all = await listAtendimentos();
+    const allRaw = await listAtendimentos();
+    // Atendimentos de teste (seeds/scripts de staging — ver isTestAtendimento)
+    // nunca devem aparecer nos cards, indicadores ou receita do painel.
+    const all = allRaw.filter((a) => !isTestAtendimento(a));
     // Atendimentos encaminhados ao médico somem das colunas do corpo principal
     // (ver admin/dashboard/page.tsx) — os 6 cards precisam da mesma exclusão,
     // senão "Pendências administrativas" pode contar um caso que já não
@@ -334,6 +397,7 @@ router.get('/atendimentos', requireAuth, requireRole(...ADMIN_ROLES), async (req
   try {
     const { status, search } = req.query;
     let all = await listAtendimentos(status ? { status } : {});
+    all = all.filter((a) => !isTestAtendimento(a));
 
     if (search) {
       const q = String(search).toLowerCase();
@@ -814,3 +878,4 @@ module.exports = router;
 // conferência contra atendimentos concluídos reais) sem precisar subir o
 // servidor HTTP nem autenticação.
 module.exports.computeTempos = computeTempos;
+module.exports.isTestAtendimento = isTestAtendimento;
