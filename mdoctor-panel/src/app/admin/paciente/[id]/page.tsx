@@ -2,18 +2,21 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Users as UsersIcon } from 'lucide-react';
 import { logout, requireSession } from '@/services/auth.service';
 import {
   addAdminNote,
   fetchAdminAtendimento,
   forwardToDoctor,
+  medicoResponsavel,
   resendPaymentLink,
   resendTypebotLink,
   resolveAdminNote,
   type AdminAtendimento,
   type AdminNote,
 } from '@/services/admin.service';
-import { AppShell, Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
+import { Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
+import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 
 function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
   const status = String(atendimento.status || '').trim().toLowerCase();
@@ -364,29 +367,26 @@ export default function AdminPacientePage() {
   const notes: AdminNote[] = a?.dados_clinicos?.observacoes_admin || [];
   const journey = a ? deriveJourney(a) : [];
 
-  const navLinks = (
-    <a
-      href="/admin/pacientes"
-      className="inline-flex h-10 items-center rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-xs font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-    >
-      ← Pacientes
-    </a>
-  );
-
   return (
-    <AppShell
-      title={a?.paciente_nome || 'Paciente'}
-      subtitle="Jornada do atendimento"
-      actions={navLinks}
-      onLogout={handleLogout}
-    >
+    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
+      <MedicalPanelHeader
+        operational
+        title={a?.paciente_nome || 'Paciente'}
+        titleAlign="left"
+        recordButtonLabel="Relação de Pacientes"
+        recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
+        onOpenMedicalRecord={() => router.push('/admin/pacientes')}
+        onLogout={handleLogout}
+      />
+
       {toast && (
         <div className="fixed right-5 top-20 z-50 rounded-[14px] border border-emerald-200 bg-white px-4 py-3 text-sm font-bold text-[#0BA84F] shadow-[0_8px_24px_rgba(0,0,0,0.1)]">
           {toast}
         </div>
       )}
 
-      <div className="space-y-6 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-[1280px] space-y-6 p-4 sm:p-6">
+        <p className="text-sm text-[#5B6475]">Jornada do atendimento</p>
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
@@ -456,7 +456,9 @@ export default function AdminPacientePage() {
                   />
                   <FieldRow label="Entrada" value={fmt(a.criado_em)} />
                   <FieldRow label="Última atualização" value={fmt(a.atualizado_em)} />
-                  {a.medico_id && <FieldRow label="Médico responsável" value={a.medico_id} />}
+                  {medicoResponsavel(a) && (
+                    <FieldRow label="Médico responsável" value={medicoResponsavel(a)!} />
+                  )}
                 </dl>
               </Card>
             </div>
@@ -669,6 +671,6 @@ export default function AdminPacientePage() {
           </>
         )}
       </div>
-    </AppShell>
+    </main>
   );
 }

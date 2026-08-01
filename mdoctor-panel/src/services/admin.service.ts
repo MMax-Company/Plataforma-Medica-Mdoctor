@@ -37,8 +37,21 @@ export type AdminAtendimento = {
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
+    clinical_audit?: { approvedBy?: string | null; rejectedBy?: string | null } | null;
   };
 };
+
+// Nome do responsável clínico para exibição — medico_id (coluna) é
+// estruturalmente sempre null com o esquema de login atual (username, não
+// numérico); usa o fallback real gravado em dados_clinicos.clinical_audit.
+export function medicoResponsavel(a: AdminAtendimento): string | null {
+  return (
+    a.medico_id ||
+    a.dados_clinicos?.clinical_audit?.approvedBy ||
+    a.dados_clinicos?.clinical_audit?.rejectedBy ||
+    null
+  );
+}
 
 export type AdminDashboard = {
   cards: {
