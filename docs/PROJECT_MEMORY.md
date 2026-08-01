@@ -24,11 +24,10 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 foi o commit `54aa164` na
-  branch `fix/cep-upload-prescription-20260728` (painel: restaura
-  MedicalPanelHeader/medicoResponsavel na jornada individual, sobre o commit
-  funcional `8ed5292` e o docs-only `76245f1`). Confirmar sincronização entre
-  Git local, remoto e Railway antes do próximo trabalho.
+- O último deploy de staging informado em 01/08/2026 foi o commit `812bf8f`
+  (backend + painel) na branch `fix/cep-upload-prescription-20260728`.
+  Confirmar sincronização entre Git local, remoto e Railway antes do próximo
+  trabalho.
 
 ## 3. Definição de pedido econômico
 
@@ -86,12 +85,24 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 - Filtro de testes automáticos aplicado ao painel sem apagar registros do banco.
 - Tickets de suporte geral separados do universo clínico e do financeiro.
 - Relação de Pacientes e a jornada individual (`admin/paciente/[id]`) usam o
-  mesmo `MedicalPanelHeader` operacional do Dashboard. A jornada individual
-  tinha regredido para o `AppShell` antigo e exibia `medico_id` bruto; corrigida
-  em `54aa164` reaproveitando `medicoResponsavel()` (`admin.service.ts`) sem
-  tocar em `deriveJourney`, `canForwardToMedicalSupport` ou nas ações
-  administrativas. Build/type-check confirmados; confirmação visual em
-  navegador ainda pendente (extensão Chrome indisponível nesta sessão).
+  mesmo `MedicalPanelHeader` operacional do Dashboard (subtitle, logo,
+  identificação do admin, indicador de conexão, SAIR e retorno para "Relação
+  de Pacientes"). `medicoResponsavel()` (`admin.service.ts`) é usado nas duas
+  telas — nunca exibir `medico_id`/UUID bruto.
+- Recuperação pontual do Painel Administrativo v2 (`16e606c`), só os trechos
+  comprovadamente perdidos, em `41486c1` (dados/helpers) e `812bf8f` (visual):
+  `numero_curto` volta a ser repassado por `appointment-mapper.js` e
+  `atendimentos.store.js` (painel mostra `DP-XXXX`, não `#xxxxxxxx`);
+  `isVisibleInMedicalPanel` volta a excluir `queue_type: medical_support` da
+  fila médica normal; prop `subtitle` restaurada em `MedicalPanelHeader`;
+  bloco `.admin-dashboard*` restaurado em `globals.css`; `admin/page.tsx`
+  renomeado de "Painel Master" para "Painel de Monitoramento". Todo o resto
+  desses 16 arquivos (Suporte Médico, MedicalSupportBand, prontuário
+  consultMode, tempos/financeiro) já estava em versão mais recente que
+  `16e606c` e não foi tocado. Build/type-check e validação isolada do mapper
+  de `numero_curto` confirmados contra dados reais de staging (18/18
+  atendimentos com `numero_curto`); confirmação visual em navegador segue
+  pendente (extensão Chrome indisponível nesta máquina).
 - No staging, após a separação informada: 18 atendimentos clínicos totais e 12
   pagos; confirmar novamente no ambiente antes de usar esses números no futuro.
 - Triagem e jornada completa podem aparecer como `—` em registros antigos sem
