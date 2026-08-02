@@ -192,6 +192,14 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   pago afetado pela falha de normalização foi recuperado de forma pontual após
   confirmação do PaymentIntent no Stripe, sem nova cobrança, e voltou para
   `awaiting_prescription_upload` com contexto de upload válido.
+- O teste financeiro real de 02/08/2026 confirmou uma cobrança e um único
+  estorno integral de R$ 49,90 no Stripe (`succeeded`) após reprovação médica.
+  Porém, o primeiro disparo automático não encontrou o pagamento porque o
+  PaymentIntent criado pelo bloco Stripe nativo do Typebot não permaneceu
+  vinculado ao atendimento. O estorno foi recuperado de modo idempotente após
+  verificação direta do PaymentIntent e persistência do vínculo. Antes de abrir
+  o fluxo para novos pacientes, automatizar e testar esse vínculo
+  Typebot/PaymentIntent → atendimento; não depender de recuperação manual.
 
 ## 9. Canais de WhatsApp protegidos
 
