@@ -99,9 +99,12 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 - Em 02/08/2026, as variáveis Railway de produção do backend e do painel foram
   corrigidas para usar os domínios de produção, `ENVIRONMENT_NAME=production`,
   `NEXT_PUBLIC_APP_ENV=production`, `PRODUCT_PRICE=4990` e mock de entrega em
-  produção desautorizado. As alterações foram salvas com `skip deploy`; os
-  deploys ativos permaneceram inalterados e precisam de um único deploy final
-  para carregar a nova configuração.
+  produção desautorizado. Backend e painel foram publicados a partir da cópia
+  limpa do commit `a758e28`: backend no deployment
+  `24ecffcc-dd34-4b70-8c5c-1197dd07820c` e painel no deployment
+  `da55ea3e-66b0-4c40-a580-3557bfab49ef`, ambos `SUCCESS`. Health/readiness,
+  proxy do painel e observação inicial sem erros de runtime/HTTP 5xx foram
+  confirmados após o deploy.
 
 - Filtro de testes automáticos aplicado ao painel sem apagar registros do banco.
 - Tickets de suporte geral separados do universo clínico e do financeiro.
