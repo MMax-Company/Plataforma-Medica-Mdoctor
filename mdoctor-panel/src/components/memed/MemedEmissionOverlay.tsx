@@ -247,12 +247,12 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       aria-label={visible ? `Prescrição digital — ${patientName}` : undefined}
       aria-hidden={visible ? undefined : true}
       style={visible && !closing ? undefined : { display: 'none' }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-3 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-1.5 sm:p-2"
     >
       {/* Card modal centralizado — painel visível ao fundo */}
-      <div className="relative flex h-full w-full max-h-[min(90vh,800px)] max-w-[840px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
+      <div className="relative flex h-full w-full max-h-[calc(100dvh-16px)] max-w-[1200px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-2">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-1.5">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
               Prescrição digital
@@ -270,7 +270,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         </div>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#F6F9FD] p-2 sm:p-3">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F6F9FD] p-1.5 sm:p-2">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…
@@ -312,7 +312,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
               error={memedError}
               onOpenPrescription={openPrescription}
               onResetMemed={() => void resetAndReopen()}
-              minHeight={520}
+              minHeight={0}
             />
             </div>
           )}

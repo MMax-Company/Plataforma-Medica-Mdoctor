@@ -68,13 +68,14 @@ export function MemedPrescriptionWorkspace({
 
   return (
     <div className="memed-native-panel flex h-full flex-col rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
-      <div className="flex flex-col gap-2 border-b border-[#E5EAF2] px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-[#1557FF]">Prescrição digital</p>
-          <h2 className="text-panel-sm font-bold text-[#080D33]">Emissão integrada</h2>
-          <p className="mt-0.5 text-[11px] text-[#5B6475]">{statusMessage}</p>
-        </div>
-        {showEmitButton && (
+      {showEmitButton && (
+        <div className="flex shrink-0 flex-col gap-1.5 border-b border-[#E5EAF2] px-2.5 py-1.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-bold text-[#080D33]">Emissão integrada</h2>
+              <span className="truncate text-[10px] text-[#5B6475]">{statusMessage}</span>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill tone={readyToOpen ? 'success' : 'secondary'}>
               {pillLabel}
@@ -88,8 +89,8 @@ export function MemedPrescriptionWorkspace({
               {buttonLabel}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {error ? (
         <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -103,8 +104,8 @@ export function MemedPrescriptionWorkspace({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
-        <div className="mb-1.5 flex shrink-0 flex-wrap gap-2 text-[11px] text-[#5B6475]">
+      <div className="flex min-h-0 flex-1 flex-col p-1.5 sm:p-2">
+        <div className="mb-1 flex shrink-0 flex-wrap gap-2 text-[10px] text-[#5B6475]">
           <span>
             <strong className="text-[#080D33]">Paciente:</strong> {atendimento?.paciente_nome || '—'}
           </span>
@@ -118,7 +119,7 @@ export function MemedPrescriptionWorkspace({
         {!prescriptionOpenedOnce && (
           <div
             className="flex min-h-0 flex-1 items-center justify-center rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
-            style={{ minHeight: `${minHeight}px` }}
+            style={minHeight > 0 ? { minHeight: `${minHeight}px` } : undefined}
           >
             <p className="text-sm text-[#8A95A5]">
               Clique em <strong className="text-[#5B6475]">&ldquo;Carregar prescrição&rdquo;</strong> para iniciar.
@@ -142,10 +143,10 @@ export function MemedPrescriptionWorkspace({
         <div style={{ display: prescriptionOpenedOnce ? undefined : 'none' }} className="flex min-h-0 flex-1">
           <div
             id={containerId}
-            className="memed-embedded-host relative min-h-0 flex-1 overflow-y-auto rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
             style={{
               minWidth: `min(100%, ${minWidth}px)`,
-              minHeight: `${minHeight}px`,
+              ...(minHeight > 0 ? { minHeight: `${minHeight}px` } : {}),
             }}
             data-dp-memed-engine="sinapse"
           />
