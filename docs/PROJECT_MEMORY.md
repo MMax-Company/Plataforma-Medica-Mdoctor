@@ -170,13 +170,36 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   hardcoded — tudo calculado a partir do conjunto já filtrado (sem teste,
   sem suporte).
 
-## 8. Canais de WhatsApp protegidos
+## 8. Typebot de produção
+
+- Em 02/08/2026, o Typebot público `doctor-prescreve-8rmljgu` foi corrigido e
+  republicado no mesmo identificador. O fluxo usa os webhooks de produção,
+  mantém a rota manual segura após o CEP, normaliza as condições clínicas
+  digitadas como `1` a `4` e cobra R$ 49,90 em BRL.
+- O bloco de pagamento usa a conexão Stripe `Doctor Prescreve Plataforma`.
+  O teste público completo, sem cartão e sem cobrança, chegou ao `payment input`
+  com HTTP 200 após o aceite dos termos. Não trocar a credencial pela conexão
+  antiga `Doctor Prescreve`, que causava HTTP 500 ao inicializar o pagamento.
+- Os três blocos de auditoria adicionados ao grupo de aceite dos termos foram
+  removidos porque impediam a transição; os aceites continuam registrados pelas
+  variáveis de consentimento e pelo resultado/timestamp nativo do Typebot.
+- Em 02/08/2026, o backend de produção passou a normalizar os códigos de condição
+  clínica exibidos pelo Typebot (`1` hipertensão, `2` diabetes tipo 2, `3`
+  dislipidemia e `4` hipotireoidismo). O deploy `9a9af6ff-af94-45c0-85a6-c6825371b703`
+  publicou o commit `7da22b0`; os testes de elegibilidade e roteamento passaram.
+- Durante a espera pela receita anterior, a opção de suporte é **2**. A opção
+  **3** só aparece depois da emissão e entrega da receita médica. Um atendimento
+  pago afetado pela falha de normalização foi recuperado de forma pontual após
+  confirmação do PaymentIntent no Stripe, sem nova cobrança, e voltou para
+  `awaiting_prescription_upload` com contexto de upload válido.
+
+## 9. Canais de WhatsApp protegidos
 
 - O número da automação usa Meta Cloud API.
 - O canal manual não deve ser cadastrado em Cloud API, webhook, Typebot ou n8n.
 - Não alterar automação, números, provider ou webhook sem pedido específico.
 
-## 9. Manutenção desta memória
+## 10. Manutenção desta memória
 
 Atualizar este arquivo no mesmo trabalho quando mudar:
 
