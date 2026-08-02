@@ -1,6 +1,6 @@
 # Memória Compartilhada — Doctor Prescreve
 
-**Última atualização:** 01/08/2026  
+**Última atualização:** 02/08/2026  
 **Responsável funcional:** Dr. Max Vinicius Ferreira Matos  
 **Finalidade:** fonte canônica compartilhada entre Claude Code, Codex e futuros
 agentes. Deve ser lida antes de qualquer trabalho no projeto.
@@ -90,6 +90,18 @@ houver marcadores próprios. Nunca fabricar média. A amostra do cabeçalho usa
 somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 7. Estado operacional registrado em 01/08/2026
+
+- Em 02/08/2026, o Supabase oficial de produção recebeu a migração aditiva
+  `create_decisoes_log_medicos`: foram criadas somente as tabelas vazias
+  `decisoes_log` e `medicos`, seus índices, RLS e políticas exclusivas para
+  `service_role`; nenhum dado foi removido ou reclassificado. O
+  `production-readiness-check` passou integralmente após a aplicação.
+- Em 02/08/2026, as variáveis Railway de produção do backend e do painel foram
+  corrigidas para usar os domínios de produção, `ENVIRONMENT_NAME=production`,
+  `NEXT_PUBLIC_APP_ENV=production`, `PRODUCT_PRICE=4990` e mock de entrega em
+  produção desautorizado. As alterações foram salvas com `skip deploy`; os
+  deploys ativos permaneceram inalterados e precisam de um único deploy final
+  para carregar a nova configuração.
 
 - Filtro de testes automáticos aplicado ao painel sem apagar registros do banco.
 - Tickets de suporte geral separados do universo clínico e do financeiro.
