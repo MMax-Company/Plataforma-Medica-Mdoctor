@@ -198,6 +198,18 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 - O número da automação usa Meta Cloud API.
 - O canal manual não deve ser cadastrado em Cloud API, webhook, Typebot ou n8n.
 - Não alterar automação, números, provider ou webhook sem pedido específico.
+- Em 02/08/2026, a sobrescrita de callback da WABA oficial foi corrigida para
+  `https://web-production-5f178.up.railway.app/api/whatsapp/webhook`. O staging
+  permanece inscrito na Meta por legado, mas usa `WHATSAPP_ENABLED=false` e,
+  desde o commit `af6bf49`, apenas confirma o webhook sem reivindicar message_id,
+  persistir sessão ou responder ao paciente. Produção usa
+  `WHATSAPP_ENABLED=true` e é o único ambiente que processa o canal oficial.
+- Upload de receita anterior exige coincidência entre o telefone do atendimento,
+  a sessão remetente e o pagamento confirmado na metadata da sessão. Em uma
+  recuperação pontual autorizada, esses vínculos foram reconciliados a partir
+  do PaymentIntent confirmado; a foto foi armazenada e o atendimento seguiu
+  para `waiting`, elegível, pago e na fila médica. Durante essa etapa, suporte
+  continua sendo a opção 2; opção 3 somente após entrega da receita emitida.
 
 ## 10. Manutenção desta memória
 
