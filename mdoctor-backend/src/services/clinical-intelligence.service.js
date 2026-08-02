@@ -46,6 +46,20 @@ function normalizeText(value = '') {
 
 function normalizeCondition(value = '') {
   const normalized = normalizeText(value);
+  // O Typebot público coleta as condições pelos códigos numéricos exibidos
+  // ao paciente. Reconheça cada token antes dos aliases textuais para que
+  // "1" (ou uma seleção como "1, 3") não caia no fallback genérico.
+  const numericSelections = normalized
+    .split(/[^0-9]+/)
+    .filter(Boolean);
+  const numericConditionMap = {
+    1: CONDITIONS.HAS,
+    2: CONDITIONS.DM2,
+    3: CONDITIONS.DLP,
+    4: CONDITIONS.HIPO
+  };
+  const numericMatch = numericSelections.find((item) => numericConditionMap[item]);
+  if (numericMatch) return numericConditionMap[numericMatch];
   const matched = CONDITION_ALIASES.find((item) => item.terms.some((term) => normalized.includes(normalizeText(term))));
   return matched ? matched.value : 'renovacao_receita';
 }

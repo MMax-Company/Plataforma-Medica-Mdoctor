@@ -50,6 +50,19 @@ assert('can queue', eligible.normalized.validation.can_enter_medical_queue === t
 const decision = engine.evaluate(toPatientEvaluationShape(eligible.normalized));
 assert('engine eligible', decision.eligible === true);
 
+const numericConditions = [
+  ['1', 'hipertensao'],
+  ['2', 'diabetes_tipo_2'],
+  ['3', 'dislipidemia'],
+  ['4', 'hipotireoidismo'],
+  ['1, 3', 'hipertensao']
+];
+for (const [input, expected] of numericConditions) {
+  const result = normalizeTypebotPayload({ ...base, chronic_condition: input });
+  assert(`condição Typebot "${input}" normalizada como ${expected}`, result.normalized.chronic_condition === expected);
+  assert(`condição Typebot "${input}" permanece elegível`, engine.evaluate(toPatientEvaluationShape(result.normalized)).eligible === true);
+}
+
 const unpaid = normalizeTypebotPayload({ ...base, pagamento_status: 'pending' });
 assert('unpaid blocked', unpaid.normalized.validation.can_enter_medical_queue === false);
 
