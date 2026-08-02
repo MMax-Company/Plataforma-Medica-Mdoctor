@@ -287,6 +287,18 @@ router.get('/webhook', (req, res) => {
 router.post('/webhook', async (req, res) => {
   // Check if this is a Meta WhatsApp Webhook payload
   if (req.body && req.body.object === 'whatsapp_business_account') {
+    // Staging pode permanecer inscrito no mesmo WABA da produção enquanto a
+    // assinatura antiga é removida na Meta. Nesse intervalo, nunca deixe o
+    // ambiente desabilitado reivindicar message_id, persistir sessão ou enviar
+    // resposta: produção e staging compartilham a trava de idempotência e o
+    // primeiro ambiente a reivindicar o evento impediria o processamento certo.
+    if (process.env.WHATSAPP_ENABLED !== 'true') {
+      logger.info('whatsapp_business_webhook_skipped_disabled', {
+        environmentName: process.env.ENVIRONMENT_NAME || null
+      });
+      return res.status(200).send('EVENT_RECEIVED');
+    }
+
     // Respond HTTP 200 quickly to Meta
     res.status(200).send('EVENT_RECEIVED');
 
