@@ -5,7 +5,12 @@ const {
   getAtendimento,
   updateAtendimentoStatus
 } = require('../store/atendimentos.store');
-const { findPaymentEventByProviderId, recordStripePaymentEvent } = require('../store/payments.store');
+const {
+  findPaymentByAppointment,
+  findPaymentEventByProviderId,
+  markPaymentRefunded,
+  recordStripePaymentEvent
+} = require('../store/payments.store');
 const { recordIntegrationLog } = require('./clinical-persistence.service');
 const { isExternalUploadEnabled, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const {
@@ -27,6 +32,132 @@ function extractAtendimentoId(event) {
 
 function isPaidStripeEvent(type) {
   return type === 'checkout.session.completed' || type === 'payment_intent.succeeded';
+}
+
+function isRefundStripeEvent(type) {
+  return type === 'refund.created' || type === 'refund.updated' || type === 'refund.failed';
+}
+
+// Achado 02/08/2026: o endpoint Stripe já tem refund.created/updated/failed
+// habilitados (necessário para Pix, cujo estorno pode ficar "pending" por
+// minutos antes de resolver — diferente de cartão, que normalmente já volta
+// succeeded na criação), mas o handler descartava esses eventos
+// silenciosamente (isPaidStripeEvent só cobria checkout/payment_intent).
+// Reconcilia dados_clinicos.estorno com o status final do refund. Nunca
+// CRIA um estorno a partir de webhook — só atualiza um refund_id que o
+// próprio backend já registrou via refundRejectedAtendimento
+// (stripe-refund.service.js), então não há caminho para o cliente/painel
+// forjar um estorno por aqui.
+async function applyStripeRefundReconciliation(event) {
+  const object = event?.data?.object || {};
+  const atendimentoId = object.metadata?.atendimento_id || null;
+  if (!atendimentoId) {
+    return { status: 200, body: { success: true, ignored: true, reason: 'missing_atendimento_id' } };
+  }
+
+  const atendimento = await getAtendimento(atendimentoId);
+  if (!atendimento) {
+    return { status: 200, body: { success: true, ignored: true, reason: 'atendimento_not_found' } };
+  }
+
+  const clinical = atendimento.dados_clinicos || {};
+  const currentEstorno = clinical.estorno || null;
+  // Só reconcilia o MESMO refund que o backend já criou e registrou para
+  // este atendimento — um refund.id diferente (ou nenhum estorno registrado
+  // ainda) é ignorado, nunca grava por conta própria.
+  if (!currentEstorno?.refund_id || currentEstorno.refund_id !== object.id) {
+    return { status: 200, body: { success: true, ignored: true, reason: 'refund_not_linked' } };
+  }
+
+  const newRefundStatus = String(object.status || currentEstorno.status || '').trim();
+  if (newRefundStatus === currentEstorno.status) {
+    // Redelivery do mesmo status — nada a mudar, evita log de auditoria duplicado.
+    return { status: 200, body: { success: true, duplicate: true, atendimentoId } };
+  }
+
+  const refundSucceeded = newRefundStatus === 'succeeded';
+  const refundFailedFinal = newRefundStatus === 'failed';
+
+  const nextEstorno = {
+    ...currentEstorno,
+    status: newRefundStatus,
+    reconciled_at: new Date().toISOString(),
+    reconciled_via_event_id: event.id || null
+  };
+
+  const nextPendenciaPagamento = refundSucceeded
+    ? {
+        ...(clinical.pendencia_pagamento || {}),
+        status: 'estorno_concluido',
+        motivo: 'Estorno confirmado pelo webhook Stripe',
+        refund_id: object.id,
+        refund_status: newRefundStatus,
+        reconciled_at: new Date().toISOString()
+      }
+    : refundFailedFinal
+      ? {
+          ...(clinical.pendencia_pagamento || {}),
+          status: 'pendente_analise_administrativa',
+          motivo: `Estorno falhou de forma assíncrona (webhook Stripe, refund ${object.id}) — aguardando tratamento administrativo do pagamento`,
+          refund_id: object.id,
+          refund_status: newRefundStatus,
+          reconciled_at: new Date().toISOString()
+        }
+      : {
+          ...(clinical.pendencia_pagamento || {}),
+          status: 'estorno_iniciado',
+          refund_status: newRefundStatus
+        };
+
+  const updated = await updateAtendimentoStatus(atendimentoId, atendimento.status, {
+    motivo: atendimento.motivo_decisao,
+    medicoId: atendimento.medico_id,
+    dados_clinicos: {
+      ...clinical,
+      estorno: nextEstorno,
+      pendencia_pagamento: nextPendenciaPagamento
+    }
+  });
+
+  if (currentEstorno.payment_intent) {
+    // stripe-refund.service.js só marca payments.status = refunded quando o
+    // refund já vem succeeded na criação (caminho síncrono). Fecha o mesmo
+    // laço para o caminho assíncrono (ex.: Pix), sem duplicar lógica —
+    // reaproveita o mesmo helper e a mesma tabela.
+    if (refundSucceeded) {
+      const paymentRow = await findPaymentByAppointment(atendimentoId).catch(() => null);
+      if (paymentRow?.id) {
+        await markPaymentRefunded(paymentRow.id).catch((error) =>
+          logger.warn('stripe_webhook_refund_mark_payment_failed', { atendimentoId, error: error.message })
+        );
+      }
+    }
+  }
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: atendimentoId,
+    action: 'refund_status_synced',
+    actor: 'stripe',
+    payload: {
+      event_id: event.id || null,
+      event_type: event.type,
+      refund_id: object.id,
+      refund_status: newRefundStatus,
+      previous_status: currentEstorno.status
+    }
+  });
+
+  return {
+    status: 200,
+    body: {
+      success: true,
+      atendimentoId,
+      refund_id: object.id,
+      refund_status: newRefundStatus,
+      atendimento_status: updated?.status || atendimento.status
+    }
+  };
 }
 
 async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
@@ -64,6 +195,7 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
         event_id: stripeMeta.eventId || null,
         session_id: stripeMeta.sessionId || null,
         payment_intent: stripeMeta.paymentIntentId || null,
+        amount_cents: stripeMeta.amountCents || null,
         confirmed_at: new Date().toISOString()
       }
     }
@@ -186,6 +318,10 @@ async function handleStripeWebhookEvent(event) {
     return { status: 400, body: { success: false, error: 'Evento Stripe inválido' } };
   }
 
+  if (isRefundStripeEvent(event.type)) {
+    return applyStripeRefundReconciliation(event);
+  }
+
   if (!isPaidStripeEvent(event.type)) {
     return { status: 200, body: { success: true, ignored: true, type: event.type } };
   }
@@ -230,7 +366,9 @@ async function handleStripeWebhookEvent(event) {
 
 module.exports = {
   applyStripePaymentConfirmed,
+  applyStripeRefundReconciliation,
   extractAtendimentoId,
   handleStripeWebhookEvent,
-  handleTypebotPaymentWebhook
+  handleTypebotPaymentWebhook,
+  isRefundStripeEvent
 };

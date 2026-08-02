@@ -1,6 +1,7 @@
 // Fase 3 pedido 1 — testes isolados (sem rede/banco) da decisão médica:
-// aprovação e reprovação idempotentes, reprovação sem estorno automático
-// (apenas pendência administrativa registrada) e mensagens WhatsApp únicas.
+// aprovação e reprovação idempotentes, reprovação com estorno automático
+// (reativado 02/08/2026, stripe-refund.service dublado deterministicamente)
+// e mensagens WhatsApp únicas.
 // Usa o mesmo padrão de stub de require.cache já usado em
 // test-prescription-upload-ambiguity-unit.js para exercitar as funções REAIS
 // de produção sem tocar Supabase/Meta/Stripe.
@@ -36,6 +37,7 @@ let auditLogs = [];
 let outboxRows = [];
 let sentTexts = [];
 let rowSeq = 0;
+let refundCalls = [];
 
 function findPendingByKind(atendimentoId, kind) {
   return (
@@ -133,6 +135,24 @@ stub(resolveFrom('../delivery/delivery.service'), {
     return { providerMessageId: `wamid-${sentTexts.length}` };
   }
 });
+// Estorno automático (reativado 02/08/2026): stub determinístico — sem essa
+// dublagem o teste dependeria de STRIPE_SECRET_KEY do ambiente (não
+// determinístico) e quebraria a garantia "sem tocar Stripe" deste arquivo.
+// Simula falha (STRIPE_NOT_CONFIGURED), que é o cenário real de um ambiente
+// sem chave Stripe configurada — cobre o fallback para pendência
+// administrativa. Também audita a chamada para provar que o
+// payment_intent NUNCA vem do corpo da requisição (controle obrigatório de
+// docs/STRIPE-ESTORNO-REPROVACAO.md).
+stub(resolveFrom('./stripe-refund.service'), {
+  refundRejectedAtendimento: async ({ atendimento, requestedPaymentIntent, doctorId, correlationId }) => {
+    refundCalls.push({ atendimentoId: atendimento?.id, atendimento, requestedPaymentIntent, doctorId, correlationId });
+    return {
+      status: 'error',
+      error_code: 'STRIPE_NOT_CONFIGURED',
+      error: 'stub: sem Stripe configurado neste teste'
+    };
+  }
+});
 
 delete require.cache[require.resolve(base)];
 const clinicalDecision = require(base);
@@ -157,6 +177,7 @@ function resetState(fixture) {
   auditLogs = [];
   outboxRows = [];
   sentTexts = [];
+  refundCalls = [];
 }
 
 async function main() {
@@ -247,24 +268,44 @@ async function main() {
     results.reprovarNaoIniciaMemed = 'ok';
   }
 
-  // 6) Reprovação não realiza estorno: nenhum campo de estorno/refund é
-  //    criado; em vez disso fica registrada a pendência administrativa.
+  // 6) Reprovação com pagamento confirmado chama o estorno automático
+  //    (reativado 02/08/2026); quando o estorno não é concluído (stub
+  //    simula STRIPE_NOT_CONFIGURED), cai para pendência administrativa —
+  //    nunca desfaz a reprovação clínica. Também garante que um campo solto
+  //    `payment_intent` no corpo da requisição nunca chega ao serviço de
+  //    estorno — refundRejectedAtendimento é chamado com o `previous`
+  //    original (gravado pelo webhook Stripe), nunca com dado vindo do
+  //    corpo (controle obrigatório de docs/STRIPE-ESTORNO-REPROVACAO.md).
+  //    NOTA: não cobre aqui o vetor `body.dados_clinicos.stripe_payment.*`
+  //    — achado separado registrado no relatório desta sessão, fora do
+  //    escopo desta mudança (mergeClinicalPayload já tinha esse
+  //    comportamento antes do estorno automático existir).
   {
-    resetState(freshApprovableAtendimento('at-reject-3'));
+    const fixture = freshApprovableAtendimento('at-reject-3');
+    fixture.dados_clinicos.stripe_payment = { payment_intent: 'pi_legitimo_do_webhook' };
+    resetState(fixture);
     const rej = await clinicalDecision.rejectAtendimento(
       'at-reject-3',
-      { reason_code: 'FORA_DO_PROTOCOLO', observacao_medica: 'fora do protocolo clinico' },
+      { reason_code: 'FORA_DO_PROTOCOLO', observacao_medica: 'fora do protocolo clinico', payment_intent: 'pi_forjado_pelo_cliente' },
       { doctorId: 'doc-1', correlationId: 'c-1' }
     );
-    assert.equal(rej.atendimento.dados_clinicos.estorno, undefined, 'nenhum campo de estorno é criado');
-    assert.equal(rej.pendencia_pagamento.status, 'pendente_analise_administrativa');
-    assert.equal(rej.pendencia_pagamento.refund_id, undefined);
+    assert.equal(refundCalls.length, 1, 'estorno automático é chamado uma vez para pagamento confirmado');
+    assert.equal(refundCalls[0].requestedPaymentIntent, null, 'payment_intent do corpo da requisição nunca é repassado ao estorno');
+    assert.equal(
+      refundCalls[0].atendimento.dados_clinicos.stripe_payment.payment_intent,
+      'pi_legitimo_do_webhook',
+      'estorno enxerga o stripe_payment original gravado pelo webhook'
+    );
+    assert.equal(rej.estorno.status, 'error');
+    assert.equal(rej.estorno.error_code, 'STRIPE_NOT_CONFIGURED');
+    assert.equal(rej.atendimento.dados_clinicos.estorno.error_code, 'STRIPE_NOT_CONFIGURED');
+    assert.equal(rej.pendencia_pagamento.status, 'pendente_analise_administrativa', 'estorno não concluído cai para pendência administrativa');
     assert.equal(rej.atendimento.dados_clinicos.pendencia_pagamento.status, 'pendente_analise_administrativa');
-    results.reprovacaoNaoRealizaEstorno = 'ok';
+    results.reprovacaoComPagamentoChamaEstornoENaoAceitaPaymentIntentDoCliente = 'ok';
   }
 
-  // 6b) Sem pagamento confirmado, a pendência reflete isso e ainda assim não
-  //     chama nenhum código de estorno.
+  // 6b) Sem pagamento confirmado, a pendência reflete isso e o estorno
+  //     automático nem é chamado (nada a estornar).
   {
     const fixture = freshApprovableAtendimento('at-reject-4');
     fixture.pagamento_status = 'PENDENTE';
@@ -275,6 +316,8 @@ async function main() {
       { doctorId: 'doc-1', correlationId: 'c-1' }
     );
     assert.equal(rej.pendencia_pagamento.status, 'sem_pagamento_confirmado');
+    assert.equal(refundCalls.length, 0, 'sem pagamento confirmado, estorno automático nem é chamado');
+    assert.equal(rej.estorno, null);
     results.semPagamentoConfirmadoNaoRegistraPendenciaDeEstorno = 'ok';
   }
 

@@ -1,9 +1,20 @@
-const PAYMENT_AMOUNT_CENTS = 6990;
-const PAYMENT_AMOUNT_LABEL = 'R$ 69,90';
-const PAYMENT_BUTTON_LABEL = 'Pagar R$ 69,90';
+const PAYMENT_AMOUNT_CENTS = 4990;
+const PAYMENT_AMOUNT_LABEL = 'R$ 49,90';
+const PAYMENT_BUTTON_LABEL = 'Pagar R$ 49,90';
+
+// Pix adicionado ao Checkout mantendo cartão (cartão continua sendo a
+// primeira opção exibida). Mesmo valor/atendimento/webhook/confirmação do
+// cartão — Pix usa o mesmo checkout.session.completed e os mesmos checks de
+// amount_total/currency em stripeSessionIsPaid, sem lógica nova.
+const PAYMENT_METHOD_TYPES = ['card', 'pix'];
+// 30 minutos: prazo curto o bastante para não deixar o paciente com Pix
+// "pendurado" no meio do atendimento assíncrono, e alinhado ao limite mínimo
+// permitido pela Stripe (10s) e ao teto de 14 dias — ajustável em revisão
+// antes do commit, sem exigir mudança de código (só este valor).
+const PIX_EXPIRES_AFTER_SECONDS = 1800;
 
 const PRE_PAYMENT_MESSAGE = [
-  'O valor da consulta médica e da análise das informações enviadas é de R$ 69,90.',
+  'O valor da consulta médica e da análise das informações enviadas é de R$ 49,90.',
   '',
   'O pagamento corresponde à consulta e não garante a emissão da receita.',
   '',
@@ -43,7 +54,9 @@ module.exports = {
   PAYMENT_CANCELLED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
+  PAYMENT_METHOD_TYPES,
   PAYMENT_PENDING_CHOICES,
   PAYMENT_PENDING_MESSAGE,
+  PIX_EXPIRES_AFTER_SECONDS,
   PRE_PAYMENT_MESSAGE
 };

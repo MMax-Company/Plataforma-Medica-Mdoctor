@@ -586,6 +586,7 @@ router.post('/:id/clinical/reject', requireRole('admin', 'doctor'), async (req, 
     decisao: result.decisao,
     notification: result.notification,
     pendencia_pagamento: result.pendencia_pagamento || null,
+    estorno: result.estorno || null,
     reason_code: result.reason_code,
     reason_label: result.reason_label
   });

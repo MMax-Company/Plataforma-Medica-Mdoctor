@@ -133,6 +133,17 @@ async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId
   );
   if (!match) return null;
 
+  // Achado 02/08/2026: esta reconciliação só marcava pagamento_status =
+  // CONFIRMADO, sem gravar o checkout_session_id — sem isso, um estorno
+  // automático numa reprovação médica posterior deste atendimento nunca
+  // resolveria o payment_intent (ver stripe-refund.service.js). Busca o
+  // mesmo dado que triagem-webhook.service.js já usa como fonte de verdade
+  // (whatsapp_sessions.metadata.typebot_payment, só preenchido pelo webhook
+  // Stripe assinado), pelo MESMO telefone deste atendimento.
+  const whatsappSession = await getSessionByPhone(phone).catch(() => null);
+  const sessionPayment = whatsappSession?.metadata?.typebot_payment;
+  const checkoutSessionId = sessionPayment?.checkout_session_id || null;
+
   const clinical = match.dados_clinicos || {};
   await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
     motivo: 'Pagamento confirmado após criação do atendimento — elegibilidade revalidada automaticamente',
@@ -152,6 +163,9 @@ async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId
       payment_confirmed: true,
       pagamento_status: 'CONFIRMADO',
       payment_sync_source: 'whatsapp_session_reconciliation',
+      ...(checkoutSessionId ? { stripe_checkout_session_id: checkoutSessionId } : {}),
+      stripe_paid_at: sessionPayment?.paid_at || clinical.stripe_paid_at || null,
+      stripe_event_id: sessionPayment?.stripe_event_id || clinical.stripe_event_id || null,
       validation: {
         ...(clinical.validation || {}),
         payment_confirmed: true,

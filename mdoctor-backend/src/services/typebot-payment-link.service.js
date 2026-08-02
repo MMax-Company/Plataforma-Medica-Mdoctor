@@ -12,8 +12,10 @@ const {
   PAYMENT_CANCELLED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
+  PAYMENT_METHOD_TYPES,
   PAYMENT_PENDING_CHOICES,
   PAYMENT_PENDING_MESSAGE,
+  PIX_EXPIRES_AFTER_SECONDS,
   PRE_PAYMENT_MESSAGE
 } = require('./typebot-payment.constants');
 
@@ -96,6 +98,14 @@ async function createCheckoutSession(stripe, { token, typebotSessionId, identity
   return stripe.checkout.sessions.create({
     mode: 'payment',
     locale: 'pt-BR',
+    // Pix + cartão (cartão continua primeiro na lista/UI padrão da Stripe).
+    // Mesmo valor, mesmo checkout, mesmo webhook checkout.session.completed
+    // e mesma verificação de amount_total/currency — nenhuma lógica de
+    // confirmação nova para Pix.
+    payment_method_types: PAYMENT_METHOD_TYPES,
+    payment_method_options: {
+      pix: { expires_after_seconds: PIX_EXPIRES_AFTER_SECONDS }
+    },
     line_items: [{
       quantity: 1,
       price_data: {
