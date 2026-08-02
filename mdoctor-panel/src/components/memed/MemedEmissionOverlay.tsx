@@ -247,7 +247,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       aria-label={visible ? `Prescrição digital — ${patientName}` : undefined}
       aria-hidden={visible ? undefined : true}
       style={visible && !closing ? undefined : { display: 'none' }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-1.5 sm:p-2"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-1.5 sm:p-2"
     >
       {/* Card modal centralizado — painel visível ao fundo */}
       <div className="relative flex h-full w-full max-h-[calc(100dvh-16px)] max-w-[1200px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">

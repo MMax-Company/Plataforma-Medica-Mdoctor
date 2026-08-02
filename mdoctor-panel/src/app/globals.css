@@ -2756,31 +2756,22 @@ a.prontuario-patient-card__whatsapp:hover {
 }
 
 /*
- * A etapa final da Memed usa uma página alta e com grandes áreas de respiro.
- * Como o conteúdo vive em iframe cross-origin, não podemos compactar seus
- * elementos individualmente. Em telas médicas desktop, ampliamos o viewport
- * lógico do iframe e reduzimos o conjunto proporcionalmente: cabeçalho,
- * assinatura, configurações e ação final ficam acessíveis na mesma tela.
+ * A Memed injeta uma camada própria antes do iframe e pode recriá-la durante
+ * a assinatura. O zoom precisa atingir essa raiz injetada (filho direto),
+ * não apenas o iframe interno. 147,059% × 68% ocupa exatamente 100% do host.
  */
 @media (min-width: 900px) and (min-height: 700px) {
-  .memed-embedded-host iframe {
+  .memed-embedded-host > * {
     width: 147.059% !important;
     height: 147.059% !important;
     max-width: none !important;
-    transform: scale(0.68);
-    transform-origin: top left;
-  }
-}
-
-/* Em telas menores, preserva uma rolagem de segurança em vez de cortar ações. */
-@media (max-width: 899px), (max-height: 699px) {
-  .memed-native-panel .memed-embedded-host {
-    overflow-y: auto !important;
+    zoom: 0.68;
   }
 }
 
 .memed-native-panel .memed-embedded-host {
   isolation: isolate;
+  overflow-y: auto !important;
 }
 
 /* Mantém widget dentro do painel — reduz sensação de “site externo” */
