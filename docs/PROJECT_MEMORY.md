@@ -197,9 +197,42 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   Porém, o primeiro disparo automático não encontrou o pagamento porque o
   PaymentIntent criado pelo bloco Stripe nativo do Typebot não permaneceu
   vinculado ao atendimento. O estorno foi recuperado de modo idempotente após
-  verificação direta do PaymentIntent e persistência do vínculo. Antes de abrir
-  o fluxo para novos pacientes, automatizar e testar esse vínculo
-  Typebot/PaymentIntent → atendimento; não depender de recuperação manual.
+  verificação direta do PaymentIntent e persistência do vínculo.
+- **RESOLVIDO em 02/08/2026** (mesmo dia, correção estrutural — não mais uma
+  recuperação manual): o PaymentIntent do bloco nativo do Typebot (credencial
+  `Doctor Prescreve Plataforma`) foi consultado direto na Stripe real e
+  confirmado: `metadata` sempre `{}` e `shipping` sempre `null` — o único
+  campo do paciente que sobrevive nesse PaymentIntent é `receipt_email`
+  (`additionalInformation.email` do bloco). `stripe-webhook.service.js`
+  (`linkOrRecordNativeTypebotPayment`) agora trata `payment_intent.succeeded`
+  sem `metadata.atendimento_id`/`client_reference_id` e com valor/moeda da
+  cobrança oficial (R$ 49,90 BRL) como candidato desse bloco: vincula direto
+  se já existir um atendimento recente com o mesmo e-mail sem
+  `stripe_payment`, ou grava um `payments` "órfão" (`appointment_id` nulo,
+  já suportado pela tabela) para `processTriagemWebhook`
+  (`triagem-webhook.service.js`) consumir no instante em que cria o
+  atendimento — grava `dados_clinicos.stripe_payment.payment_intent` e
+  vincula o `payments.appointment_id`, nos dois sentidos de ordem (webhook
+  antes ou depois da criação do atendimento). Isso é o que
+  `resolvePaymentIntentId` (`stripe-refund.service.js`) já lia como
+  candidato de maior prioridade — nenhuma mudança foi necessária ali. Não
+  depende mais de recuperação manual. Upload de receita pelo WhatsApp não
+  apaga esse vínculo (`completeExternalPrescriptionUpload` sempre parte do
+  `dados_clinicos` atual e só acrescenta campos). Coberto por
+  `scripts/test-stripe-native-payment-link.js` (8 cenários offline, sem
+  Stripe/Supabase reais: órfão antes do atendimento, reentrega idempotente
+  do evento, consumo pelo e-mail com normalização de maiúsculas, prova de
+  que o estorno resolve o payment_intent sem chamar a Stripe, ordem inversa
+  sem deixar órfão preservando motivo/médico, nunca intercepta pagamento já
+  vinculado ao painel/Memed, ignora valor/moeda fora da cobrança oficial,
+  e-mail ausente não derruba o webhook); suíte de regressão existente
+  (`test-triagem-payment-sync.js`, `test-stripe-webhook-refund-
+  reconciliation.js`, `test-clinical-decision-approve-reject.js`,
+  `test-stripe-refund-checkout-session-resolution.js`, `test-typebot-
+  payment-pix-checkout-session.js`) confirmada sem regressão. **Pendente**:
+  validação end-to-end em staging com pagamento de teste real do bloco
+  nativo do Typebot (nenhum teste com Stripe/Supabase reais foi executado
+  nesta correção) antes de considerar resolvido para produção.
 
 ## 9. Canais de WhatsApp protegidos
 

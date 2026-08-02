@@ -98,10 +98,50 @@ async function markPaymentRefunded(paymentId) {
   return data || null;
 }
 
+// Bloco de pagamento nativo do Typebot (Stripe conectado direto no bot) cria
+// o PaymentIntent sem metadata e sem atendimento_id (atendimento ainda nem
+// existe nesse instante) — o único identificador do paciente que sobrevive
+// no PaymentIntent é receipt_email (confirmado direto na Stripe real em
+// 02/08/2026: metadata sempre {}, shipping sempre null). Achado real: o
+// primeiro estorno automático de reprovação não encontrou o pagamento por
+// falta desse vínculo. Este registro fica "órfão" (appointment_id null,
+// já suportado por recordStripePaymentEvent) até processTriagemWebhook
+// resolver o atendimento recém-criado pelo mesmo e-mail/valor/moeda.
+async function findUnlinkedNativePaymentByEmail({ email, amountCents, currency = 'BRL', sinceIso = null }) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail || !amountCents) return null;
+  const data = await dbQuery('buscar payment orfao do bloco nativo Typebot por email', async (supabase) => {
+    let query = supabase
+      .from(T.PAYMENTS)
+      .select('*')
+      .is('appointment_id', null)
+      .eq('amount_cents', amountCents)
+      .eq('currency', String(currency || 'BRL').toUpperCase())
+      .filter('metadata->>receipt_email', 'eq', normalizedEmail)
+      .order('paid_at', { ascending: false })
+      .limit(1);
+    if (sinceIso) query = query.gte('paid_at', sinceIso);
+    return query.maybeSingle();
+  });
+  return data || null;
+}
+
+async function linkPaymentToAppointment(paymentId, appointmentId, patientId = null) {
+  if (!paymentId || !appointmentId) return null;
+  const patch = { appointment_id: appointmentId };
+  if (patientId) patch.patient_id = patientId;
+  const data = await dbQuery('vincular payment orfao ao appointment', async (supabase) =>
+    supabase.from(T.PAYMENTS).update(patch).eq('id', paymentId).select('*').maybeSingle()
+  );
+  return data || null;
+}
+
 module.exports = {
   deletePaymentEvent,
   findPaymentEventByProviderId,
   findPaymentByAppointment,
+  findUnlinkedNativePaymentByEmail,
+  linkPaymentToAppointment,
   markPaymentRefunded,
   recordStripePaymentEvent
 };

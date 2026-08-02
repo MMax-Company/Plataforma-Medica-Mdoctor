@@ -82,6 +82,26 @@ Corrigido repassando `atendimento.motivo_decisao`/`atendimento.medico_id`
 `scripts/test-stripe-webhook-refund-reconciliation.js` ganhou o cenário
 `2b` e um stub fiel ao comportamento real do store para travar a regressão.
 
+## Vínculo PaymentIntent do bloco nativo do Typebot (resolvido 02/08/2026)
+
+Achado real do dia: o bloco de pagamento nativo do Typebot (credencial
+`Doctor Prescreve Plataforma`) cria o PaymentIntent direto na Stripe, sem
+metadata e sem `atendimento_id` (o atendimento ainda nem existe nesse
+instante). O primeiro estorno automático de reprovação não encontrou o
+pagamento por causa disso — recuperado manualmente uma única vez.
+
+Consultado diretamente na Stripe real: esse PaymentIntent sempre tem
+`metadata: {}` e `shipping: null`; o único campo do paciente que sobrevive é
+`receipt_email`. `stripe-webhook.service.js`
+(`linkOrRecordNativeTypebotPayment`) usa esse e-mail para vincular o
+PaymentIntent ao atendimento certo — direto, se o atendimento já existir, ou
+via um registro `payments` órfão (`appointment_id` nulo) consumido por
+`processTriagemWebhook` no instante da criação. `resolvePaymentIntentId`
+já lia `dados_clinicos.stripe_payment` como candidato prioritário — nenhuma
+mudança foi necessária nele. Ver `docs/PROJECT_MEMORY.md` §8 para o
+detalhamento completo e `scripts/test-stripe-native-payment-link.js` para a
+cobertura offline. Validação em staging com pagamento real ainda pendente.
+
 ## Plano de testes (preparado 02/08/2026 — nada executado além dos offline)
 
 ### Offline (já executados nesta revisão, sem rede/Stripe/Supabase reais)

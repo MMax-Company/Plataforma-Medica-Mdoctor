@@ -3,6 +3,7 @@ const { createAuditLog } = require('../store/audit.store');
 const {
   STATUS,
   getAtendimento,
+  listAtendimentos,
   updateAtendimentoStatus
 } = require('../store/atendimentos.store');
 const {
@@ -18,6 +19,16 @@ const {
   completePaymentByToken,
   findSessionByPaymentIntentId
 } = require('./typebot-payment-link.service');
+const { PAYMENT_AMOUNT_CENTS } = require('./typebot-payment.constants');
+
+// Tempo entre o pagamento no bloco nativo do Typebot e a criação do
+// atendimento pelo webhook de triagem — cobre CEP, receita anterior e coleta
+// de medicamentos, que rodam DEPOIS do pagamento nesse fluxo.
+const NATIVE_PAYMENT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
 
 function extractAtendimentoId(event) {
   const object = event?.data?.object || {};
@@ -246,6 +257,85 @@ async function applyStripePaymentConfirmed(atendimentoId, stripeMeta = {}) {
   return { ok: true, duplicate: false, atendimento: updated || atendimento };
 }
 
+// PaymentIntent criado pelo bloco de pagamento NATIVO do Typebot (Stripe
+// conectado direto no bot — credencial "Doctor Prescreve Plataforma" — sem
+// passar pelo Checkout Session do backend nem pelo client_reference_id do
+// painel/Memed). Confirmado direto na Stripe real em 02/08/2026: esse
+// PaymentIntent sempre tem metadata:{} e shipping:null — o único campo que
+// sobrevive com o identificador do paciente é receipt_email
+// (additionalInformation.email do bloco). Achado real: o primeiro estorno
+// automático de reprovação não encontrou o pagamento por falta desse
+// vínculo (recuperado manualmente uma única vez, ver PROJECT_MEMORY §8).
+// Busca o atendimento (se já existe) pelo mesmo e-mail/valor/moeda e vincula
+// na hora; senão grava um payment "órfão" (appointment_id null) para
+// processTriagemWebhook consumir quando o atendimento nascer — nunca
+// depende de recuperação manual.
+async function linkOrRecordNativeTypebotPayment({ paymentIntentId, email, amountCents, currency, eventId }) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    logger.warn('stripe_webhook_native_payment_missing_email', { eventId, paymentIntentId });
+    return { ignored: true, reason: 'missing_email' };
+  }
+
+  const sinceTs = Date.now() - NATIVE_PAYMENT_LOOKBACK_MS;
+  const rows = await listAtendimentos();
+  const match = rows.find((row) => {
+    if (normalizeEmail(row.paciente_email) !== normalizedEmail) return false;
+    if (row.dados_clinicos?.stripe_payment?.payment_intent) return false;
+    const createdTs = Date.parse(row.criado_em || '') || 0;
+    return createdTs >= sinceTs;
+  });
+
+  const recorded = await recordStripePaymentEvent({
+    appointmentId: match?.id || null,
+    patientId: match?.patient_id || null,
+    providerEventId: eventId,
+    eventType: 'payment_intent.succeeded',
+    amountCents,
+    currency: String(currency || 'BRL').toUpperCase(),
+    payload: {
+      receipt_email: normalizedEmail,
+      payment_intent: paymentIntentId,
+      source: 'typebot_native_payment_block'
+    }
+  });
+
+  if (recorded.duplicate) {
+    return { duplicate: true, matched: Boolean(match) };
+  }
+
+  if (!match) {
+    return { matched: false, orphan: true, paymentId: recorded.payment?.id || null };
+  }
+
+  const clinical = match.dados_clinicos || {};
+  await updateAtendimentoStatus(match.id, match.status, {
+    motivo: match.motivo_decisao,
+    medicoId: match.medico_id,
+    dados_clinicos: {
+      ...clinical,
+      payment_sync_source: clinical.payment_sync_source || 'stripe_native_payment_block',
+      stripe_payment: {
+        ...(clinical.stripe_payment || {}),
+        event_id: eventId,
+        payment_intent: paymentIntentId,
+        amount_cents: amountCents,
+        confirmed_at: new Date().toISOString()
+      }
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'atendimento',
+    entity_id: match.id,
+    action: 'stripe_native_payment_linked',
+    actor: 'stripe',
+    payload: { event_id: eventId, payment_intent: paymentIntentId, amount_cents: amountCents }
+  });
+
+  return { matched: true, atendimentoId: match.id };
+}
+
 // Pagamento WhatsApp/Typebot (Fase 2 pedido 2): Checkout Session criado
 // pelo Backend, confirmado somente pelo webhook Stripe. checkout.session.completed
 // é o evento oficial dessa cobrança; payment_intent.succeeded é ignorado
@@ -307,7 +397,30 @@ async function handleTypebotPaymentWebhook(event) {
         }
       };
     }
-    return null;
+
+    // Já tem vínculo explícito com um atendimento (painel/Memed via
+    // metadata.atendimento_id ou client_reference_id) — deixa cair no fluxo
+    // existente por atendimento_id logo abaixo, nunca intercepta aqui.
+    const hasExplicitAtendimentoLink = Boolean(
+      object.metadata?.atendimento_id || object.metadata?.atendimentoId || object.client_reference_id
+    );
+    if (hasExplicitAtendimentoLink) return null;
+
+    // Candidato a PaymentIntent do bloco nativo do Typebot: só intercepta
+    // quando valor/moeda batem com a cobrança oficial do Doctor Prescreve —
+    // qualquer outra combinação segue ignorada como antes (return null).
+    const amountCents = object.amount_received ?? object.amount ?? null;
+    const currency = String(object.currency || '').toLowerCase();
+    if (amountCents !== PAYMENT_AMOUNT_CENTS || currency !== 'brl') return null;
+
+    const result = await linkOrRecordNativeTypebotPayment({
+      paymentIntentId: object.id,
+      email: object.receipt_email,
+      amountCents,
+      currency,
+      eventId: event.id
+    });
+    return { status: 200, body: { success: true, typebot_native_payment: true, ...result } };
   }
 
   return null;
@@ -370,5 +483,6 @@ module.exports = {
   extractAtendimentoId,
   handleStripeWebhookEvent,
   handleTypebotPaymentWebhook,
-  isRefundStripeEvent
+  isRefundStripeEvent,
+  linkOrRecordNativeTypebotPayment
 };

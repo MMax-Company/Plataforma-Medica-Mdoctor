@@ -12,6 +12,8 @@ const {
 } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { findUnlinkedNativePaymentByEmail, linkPaymentToAppointment } = require('../store/payments.store');
+const { PAYMENT_AMOUNT_CENTS } = require('./typebot-payment.constants');
 const {
   buildClinicalNarrative,
   PROTOCOL_VERSION
@@ -48,6 +50,41 @@ async function resolveConfirmedPaymentFromSession(phone) {
     amount_cents: payment.amount_cents || null,
     amount_label: payment.amount_label || null,
     currency: 'brl'
+  };
+}
+
+// Mesma janela usada em stripe-webhook.service.js (linkOrRecordNativeTypebotPayment):
+// tempo entre o pagamento no bloco nativo do Typebot e a criação do
+// atendimento, que só acontece depois de CEP, receita anterior e medicamentos.
+const NATIVE_PAYMENT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+
+// Vínculo do PaymentIntent do bloco de pagamento NATIVO do Typebot (Stripe
+// conectado direto no bot, sem Checkout Session do backend e sem
+// client_reference_id do painel/Memed). O webhook Stripe já gravou esse
+// pagamento como "órfão" em payments (appointment_id null) por falta de
+// atendimento no instante do pagamento — resolve pelo mesmo e-mail desta
+// triagem e devolve o payment_intent real para persistir em
+// dados_clinicos.stripe_payment, exatamente como o estorno automático
+// (stripe-refund.service.js) já sabe ler. Sem isso, o achado real de
+// 02/08/2026 se repete: reprovação médica não encontra o pagamento a
+// estornar e depende de recuperação manual.
+async function resolvePendingNativeTypebotPayment(email) {
+  if (!email) return null;
+  const sinceIso = new Date(Date.now() - NATIVE_PAYMENT_LOOKBACK_MS).toISOString();
+  const paymentRow = await findUnlinkedNativePaymentByEmail({
+    email,
+    amountCents: PAYMENT_AMOUNT_CENTS,
+    currency: 'BRL',
+    sinceIso
+  }).catch(() => null);
+  if (!paymentRow) return null;
+  return {
+    paymentRowId: paymentRow.id,
+    payment_intent: paymentRow.external_id || paymentRow.metadata?.payment_intent || null,
+    event_id: paymentRow.metadata?.event_id || null,
+    amount_cents: paymentRow.amount_cents,
+    currency: paymentRow.currency,
+    confirmed_at: paymentRow.paid_at
   };
 }
 
@@ -124,6 +161,13 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
   const sessionPayment = await resolveConfirmedPaymentFromSession(
     normalized.whatsapp || validation.paciente.telefone
   );
+
+  // Só busca o pagamento do bloco nativo do Typebot quando este NÃO é o
+  // fluxo do Checkout Session do backend (sessionPayment) — os dois fluxos
+  // de pagamento são mutuamente exclusivos.
+  const nativePayment = sessionPayment
+    ? null
+    : await resolvePendingNativeTypebotPayment(normalized.email);
 
   const patientData = {
     ...mapped.patientData,
@@ -224,7 +268,18 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
           stripe_amount_label: sessionPayment.amount_label,
           stripe_currency: sessionPayment.currency
         }
-      : {})
+      : nativePayment
+        ? {
+            payment_sync_source: 'stripe_native_payment_block',
+            stripe_payment: {
+              payment_intent: nativePayment.payment_intent,
+              event_id: nativePayment.event_id,
+              amount_cents: nativePayment.amount_cents,
+              currency: nativePayment.currency,
+              confirmed_at: nativePayment.confirmed_at
+            }
+          }
+        : {})
   };
 
   const patient = await findOrCreatePatient({
@@ -252,6 +307,19 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
   if (patient?.id && atendimento?.id) {
     await linkPatientToAppointment(atendimento.id, patient.id);
     atendimento.patient_id = patient.id;
+  }
+
+  if (nativePayment?.paymentRowId && atendimento?.id) {
+    // Fecha o vínculo também na tabela payments (candidato payments.external_id
+    // já lido por resolvePaymentIntentId em stripe-refund.service.js) — reforça
+    // dados_clinicos.stripe_payment gravado acima, sem depender só dele.
+    await linkPaymentToAppointment(nativePayment.paymentRowId, atendimento.id, patient?.id || null).catch((error) => {
+      logger.warn('native_typebot_payment_link_failed', {
+        atendimentoId: atendimento.id,
+        paymentRowId: nativePayment.paymentRowId,
+        error: error.message
+      });
+    });
   }
 
   try {
