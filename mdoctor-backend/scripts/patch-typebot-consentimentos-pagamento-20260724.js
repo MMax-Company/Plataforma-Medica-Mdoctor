@@ -59,7 +59,7 @@
  * explícita): roteamento de todas as caixas; Termos de Uso (grp_termos_uso/
  * accept/decline — já preserva texto/documento/URL/nome do arquivo,
  * registra resposta/data/hora/URL); telemedicina_decline (já adequado);
- * bloco de pagamento (ulwovuu3brh5oeawwcuvr0h2, valor R$69,90, criação do
+ * bloco de pagamento (ulwovuu3brh5oeawwcuvr0h2, valor R$49,90, criação do
  * Checkout); Webhook para n8n (axuwb907...); qualquer lógica de Backend
  * (Stripe, upload, criação de atendimento — auditados separadamente, sem
  * necessidade de alteração no Typebot).
@@ -278,7 +278,7 @@ function linkBlock(id, emoji, label, url) {
   check('V. edge_pending_resend_to_upload ainda aponta para blk_foto_txt existente', t.edges.find((e) => e.id === 'edge_pending_resend_to_upload')?.to?.blockId === 'blk_foto_txt' && findGroup(t, 'grp_foto_receita').blocks.some((b) => b.id === 'blk_foto_txt'));
   check('V. roteamento LGPD accept/decline preservado', t.edges.find((e) => e.id === 'edge_lgpd_to_accept')?.to?.groupId === 'grp_lgpd_accept' && t.edges.find((e) => e.id === 'edge_lgpd_to_decline')?.to?.groupId === 'jnbvtyzr1ffz4ff5n05a999k');
   check('V. roteamento telemedicina accept/decline preservado', t.edges.find((e) => e.id === 'edge_tele_to_accept')?.to?.groupId === 'grp_telemedicina_accept' && t.edges.find((e) => e.id === 'edge_tele_to_decline')?.to?.groupId === 'grp_telemedicina_decline');
-  check('V. pagamento (valor R$69,90, Webhook n8n) não alterado', findBlock(findGroup(t, 'ulwovuu3brh5oeawwcuvr0h2'), 'rapfykn1f1uno89ypqmwi43f').options.amount === '69.90');
+  check('V. pagamento (valor R$49,90, Webhook n8n) não alterado', findBlock(findGroup(t, 'ulwovuu3brh5oeawwcuvr0h2'), 'rapfykn1f1uno89ypqmwi43f').options.amount === '49.90');
 
   console.log('\n=== IDs CONFIRMADOS ===');
   console.log(JSON.stringify(report.idsConfirmados, null, 2));

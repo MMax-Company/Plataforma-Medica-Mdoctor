@@ -112,16 +112,24 @@ function isAdministrativePending(atendimento) {
   );
 }
 
-// Indicador financeiro: soma o valor real da consulta (mesmo preço fixo usado
-// no link de pagamento Stripe, typebot-payment.constants.js) para cada
-// atendimento com pagamento efetivamente confirmado. Não é um valor
-// registrado por atendimento (o produto é preço único), então não há campo
-// a backfillar — a receita é sempre atendimentos_pagos × valor_unitario.
+// Indicador financeiro: usa o valor registrado no atendimento pelo webhook.
+// O fallback para o preço vigente cobre registros sem snapshot de valor, mas
+// cobranças históricas preservam o preço efetivamente pago quando disponível.
 const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function paidAmountCents(atendimento) {
+  const clinical = atendimento?.dados_clinicos || {};
+  const recorded = Number(
+    clinical.stripe_amount_cents ??
+    clinical.stripe_payment?.amount_cents ??
+    clinical.typebot_payment?.amount_cents
+  );
+  return Number.isInteger(recorded) && recorded > 0 ? recorded : PAYMENT_AMOUNT_CENTS;
+}
 
 function computeFinanceiro(atendimentos) {
   const pagos = atendimentos.filter(isPaid);
-  const receitaTotalCentavos = pagos.length * PAYMENT_AMOUNT_CENTS;
+  const receitaTotalCentavos = pagos.reduce((total, atendimento) => total + paidAmountCents(atendimento), 0);
   return {
     atendimentos_pagos: pagos.length,
     valor_unitario_centavos: PAYMENT_AMOUNT_CENTS,

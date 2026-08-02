@@ -138,8 +138,8 @@ async function main() {
           checkout_session_id: 'cs_test_abc123',
           paid_at: '2026-07-21T08:43:03.748Z',
           stripe_event_id: 'evt_test_xyz',
-          amount_cents: 6990,
-          amount_label: 'R$ 69,90'
+          amount_cents: 4990,
+          amount_label: 'R$ 49,90'
         }
       }
     };
@@ -157,7 +157,7 @@ async function main() {
     assert.equal(created.dados_clinicos.stripe_checkout_session_id, 'cs_test_abc123');
     assert.equal(created.dados_clinicos.stripe_paid_at, '2026-07-21T08:43:03.748Z');
     assert.equal(created.dados_clinicos.stripe_event_id, 'evt_test_xyz');
-    assert.equal(created.dados_clinicos.stripe_amount_cents, 6990);
+    assert.equal(created.dados_clinicos.stripe_amount_cents, 4990);
     assert.equal(created.dados_clinicos.stripe_currency, 'brl');
     results.pagamentoConfirmadoNaSessaoSincronizaAtendimento = 'ok';
     results.atendimentoNasceComStatusCorreto = 'ok';

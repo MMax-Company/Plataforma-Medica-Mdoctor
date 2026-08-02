@@ -131,7 +131,7 @@ async function walkFromTelemedicinaAcceptToPayment(c, phone, sufixo) {
 }
 
 async function testAcceptFull() {
-  console.log('\n=== TESTE 1+2+3 (aceite): LGPD 3 caixas -> Telemedicina 3 caixas -> Termos -> Pagamento (1 Checkout R$69,90) ===');
+  console.log('\n=== TESTE 1+2+3 (aceite): LGPD 3 caixas -> Telemedicina 3 caixas -> Termos -> Pagamento (1 Checkout R$49,90) ===');
   const phone = '5511900040001';
   const c = makeClient(phone);
   let steps = await walkToLgpd(c, phone, 'Fluxo1');
@@ -142,7 +142,7 @@ async function testAcceptFull() {
   const session = await c.getWaSession();
   const payment = session?.metadata?.typebot_payment || null;
   const temCheckout = Boolean(payment?.checkout_session_id);
-  const valorCorreto = payment?.amount_cents === 6990 || payment?.amount_label === 'R$ 69,90';
+  const valorCorreto = payment?.amount_cents === 4990 || payment?.amount_label === 'R$ 49,90';
   console.log(`  [${temCheckout ? 'OK' : 'FALHOU'}] checkout_criado (checkout_session_id: ${payment?.checkout_session_id})`);
   console.log(`  [${valorCorreto ? 'OK' : 'FALHOU'}] valor_correto (amount_cents: ${payment?.amount_cents}, amount_label: ${payment?.amount_label})`);
   steps.push({ label: 'checkout_criado', ok: temCheckout });

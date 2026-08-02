@@ -1173,7 +1173,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "O valor da consulta médica e da análise das informações enviadas é de R$ 69,90."
+                    "text": "O valor da consulta médica e da análise das informações enviadas é de R$ 49,90."
                   }
                 ]
               },
@@ -1222,7 +1222,7 @@
           "type": "payment input",
           "options": {
             "labels": {
-              "button": "Pagar R$ 69,90",
+              "button": "Pagar R$ 49,90",
               "success": "Pagamento confirmado.\n\nAgora vamos coletar as informações dos medicamentos e concluir o envio da sua receita anterior."
             },
             "additionalInformation": {
@@ -1233,7 +1233,7 @@
             },
             "credentialsId": "cmmntjz0w000304jpawo0m0ss",
             "currency": "BRL",
-            "amount": "69.90"
+            "amount": "49.90"
           }
         }
       ]

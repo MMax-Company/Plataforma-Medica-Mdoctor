@@ -32,8 +32,8 @@ async function makeSession(phone, checkoutSessionId, overrides = {}) {
         payment_status: 'pending',
         checkout_session_id: checkoutSessionId,
         typebot_session_id: 'fake-typebot-session-' + phone,
-        amount_cents: 6990,
-        amount_label: 'R$ 69,90',
+        amount_cents: 4990,
+        amount_label: 'R$ 49,90',
         expires_at: new Date(Date.now() + 60000).toISOString(),
         ...overrides
       }
@@ -52,7 +52,7 @@ function makeEvent({ id, checkoutSessionId, token }) {
         id: checkoutSessionId,
         payment_status: 'paid',
         currency: 'brl',
-        amount_total: 6990,
+        amount_total: 4990,
         metadata: { payment_token: token, typebot_session_id: 'irrelevant' }
       }
     }

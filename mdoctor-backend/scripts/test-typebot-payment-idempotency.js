@@ -22,8 +22,8 @@ function makeSession(overrides = {}) {
         status: 'pending',
         checkout_session_id: 'cs_test_123',
         typebot_session_id: 'typebot-sess-1',
-        amount_cents: 6990,
-        amount_label: 'R$ 69,90',
+        amount_cents: 4990,
+        amount_label: 'R$ 49,90',
         expires_at: new Date(Date.now() + 60000).toISOString(),
         ...overrides
       }
@@ -31,7 +31,7 @@ function makeSession(overrides = {}) {
   };
 }
 
-function stripeCheckoutEvent({ id = 'evt_1', sessionId = 'cs_test_123', token = 'tok-abc', paymentStatus = 'paid', amountTotal = 6990, currency = 'brl', status = 'complete' } = {}) {
+function stripeCheckoutEvent({ id = 'evt_1', sessionId = 'cs_test_123', token = 'tok-abc', paymentStatus = 'paid', amountTotal = 4990, currency = 'brl', status = 'complete' } = {}) {
   return {
     id,
     type: 'checkout.session.completed',
@@ -52,11 +52,11 @@ async function main() {
   const results = {};
 
   // 1) stripeSessionIsPaid: só aceita payment_status=paid + valor exato + BRL.
-  assert.equal(stripeSessionIsPaid({ payment_status: 'paid', amount_total: 6990, currency: 'brl' }), true);
-  assert.equal(stripeSessionIsPaid({ payment_status: 'unpaid', amount_total: 6990, currency: 'brl' }), false, 'Typebot/cliente dizendo "paid" sem o Stripe confirmar não basta');
+  assert.equal(stripeSessionIsPaid({ payment_status: 'paid', amount_total: 4990, currency: 'brl' }), true);
+  assert.equal(stripeSessionIsPaid({ payment_status: 'unpaid', amount_total: 4990, currency: 'brl' }), false, 'Typebot/cliente dizendo "paid" sem o Stripe confirmar não basta');
   assert.equal(stripeSessionIsPaid({ payment_status: 'paid', amount_total: 100, currency: 'brl' }), false, 'valor divergente não confirma');
-  assert.equal(stripeSessionIsPaid({ payment_status: 'paid', amount_total: 6990, currency: 'usd' }), false, 'moeda divergente não confirma');
-  assert.equal(stripeSessionIsPaid({ status: 'complete', payment_status: 'unpaid', amount_total: 6990, currency: 'brl' }), false, 'status=complete sozinho, sem payment_status=paid, não confirma');
+  assert.equal(stripeSessionIsPaid({ payment_status: 'paid', amount_total: 4990, currency: 'usd' }), false, 'moeda divergente não confirma');
+  assert.equal(stripeSessionIsPaid({ status: 'complete', payment_status: 'unpaid', amount_total: 4990, currency: 'brl' }), false, 'status=complete sozinho, sem payment_status=paid, não confirma');
   results.somenteStripeValidoConfirma = 'ok';
 
   // 2) applyCheckoutWebhook: webhook válido confirma e marca payment_status=paid.

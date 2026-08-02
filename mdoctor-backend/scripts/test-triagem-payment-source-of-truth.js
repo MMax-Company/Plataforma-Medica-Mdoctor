@@ -136,8 +136,8 @@ async function main() {
           payment_status: 'paid',
           checkout_session_id: 'cs_sot_1',
           paid_at: new Date().toISOString(),
-          amount_cents: 6990,
-          amount_label: 'R$ 69,90'
+          amount_cents: 4990,
+          amount_label: 'R$ 49,90'
         }
       }
     };

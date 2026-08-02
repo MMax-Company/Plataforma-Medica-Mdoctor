@@ -143,10 +143,13 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 - Amostra do cabeçalho de indicadores (`data.tempos.amostra`) agora sempre
   aparece, inclusive `0` — antes ficava oculta quando zero (checagem por
   valor truthy tratava `0` como ausente).
-- Números clínicos confirmados na fonte (não só na UI) em 01/08/2026: 18
+- Preço definido para novas cobranças do Doctor Prescreve em 01/08/2026:
+  **R$ 49,90 por consulta**. Pagamentos históricos preservam o valor efetivamente
+  cobrado; indicadores futuros usam o valor vigente centralizado no backend.
+- Números clínicos históricos confirmados na fonte (não só na UI) em 01/08/2026: 18
   atendimentos clínicos (11 aprovados, 6 rejeitados, 1 aguardando receita
-  anterior — soma bate), 12 pagos, R$ 69,90/consulta, R$ 838,80 confirmado
-  (12 × 69,90 = 838,80). `amostra_por_indicador`: espera_medica/avaliacao/
+  anterior — soma bate), 12 pagos, então cobrados a R$ 69,90/consulta,
+  R$ 838,80 confirmado (12 × 69,90 = 838,80). `amostra_por_indicador`: espera_medica/avaliacao/
   emissao_receita = 11, triagem/jornada_completa = 0 (nenhum atendimento
   atual tem os dois marcadores de jornada completos ainda). Nenhum valor é
   hardcoded — tudo calculado a partir do conjunto já filtrado (sem teste,

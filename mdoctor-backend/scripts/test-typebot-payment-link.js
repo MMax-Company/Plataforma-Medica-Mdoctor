@@ -17,7 +17,7 @@ function makeSession(paymentPatch = {}) {
         intent_id: 'pi_test_123',
         client_secret: 'pi_test_123_secret_abc',
         public_key: 'pk_test_x',
-        amount_label: 'R$69.90',
+        amount_label: 'R$49.90',
         typebot_session_id: 'tb-session-1',
         created_at: new Date().toISOString(),
         expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
