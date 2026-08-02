@@ -247,30 +247,21 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
       aria-label={visible ? `Prescrição digital — ${patientName}` : undefined}
       aria-hidden={visible ? undefined : true}
       style={visible && !closing ? undefined : { display: 'none' }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-1.5 sm:p-2"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-3"
     >
-      {/* Card modal centralizado — painel visível ao fundo */}
-      <div className="relative flex h-full w-full max-h-[calc(100dvh-16px)] max-w-[1200px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/10">
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-[#E5EAF2] bg-white px-4 py-1.5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#1557FF]">
-              Prescrição digital
-            </p>
-            <h2 className="truncate text-sm font-bold text-[#080D33]">{patientName}</h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => { void markPending().then(onClose); }}
-            className="ml-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#5B6475] transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
-            aria-label="Fechar prescrição"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+      {/* Modal compacto: somente a experiência Memed e o controle de fechamento. */}
+      <div className="relative flex h-[min(740px,calc(100dvh-96px))] w-[min(860px,calc(100vw-24px))] flex-col overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/10">
+        <button
+          type="button"
+          onClick={() => { void markPending().then(onClose); }}
+          className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#5B6475] shadow ring-1 ring-black/10 transition hover:bg-[#F0F4FA] hover:text-[#080D33]"
+          aria-label="Fechar prescrição"
+        >
+          <X className="h-4 w-4" />
+        </button>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#F6F9FD] p-1.5 sm:p-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-white p-2">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…
@@ -312,7 +303,8 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
               error={memedError}
               onOpenPrescription={openPrescription}
               onResetMemed={() => void resetAndReopen()}
-              minHeight={0}
+              minWidth={820}
+              minHeight={700}
             />
             </div>
           )}

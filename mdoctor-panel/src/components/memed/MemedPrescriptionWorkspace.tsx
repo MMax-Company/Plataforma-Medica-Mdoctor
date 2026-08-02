@@ -1,7 +1,5 @@
 'use client';
 
-import { StatusPill } from '@/components/ui/DesignSystem';
-
 type AtendimentoSummary = {
   id: string;
   paciente_nome?: string;
@@ -34,7 +32,6 @@ type MemedPrescriptionWorkspaceProps = {
 };
 
 export function MemedPrescriptionWorkspace({
-  atendimento,
   containerId,
   statusMessage,
   loadingModule,
@@ -56,10 +53,6 @@ export function MemedPrescriptionWorkspace({
   if (receiptSaved) buttonLabel = 'Receita emitida';
   else if (isOpening) buttonLabel = 'Abrindo…';
 
-  let pillLabel = 'Aguardando';
-  if (loadingModule) pillLabel = 'Preparando…';
-  else if (readyToOpen) pillLabel = 'Pronto para emitir';
-
   // PROTEÇÃO DE EDIÇÃO: o botão "Carregar prescrição" só aparece enquanto o médico
   // ainda não iniciou a sessão (prescriptionOpenedOnce = false). Após o primeiro load
   // bem-sucedido o botão some — recarregar apagaria o que o médico já editou.
@@ -67,30 +60,7 @@ export function MemedPrescriptionWorkspace({
   const showEmitButton = !prescriptionOpenedOnce || !!error;
 
   return (
-    <div className="memed-native-panel flex h-full flex-col rounded-[14px] border border-[#E5EAF2] bg-white shadow-[0_8px_28px_rgba(7,27,58,0.06)]">
-      {showEmitButton && (
-        <div className="flex shrink-0 flex-col gap-1.5 border-b border-[#E5EAF2] px-2.5 py-1.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xs font-bold text-[#080D33]">Emissão integrada</h2>
-              <span className="truncate text-[10px] text-[#5B6475]">{statusMessage}</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <StatusPill tone={readyToOpen ? 'success' : 'secondary'}>
-              {pillLabel}
-            </StatusPill>
-            <button
-              type="button"
-              onClick={() => void onOpenPrescription()}
-              disabled={!readyToOpen || receiptSaved || loadingModule || isOpening}
-              className="inline-flex h-10 items-center justify-center rounded-[10px] bg-[#1557FF] px-4 text-xs font-bold text-white shadow-sm transition hover:bg-[#1246d4] disabled:cursor-not-allowed disabled:bg-[#9AA5B5]"
-            >
-              {buttonLabel}
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="memed-native-panel flex h-full flex-col bg-white">
 
       {error ? (
         <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -104,26 +74,26 @@ export function MemedPrescriptionWorkspace({
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 flex-col p-1.5 sm:p-2">
-        <div className="mb-1 flex shrink-0 flex-wrap gap-2 text-[10px] text-[#5B6475]">
-          <span>
-            <strong className="text-[#080D33]">Paciente:</strong> {atendimento?.paciente_nome || '—'}
-          </span>
-          <span>
-            <strong className="text-[#080D33]">Medicação:</strong>{' '}
-            {String(atendimento?.dados_clinicos?.medicacao_em_uso || '—')}
-          </span>
-        </div>
-
+      <div className="flex min-h-0 flex-1 flex-col">
         {/* Placeholder visível antes do clique — container Memed fica em DOM mas oculto */}
         {!prescriptionOpenedOnce && (
           <div
-            className="flex min-h-0 flex-1 items-center justify-center rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-white"
             style={minHeight > 0 ? { minHeight: `${minHeight}px` } : undefined}
           >
-            <p className="text-sm text-[#8A95A5]">
-              Clique em <strong className="text-[#5B6475]">&ldquo;Carregar prescrição&rdquo;</strong> para iniciar.
+            <p className="max-w-md text-center text-sm text-[#5B6475]">
+              {statusMessage}
             </p>
+            {showEmitButton && (
+              <button
+                type="button"
+                onClick={() => void (error && onResetMemed ? onResetMemed() : onOpenPrescription())}
+                disabled={!readyToOpen || receiptSaved || loadingModule || isOpening}
+                className="inline-flex h-11 items-center justify-center rounded-[10px] bg-[#1557FF] px-6 text-sm font-bold text-white shadow-sm transition hover:bg-[#1246d4] disabled:cursor-not-allowed disabled:bg-[#9AA5B5]"
+              >
+                {error ? 'Reiniciar prescrição' : buttonLabel}
+              </button>
+            )}
           </div>
         )}
 
@@ -152,22 +122,6 @@ export function MemedPrescriptionWorkspace({
           />
         </div>
 
-        {prescriptionOpenedOnce && !receiptSaved && (
-          <p className="mt-1.5 shrink-0 text-[10px] text-[#8A95A5]">
-            Após assinar, clique em{' '}
-            <strong className="text-[#5B6475]">&ldquo;Imprimir&rdquo;</strong>
-            {' '}para concluir. O envio ao paciente é feito pelo Doctor Prescreve.
-          </p>
-        )}
-        {prescriptionOpenedOnce && !receiptSaved && !isOpening && onResetMemed && (
-          <button
-            type="button"
-            onClick={onResetMemed}
-            className="mt-1 shrink-0 text-left text-[10px] text-[#8A95A5] hover:text-[#1557FF] hover:underline"
-          >
-            Tela travada? → Reiniciar módulo Memed
-          </button>
-        )}
       </div>
     </div>
   );

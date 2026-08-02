@@ -2755,23 +2755,11 @@ a.prontuario-patient-card__whatsapp:hover {
   display: block;
 }
 
-/*
- * A Memed injeta uma camada própria antes do iframe e pode recriá-la durante
- * a assinatura. O zoom precisa atingir essa raiz injetada (filho direto),
- * não apenas o iframe interno. 147,059% × 68% ocupa exatamente 100% do host.
- */
-@media (min-width: 900px) and (min-height: 700px) {
-  .memed-embedded-host > * {
-    width: 147.059% !important;
-    height: 147.059% !important;
-    max-width: none !important;
-    zoom: 0.68;
-  }
-}
-
 .memed-native-panel .memed-embedded-host {
   isolation: isolate;
   overflow-y: auto !important;
+  min-width: 820px;
+  min-height: 700px;
 }
 
 /* Mantém widget dentro do painel — reduz sensação de “site externo” */
