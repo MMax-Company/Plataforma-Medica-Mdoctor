@@ -73,17 +73,17 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// Achado real 03/08/2026 (atendimento nº 1061): o webhook do Stripe gravou o
-// payment órfão ~200ms antes da triagem criar o atendimento, mas a PRIMEIRA
-// consulta rodou antes desse INSERT ficar visível para esta transação —
-// resultado: nenhum vínculo, mesmo com o pagamento certo já no banco. Poucas
-// tentativas curtas (não um loop longo nem retry de webhook) cobrem essa
-// corrida entre duas requisições HTTP independentes (Stripe e n8n) que podem
-// chegar a poucos milissegundos de distância. Nunca amplia o critério de
-// busca (mesmo e-mail/valor/moeda/janela de findUnlinkedNativePaymentByEmail)
-// — só dá ao pagamento recém-gravado uma chance de aparecer.
+// Achado real 03/08/2026 (atendimento nº 1061 e nº 1065): o webhook do Stripe
+// grava o payment órfão ~300-400ms antes da triagem criar o atendimento, mas
+// a consulta pode rodar antes desse INSERT ficar visível para esta
+// transação — resultado: nenhum vínculo, mesmo com o pagamento certo já no
+// banco. Poucas tentativas curtas com intervalo progressivo (não um loop
+// longo nem retry de webhook) cobrem essa corrida entre duas requisições HTTP
+// independentes (Stripe e n8n). Nunca amplia o critério de busca (mesmo
+// e-mail/valor/moeda/janela de findUnlinkedNativePaymentByEmail) — só dá ao
+// pagamento recém-gravado mais chances/tempo de aparecer.
 const NATIVE_PAYMENT_RETRY_ATTEMPTS = 3;
-const NATIVE_PAYMENT_RETRY_DELAY_MS = 350;
+const NATIVE_PAYMENT_RETRY_DELAYS_MS = [500, 1000, 1500];
 
 async function resolvePendingNativeTypebotPayment(email) {
   if (!email) return null;
@@ -99,7 +99,7 @@ async function resolvePendingNativeTypebotPayment(email) {
     }).catch(() => null);
     if (paymentRow || attempt === NATIVE_PAYMENT_RETRY_ATTEMPTS) break;
     // eslint-disable-next-line no-await-in-loop
-    await delay(NATIVE_PAYMENT_RETRY_DELAY_MS);
+    await delay(NATIVE_PAYMENT_RETRY_DELAYS_MS[attempt - 1]);
   }
   if (!paymentRow) return null;
   return {

@@ -54,6 +54,11 @@ let seq = 0;
 // consultar de verdade, simulando o INSERT ainda não visível.
 let forceMissCount = 0;
 let findUnlinkedNativePaymentByEmailCalls = 0;
+// Timestamp (Date.now()) a partir do qual o pagamento órfão passa a ser
+// visível na consulta — simula, com tempo real decorrido (não apenas
+// contagem de chamadas), o atraso real de 300-400ms observado no nº 1061/1065
+// entre o INSERT do webhook do Stripe e sua visibilidade para esta transação.
+let paymentVisibleAtMs = 0;
 
 function resetState() {
   payments = [];
@@ -63,6 +68,7 @@ function resetState() {
   whatsappSessionsByPhone = {};
   forceMissCount = 0;
   findUnlinkedNativePaymentByEmailCalls = 0;
+  paymentVisibleAtMs = 0;
 }
 
 function normalizeEmail(value) {
@@ -104,6 +110,9 @@ stub(resolveFromServices('../store/payments.store'), {
     findUnlinkedNativePaymentByEmailCalls += 1;
     if (forceMissCount > 0) {
       forceMissCount -= 1;
+      return null;
+    }
+    if (paymentVisibleAtMs && Date.now() < paymentVisibleAtMs) {
       return null;
     }
     const normalizedEmail = normalizeEmail(email);
@@ -562,10 +571,12 @@ async function main() {
     results.idempotenciaNaReentregaDoWebhook = 'ok';
   }
 
-  // 8) Corrida real do nº 1061: o pagamento órfão só fica visível na 2ª
-  //    consulta (ex.: commit ainda não propagado na 1ª tentativa) —
-  //    resolvePendingNativeTypebotPayment tenta de novo e encontra, sem
-  //    ampliar o critério de busca (mesmo e-mail/valor/moeda).
+  // 8) Corrida real do nº 1061/1065: o pagamento órfão só fica visível
+  //    ~300-400ms depois do INSERT do webhook do Stripe (tempo real
+  //    decorrido, não apenas contagem de chamadas) — resolvePendingNative
+  //    TypebotPayment precisa tentar de novo com intervalos progressivos
+  //    (500ms, 1000ms, 1500ms) e encontrar, sem ampliar o critério de busca
+  //    (mesmo e-mail/valor/moeda).
   {
     resetState();
     await linkOrRecordNativeTypebotPayment({
@@ -575,14 +586,17 @@ async function main() {
       currency: 'brl',
       eventId: 'evt_corrida_1'
     });
-    // O pagamento já está no store (linha acima) — força a 1ª consulta de
-    // resolvePendingNativeTypebotPayment a "não ver" ainda, simulando o
-    // instante em que o INSERT do webhook não propagou a tempo da triagem.
-    forceMissCount = 1;
+    // O pagamento já está no store (linha acima), mas só fica visível para a
+    // consulta 350ms depois de agora — dentro da janela real de 300-400ms
+    // observada nos atendimentos nº 1061 e nº 1065.
+    paymentVisibleAtMs = Date.now() + 350;
     const callsBefore = findUnlinkedNativePaymentByEmailCalls;
+    const startedAt = Date.now();
     const resolved = await resolvePendingNativeTypebotPayment('erika@example.com');
+    const elapsedMs = Date.now() - startedAt;
     assert.ok(findUnlinkedNativePaymentByEmailCalls - callsBefore >= 2, 'precisou de mais de uma tentativa para encontrar o pagamento');
-    assert.ok(resolved, 'encontrou o pagamento órfão na reconsulta');
+    assert.ok(elapsedMs >= 350, 'só encontrou depois do pagamento realmente ficar visível (>=350ms decorridos)');
+    assert.ok(resolved, 'encontrou o pagamento órfão na reconsulta com tolerância maior');
     assert.equal(resolved.payment_intent, 'pi_corrida');
     results.pagamentoOrfaoEncontradoNaReconsulta = 'ok';
   }
