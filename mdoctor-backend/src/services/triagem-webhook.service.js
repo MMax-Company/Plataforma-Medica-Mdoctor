@@ -166,9 +166,20 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   const typebotContext =
     body.typebot_context && typeof body.typebot_context === 'object' ? body.typebot_context : {};
+  const nestedFlatBody = nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem);
+  // Achado real 03/08/2026 (nº 1065): o n8n recalcula sua própria condição
+  // crônica dentro de typebot_context (sem o mapeamento numérico "1"→HAS/
+  // "2"→DM2/etc. que só existe aqui) e, por vir depois no spread, sobrescrevia
+  // o valor correto já resolvido pela triagem aninhada — derrubando
+  // atendimentos elegíveis para "consulta_presencial". typebot_context nunca
+  // pode sobrescrever chronic_condition/doenca_cronica já preenchidos pela
+  // triagem aninhada; só serve de fallback quando ela não trouxe nada.
+  const { chronic_condition: _ctxChronic, doenca_cronica: _ctxDoenca, ...typebotContextRest } = typebotContext;
   const flatBody = {
-    ...nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem),
-    ...typebotContext
+    ...nestedFlatBody,
+    ...typebotContextRest,
+    chronic_condition: nestedFlatBody.chronic_condition || _ctxChronic,
+    doenca_cronica: nestedFlatBody.doenca_cronica || _ctxDoenca
   };
   const mapped = mapTypebotPayload({
     ...flatBody,

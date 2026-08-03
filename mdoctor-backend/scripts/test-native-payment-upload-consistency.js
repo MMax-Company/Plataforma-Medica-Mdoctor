@@ -616,6 +616,39 @@ async function main() {
     results.novaJornadaLimpaEstadoDeTypebotAntigo = 'ok';
   }
 
+  // 10) Achado real nº 1065: typebot_context.chronic_condition chega
+  //     recalculado pelo n8n (sem o mapeamento numérico "1"→hipertensão) como
+  //     "renovacao_receita", enquanto a triagem aninhada trouxe doencas: "1"
+  //     (válido). typebot_context não pode sobrescrever isso — o atendimento
+  //     deve nascer elegível (não rejeitado por "consulta_presencial").
+  {
+    resetState();
+    const body = buildBody({ phone: '5511926260111', email: 'max@example.com' });
+    body.typebot_context.chronic_condition = 'renovacao_receita';
+    delete body.typebot_context.doenca_cronica;
+
+    const res = await processTriagemWebhook({
+      body,
+      correlationId: 'c-chronic',
+      idempotencyKey: 'idem-chronic',
+      requestId: 'req-chronic'
+    });
+    const created = atendimentos.find((a) => a.id === res.body.atendimentoId);
+    assert.ok(created, 'atendimento foi criado');
+    assert.equal(
+      created.dados_clinicos.normalized_payload.chronic_condition,
+      'hipertensao',
+      'chronic_condition da triagem aninhada (doencas: "1") não pode ser sobrescrito pelo typebot_context'
+    );
+    assert.notEqual(created.status, STATUS.REJECTED, 'não pode nascer rejeitado por sobrescrita do typebot_context');
+    assert.notEqual(
+      created.dados_clinicos.decision_meta.reasonCode,
+      'consulta_presencial',
+      'reasonCode não pode ser consulta_presencial neste cenário'
+    );
+    results.typebotContextNaoSobrescreveChronicCondition = 'ok';
+  }
+
   console.log(JSON.stringify(results, null, 2));
 }
 
