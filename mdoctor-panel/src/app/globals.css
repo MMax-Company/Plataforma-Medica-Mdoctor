@@ -2762,16 +2762,9 @@ a.prontuario-patient-card__whatsapp:hover {
   height: 100%;
 }
 
-/*
- * Reduz o container inteiro, preservando conteúdo e coordenadas de clique.
- * O viewport lógico maior permite à Memed manter o rodapé nativo de ações
- * dentro da área visível, sem acessar ou substituir elementos cross-origin.
- */
+/* Reduz o container inteiro sem ampliar o viewport responsivo da Memed. */
 @media (min-width: 900px) and (min-height: 700px) {
   .memed-native-panel .memed-embedded-host {
-    width: 250%;
-    height: 250%;
-    max-width: none !important;
     transform: scale(0.4);
     transform-origin: top left;
   }

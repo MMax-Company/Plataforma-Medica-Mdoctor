@@ -115,7 +115,7 @@ export function MemedPrescriptionWorkspace({
             display: prescriptionOpenedOnce ? undefined : 'none',
             ...(minHeight > 0 ? { minHeight: `${minHeight}px` } : {}),
           }}
-          className="memed-embedded-viewport relative min-h-0 flex-1 overflow-auto"
+          className="memed-embedded-viewport relative min-h-0 flex-1 overflow-hidden"
         >
           <div
             id={containerId}
