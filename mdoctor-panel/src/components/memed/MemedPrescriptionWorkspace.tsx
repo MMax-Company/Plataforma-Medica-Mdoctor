@@ -137,11 +137,17 @@ export function MemedPrescriptionWorkspace({
             type="button"
             onClick={() => {
               const viewport = embeddedViewportRef.current;
-              viewport?.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+              let scrollable: HTMLElement | null = viewport;
+              while (scrollable) {
+                if (scrollable.scrollHeight > scrollable.clientHeight) {
+                  scrollable.scrollTo({ top: scrollable.scrollHeight, behavior: 'smooth' });
+                }
+                scrollable = scrollable.parentElement;
+              }
             }}
             className="absolute bottom-3 right-3 z-30 inline-flex h-10 items-center justify-center rounded-full bg-[#1557FF] px-5 text-xs font-bold text-white shadow-lg transition hover:bg-[#1246d4] focus:outline-none focus:ring-2 focus:ring-[#1557FF] focus:ring-offset-2"
           >
-            Mostrar Enviar e emitir ↓
+            Ir para o final ↓
           </button>
         )}
 
