@@ -2,6 +2,7 @@ export * from './types';
 export * from './memedSession';
 export * from './memedRuntime';
 export * from './applyClinicalUx';
+export * from './activatePrescriptionTheme';
 export * from './prepareAndShowPrescription';
 export * from './createMemedScript';
 export * from './onLoadPrescription';
