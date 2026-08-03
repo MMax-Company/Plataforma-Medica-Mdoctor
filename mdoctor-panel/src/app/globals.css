@@ -2762,6 +2762,16 @@ a.prontuario-patient-card__whatsapp:hover {
   height: 100%;
 }
 
+/* Rolagem externa disponível apenas para navegação programática, sem barra duplicada. */
+.memed-programmatic-scroll {
+  overflow-y: scroll;
+  scrollbar-width: none;
+}
+
+.memed-programmatic-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* Reduz o container inteiro sem ampliar o viewport responsivo da Memed. */
 @media (min-width: 900px) and (min-height: 700px) {
   .memed-native-panel .memed-embedded-host {

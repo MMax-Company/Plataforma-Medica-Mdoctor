@@ -1,5 +1,7 @@
 'use client';
 
+import { useRef } from 'react';
+
 type AtendimentoSummary = {
   id: string;
   paciente_nome?: string;
@@ -46,6 +48,8 @@ export function MemedPrescriptionWorkspace({
   minWidth = 720,
   minHeight = 380,
 }: MemedPrescriptionWorkspaceProps) {
+  const embeddedViewportRef = useRef<HTMLDivElement>(null);
+
   // Rótulos calculados fora do JSX para evitar ternários aninhados
   // BOTÃO 2 — "Carregar prescrição": prepara sessão Memed limpa para o paciente atual.
   // Não emite, não assina, não salva. Some da UI após prescriptionOpenedOnce = true.
@@ -60,7 +64,7 @@ export function MemedPrescriptionWorkspace({
   const showEmitButton = !prescriptionOpenedOnce || !!error;
 
   return (
-    <div className="memed-native-panel flex h-full flex-col bg-white">
+    <div className="memed-native-panel relative flex h-full flex-col bg-white">
 
       {error ? (
         <div className="mx-4 mt-3 shrink-0 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -111,11 +115,12 @@ export function MemedPrescriptionWorkspace({
               prescricaoImpressa (capturado por setupPrescriptionCallback).
         */}
         <div
+          ref={embeddedViewportRef}
           style={{
             display: prescriptionOpenedOnce ? undefined : 'none',
             ...(minHeight > 0 ? { minHeight: `${minHeight}px` } : {}),
           }}
-          className="memed-embedded-viewport relative min-h-0 flex-1 overflow-hidden"
+          className="memed-embedded-viewport memed-programmatic-scroll relative min-h-0 flex-1"
         >
           <div
             id={containerId}
@@ -126,6 +131,19 @@ export function MemedPrescriptionWorkspace({
             data-dp-memed-engine="sinapse"
           />
         </div>
+
+        {prescriptionOpenedOnce && !receiptSaved && (
+          <button
+            type="button"
+            onClick={() => {
+              const viewport = embeddedViewportRef.current;
+              viewport?.scrollTo({ top: viewport.scrollHeight, behavior: 'smooth' });
+            }}
+            className="absolute bottom-3 right-3 z-30 inline-flex h-10 items-center justify-center rounded-full bg-[#1557FF] px-5 text-xs font-bold text-white shadow-lg transition hover:bg-[#1246d4] focus:outline-none focus:ring-2 focus:ring-[#1557FF] focus:ring-offset-2"
+          >
+            Mostrar Enviar e emitir ↓
+          </button>
+        )}
 
       </div>
     </div>
