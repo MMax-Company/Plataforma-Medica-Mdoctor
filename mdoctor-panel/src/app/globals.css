@@ -2769,10 +2769,10 @@ a.prontuario-patient-card__whatsapp:hover {
  */
 @media (min-width: 900px) and (min-height: 700px) {
   .memed-native-panel .memed-embedded-host {
-    width: 147.059%;
-    height: 147.059%;
+    width: 250%;
+    height: 250%;
     max-width: none !important;
-    transform: scale(0.68);
+    transform: scale(0.4);
     transform-origin: top left;
   }
 }
