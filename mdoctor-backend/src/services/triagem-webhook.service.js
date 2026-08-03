@@ -204,13 +204,22 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     ? null
     : await resolvePendingNativeTypebotPayment(normalized.email);
 
+  // Achado real 03/08/2026: nativePayment (Stripe já confirmado pelo bloco
+  // nativo do Typebot, resolvido acima) só era gravado em
+  // dados_clinicos.stripe_payment — nunca alimentava payment_confirmed, que
+  // só reconhecia sessionPayment (fluxo antigo de Checkout Session). Um
+  // atendimento pago pelo bloco nativo, sem sessão de Checkout, ficava preso
+  // em "pagamento pendente" mesmo com o Stripe já confirmado. O pagamento
+  // nativo agora conta como confirmado da mesma forma que o pagamento por
+  // sessão.
+  const paymentConfirmedBySource = Boolean(sessionPayment || nativePayment);
   const patientData = {
     ...mapped.patientData,
     idempotency_key: idempotencyKey || null,
     protocol_version: PROTOCOL_VERSION,
-    pagamento_status: sessionPayment ? 'CONFIRMADO' : normalized.pagamento_status,
-    payment_status: sessionPayment ? 'paid' : normalized.payment_status,
-    payment_confirmed: sessionPayment ? true : normalized.payment_confirmed,
+    pagamento_status: paymentConfirmedBySource ? 'CONFIRMADO' : normalized.pagamento_status,
+    payment_status: paymentConfirmedBySource ? 'paid' : normalized.payment_status,
+    payment_confirmed: paymentConfirmedBySource ? true : normalized.payment_confirmed,
     queue_type: 'medical',
     validation: normalized.validation,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
