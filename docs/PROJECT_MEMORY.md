@@ -91,12 +91,12 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 7. Estado operacional registrado em 01/08/2026
 
-- Em 02/08/2026, o painel de staging recebeu no commit `246df2c` um atalho
-  externo sticky "Mostrar Enviar e emitir", que apenas rola suavemente a área
-  controlada pelo Doctor Prescreve até a ação original da Memed. A rolagem
-  externa programática permanece funcional com a barra visualmente oculta; o
-  atalho não emite, não simula clique e não altera o iframe. Deployment
-  `8bd44afa-c9ff-40ce-9e63-8a22f4613ebc` concluído com `SUCCESS`; produção não
+- Em 03/08/2026, o painel de staging recebeu no commit `beaf7a0` o atalho
+  externo sticky "Ir para o final", disponível em todas as etapas abertas da
+  Memed. O clique apenas rola até o fim todas as áreas externas controladas
+  pelo Doctor Prescreve; as barras externa e interna permanecem visíveis como
+  alternativas manuais. O atalho não emite nem simula clique. Deployment
+  `70371ea0-79ca-4a0a-b214-ef8f5e0aea30` concluído com `SUCCESS`; produção não
   foi alterada. Validação visual do fluxo completo permanece pendente.
 - Em 02/08/2026, o Supabase oficial de produção recebeu a migração aditiva
   `create_decisoes_log_medicos`: foram criadas somente as tabelas vazias
