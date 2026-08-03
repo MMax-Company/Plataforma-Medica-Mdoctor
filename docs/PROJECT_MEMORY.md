@@ -91,12 +91,13 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 7. Estado operacional registrado em 01/08/2026
 
-- Em 02/08/2026, o painel de staging recebeu no commit `75ad481` a escala de
-  40% do container embedded completo da Memed, sem ampliação do viewport e sem
-  rolagem externa do Doctor Prescreve; permanece somente a rolagem interna da
-  Memed. Deployment `2ee2b140-ff06-469a-af80-637508d1cfd7` concluído com
-  `SUCCESS`; produção não foi alterada. Validação visual do fluxo completo
-  permanece pendente.
+- Em 02/08/2026, o painel de staging recebeu no commit `246df2c` um atalho
+  externo sticky "Mostrar Enviar e emitir", que apenas rola suavemente a área
+  controlada pelo Doctor Prescreve até a ação original da Memed. A rolagem
+  externa programática permanece funcional com a barra visualmente oculta; o
+  atalho não emite, não simula clique e não altera o iframe. Deployment
+  `8bd44afa-c9ff-40ce-9e63-8a22f4613ebc` concluído com `SUCCESS`; produção não
+  foi alterada. Validação visual do fluxo completo permanece pendente.
 - Em 02/08/2026, o Supabase oficial de produção recebeu a migração aditiva
   `create_decisoes_log_medicos`: foram criadas somente as tabelas vazias
   `decisoes_log` e `medicos`, seus índices, RLS e políticas exclusivas para
