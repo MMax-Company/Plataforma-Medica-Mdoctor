@@ -69,15 +69,38 @@ const NATIVE_PAYMENT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
 // (stripe-refund.service.js) já sabe ler. Sem isso, o achado real de
 // 02/08/2026 se repete: reprovação médica não encontra o pagamento a
 // estornar e depende de recuperação manual.
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Achado real 03/08/2026 (atendimento nº 1061): o webhook do Stripe gravou o
+// payment órfão ~200ms antes da triagem criar o atendimento, mas a PRIMEIRA
+// consulta rodou antes desse INSERT ficar visível para esta transação —
+// resultado: nenhum vínculo, mesmo com o pagamento certo já no banco. Poucas
+// tentativas curtas (não um loop longo nem retry de webhook) cobrem essa
+// corrida entre duas requisições HTTP independentes (Stripe e n8n) que podem
+// chegar a poucos milissegundos de distância. Nunca amplia o critério de
+// busca (mesmo e-mail/valor/moeda/janela de findUnlinkedNativePaymentByEmail)
+// — só dá ao pagamento recém-gravado uma chance de aparecer.
+const NATIVE_PAYMENT_RETRY_ATTEMPTS = 3;
+const NATIVE_PAYMENT_RETRY_DELAY_MS = 350;
+
 async function resolvePendingNativeTypebotPayment(email) {
   if (!email) return null;
   const sinceIso = new Date(Date.now() - NATIVE_PAYMENT_LOOKBACK_MS).toISOString();
-  const paymentRow = await findUnlinkedNativePaymentByEmail({
-    email,
-    amountCents: PAYMENT_AMOUNT_CENTS,
-    currency: 'BRL',
-    sinceIso
-  }).catch(() => null);
+  let paymentRow = null;
+  for (let attempt = 1; attempt <= NATIVE_PAYMENT_RETRY_ATTEMPTS; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    paymentRow = await findUnlinkedNativePaymentByEmail({
+      email,
+      amountCents: PAYMENT_AMOUNT_CENTS,
+      currency: 'BRL',
+      sinceIso
+    }).catch(() => null);
+    if (paymentRow || attempt === NATIVE_PAYMENT_RETRY_ATTEMPTS) break;
+    // eslint-disable-next-line no-await-in-loop
+    await delay(NATIVE_PAYMENT_RETRY_DELAY_MS);
+  }
   if (!paymentRow) return null;
   return {
     paymentRowId: paymentRow.id,
@@ -424,5 +447,6 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
 module.exports = {
   processTriagemWebhook,
+  resolvePendingNativeTypebotPayment,
   ORIGEM
 };

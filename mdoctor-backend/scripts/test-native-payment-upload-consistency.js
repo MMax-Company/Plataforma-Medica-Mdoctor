@@ -49,6 +49,11 @@ let atendimentos = [];
 let auditLogs = [];
 let whatsappSessionsByPhone = {};
 let seq = 0;
+// Controla o cenário 8 (corrida do pagamento): quantas vezes a próxima
+// chamada de findUnlinkedNativePaymentByEmail deve devolver null antes de
+// consultar de verdade, simulando o INSERT ainda não visível.
+let forceMissCount = 0;
+let findUnlinkedNativePaymentByEmailCalls = 0;
 
 function resetState() {
   payments = [];
@@ -56,6 +61,8 @@ function resetState() {
   atendimentos = [];
   auditLogs = [];
   whatsappSessionsByPhone = {};
+  forceMissCount = 0;
+  findUnlinkedNativePaymentByEmailCalls = 0;
 }
 
 function normalizeEmail(value) {
@@ -94,6 +101,11 @@ stub(resolveFromServices('../store/payments.store'), {
     return payments.filter((p) => p.appointment_id === appointmentId).sort((a, b) => (a.paid_at < b.paid_at ? 1 : -1))[0] || null;
   },
   async findUnlinkedNativePaymentByEmail({ email, amountCents, currency = 'BRL', sinceIso = null }) {
+    findUnlinkedNativePaymentByEmailCalls += 1;
+    if (forceMissCount > 0) {
+      forceMissCount -= 1;
+      return null;
+    }
     const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail || !amountCents) return null;
     const candidates = payments.filter(
@@ -182,6 +194,22 @@ stub(resolveFromServices('../store/whatsapp-sessions.store'), {
     const updated = { ...existing, metadata: { ...(existing.metadata || {}), ...metadataPatch } };
     whatsappSessionsByPhone[key] = updated;
     return updated;
+  },
+  // Mesmo comportamento do store real (whatsapp-sessions.store.js): zera
+  // typebot_session_id e remove as chaves de estado por conversa
+  // (typebot_expected_input_id, typebot_payment, typebot_prescription_upload,
+  // whatsapp_menu_state) — usado pelo reset de jornada nova em whatsapp.routes.js.
+  async clearTypebotSession({ sessionId, metadataPatch = {} }) {
+    const entry = Object.entries(whatsappSessionsByPhone).find(([, s]) => s.id === sessionId);
+    if (!entry) return null;
+    const [key, existing] = entry;
+    const metadata = { ...(existing.metadata || {}), ...metadataPatch };
+    for (const k of ['typebot_expected_input_id', 'typebot_payment', 'typebot_prescription_upload', 'whatsapp_menu_state']) {
+      delete metadata[k];
+    }
+    const updated = { ...existing, typebot_session_id: null, metadata };
+    whatsappSessionsByPhone[key] = updated;
+    return updated;
   }
 });
 
@@ -255,7 +283,7 @@ const triagemWebhookPath = resolveFromServices('triagem-webhook.service.js');
 const uploadServicePath = resolveFromServices('typebot-prescription-upload.service.js');
 
 const { linkOrRecordNativeTypebotPayment } = freshRequire(stripeWebhookPath);
-const { processTriagemWebhook } = freshRequire(triagemWebhookPath);
+const { processTriagemWebhook, resolvePendingNativeTypebotPayment } = freshRequire(triagemWebhookPath);
 const {
   findPendingUploadContext,
   isPaymentConfirmedForUpload,
@@ -532,6 +560,60 @@ async function main() {
     assert.equal(second.duplicate, true);
     assert.equal(payments.length, 1, 'reentrega do mesmo evento não cria um segundo payment');
     results.idempotenciaNaReentregaDoWebhook = 'ok';
+  }
+
+  // 8) Corrida real do nº 1061: o pagamento órfão só fica visível na 2ª
+  //    consulta (ex.: commit ainda não propagado na 1ª tentativa) —
+  //    resolvePendingNativeTypebotPayment tenta de novo e encontra, sem
+  //    ampliar o critério de busca (mesmo e-mail/valor/moeda).
+  {
+    resetState();
+    await linkOrRecordNativeTypebotPayment({
+      paymentIntentId: 'pi_corrida',
+      email: 'erika@example.com',
+      amountCents: 4990,
+      currency: 'brl',
+      eventId: 'evt_corrida_1'
+    });
+    // O pagamento já está no store (linha acima) — força a 1ª consulta de
+    // resolvePendingNativeTypebotPayment a "não ver" ainda, simulando o
+    // instante em que o INSERT do webhook não propagou a tempo da triagem.
+    forceMissCount = 1;
+    const callsBefore = findUnlinkedNativePaymentByEmailCalls;
+    const resolved = await resolvePendingNativeTypebotPayment('erika@example.com');
+    assert.ok(findUnlinkedNativePaymentByEmailCalls - callsBefore >= 2, 'precisou de mais de uma tentativa para encontrar o pagamento');
+    assert.ok(resolved, 'encontrou o pagamento órfão na reconsulta');
+    assert.equal(resolved.payment_intent, 'pi_corrida');
+    results.pagamentoOrfaoEncontradoNaReconsulta = 'ok';
+  }
+
+  // 9) Nova jornada (sessão sem journey_started_at) com sessão antiga que
+  //    ainda tem typebot_session_id/typebot_payment/typebot_prescription_upload
+  //    de um teste anterior — clearTypebotSession (chamado pelo webhook do
+  //    WhatsApp ao detectar jornada nova) some com TODO esse estado, para a
+  //    jornada nova nunca herdar variáveis/ponteiros de uma triagem anterior.
+  {
+    resetState();
+    const { clearTypebotSession } = require(resolveFromServices('../store/whatsapp-sessions.store'));
+    whatsappSessionsByPhone['5511955555555'] = {
+      id: 'sess-antiga',
+      phone: '5511955555555',
+      typebot_session_id: 'typebot-sessao-de-horas-atras',
+      metadata: {
+        typebot_expected_input_id: 'blk_algum_input_antigo',
+        typebot_payment: { payment_status: 'paid', payment_intent: 'pi_antigo' },
+        typebot_prescription_upload: { atendimento_id: 'at-antigo', token: 'tok-antigo' },
+        whatsapp_menu_state: 'algum_estado_antigo',
+        journey_started_at: null
+      }
+    };
+    await clearTypebotSession({ sessionId: 'sess-antiga' });
+    const cleared = whatsappSessionsByPhone['5511955555555'];
+    assert.equal(cleared.typebot_session_id, null, 'typebot_session_id zerado — próxima mensagem começa conversa nova no Typebot');
+    assert.equal(cleared.metadata.typebot_payment, undefined, 'sem pagamento antigo residual');
+    assert.equal(cleared.metadata.typebot_prescription_upload, undefined, 'sem ponteiro de upload antigo residual');
+    assert.equal(cleared.metadata.typebot_expected_input_id, undefined, 'sem estado de input antigo residual');
+    results.novaJornadaLimpaEstadoDeTypebotAntigo = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));

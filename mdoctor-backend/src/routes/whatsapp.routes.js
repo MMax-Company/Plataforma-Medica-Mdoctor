@@ -27,7 +27,7 @@ const {
   WELCOME_CHOICE_INPUT_ID
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
-const { upsertSessionIdentity, getSessionByPhone, clearJourneyMarkers } = require('../store/whatsapp-sessions.store');
+const { upsertSessionIdentity, getSessionByPhone, clearJourneyMarkers, clearTypebotSession } = require('../store/whatsapp-sessions.store');
 const metaProvider = require('../services/providers/meta.provider');
 const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
 const {
@@ -401,8 +401,29 @@ router.post('/webhook', async (req, res) => {
                     ? await getSessionByPhone(identity.phone).catch(() => null)
                     : null;
                   const journeyMarkerPatch = {};
-                  if (!priorSessionForJourney?.metadata?.journey_started_at) {
+                  const isNewJourney = !priorSessionForJourney?.metadata?.journey_started_at;
+                  if (isNewJourney) {
                     journeyMarkerPatch.journey_started_at = new Date().toISOString();
+                  }
+                  // Achado real 03/08/2026: nada resetava typebot_session_id (nem
+                  // typebot_expected_input_id/typebot_payment/typebot_prescription_upload)
+                  // ao começar uma jornada nova para o MESMO telefone — o Typebot
+                  // continuava (continueChat) a conversa antiga em vez de começar do
+                  // zero (startChat), podendo herdar variáveis/estado de uma triagem
+                  // anterior (ex.: eligibility_status setado numa resposta de teste
+                  // horas atrás). Sempre que detectamos jornada nova E já existe uma
+                  // sessão anterior com typebot_session_id, zera esse estado antes de
+                  // qualquer chamada ao Typebot — a jornada nova nunca reaproveita
+                  // respostas/variáveis de uma triagem anterior.
+                  if (isNewJourney && priorSessionForJourney?.id && priorSessionForJourney?.typebot_session_id) {
+                    try {
+                      await clearTypebotSession({ sessionId: priorSessionForJourney.id });
+                      logger.info('whatsapp_new_journey_typebot_session_reset', {
+                        sessionId: priorSessionForJourney.id
+                      });
+                    } catch (e) {
+                      logger.warn('whatsapp_new_journey_typebot_session_reset_failed', { error: e.message });
+                    }
                   }
                   if (
                     priorSessionForJourney?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID &&
