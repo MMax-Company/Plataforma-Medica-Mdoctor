@@ -91,13 +91,17 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 7. Estado operacional registrado em 01/08/2026
 
-- Em 03/08/2026, o painel de staging recebeu no commit `beaf7a0` o atalho
-  externo sticky "Ir para o final", disponível em todas as etapas abertas da
-  Memed. O clique apenas rola até o fim todas as áreas externas controladas
-  pelo Doctor Prescreve; as barras externa e interna permanecem visíveis como
-  alternativas manuais. O atalho não emite nem simula clique. Deployment
+- **Baseline visual Memed homologada pelo usuário em 03/08/2026:** o painel de
+  staging no commit `beaf7a0` mantém o conteúdo incorporado reduzido a **40%**,
+  sem viewport lógico de 250%, preserva as barras de rolagem externa do Doctor
+  Prescreve e interna da Memed e exibe o atalho sticky **"Ir para o final ↓"**
+  em todas as etapas abertas. O clique somente rola até o fim as áreas externas
+  controladas pelo Doctor Prescreve; não emite, não simula clique e não
+  substitui o botão nativo **"Enviar e emitir"** da Memed. Deployment
   `70371ea0-79ca-4a0a-b214-ef8f5e0aea30` concluído com `SUCCESS`; produção não
-  foi alterada. Validação visual do fluxo completo permanece pendente.
+  foi alterada. Esta configuração foi aprovada visualmente nos prints e deve
+  ser preservada contra regressões; qualquer alteração exige nova autorização
+  e homologação visual do usuário.
 - Em 02/08/2026, o Supabase oficial de produção recebeu a migração aditiva
   `create_decisoes_log_medicos`: foram criadas somente as tabelas vazias
   `decisoes_log` e `medicos`, seus índices, RLS e políticas exclusivas para
@@ -236,10 +240,16 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   (`test-triagem-payment-sync.js`, `test-stripe-webhook-refund-
   reconciliation.js`, `test-clinical-decision-approve-reject.js`,
   `test-stripe-refund-checkout-session-resolution.js`, `test-typebot-
-  payment-pix-checkout-session.js`) confirmada sem regressão. **Pendente**:
-  validação end-to-end em staging com pagamento de teste real do bloco
-  nativo do Typebot (nenhum teste com Stripe/Supabase reais foi executado
-  nesta correção) antes de considerar resolvido para produção.
+  payment-pix-checkout-session.js`) confirmada sem regressão. Alteração
+  consolidada localmente no commit `22f1901` da branch
+  `codex/release-production-20260802` e publicada somente no serviço
+  `mdoctor-backend-staging`, deployment
+  `a8e108cf-f625-4c97-96b5-892d4080ba97` (`SUCCESS`, `/health` 200,
+  WhatsApp desabilitado como esperado). Nenhuma cobrança nova foi feita e
+  produção não foi alterada. **Pendente:** enviar o commit ao GitHub e validar
+  organicamente o próximo pagamento real em staging, confirmando o vínculo em
+  `dados_clinicos.stripe_payment`, antes de promover para `main`/produção. A
+  chave Stripe permanece live e sem separação entre teste e produção.
 
 ## 9. Canais de WhatsApp protegidos
 

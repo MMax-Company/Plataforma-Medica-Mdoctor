@@ -40,3 +40,14 @@ Ele contém regras permanentes; o estado operacional compartilhado fica em
   ambiente ou estado operacional relevante mudar.
 - Não guardar segredos, tokens, dados pessoais ou logs extensos na memória.
 - A memória orienta; código, banco e ambiente atual devem confirmar fatos mutáveis.
+
+## Baseline visual protegido — Memed
+
+- O estado homologado em staging em 03/08/2026 é o commit `beaf7a0`, com a
+  integração Memed reduzida a 40%, as duas barras de rolagem preservadas e o
+  atalho sticky **"Ir para o final ↓"** sempre visível.
+- O atalho somente rola as áreas externas controladas pelo Doctor Prescreve até
+  o fim. Ele não emite receita, não simula clique e não substitui o botão nativo
+  **"Enviar e emitir"** da Memed.
+- Não remover barras, alterar escala, viewport lógico, posicionamento ou ação do
+  atalho sem solicitação explícita e nova homologação visual do usuário.

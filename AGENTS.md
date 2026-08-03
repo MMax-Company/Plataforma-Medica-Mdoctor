@@ -43,3 +43,13 @@ Quando o usuário disser "pedido econômico":
 Após uma mudança que altere decisão permanente, arquitetura, integração,
 ambiente ou estado operacional relevante, atualizar `docs/PROJECT_MEMORY.md` no
 mesmo trabalho. Não registrar segredos, credenciais, dados pessoais ou ruído.
+
+## Baseline visual protegido — Memed
+
+- Preservar o estado homologado em staging no commit `beaf7a0`: conteúdo Memed
+  em 40%, barras de rolagem interna e externa visíveis e atalho sticky
+  **"Ir para o final ↓"** disponível em todas as etapas abertas.
+- O atalho apenas desloca ao fim os contêineres externos controlados pelo Doctor
+  Prescreve. A emissão continua exclusivamente no botão original da Memed.
+- Qualquer mudança nessa configuração exige pedido explícito e nova validação
+  visual; não reaplicar o viewport lógico de 250% nem ocultar barras.
