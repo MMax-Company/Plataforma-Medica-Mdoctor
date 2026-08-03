@@ -25,6 +25,7 @@ const {
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
 const { persistTriagemFlow } = require('./clinical-persistence.service');
+const { persistUploadContext, buildUploadStatusUrl } = require('./typebot-prescription-upload.service');
 const {
   validateNestedTriagemPayload,
   nestedTriagemToTypebotFlatBody
@@ -345,6 +346,30 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
       atendimentoId: atendimento.id,
       correlationId
     });
+    // Achado real 03/08/2026: nada nesse fluxo (bloco nativo do Typebot)
+    // atualizava whatsapp_sessions.metadata.typebot_prescription_upload —
+    // só o fluxo antigo de Checkout Session (completePaymentByToken) fazia
+    // isso. A sessão ficava presa apontando pro atendimento de um teste
+    // anterior, e a foto do paciente era processada contra o atendimento
+    // errado (ou rejeitado havia horas). Grava aqui, sempre que este
+    // atendimento nasce aguardando a receita anterior, sobrescrevendo
+    // qualquer contexto antigo da mesma sessão.
+    if (uploadSession?.token) {
+      await persistUploadContext({
+        identity: { phone: atendimento.paciente_telefone },
+        uploadContext: {
+          atendimentoId: atendimento.id,
+          token: uploadSession.token,
+          uploadUrl: uploadSession.uploadUrl,
+          uploadStatusUrl: buildUploadStatusUrl(uploadSession.token)
+        }
+      }).catch((error) => {
+        logger.warn('triagem_upload_context_persist_failed', {
+          atendimentoId: atendimento.id,
+          error: error.message
+        });
+      });
+    }
   }
 
   await createAuditLog({

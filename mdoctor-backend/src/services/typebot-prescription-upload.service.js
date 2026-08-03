@@ -3,6 +3,7 @@ const { dbQuery } = require('../db/persistence');
 const { STATUS, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { upsertSessionIdentity, getSessionByPhone } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
+const { findPaymentByAppointment } = require('../store/payments.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
 const { resolveTokenRecord, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
@@ -76,13 +77,33 @@ function extractUploadSession(atendimento = {}) {
   };
 }
 
+// Achado real 03/08/2026: o contexto cacheado em
+// whatsapp_sessions.metadata.typebot_prescription_upload era aceito sem
+// checar se o atendimento referenciado ainda estava aberto — uma foto nova
+// era processada contra um atendimento de HORAS atrás, já rejeitado, só
+// porque a sessão nunca tinha sido atualizada para o atendimento atual.
+// Revalida contra o banco antes de confiar nesse cache: precisa existir,
+// estar exatamente em AWAITING_PRESCRIPTION_UPLOAD (nunca rejected/
+// delivered/encerrado) e pertencer ao mesmo telefone desta conversa. Se
+// falhar qualquer checagem, retorna null — o chamador cai na busca por
+// telefone, que sempre reflete o estado real e atual do banco.
+async function resolveValidatedSessionUploadContext(whatsappSession, phone) {
+  const cached = uploadContextFromSession(whatsappSession);
+  if (!cached?.atendimentoId) return null;
+  const atendimento = await getAtendimento(cached.atendimentoId);
+  if (!atendimento) return null;
+  if (atendimento.status !== STATUS.AWAITING_PRESCRIPTION_UPLOAD) return null;
+  if (phone && !phonesMatch(atendimento.paciente_telefone, phone)) return null;
+  return cached;
+}
+
 async function findPendingUploadContext(phone, { whatsappSession = null } = {}) {
-  // Resolução por sessão tem prioridade: se esta conversa do WhatsApp já
-  // sabe (via whatsapp_sessions.metadata) qual atendimento está aguardando
-  // a receita, usa esse vínculo direto e nunca cai na busca por telefone —
-  // isso evita o erro de ambiguidade (2+ atendimentos pendentes pro mesmo
-  // telefone) quando a sessão já resolve isso sem ambiguidade nenhuma.
-  const sessionContext = uploadContextFromSession(whatsappSession);
+  // Resolução por sessão tem prioridade, mas só depois de revalidada contra
+  // o banco (ver resolveValidatedSessionUploadContext) — isso evita o erro
+  // de ambiguidade (2+ atendimentos pendentes pro mesmo telefone) quando a
+  // sessão já resolve isso sem ambiguidade nenhuma, sem reabrir a falha de
+  // confiar num contexto de um atendimento já encerrado.
+  const sessionContext = await resolveValidatedSessionUploadContext(whatsappSession, phone);
   if (sessionContext) return sessionContext;
 
   const rows = await listAtendimentos({ status: STATUS.AWAITING_PRESCRIPTION_UPLOAD });
@@ -454,11 +475,24 @@ async function sendPostUploadConfirmation({ session, atendimentoId, correlationI
   await provider.sendTextMessage({ ...common, idempotencyKey: `prescription-received:${atendimentoId}`, text: PRESCRIPTION_RECEIVED_MESSAGE });
 }
 
-// Fase 2 pedido 2 já é a única fonte de verdade sobre pagamento confirmado
-// (whatsapp_sessions.metadata.typebot_payment). Aqui só LEMOS esse estado —
-// não criamos nova forma de verificar "paid" nem tocamos no pagamento.
-function isPaymentConfirmedByPedido2(whatsappSession = {}) {
-  return whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid';
+// Achado real 03/08/2026: isPaymentConfirmedByPedido2 só reconhecia
+// whatsapp_sessions.metadata.typebot_payment (fluxo antigo de Checkout
+// Session) — o bloco de pagamento NATIVO do Typebot nunca escreve esse
+// campo, então todo pagamento real por ele sempre caía aqui como "não
+// confirmado", mesmo com dados_clinicos.stripe_payment/payments já
+// vinculados pelo 22f1901. Aceita qualquer uma das três fontes, sempre
+// restritas ao atendimentoId JÁ resolvido e validado por
+// resolveValidatedSessionUploadContext/findPendingUploadContext — nunca
+// aceita um pagamento vinculado a outro atendimento.
+async function isPaymentConfirmedForUpload(whatsappSession = {}, atendimentoId = null, deps = {}) {
+  if (whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid') return true;
+  if (!atendimentoId) return false;
+  const getAtend = deps.getAtendimento || getAtendimento;
+  const findPayment = deps.findPaymentByAppointment || findPaymentByAppointment;
+  const atendimento = await getAtend(atendimentoId);
+  if (atendimento?.dados_clinicos?.stripe_payment?.payment_intent) return true;
+  const payment = await findPayment(atendimentoId);
+  return payment?.status === 'paid';
 }
 
 async function ingestWhatsAppPrescriptionMedia({
@@ -477,7 +511,7 @@ async function ingestWhatsAppPrescriptionMedia({
   const persist = deps.persistUploadContext || persistUploadContext;
   const sendConfirmation = deps.sendPostUploadConfirmation || sendPostUploadConfirmation;
   const hasStored = deps.hasStoredPreviousPrescription || hasStoredPreviousPrescription;
-  const isPaymentConfirmed = deps.isPaymentConfirmedByPedido2 || isPaymentConfirmedByPedido2;
+  const isPaymentConfirmed = deps.isPaymentConfirmedForUpload || isPaymentConfirmedForUpload;
   const resumeTypebot = deps.resumeTypebotAfterPrescriptionUpload || resumeTypebotAfterPrescriptionUpload;
 
   const mediaKey = String(mediaId || '').trim();
@@ -497,7 +531,7 @@ async function ingestWhatsAppPrescriptionMedia({
     throw err;
   }
 
-  if (!isPaymentConfirmed(whatsappSession)) {
+  if (!(await isPaymentConfirmed(whatsappSession, uploadContext.atendimentoId, deps))) {
     const err = new Error('Pagamento não confirmado para esta sessão — receita não pode ser vinculada a um atendimento definitivo ainda');
     err.code = 'PRESCRIPTION_PAYMENT_NOT_CONFIRMED';
     err.statusCode = 409;
@@ -569,13 +603,14 @@ module.exports = {
   findUploadContextForPhone,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
-  isPaymentConfirmedByPedido2,
+  isPaymentConfirmedForUpload,
   isUploadChoiceInput,
   isUploadConfirmationText,
   outputsContainUrl,
   persistUploadContext,
   readProcessedIds,
   reconcileRejectedPaymentPendingAppointment,
+  resolveValidatedSessionUploadContext,
   responseLooksLikeUploadStage,
   resumeTypebotAfterPrescriptionUpload,
   revertPrescriptionUploadResume,

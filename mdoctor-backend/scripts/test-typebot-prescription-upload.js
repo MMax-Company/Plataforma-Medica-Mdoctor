@@ -4,7 +4,7 @@ const {
   PRESCRIPTION_RECEIVED_MESSAGE,
   augmentOutputsWithUploadLink,
   isUploadConfirmationText,
-  isPaymentConfirmedByPedido2,
+  isPaymentConfirmedForUpload,
   outputsContainUrl,
   responseLooksLikeUploadStage,
   stripUploadChoiceOutputs,
@@ -64,10 +64,10 @@ async function main() {
   assert(responseLooksLikeUploadStage({ messages: richTextOutputs }, 'blk_upload_pending_choice'));
   results.uploadStageDetected = 'ok';
 
-  // ---- isPaymentConfirmedByPedido2: lê o estado já produzido pelo pedido 2 ----
-  assert.equal(isPaymentConfirmedByPedido2({ metadata: { typebot_payment: { payment_status: 'paid' } } }), true);
-  assert.equal(isPaymentConfirmedByPedido2({ metadata: { typebot_payment: { payment_status: 'pending' } } }), false);
-  assert.equal(isPaymentConfirmedByPedido2({ metadata: {} }), false);
+  // ---- isPaymentConfirmedForUpload: sessão paga (pedido 2) continua aceita direto ----
+  assert.equal(await isPaymentConfirmedForUpload({ metadata: { typebot_payment: { payment_status: 'paid' } } }, null), true);
+  assert.equal(await isPaymentConfirmedForUpload({ metadata: { typebot_payment: { payment_status: 'pending' } } }, null), false);
+  assert.equal(await isPaymentConfirmedForUpload({ metadata: {} }, null), false);
   results.paymentStateReadFromPedido2 = 'ok';
 
   // ---- resumeTypebotAfterPrescriptionUpload: idempotência pré-existente (não tocada) ----
@@ -118,6 +118,7 @@ async function main() {
         deps: {
           findPendingUploadContext: async () => ({ atendimentoId: 'at-2', token: 'tok-2' }),
           getAtendimento: async () => ({ dados_clinicos: {} }),
+          findPaymentByAppointment: async () => null,
           completeExternalPrescriptionUpload: async () => { throw new Error('não deveria ser chamado'); }
         }
       }),

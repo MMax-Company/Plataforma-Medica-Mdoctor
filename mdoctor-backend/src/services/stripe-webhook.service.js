@@ -23,8 +23,20 @@ const { PAYMENT_AMOUNT_CENTS } = require('./typebot-payment.constants');
 
 // Tempo entre o pagamento no bloco nativo do Typebot e a criação do
 // atendimento pelo webhook de triagem — cobre CEP, receita anterior e coleta
-// de medicamentos, que rodam DEPOIS do pagamento nesse fluxo.
+// de medicamentos, que rodam DEPOIS do pagamento nesse fluxo. Usado só do
+// lado de processTriagemWebhook (resolvePendingNativeTypebotPayment), que
+// procura um PAGAMENTO órfão para o atendimento que acabou de nascer.
 const NATIVE_PAYMENT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+
+// Achado real 03/08/2026: usar essa mesma janela de 6h para o sentido
+// INVERSO (webhook procurando um atendimento já existente) vinculou um
+// PaymentIntent novo a um atendimento de ~2h atrás só porque nenhum dos dois
+// tinha stripe_payment ainda — o atendimento certo (criado ~1s depois) nunca
+// chegou a ser considerado. Nesse sentido só faz sentido casar quando o
+// atendimento nasceu poucos instantes antes do webhook (o Typebot já estava
+// no fluxo pós-pagamento); qualquer coisa mais velha que isso é sempre um
+// atendimento de um teste/pagamento anterior, nunca o atual.
+const NATIVE_PAYMENT_EXISTING_MATCH_WINDOW_MS = 3 * 60 * 1000;
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -277,7 +289,7 @@ async function linkOrRecordNativeTypebotPayment({ paymentIntentId, email, amount
     return { ignored: true, reason: 'missing_email' };
   }
 
-  const sinceTs = Date.now() - NATIVE_PAYMENT_LOOKBACK_MS;
+  const sinceTs = Date.now() - NATIVE_PAYMENT_EXISTING_MATCH_WINDOW_MS;
   const rows = await listAtendimentos();
   const match = rows.find((row) => {
     if (normalizeEmail(row.paciente_email) !== normalizedEmail) return false;
@@ -296,7 +308,13 @@ async function linkOrRecordNativeTypebotPayment({ paymentIntentId, email, amount
     payload: {
       receipt_email: normalizedEmail,
       payment_intent: paymentIntentId,
-      source: 'typebot_native_payment_block'
+      source: 'typebot_native_payment_block',
+      // Snapshot do instante do webhook (não é um status ao vivo): true
+      // quando nenhum atendimento existente pôde ser vinculado aqui — nesse
+      // caso o payments.appointment_id continua null até
+      // resolvePendingNativeTypebotPayment (processTriagemWebhook) reivindicar
+      // esse pagamento quando o atendimento nascer. Só para observabilidade.
+      pending_link_at_webhook: !match
     }
   });
 
