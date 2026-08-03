@@ -110,13 +110,18 @@ export function MemedPrescriptionWorkspace({
             BOTÃO 4 — "Emitir / Assinar / Enviar": assina digitalmente e dispara
               prescricaoImpressa (capturado por setupPrescriptionCallback).
         */}
-        <div style={{ display: prescriptionOpenedOnce ? undefined : 'none' }} className="flex min-h-0 flex-1">
+        <div
+          style={{
+            display: prescriptionOpenedOnce ? undefined : 'none',
+            ...(minHeight > 0 ? { minHeight: `${minHeight}px` } : {}),
+          }}
+          className="memed-embedded-viewport relative min-h-0 flex-1 overflow-hidden"
+        >
           <div
             id={containerId}
-            className="memed-embedded-host relative min-h-0 flex-1 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
+            className="memed-embedded-host absolute left-0 top-0 overflow-hidden rounded-[12px] border border-[#E5EAF2] bg-[#FAFBFD]"
             style={{
               minWidth: `min(100%, ${minWidth}px)`,
-              ...(minHeight > 0 ? { minHeight: `${minHeight}px` } : {}),
             }}
             data-dp-memed-engine="sinapse"
           />

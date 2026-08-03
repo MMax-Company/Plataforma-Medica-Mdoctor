@@ -2758,8 +2758,36 @@ a.prontuario-patient-card__whatsapp:hover {
 .memed-native-panel .memed-embedded-host {
   isolation: isolate;
   overflow: hidden !important;
-  min-width: 820px;
-  min-height: 700px;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * Reduz o container inteiro, preservando conteúdo e coordenadas de clique.
+ * O viewport lógico maior permite à Memed manter o rodapé nativo de ações
+ * dentro da área visível, sem acessar ou substituir elementos cross-origin.
+ */
+@media (min-width: 900px) and (min-height: 700px) {
+  .memed-native-panel .memed-embedded-host {
+    width: 147.059%;
+    height: 147.059%;
+    max-width: none !important;
+    transform: scale(0.68);
+    transform-origin: top left;
+  }
+}
+
+/* Segurança para telas abaixo do mínimo embedded oficial da Memed. */
+@media (max-width: 899px), (max-height: 699px) {
+  .memed-embedded-viewport {
+    overflow: auto;
+  }
+
+  .memed-native-panel .memed-embedded-host {
+    position: relative;
+    min-width: 820px;
+    min-height: 700px;
+  }
 }
 
 /* Mantém widget dentro do painel — reduz sensação de “site externo” */
