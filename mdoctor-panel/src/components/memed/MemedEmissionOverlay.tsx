@@ -261,7 +261,7 @@ export function MemedEmissionOverlay({ atendimentoId, onClose, onComplete, visib
         </button>
 
         {/* Content */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto bg-white p-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white p-2">
           {workflow.loading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[#5B6475]">
               Carregando dados do paciente…

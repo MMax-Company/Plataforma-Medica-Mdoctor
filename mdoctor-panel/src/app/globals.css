@@ -2757,7 +2757,7 @@ a.prontuario-patient-card__whatsapp:hover {
 
 .memed-native-panel .memed-embedded-host {
   isolation: isolate;
-  overflow-y: auto !important;
+  overflow: hidden !important;
   min-width: 820px;
   min-height: 700px;
 }
