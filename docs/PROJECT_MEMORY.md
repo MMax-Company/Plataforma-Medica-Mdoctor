@@ -91,6 +91,12 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 7. Estado operacional registrado em 01/08/2026
 
+- Em 02/08/2026, o painel de staging recebeu o ajuste mínimo do modal embedded
+  da Memed no commit `1a4fb67`: as rolagens externas do modal e do host foram
+  removidas para preservar o rodapé nativo de ações dentro da área visível,
+  mantendo a rolagem própria da Memed. Deployment do painel
+  `2f63f3f5-ef9c-431e-9d4a-f2702cf08d2a` concluído com `SUCCESS`; produção não
+  foi alterada. Validação visual do fluxo completo permanece pendente.
 - Em 02/08/2026, o Supabase oficial de produção recebeu a migração aditiva
   `create_decisoes_log_medicos`: foram criadas somente as tabelas vazias
   `decisoes_log` e `medicos`, seus índices, RLS e políticas exclusivas para
