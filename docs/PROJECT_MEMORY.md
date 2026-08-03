@@ -241,14 +241,25 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   reconciliation.js`, `test-clinical-decision-approve-reject.js`,
   `test-stripe-refund-checkout-session-resolution.js`, `test-typebot-
   payment-pix-checkout-session.js`) confirmada sem regressão. Alteração
-  consolidada localmente no commit `22f1901` da branch
-  `codex/release-production-20260802` e publicada somente no serviço
-  `mdoctor-backend-staging`, deployment
-  `a8e108cf-f625-4c97-96b5-892d4080ba97` (`SUCCESS`, `/health` 200,
-  WhatsApp desabilitado como esperado). Nenhuma cobrança nova foi feita e
-  produção não foi alterada. **Pendente:** enviar o commit ao GitHub e validar
-  organicamente o próximo pagamento real em staging, confirmando o vínculo em
-  `dados_clinicos.stripe_payment`, antes de promover para `main`/produção. A
+  commitada em `22f1901` na branch `codex/release-production-20260802` e
+  enviada ao GitHub (`git push`, sem merge em `main`). Publicada no serviço
+  `mdoctor-backend-staging` (deployment `a8e108cf-f625-4c97-96b5-892d4080ba97`,
+  `SUCCESS`).
+- **AINDA NÃO VALIDADO organicamente (confirmado em auditoria de 03/08/2026):**
+  o atendimento usado para testar o ciclo completo pagamento→reprovação→estorno
+  em 03/08 (`67664d14-57e7-408e-9839-83702f43019e`, nº 1055) **não exercitou**
+  o código do `22f1901`. `dados_clinicos.stripe_payment` desse atendimento tem
+  `source: "stripe_verified_manual_reconciliation"` e `payment_sync_source:
+  null` (não é o formato gravado por `linkOrRecordNativeTypebotPayment`/
+  `resolvePendingNativeTypebotPayment`) e `payments.appointment_id` não tem
+  nenhuma linha — a criação do atendimento veio de uma reconciliação manual
+  avulsa (`correlationId: "recovery2-pi_..."`, script não encontrado versionado
+  em `scripts/`), não do fluxo orgânico `processTriagemWebhook`. O que
+  funcionou automaticamente foi só a leitura por `resolvePaymentIntentId`
+  (código que já existia, não alterado pelo `22f1901`). **Antes de promover
+  para produção, falta um teste orgânico completo** (pagamento real → Typebot
+  cria o atendimento sozinho → reprovação pelo painel) que prove o vínculo
+  automático de ponta a ponta, sem reconciliação manual em nenhuma etapa. A
   chave Stripe permanece live e sem separação entre teste e produção.
 
 ## 9. Canais de WhatsApp protegidos
@@ -257,11 +268,49 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 - O canal manual não deve ser cadastrado em Cloud API, webhook, Typebot ou n8n.
 - Não alterar automação, números, provider ou webhook sem pedido específico.
 - Em 02/08/2026, a sobrescrita de callback da WABA oficial foi corrigida para
-  `https://web-production-5f178.up.railway.app/api/whatsapp/webhook`. O staging
-  permanece inscrito na Meta por legado, mas usa `WHATSAPP_ENABLED=false` e,
-  desde o commit `af6bf49`, apenas confirma o webhook sem reivindicar message_id,
-  persistir sessão ou responder ao paciente. Produção usa
-  `WHATSAPP_ENABLED=true` e é o único ambiente que processa o canal oficial.
+  `https://web-production-5f178.up.railway.app/api/whatsapp/webhook`. O guard
+  do commit `af6bf49` (`whatsapp.routes.js`) só confirma o webhook, sem
+  reivindicar message_id/persistir sessão/responder, quando
+  `WHATSAPP_ENABLED !== 'true'` no ambiente — o código nunca mudou desde então.
+- **Estado invertido em 03/08/2026, só por variável Railway (sem commit):**
+  hoje é **staging com `WHATSAPP_ENABLED=true`** (único ambiente que processa
+  de fato — confirmado por `WhatsApp business message received` e
+  `whatsapp_business_prescription_media_handled` nos logs) e **produção com
+  `WHATSAPP_ENABLED=false`** (confirmado pelo log repetido
+  `whatsapp_business_webhook_skipped_disabled` no deployment atual de
+  produção, `81275428-b006-41b7-9e36-61f811746185`). Isso funciona porque os
+  dois ambientes compartilham hoje **as mesmas credenciais Meta**:
+  `WHATSAPP_APP_ID`, `WHATSAPP_PHONE_NUMBER_ID` (`1117281621479089`, número
+  +55 11 94570-4946), `WHATSAPP_BUSINESS_ACCOUNT_ID` e `WHATSAPP_ACCESS_TOKEN`
+  são idênticos em staging e produção — não há dois números/identidades
+  distintas, é o mesmo evento chegando aos dois backends e só um dos dois
+  processando. Uma tentativa de filtrar por `phone_number_id` do evento foi
+  descartada (03/08) por não isolar nada, já que o valor é igual nos dois
+  ambientes — enquanto isso não mudar, **staging como receptor único depende
+  inteiramente dessa variável**, não de arquitetura separada. Antes de
+  promover para produção, decidir formalmente qual backend é o dono do
+  webhook (identidade Meta separada por ambiente, ou processo manual de
+  alternância documentado).
+- **Incidente da chave Stripe expirada (03/08/2026):** durante o teste do
+  atendimento nº 1055 (`67664d14`), a reprovação médica às 04:44:55 chamou o
+  estorno automático e ele falhou (`refund_failed`, `error_code:
+  api_key_expired`, "Expired API Key provided") — a `STRIPE_SECRET_KEY` de
+  staging vigente até então estava expirada/revogada. O atendimento caiu para
+  `pendencia_pagamento.status = pendente_analise_administrativa` (comportamento
+  correto: reprovação clínica não foi desfeita). A chave foi trocada no
+  Railway (staging passou a usar a mesma chave live de produção — sem
+  separação teste/produção, pendência já conhecida) e o estorno foi refeito
+  **manualmente** às 04:47:30 (`correlationId: "retry-valid-stripe-key-
+  67664d14"`, `attempt: 2`, `succeeded`). Não houve retry automático — foi
+  uma segunda chamada manual depois da correção da chave.
+- **Divergência `patients.phone` × `appointments.patient_phone` (encontrada e
+  ainda não corrigida em 03/08/2026):** o registro de paciente
+  `8bc781ca-a838-4b88-8273-2a09fb5f88a4` (reaproveitado pelos atendimentos
+  nº 1052 e nº 1055, mesma pessoa) tem `patients.phone = "+5511991154773"`
+  (errado), enquanto `appointments.patient_phone` dos dois atendimentos
+  mostra corretamente `5511945328724`. A tabela `patients` nunca foi
+  corrigida; o campo errado continua lá e pode ser reaproveitado por
+  `findOrCreatePatient` em atendimentos futuros da mesma pessoa.
 - Upload de receita anterior exige coincidência entre o telefone do atendimento,
   a sessão remetente e o pagamento confirmado na metadata da sessão. Em uma
   recuperação pontual autorizada, esses vínculos foram reconciliados a partir
