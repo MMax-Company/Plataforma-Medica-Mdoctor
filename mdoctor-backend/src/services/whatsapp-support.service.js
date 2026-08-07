@@ -4,7 +4,7 @@ const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
-const { getActiveSurveySession, getSessionByPhone, clearTypebotSession } = require('../store/whatsapp-sessions.store');
+const { clearSurveySession, getActiveSurveySession, getSessionByPhone, clearTypebotSession } = require('../store/whatsapp-sessions.store');
 const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
@@ -508,6 +508,21 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
   let resolvedSession = session;
   if (!resolvedSession && digits) {
     resolvedSession = await getSessionByPhone(digits);
+  }
+
+  // Saudação ("Oi", "Olá") sempre reapresenta o menu, sem retomar survey nem
+  // sessão clínica pendente. Se havia um survey ativo (ex.: paciente ignorou
+  // o convite pós-entrega e agora manda "Oi" dias depois), é encerrado aqui
+  // — o atendimento já foi concluído e a nova interação deve partir do zero.
+  if (isGreetingText(text)) {
+    try {
+      if (getActiveSurveySession(resolvedSession)?.step) {
+        await clearSurveySession(digits);
+      }
+    } catch (e) {
+      logger.warn('meta_inbound_greeting_survey_clear_failed', { error: e.message });
+    }
+    return { handled: true, action: 'reply', reply: MENU_TEXT };
   }
 
   try {
