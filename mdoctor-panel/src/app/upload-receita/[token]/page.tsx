@@ -3,10 +3,7 @@
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || 'https://mdoctor-backend-staging-staging.up.railway.app').replace(
-  /\/$/,
-  ''
-);
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 export default function UploadReceitaPage() {
   const params = useParams();
