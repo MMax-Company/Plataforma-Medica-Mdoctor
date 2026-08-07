@@ -354,12 +354,18 @@ async function claimPrescriptionUploadResume(session, { token, atendimentoId }) 
       started_at: now
     }
   };
+  // Permite claim se: (a) completed_at nulo — nenhuma retomada em andamento/concluída;
+  // ou (b) token diferente — atendimento anterior do mesmo número já concluído não deve
+  // bloquear o token do atendimento atual.
   const rows = await dbQuery('claim prescription upload resume', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
       .update({ metadata, updated_at: now })
       .eq('id', session.id)
-      .filter('metadata->prescription_upload_resume->>completed_at', 'is', null)
+      .or(
+        'metadata->prescription_upload_resume->>completed_at.is.null,' +
+        `metadata->prescription_upload_resume->>token.neq.${token}`
+      )
       .select('id')
   );
   return Array.isArray(rows) && rows.length === 1;
