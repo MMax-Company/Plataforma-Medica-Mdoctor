@@ -1,6 +1,6 @@
 # Memória Compartilhada — Doctor Prescreve
 
-**Última atualização:** 02/08/2026  
+**Última atualização:** 07/08/2026  
 **Responsável funcional:** Dr. Max Vinicius Ferreira Matos  
 **Finalidade:** fonte canônica compartilhada entre Claude Code, Codex e futuros
 agentes. Deve ser lida antes de qualquer trabalho no projeto.
@@ -34,6 +34,23 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
   preservados; árvore/conteúdo idênticos, confirmado por `git apply --check`
   limpo antes de aplicar). Confirmar sincronização entre Git local, remoto e
   Railway antes do próximo trabalho.
+- **Deploy de produção concluído em 07/08/2026:** commit
+  `2d6c144a8c7e00fb31a38b77948a578ed592f63b` promovido para produção na
+  branch `codex/release-production-20260802`. Backend (`web`, deployment
+  `e61d2fe9-dc6c-4fe9-8b58-a3a16b134261`, SUCCESS 06:34 UTC) e Painel
+  (`Painel Medico`, deployment `bce30087-046d-4776-a99f-131f7b7428f6`,
+  SUCCESS 06:41 UTC) promovidos manualmente pelo usuário, validados via
+  Playwright e Railway MCP. Checklist pós-deploy: `/health` OK,
+  `/readyz` com `failures:[]` e `warnings:[]`, Memed `real_mode=true`
+  `env=production` `mock_fallback_allowed=false`, `WHATSAPP_ENABLED=false`
+  confirmado no log de startup (`whatsapp_disabled`), painel sem banner
+  Staging, login e fila (`/api/atendimentos/queue`) retornando 200, zero
+  erros de console. `MEMED_PRESCRITOR_DATA_NASC=09/02/1988` corrigido antes
+  do deploy. Stripe sem alteração nesta promoção (chave live compartilhada
+  entre staging e produção permanece pendência conhecida). Homologação
+  funcional de staging aprovada em 07/08/2026 (busca/prontuário,
+  admin/filtro test_patient, upload receita anterior e Memed até tela de
+  emissão — todos PASS).
 
 ## 3. Definição de pedido econômico
 
