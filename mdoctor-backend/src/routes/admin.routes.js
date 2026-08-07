@@ -80,6 +80,7 @@ const TEST_NAME_RE =
   /\bteste\b|\btest\b|\bhom ?p\d|\bsim ?p\d|playwright|simula[cç][aã]o|persist[eê]ncia|\bqa\b|fict[ií]cio|valida[cç][aã]o/i;
 
 function isTestAtendimento(atendimento) {
+  if (atendimento.dados_clinicos?.test_patient === true) return true;
   if (TEST_NAME_RE.test(String(atendimento.paciente_nome || ''))) return true;
   const phone = normalizeTestPhone(atendimento.paciente_telefone);
   if (!phone) return false;
