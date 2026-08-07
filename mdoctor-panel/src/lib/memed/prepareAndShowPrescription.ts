@@ -1,5 +1,4 @@
 import { applyClinicalMemedUx } from './applyClinicalUx';
-import { activatePrescriptionTheme } from './activatePrescriptionTheme';
 import { addMedicationsFromAtendimento } from './addMedicationsFromAtendimento';
 import { setClinicalOrientations } from './setClinicalOrientations';
 import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
@@ -113,11 +112,6 @@ export async function prepareAndShowPrescription(
   } else {
     console.log('[Memed DEBUG] Passo 2: primeira prescrição (P1)');
   }
-
-  // 0. Ativa o tema de receituário institucional (índice 1) — antes de CADA
-  //    prescrição, cache:false sempre (nunca reaproveitar ativação anterior).
-  console.log('[Memed DEBUG] Passo 2.5: ativando tema de receituário');
-  await activatePrescriptionTheme();
 
   // 1. setFeatureToggle — executar antes de setPaciente conforme docs oficiais.
   //    Rodado apenas na primeira prescrição da sessão.
