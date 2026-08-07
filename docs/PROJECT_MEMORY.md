@@ -335,7 +335,41 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   para `waiting`, elegível, pago e na fila médica. Durante essa etapa, suporte
   continua sendo a opção 2; opção 3 somente após entrega da receita emitida.
 
-## 10. Manutenção desta memória
+## 10. Configuração Stripe — estado auditado em 07/08/2026
+
+- **Endpoint de produção ativo:** `we_1U1kTXJhkU05FJjngMiVSuNu` — URL
+  `https://web-production-5f178.up.railway.app/api/webhooks/stripe` —
+  `livemode: true` — `status: enabled` — 6 eventos:
+  `checkout.session.completed`, `payment_intent.succeeded`,
+  `payment_intent.payment_failed`, `refund.created`, `refund.failed`,
+  `refund.updated`. Criado em 07/08/2026.
+- **Endpoint de staging ativo:** `we_1TtizWJhkU05FJjnLP3kmcEI` — URL
+  `https://mdoctor-backend-staging-staging.up.railway.app/api/webhooks/stripe`
+  — `livemode: true` — `status: enabled` — mesmos 6 eventos. Descrição:
+  "Webhook Stripe do ambiente de homologação do Doctor Prescreve."
+- **Nenhum terceiro endpoint LIVE ativo.** Total de endpoints `enabled`: 2,
+  cada um em URL de ambiente diferente.
+- **Endpoints antigos removidos:** `we_1U1hnAJhkU05FJjn0IAOODnE` (versão
+  anterior de produção, mesma URL) e `we_1TQgW8JhkU05FJjnS7no4vve`
+  (`medico-prescreve-backend-production...`, antigo) foram deletados.
+- **`STRIPE_WEBHOOK_SECRET` presente** em Railway produção (serviço `web`,
+  env `production`) e Railway staging (serviço `mdoctor-backend-staging`,
+  env `staging`). Valores redactados — correspondência exata com o endpoint
+  Stripe só será confirmada por uma entrega real com HTTP 2xx.
+- **`/readyz` staging:** HTTP 200, `failures: []`, `stripe_webhook_secret: ok`.
+  Único warning: `node_env` (`NODE_ENV` ≠ `production` em staging) — esperado.
+  Sem erros de assinatura/webhook nos logs.
+- **Risco conhecido (estrutural, pré-existente):** ambos os endpoints são
+  `livemode: true`. Staging usa a mesma `sk_live_*` de produção. Um evento
+  Stripe real (ex.: `checkout.session.completed`) é entregue simultaneamente
+  aos dois backends, mas o Stripe entrega e assina separadamente o mesmo
+  evento LIVE para cada endpoint ativo; portanto produção e staging podem
+  aceitar e processar suas respectivas cópias do mesmo evento. Os signing
+  secrets distintos apenas autenticam cada entrega e não impedem processamento
+  duplicado entre ambientes.
+  Qualquer fluxo completo de teste em staging com o Typebot gera cobrança real.
+
+## 11. Manutenção desta memória
 
 Atualizar este arquivo no mesmo trabalho quando mudar:
 
