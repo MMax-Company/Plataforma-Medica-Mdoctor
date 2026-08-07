@@ -8,6 +8,7 @@ import { authHeaders } from '@/services/auth.service';
 import {
   buildSearchQuery,
   formatCpfInput,
+  isEvaluatedStatus,
   validateCpfSearch,
   validateNameBirthSearch,
 } from '@/lib/patient-search';
@@ -140,7 +141,10 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
       const res = await fetch(`${getApiBase()}/api/atendimentos/search?${q}`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erro na busca');
-      setResults(data.results ?? []);
+      // Proteção adicional no cliente — a barreira principal é o filtro do
+      // backend (require_medical_decision=1 em buildSearchQuery).
+      const evaluated = (data.results ?? []).filter((r: SearchResult) => isEvaluatedStatus(r.status));
+      setResults(evaluated);
       setSearched(true);
     } catch (e: unknown) {
       setSearchError(e instanceof Error ? e.message : 'Erro na busca');
@@ -174,7 +178,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
     >
       <div className="relative flex h-[min(88vh,760px)] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
 
-        <div className="flex max-h-[25%] min-h-0 shrink-0 flex-col border-b border-slate-100">
+        <div className="flex shrink-0 flex-col border-b border-slate-100">
           <div className="flex items-start justify-between gap-3 px-4 py-3 sm:px-5">
             <div className="min-w-0">
               <h2 className="text-[15px] font-black uppercase tracking-tight text-slate-900">Buscar Prontuário</h2>
@@ -190,11 +194,11 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3 sm:px-5">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+          <div className="px-4 pb-3 sm:px-5">
+            <div className="grid gap-2 sm:grid-cols-[220px_1fr]">
+              <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">CPF</p>
-                <div className="flex gap-2">
+                <div className="flex min-w-0 gap-2">
                   <input
                     ref={cpfRef}
                     type="text"
@@ -220,14 +224,14 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <div className="min-w-0 rounded-xl border border-slate-100 bg-slate-50 p-3">
                 <p className="mb-1.5 text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Nome + nascimento
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <input
                     type="text"
-                    className={inputClass}
+                    className={`${inputClass} min-w-0`}
                     placeholder="Primeiro e segundo nome ou nome completo"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -235,10 +239,10 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                       if (e.key === 'Enter') void doSearch('name');
                     }}
                   />
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-2">
                     <input
                       type="date"
-                      className={`${inputClass} min-w-[130px] shrink-0`}
+                      className={`${inputClass} w-[108px] shrink-0`}
                       value={birthDate}
                       onChange={(e) => setBirthDate(e.target.value)}
                       onKeyDown={(e) => {

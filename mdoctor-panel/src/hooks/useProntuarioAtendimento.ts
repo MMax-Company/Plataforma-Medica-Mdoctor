@@ -8,6 +8,7 @@ import {
   rejectClinicalDecision,
 } from '@/services/clinical-decision';
 import { formatQueuePatientId } from '@/lib/patient-display';
+import { toPanelAtendimentoStatus } from '@/lib/atendimento-status';
 
 export type ProntuarioAtendimento = {
   id: string;
@@ -98,29 +99,166 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
-function formatMedications(clinical: Record<string, unknown>) {
-  const medications = Array.isArray(clinical.medications) ? clinical.medications : [];
-  if (!medications.length) return firstText(clinical.medicacao_em_uso, 'Já declarado na teletriagem.');
-  return medications
-    .slice(0, 3)
-    .map((entry, index) => {
-      const med = asRecord(entry);
-      const dose = [med.dose, med.unit].filter(Boolean).join('');
-      return `${index + 1}. ${firstText(med.name, med.label)}${dose ? ` ${dose}` : ''} · ${firstText(med.frequency)} · ${firstText(med.route)}`;
-    })
-    .join('\n');
+// Nomenclatura médica completa — não os códigos internos (has, dm2, dlp, hipo)
+// nem os rótulos curtos do Typebot.
+const CONDITION_LABELS: Array<{ label: string; terms: string[] }> = [
+  { label: 'hipertensão arterial', terms: ['has', 'hipertensao', 'hipertensão', 'pressao alta', 'pressão alta'] },
+  { label: 'diabetes mellitus tipo 2', terms: ['dm2', 'dm', 'diabetes'] },
+  { label: 'dislipidemia', terms: ['dlp', 'dislipidemia', 'colesterol', 'triglicerides', 'triglicerídeos'] },
+  { label: 'hipotireoidismo', terms: ['hipotireoidismo', 'tireoide', 'tiroide', 'levotiroxina'] },
+];
+
+function normalizeText(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase();
 }
 
-function formatTriageHistory(clinical: Record<string, unknown>) {
-  const nested = asRecord(clinical.triagem_nested);
-  const triagem = asRecord(nested.triagem);
-  const details = [
-    `Patologias: ${firstText(triagem.doencas, clinical.chronic_condition_label, clinical.doenca_cronica)}`,
-    `Sinais de alerta: ${firstText(triagem.sinais_alerta, clinical.sinais_alerta, clinical.has_warning_signs === true ? 'sim' : 'não')}`,
-    `Tempo de uso: ${firstText(triagem.tempo_uso, clinical.tempo_uso, clinical.continuous_use_days)}`,
-  ].join('\n');
-  const narrative = formText(clinical.historico_clinico, clinical.doenca_cronica);
-  return narrative ? `${details}\n${narrative}` : details;
+/** Lista médica das patologias informadas na triagem, ex.: "hipertensão arterial e dislipidemia". */
+function buildPatologiasLabel(clinical: Record<string, unknown>) {
+  const haystack = normalizeText(
+    [clinical.doenca_cronica, clinical.chronic_condition, clinical.condition, clinical.condicao]
+      .filter(Boolean)
+      .join(' '),
+  );
+  const found = CONDITION_LABELS.filter((item) => item.terms.some((term) => haystack.includes(normalizeText(term)))).map(
+    (item) => item.label,
+  );
+  if (!found.length) return 'condição crônica informada na triagem';
+  if (found.length === 1) return found[0];
+  return `${found.slice(0, -1).join(', ')} e ${found[found.length - 1]}`;
+}
+
+/** Tempo de uso contínuo, em texto legível, a partir dos dados reais da triagem. */
+function buildTempoUsoLabel(clinical: Record<string, unknown>) {
+  const daysRaw = clinical.continuous_use_days;
+  const days = typeof daysRaw === 'number' ? daysRaw : Number(daysRaw);
+  if (Number.isFinite(days) && days > 0) {
+    // < 30 dias é cenário inelegível para renovação — não deve ser apresentado
+    // como uma faixa clínica normal de uso contínuo.
+    if (days < 30) return null;
+    if (days < 90) return 'entre 30 dias e 3 meses';
+    if (days < 180) return 'entre 3 e 6 meses';
+    return 'há mais de 6 meses';
+  }
+
+  const text = normalizeText(clinical.tempo_uso);
+  if (!text) return null;
+  if (text.includes('mais_6') || text.includes('mais de 6')) return 'há mais de 6 meses';
+  if (text.includes('3_a_6') || text.includes('3 a 6') || text.includes('3-6')) return 'entre 3 e 6 meses';
+  if (text.includes('1_a_6') || text.includes('1 a 6') || text.includes('30') || text.includes('1 a 3') || text.includes('1-3')) {
+    return 'entre 30 dias e 3 meses';
+  }
+  // "menos de 1 mês"/"menos de 30 dias" é o mesmo cenário inelegível acima —
+  // tratado como dado incompatível, não como faixa válida.
+  return null;
+}
+
+function buildQueixaPrincipal(clinical: Record<string, unknown>) {
+  const patologias = buildPatologiasLabel(clinical);
+  return `Solicita avaliação médica para continuidade de tratamento de ${patologias}, em uso regular das medicações informadas.`;
+}
+
+function buildHistoricoClinico(clinical: Record<string, unknown>) {
+  const patologias = buildPatologiasLabel(clinical);
+  const tempo = buildTempoUsoLabel(clinical);
+  const tempoTrecho = tempo
+    ? `com uso contínuo das medicações ${tempo}`
+    : 'com tempo de uso contínuo das medicações não informado ou incompatível com os critérios de renovação';
+  return `Refere diagnóstico prévio de ${patologias}, ${tempoTrecho}. Nega sinais de alerta, intercorrências recentes ou piora clínica. Dados e receita anterior avaliados conforme informações fornecidas pelo paciente.`;
+}
+
+const EXAME_FISICO_TEXT =
+  'Atendimento realizado por telemedicina assíncrona, sem exame físico presencial. Avaliação baseada nas informações clínicas e documentos enviados. Ausência de achados objetivos não exclui alterações não identificáveis remotamente.';
+
+const CONDUTA_APROVADA_TEXT =
+  'Mantida a continuidade das medicações informadas, após análise dos dados clínicos e da receita anterior. Orientado manter acompanhamento médico periódico e procurar avaliação presencial em caso de sintomas novos, piora clínica, efeitos adversos ou sinais de alerta.';
+
+type MotivoRejeicao = { label: string; detail: string | null };
+
+function asMotivoRejeicao(value: unknown): MotivoRejeicao | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const label = typeof record.label === 'string' ? record.label.trim() : '';
+  if (!label) return null;
+  const detail = typeof record.detail === 'string' && record.detail.trim() ? record.detail.trim() : null;
+  return { label, detail };
+}
+
+/**
+ * Conduta médica real: só exibe o texto de continuidade em atendimentos
+ * aprovados. Em reprovados:
+ *  1) se o médico escreveu no campo "Conduta Médica Opcional" antes de
+ *     reprovar, esse texto (dados_clinicos.conduta_medica) substitui
+ *     integralmente a conduta padrão — nada de label/code/detail junto;
+ *  2) se o campo ficou vazio, cai no motivo estruturado já existente
+ *     (dados_clinicos.motivo_rejeicao.label) sem inventar texto clínico.
+ */
+function buildConduta(clinical: Record<string, unknown>) {
+  const condutaMedica = formText(clinical.conduta_medica);
+  if (condutaMedica) return condutaMedica;
+
+  const motivo = asMotivoRejeicao(clinical.motivo_rejeicao);
+  if (motivo) {
+    return `Renovação não autorizada. Motivo: ${motivo.label}.`;
+  }
+  return CONDUTA_APROVADA_TEXT;
+}
+
+function buildAlergias(clinical: Record<string, unknown>) {
+  const raw = formText(clinical.alergias);
+  const normalized = normalizeText(raw);
+  const negative = !raw || ['nao', 'não', 'nega', 'nenhuma', 'sem alergia', 'sem alergias', 'n/a', 'na'].some((term) =>
+    normalized === term || normalized.startsWith(`${term} `),
+  );
+  if (negative) return 'Paciente nega alergias medicamentosas conhecidas.';
+  return `Paciente refere alergia a ${raw.trim()}.`;
+}
+
+// Frequências como chegam da triagem (ex.: "12/12h", "24h", "8/8h") viradas em
+// texto médico legível para o prontuário — a via/dose já vêm estruturadas.
+function formatFrequencyLabel(frequency: unknown) {
+  const raw = String(frequency ?? '').trim();
+  if (!raw) return 'conforme orientação médica';
+  const normalized = normalizeText(raw);
+
+  const hourlyMatch = normalized.match(/^(\d+)\s*\/\s*(\d+)\s*h$/) || normalized.match(/^de\s*(\d+)\s*em\s*(\d+)\s*h(oras)?$/);
+  if (hourlyMatch) return `a cada ${hourlyMatch[1]} horas`;
+
+  const singleHourMatch = normalized.match(/^(\d+)\s*h$/);
+  if (singleHourMatch) {
+    const hours = Number(singleHourMatch[1]);
+    if (hours === 24) return 'uma vez ao dia';
+    return `a cada ${hours} horas`;
+  }
+
+  if (normalized.includes('1x') || normalized.includes('uma vez')) return 'uma vez ao dia';
+  if (normalized.includes('2x') || normalized.includes('duas vezes')) return 'duas vezes ao dia';
+  if (normalized.includes('3x') || normalized.includes('tres vezes') || normalized.includes('três vezes')) return 'três vezes ao dia';
+  if (normalized.includes('4x') || normalized.includes('quatro vezes')) return 'quatro vezes ao dia';
+
+  return raw;
+}
+
+function capitalizeFirst(value: string) {
+  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+/** Lista dinâmica dos medicamentos informados na triagem, em texto médico. */
+function formatMedications(clinical: Record<string, unknown>) {
+  const medications = Array.isArray(clinical.medications) ? clinical.medications : [];
+  if (!medications.length) return 'Nenhum medicamento estruturado informado na triagem.';
+  return medications
+    .map((entry) => {
+      const med = asRecord(entry);
+      const name = capitalizeFirst(firstText(med.name, med.label).trim());
+      const dose = [med.dose, med.unit].filter(Boolean).join(' ').trim();
+      const route = firstText(med.route, 'oral').toLowerCase();
+      const frequency = formatFrequencyLabel(med.frequency);
+      return `${name}${dose ? ` ${dose}` : ''} — via ${route}, ${frequency}.`;
+    })
+    .join('\n');
 }
 
 function initials(name: string) {
@@ -173,22 +311,25 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
     if (!atendimento) return null;
     const c = atendimento.dados_clinicos || {};
     return {
-      queixa: firstText(c.queixa_principal, c.chief_complaint, c.notes, atendimento.condicao, c.condition),
-      historico: formatTriageHistory(c),
-      exame: firstText(c.exame_fisico, c.exame_fisico_telemedicina, 'Paciente nega alterações físicas ou clínicas relevantes.'),
-      alergias: firstText(c.alergias, 'Nega alergias medicamentosas ou alimentares.'),
+      queixa: buildQueixaPrincipal(c),
+      historico: buildHistoricoClinico(c),
+      exame: EXAME_FISICO_TEXT,
+      alergias: buildAlergias(c),
       medicacao: formatMedications(c),
-      conduta: firstText(
-        c.conduta,
-        c.conduta_medica,
-        c.conduta_sugerida,
-        'Renovação de prescrição após validação médica.',
-      ),
+      conduta: buildConduta(c),
     };
   }, [atendimento]);
 
   const eligibilityMessage = useMemo(() => {
     const preferredOk = 'Paciente triado com sucesso pelo chatbot. Todos os critérios atendidos.';
+    // O motivo salvo em elegibilidade.reason é gravado uma única vez no
+    // upload da receita anterior ("Receita anterior recebida — aguardando
+    // análise médica") e nunca é atualizado depois — para atendimento já
+    // concluído/entregue, mostrar o estado real em vez desse texto obsoleto.
+    const panelStatus = toPanelAtendimentoStatus(atendimento?.status);
+    if (panelStatus === 'DELIVERED' || panelStatus === 'FINISHED') {
+      return 'Atendimento concluído — prontuário disponível para consulta';
+    }
     if (atendimento?.elegibilidade?.eligible === false) {
       return atendimento.elegibilidade.reason || 'Critérios de elegibilidade não atendidos.';
     }
@@ -334,6 +475,10 @@ export function useProntuarioAtendimento(atendimentoId: string | null, enabled: 
         reason_code: 'FORA_DO_PROTOCOLO',
         observacao_medica: notes.trim() || undefined,
         motivo: notes.trim() || 'Atendimento reprovado pelo painel médico',
+        // Só preenchido quando o médico realmente escreveu algo no campo
+        // opcional — vira a conduta médica oficial do prontuário (ver
+        // buildConduta). Vazio aqui = prontuário cai no motivo estruturado.
+        conduta_medica: notes.trim() || undefined,
       });
       if (result.usingMockFallback) throw new Error(result.error || 'Falha ao reprovar atendimento.');
       return true;

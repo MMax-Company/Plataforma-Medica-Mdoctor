@@ -351,8 +351,16 @@ router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
   return res.json({ success: true, reasons: listRejectReasons() });
 });
 
+// Evidência de que um médico realmente avaliou o atendimento: clinical_audit
+// só é gravado por approveAtendimento/rejectAtendimento (clinical-decision.service.js),
+// nunca por rejeição automática, inelegibilidade de triagem ou abandono de fluxo.
+function hasRegisteredMedicalDecision(item) {
+  const decision = item?.dados_clinicos?.clinical_audit?.decision;
+  return decision === 'approved' || decision === 'rejected';
+}
+
 router.get('/search', requireAuth, async (req, res) => {
-  const { cpf, phone, name, birth_date, id, atendimento_id } = req.query;
+  const { cpf, phone, name, birth_date, id, atendimento_id, require_medical_decision } = req.query;
   const idValue = String(id || atendimento_id || '').trim().toLowerCase();
   const hasId = Boolean(idValue);
   const hasCpf = Boolean(String(cpf || '').replace(/\D/g, ''));
@@ -407,9 +415,16 @@ router.get('/search', requireAuth, async (req, res) => {
     return false;
   });
 
-  matched.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+  // Tela "Buscar Prontuário" (consulta arquivada) — só atendimentos com
+  // decisão médica real registrada. Sem esse filtro, aparecia AGUARDANDO,
+  // AWAITING_PRESCRIPTION_UPLOAD, inelegibilidade automática, reprovação
+  // automática do chatbot e qualquer registro que nunca chegou ao médico.
+  const evaluatedOnly = String(require_medical_decision || '') === '1';
+  const filtered = evaluatedOnly ? matched.filter(hasRegisteredMedicalDecision) : matched;
 
-  const results = matched.map((item) => ({
+  filtered.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+
+  const results = filtered.map((item) => ({
     id: item.id,
     paciente_nome: item.paciente_nome || '',
     paciente_cpf: item.paciente_cpf || '',
