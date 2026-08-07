@@ -1,5 +1,5 @@
 import { PRESCRIPTION_MODULE } from './onLoadPrescription';
-import { buildPatientFromAtendimento, type AtendimentoForMemed } from './buildPatientFromAtendimento';
+import type { AtendimentoForMemed } from './buildPatientFromAtendimento';
 
 // Rodapé institucional fixo — não inclui CPF, telefone, e-mail, endereço completo
 // nem diagnóstico/informação clínica detalhada (apenas identificação básica do
@@ -19,13 +19,13 @@ export async function setClinicalOrientations(atendimento: AtendimentoForMemed):
 
   const clinical = (atendimento.dados_clinicos || {}) as Record<string, unknown>;
   const text = String(clinical.conduta || clinical.orientacoes || clinical.orientacao || '').trim();
-  const patient = buildPatientFromAtendimento(atendimento);
+
+  // Só os 8 primeiros caracteres do UUID no papel timbrado — o ID completo
+  // continua em atendimento.id (banco/vínculos) e é o que passa em setPaciente.
+  const shortId = String(atendimento.id || '').slice(0, 8);
 
   const payload: Record<string, unknown> = {
-    header: [
-      { Atendimento: atendimento.id },
-      { Paciente: patient.nome, 'Data de nascimento': patient.data_nascimento || '' },
-    ],
+    header: [{ Atendimento: shortId }],
     footer: INSTITUTIONAL_FOOTER,
   };
   if (text) {
