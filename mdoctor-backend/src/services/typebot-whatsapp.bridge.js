@@ -14,30 +14,13 @@ const { validateTypebotInput } = require('./typebot-personal-data.validation');
 const { resolveMetaInboundRouting, handleTypebotSupportChoice } = require('./whatsapp-support.service');
 const { lookupCep } = require('../routes/cep.routes');
 
-// Autopreenchimento de endereço por CEP (correção 2026-07-24): o bloco
-// Webhook do Typebot self-hosted não enxerga variáveis definidas no mesmo
-// turno em que ele próprio roda (confirmado por log — ver commit do patch
-// do Typebot), então a consulta ao CEP é feita aqui e o resultado chega ao
-// Typebot como o próprio texto de resposta do paciente à pergunta de
-// endereço que já existe e já funciona (q78qjnk6ticwkeifl7xe2rju), nunca
-// por variável do Typebot.
+// CEP lookup (enriquecimento interno): quando o paciente informa o CEP no
+// bloco blk_0oydu2f7, o bridge consulta a ViaCEP para enriquecer os dados
+// da sessão. O resultado é armazenado internamente e NÃO interfere no cursor
+// do Typebot nem dispara nenhum continueChat extra. A ordem real publicada é:
+//   endereço (q78qjnk6ticwkeifl7xe2rju) → CEP (blk_0oydu2f7) → receita anterior
 const CEP_INPUT_ID = 'blk_0oydu2f7';
-const ENDERECO_INPUT_ID = 'q78qjnk6ticwkeifl7xe2rju';
-const CEP_NUMERO_COMPLEMENTO_SENTINEL = 'blk_endereco_numero_complemento';
 
-function buildEnderecoFromCepLookup(lookup, numeroComplemento) {
-  // Formato reconhecido por validateStructuredAddress (rua, número, bairro,
-  // cidade, estado — exatamente 5 segmentos por vírgula, mapeados por
-  // posição). O CEP não entra aqui: já é exibido separadamente no resumo
-  // ({{cep}}) e um 6º segmento quebraria o parser. O paciente costuma
-  // responder "número e complemento" com uma vírgula própria (ex.: "500,
-  // apto 12") — vírgulas internas são trocadas por espaço para não virar
-  // um 6º segmento e derrubar silenciosamente o complemento.
-  const numero = String(numeroComplemento || '').trim().replace(/,/g, ' ').replace(/\s+/g, ' ');
-  return [lookup.logradouro, numero, lookup.bairro, lookup.cidade, lookup.estado]
-    .filter(Boolean)
-    .join(', ');
-}
 
 function getConfig() {
   return {
@@ -499,27 +482,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
       );
       let inboundText = String(text || '');
 
-      // Segundo turno do autopreenchimento por CEP: o paciente respondeu
-      // número/complemento. O cursor real do Typebot está em
-      // ENDERECO_INPUT_ID (nunca soube do CEP localizado); troca o input
-      // esperado para o real e substitui o texto pelo endereço completo já
-      // montado, para o restante do fluxo seguir 100% inalterado a partir
-      // daqui (mesma validação, mesma chamada ao Typebot que já existiam).
-      if (expectedInputId === CEP_NUMERO_COMPLEMENTO_SENTINEL) {
-        const cepLookup = currentSession?.metadata?.cep_lookup || null;
-        if (cepLookup) {
-          inboundText = buildEnderecoFromCepLookup(cepLookup, text);
-          expectedInputId = ENDERECO_INPUT_ID;
-          expectedInputs.set(identityKey, ENDERECO_INPUT_ID);
-          await upsertSessionIdentity({
-            phone: identity?.phone,
-            bsuid: identity?.bsuid,
-            parentBsuid: identity?.parentBsuid,
-            username: identity?.username,
-            metadataPatch: { cep_lookup: null }
-          });
-        }
-      }
       const atUploadChoiceStage = isUploadChoiceInput(expectedInputId)
         || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id);
       if (uploadContextBeforeChat && atUploadChoiceStage) {
@@ -550,17 +512,22 @@ function createTypebotWhatsAppBridge(deps = {}) {
         };
       }
 
-      // Primeiro turno do autopreenchimento por CEP: consulta o endereço
-      // assim que o CEP (já normalizado/validado acima) chega. Se
-      // localizado, a chamada ao Typebot mais abaixo continua acontecendo
-      // normalmente (o cursor real do Typebot avança pelo caminho "não
-      // localizado" que já funciona hoje e pousa em ENDERECO_INPUT_ID) —
-      // só a mensagem mostrada ao paciente e o próximo input esperado
-      // guardado na sessão são substituídos logo após essa chamada.
-      let cepLocalizado = null;
+      // Enriquecimento interno por CEP: quando o paciente informa o CEP,
+      // armazena os dados da ViaCEP na sessão para uso posterior (ex.: webhook
+      // de criação do atendimento). Não altera o cursor do Typebot nem
+      // intercepta a resposta — o Typebot avança normalmente para receita.
       if (expectedInputId === CEP_INPUT_ID && validation.isPersonal && validation.field === 'cep') {
-        cepLocalizado = await lookupCep(validation.value).catch(() => null);
-        if (!cepLocalizado?.encontrado) cepLocalizado = null;
+        lookupCep(validation.value).then((result) => {
+          if (result?.encontrado) {
+            upsertSessionIdentity({
+              phone: identity?.phone,
+              bsuid: identity?.bsuid,
+              parentBsuid: identity?.parentBsuid,
+              username: identity?.username,
+              metadataPatch: { cep_lookup: result }
+            }).catch(() => {});
+          }
+        }).catch(() => {});
       }
 
       const path = existingSessionId
@@ -668,26 +635,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
         }
       } else if (uploadContext) {
         await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
-      }
-
-      // CEP localizado (primeiro turno): substitui a mensagem do Typebot
-      // (que seguiu pelo caminho "não localizado" por baixo dos panos) pela
-      // confirmação do endereço encontrado, e aponta o próximo input
-      // esperado para o marcador interno consumido no início desta função.
-      if (cepLocalizado) {
-        outputs = [{
-          kind: 'text',
-          text: `Localizamos o seguinte endereço:\n\n${cepLocalizado.logradouro}, ${cepLocalizado.bairro}, ${cepLocalizado.cidade} – ${cepLocalizado.estado}\n\nInforme o número e, se houver, o complemento do endereço.`
-        }];
-        expectedInputs.set(identityKey, CEP_NUMERO_COMPLEMENTO_SENTINEL);
-        await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: CEP_NUMERO_COMPLEMENTO_SENTINEL });
-        await upsertSessionIdentity({
-          phone: identity?.phone,
-          bsuid: identity?.bsuid,
-          parentBsuid: identity?.parentBsuid,
-          username: identity?.username,
-          metadataPatch: { cep_lookup: cepLocalizado }
-        });
       }
 
       for (const output of outputs) {
