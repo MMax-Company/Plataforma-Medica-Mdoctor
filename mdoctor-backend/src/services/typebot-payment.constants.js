@@ -6,7 +6,7 @@ const PAYMENT_BUTTON_LABEL = 'Pagar R$ 49,90';
 // primeira opção exibida). Mesmo valor/atendimento/webhook/confirmação do
 // cartão — Pix usa o mesmo checkout.session.completed e os mesmos checks de
 // amount_total/currency em stripeSessionIsPaid, sem lógica nova.
-const PAYMENT_METHOD_TYPES = ['card', 'pix'];
+const PAYMENT_METHOD_TYPES = ['card'];
 // 30 minutos: prazo curto o bastante para não deixar o paciente com Pix
 // "pendurado" no meio do atendimento assíncrono, e alinhado ao limite mínimo
 // permitido pela Stripe (10s) e ao teto de 14 dias — ajustável em revisão
