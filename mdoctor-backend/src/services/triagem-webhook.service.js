@@ -135,15 +135,6 @@ async function findDuplicateAtendimento(idempotencyKey) {
 }
 
 async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey, requestId }) {
-  // LOG TEMPORÁRIO (homologação nº 1067) — remover após confirmar o ponto
-  // exato em que doenca_cronica="1" vira chronic_condition="renovacao_receita".
-  logger.warn('debug_pipeline_1_webhook_entrada', {
-    correlationId,
-    doenca_cronica: body?.triagem?.doencas ?? body?.doenca_cronica ?? null,
-    chronic_condition: body?.chronic_condition ?? null,
-    eligibility_status: body?.eligibility_status ?? null,
-    payment_status: body?.payment_status ?? null
-  });
   const validation = validateNestedTriagemPayload(body);
   if (!validation.ok) {
     return { status: validation.status, body: { ...validation.body, correlationId } };
@@ -196,14 +187,6 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     correlation_id: correlationId
   });
   const normalized = mapped.normalized;
-  // LOG TEMPORÁRIO (homologação nº 1067) — remover junto com o de cima.
-  logger.warn('debug_pipeline_2_apos_normalizePayload', {
-    correlationId,
-    doenca_cronica: flatBody.doenca_cronica ?? null,
-    chronic_condition: normalized.chronic_condition ?? null,
-    eligibility_status: normalized.eligibility_status ?? null,
-    payment_status: normalized.payment_status ?? null
-  });
   const originalPayload = {
     ...mapped.original,
     paciente: validation.paciente,
@@ -242,14 +225,6 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
   };
 
-  // LOG TEMPORÁRIO (homologação nº 1067) — remover junto com os de cima/baixo.
-  logger.warn('debug_pipeline_3_antes_eligibility_engine', {
-    correlationId,
-    doenca_cronica: flatBody.doenca_cronica ?? null,
-    chronic_condition: patientData.condition ?? null,
-    eligibility_status: normalized.eligibility_status ?? null,
-    payment_status: patientData.payment_status ?? null
-  });
   const decision = eligibilityEngine.evaluate(patientData);
   const paymentConfirmed = patientData.payment_confirmed === true;
   const externalUpload = isExternalUploadMode() || isExternalUploadEnabled();
@@ -356,14 +331,6 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     status: atendimentoStatus === STATUS.REJECTED ? 'rejected' : 'pending'
   });
 
-  // LOG TEMPORÁRIO (homologação nº 1067) — remover junto com os de cima.
-  logger.warn('debug_pipeline_4_antes_de_salvar_atendimento', {
-    correlationId,
-    doenca_cronica: flatBody.doenca_cronica ?? null,
-    chronic_condition: normalized.chronic_condition ?? null,
-    eligibility_status: normalized.eligibility_status ?? null,
-    payment_status: patientData.payment_status ?? null
-  });
   const atendimento = await createAtendimento({
     id: plannedAtendimentoId,
     patient_id: patient?.id || null,

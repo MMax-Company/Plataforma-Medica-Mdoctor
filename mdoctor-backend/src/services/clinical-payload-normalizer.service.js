@@ -1,4 +1,3 @@
-const logger = require('../config/logger');
 const {
   PROTOCOL_VERSION,
   normalizeCondition,
@@ -503,56 +502,14 @@ function normalizeTypebotPayload(body = {}) {
   ];
 
   let validationReason = null;
-  let validationReasonSource = null;
-  if (!requiredCheck.ok) {
-    validationReason = requiredCheck.reason;
-    validationReasonSource = 'required_fields';
-  } else if (warnings.has_warning_signs) {
-    validationReason = 'Sinais de alerta relatados na triagem';
-    validationReasonSource = 'warning_signs';
-  } else if (controlled) {
-    validationReason = 'Medicamento controlado ou fora do protocolo';
-    validationReasonSource = 'controlled_medication';
-  } else if (usageDays !== null && usageDays < 30) {
-    validationReason = 'Tempo de uso insuficiente para renovação remota';
-    validationReasonSource = 'usage_days';
-  } else if (hasPreviousRx !== true) {
-    validationReason = 'Comprovação de receita anterior não confirmada';
-    validationReasonSource = 'has_previous_rx';
-  } else if (!externalUpload && !prescriptionFile) {
-    validationReason = 'Receita anterior ou foto ausente';
-    validationReasonSource = 'prescription_file';
-  } else if (!chronic?.normalized || chronic.normalized === 'renovacao_receita') {
+  if (!requiredCheck.ok) validationReason = requiredCheck.reason;
+  else if (warnings.has_warning_signs) validationReason = 'Sinais de alerta relatados na triagem';
+  else if (controlled) validationReason = 'Medicamento controlado ou fora do protocolo';
+  else if (usageDays !== null && usageDays < 30) validationReason = 'Tempo de uso insuficiente para renovação remota';
+  else if (hasPreviousRx !== true) validationReason = 'Comprovação de receita anterior não confirmada';
+  else if (!externalUpload && !prescriptionFile) validationReason = 'Receita anterior ou foto ausente';
+  else if (!chronic?.normalized || chronic.normalized === 'renovacao_receita')
     validationReason = 'Doença crônica fora do protocolo permitido';
-    validationReasonSource = 'chronic_condition';
-  }
-
-  // Achado real 03/08/2026 (nº 1056/1057/1061/1063): atendimentos nascendo
-  // ineligible/consulta_presencial mesmo com payload bruto trazendo
-  // eligibility_status=eligible e reconstrução manual do mesmo payload
-  // resultando eligible. Log condicional (só dispara quando este caminho
-  // realmente produz um bloqueio) para capturar as variáveis reais da
-  // PRÓXIMA ocorrência, sem depender de reconstrução manual do payload.
-  if (validationReason) {
-    logger.warn('clinical_normalizer_ineligible_decision', {
-      validationReason,
-      validationReasonSource,
-      correlationId: original.correlationId || original.correlation_id || null,
-      requiredCheckOk: requiredCheck.ok,
-      requiredCheckMissing: requiredCheck.missing || null,
-      hasWarningSigns: warnings.has_warning_signs,
-      controlled,
-      usageDays,
-      hasPreviousRx,
-      externalUpload,
-      prescriptionFilePresent: Boolean(prescriptionFile),
-      chronicRaw: chronic?.raw ?? null,
-      chronicNormalized: chronic?.normalized ?? null,
-      inputChronicCondition: original.chronic_condition ?? null,
-      inputDoencaCronica: original.doenca_cronica ?? null,
-      inputEligibilityStatus: original.eligibility_status ?? null
-    });
-  }
 
   const eligibility = normalizeEligibilityStatus(original, { ok: !validationReason, reason: validationReason });
   const canEnterMedicalQueue =
