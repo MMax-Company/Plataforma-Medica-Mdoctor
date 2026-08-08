@@ -510,9 +510,6 @@ export default function AdminDashboardPage() {
                  confirmado × valor único da consulta), sem valor fabricado por
                  atendimento: o produto tem preço fixo, não há campo a preencher. */}
             <section>
-              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
-                Financeiro
-              </p>
               <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
                 <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
                   <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
@@ -534,7 +531,6 @@ export default function AdminDashboardPage() {
             <section>
               <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
                 Indicadores de tempo médio
-                {` · amostra: ${data.tempos.amostra} atendimento${data.tempos.amostra !== 1 ? 's' : ''}`}
               </p>
               <div className="admin-dashboard__time grid grid-cols-7 gap-1.5">
                 {TIME_METRIC_KEYS.map((key) => (
