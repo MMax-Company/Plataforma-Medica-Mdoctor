@@ -3314,6 +3314,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     overflow: hidden;
   }
 
+  .admin-dashboard .admin-dashboard__content {
+    gap: 4px;
+    padding: 6px 16px 8px;
+  }
+
   .admin-dashboard__content > * + * {
     margin-top: 0;
   }
@@ -3343,15 +3348,35 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard__summary > button {
-    min-height: 48px;
+    min-height: 34px;
   }
 
   .admin-dashboard__finance > div {
-    min-height: 44px;
+    min-height: 34px;
   }
 
   .admin-dashboard__time > div {
-    min-height: 46px;
+    min-height: 38px;
+  }
+
+  .admin-dashboard__summary > button,
+  .admin-dashboard__finance > div {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    justify-items: center;
+    padding: 4px 7px;
+    text-align: center;
+  }
+
+  .admin-dashboard__summary > button > span:first-child,
+  .admin-dashboard__finance > div > span:first-child {
+    display: none;
+  }
+
+  .admin-dashboard__finance {
+    grid-template-columns: repeat(3, minmax(150px, 220px));
+    justify-content: center;
+    gap: 12px;
   }
 
   .admin-dashboard__summary > button > span:first-child,
@@ -3367,7 +3392,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:nth-child(2) {
     align-self: end;
     margin-top: 0;
-    font-size: 13.5px;
+    font-size: 12.5px;
     line-height: 1;
   }
 
@@ -3376,7 +3401,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:last-child {
     align-self: start;
     margin-top: 2px;
-    font-size: 8.5px;
+    font-size: 8px;
     line-height: 1.12;
   }
 
@@ -3418,7 +3443,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
   .admin-dashboard__journey {
     flex: 1;
-    min-height: 172px;
+    min-height: 210px;
   }
 
   .admin-dashboard__journey > section {
