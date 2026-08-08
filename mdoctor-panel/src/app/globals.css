@@ -1213,20 +1213,46 @@ body {
 
   /* — Layout da página — */
   .fila-page-dense .panel-support-band {
-    height: 52px;
-    min-height: 52px;
+    height: 72px;
+    min-height: 72px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    box-sizing: border-box;
   }
 
   /* Cabeçalho da fila: três áreas equivalentes mantêm o título no centro
      óptico, independentemente da largura do bloco operacional à direita. */
   .fila-page-dense .panel-header--operational .panel-header__shell {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 7px 18px;
+    width: 100%;
+    max-width: none;
+    padding: 10px 12px;
+    column-gap: 10px;
+  }
+
+  .fila-page-dense .panel-header--operational {
+    height: 82px;
+    min-height: 82px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 176px;
+    max-width: 176px;
+    max-height: 58px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    padding-top: 4px;
+    font-size: 31px;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
   }
 
   .fila-page-dense .panel-header--operational .panel-header__brand {
     margin-right: 0;
-    padding-left: 0;
+    padding-left: 32px;
   }
 
   .fila-page-dense .panel-header--operational .panel-header__col--center {
@@ -1234,40 +1260,144 @@ body {
   }
 
   .fila-page-dense .panel-header--operational .panel-header__right-group {
-    width: auto;
+    width: 100%;
+    gap: 18px;
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    min-height: 46px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__prontuario {
+    height: 40px;
+    min-height: 40px;
+    padding-left: 20px;
+    padding-right: 20px;
+    font-size: 12px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__avatar {
+    width: 36px;
+    height: 36px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logout {
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    height: 100%;
+    grid-template-columns: minmax(0, 1.4fr) minmax(270px, 0.78fr) minmax(0, 1.25fr);
+    align-items: center;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    gap: 12px;
+    padding-right: 20px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro > div:first-child {
+    width: 36px;
+    height: 36px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro h2 {
+    white-space: nowrap;
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro p {
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.3;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics {
+    gap: 4px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p {
+    white-space: nowrap;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p:first-child {
+    font-size: 12px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    gap: 4px;
+    padding-left: 20px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    overflow: hidden;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > p {
+    margin-top: 0;
+    max-width: 100%;
+    font-size: 9px;
+    line-height: 1.2;
+    text-align: right;
+    overflow-wrap: normal;
   }
 
   .fila-page-dense .panel-page-body {
-    gap: 6px;
-    padding: 6px 12px 0;
+    gap: 8px;
+    padding: 8px 12px 10px;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    gap: 10px;
   }
 
   /* — Coluna — */
   .fila-page-dense .dp-fila-column {
-    border-radius: 12px;
+    border-radius: 14px;
+    background: #f8faff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.035);
   }
 
   .fila-page-dense .dp-fila-column__head {
-    min-height: 40px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    min-height: 44px;
+    padding: 8px 14px;
   }
 
   .fila-page-dense .dp-col-heading {
-    font-size: 13px;
+    font-size: 13.5px;
+    line-height: 1.15;
+    letter-spacing: 0.035em;
   }
 
   .fila-page-dense .dp-col-heading-icon {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
   }
 
   .fila-page-dense .dp-fila-column__scroll {
-    padding: 6px;
+    padding: 8px;
   }
 
   .fila-page-dense .dp-fila-column__scroll.space-y-2 > * + * {
-    margin-top: 6px;
+    margin-top: 7px;
+  }
+
+  .fila-page-dense .dp-fila-column__footer {
+    display: none;
   }
 
   /* — Footer oculto no painel médico — ocupa espaço sem valor operacional — */
@@ -1277,13 +1407,15 @@ body {
 
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 9px 10px;
+    padding: 8px 10px;
+    border-radius: 11px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.045);
   }
 
   .fila-page-dense .dp-patient-card--queue,
   .fila-page-dense .dp-patient-card--review,
   .fila-page-dense .dp-patient-card--ready {
-    min-height: 80px;
+    min-height: 74px;
   }
 
   .fila-page-dense .dp-patient-card__inner {
@@ -1296,15 +1428,15 @@ body {
 
   /* — Avatar — */
   .fila-page-dense .dp-patient-avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     background: #F0F4FA;
     border: 1.5px solid #B8CBE4;
     color: #071B3A;
   }
 
   .fila-page-dense .dp-patient-initials {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     letter-spacing: 0.01em;
     padding: 0 2px;
@@ -1317,26 +1449,27 @@ body {
 
   /* — Texto do paciente — */
   .fila-page-dense .dp-patient-card-label {
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1.1;
   }
 
   .fila-page-dense .dp-patient-card-label--compact {
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .fila-page-dense .dp-patient-id {
-    font-size: 10.5px;
+    margin-top: 1px;
+    font-size: 10px;
     line-height: 1.1;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
   .fila-page-dense .dp-status-badge {
-    height: 20px;
-    min-width: 20px;
-    font-size: 10px;
+    height: 19px;
+    min-width: 19px;
+    font-size: 9.5px;
     font-weight: 600;
     padding-left: 7px;
     padding-right: 7px;
@@ -1345,7 +1478,7 @@ body {
 
   /* — Área de ações — */
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 4px;
+    margin-top: 3px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {
@@ -1356,17 +1489,19 @@ body {
   .fila-page-dense .dp-action-slot {
     display: flex;
     align-items: center;
-    width: 132px;
+    width: 118px;
   }
 
   /* — Botão principal: tokens idênticos para ATENDER / ENVIAR WA / EMITIR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-card-primary {
-    height: 30px;
-    min-height: 30px;
-    font-size: 11px;
+    height: 26px;
+    min-height: 26px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
     letter-spacing: 0.03em;
-    padding-left: 9px;
-    padding-right: 9px;
+    padding-left: 8px;
+    padding-right: 8px;
     border-radius: 7px;
   }
 
