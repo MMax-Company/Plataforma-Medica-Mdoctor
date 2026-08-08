@@ -3237,18 +3237,23 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 /* Jornada do Paciente — mesma composição do administrativo, em uma tela Full HD. */
 @media (min-width: 1024px) {
   .admin-patient-journey__content {
-    padding: 10px 18px 14px;
+    padding: 6px 16px 8px;
   }
 
   .admin-patient-journey__content > * + * {
-    margin-top: 10px;
+    margin-top: 6px;
+  }
+
+  .admin-dashboard.admin-patient-journey .panel-header--operational {
+    height: 68px;
+    min-height: 68px;
   }
 
   .admin-dashboard.admin-patient-journey .panel-header--operational .panel-header__title {
     max-width: 100%;
     overflow: hidden;
     font-family: inherit;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 600;
     line-height: 1.15;
     letter-spacing: -0.01em;
@@ -3258,7 +3263,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__overview {
-    gap: 10px;
+    gap: 8px;
   }
 
   .admin-patient-journey__info-card,
@@ -3271,16 +3276,16 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__info-card {
-    padding: 12px 14px;
+    padding: 8px 10px;
   }
 
   .admin-patient-journey__info-card > p,
   .admin-patient-journey__timeline > p,
   .admin-patient-journey__actions > p,
   .admin-patient-journey__notes > p:first-child {
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     color: #34445d;
-    font-size: 10.5px;
+    font-size: 10px;
     font-weight: 900;
     letter-spacing: 0.065em;
   }
@@ -3294,10 +3299,10 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__info-card dl > div {
-    min-height: 28px;
+    min-height: 22px;
     align-items: center;
-    padding: 4px 0;
-    font-size: 12px;
+    padding: 2px 0;
+    font-size: 11px;
   }
 
   .admin-patient-journey__info-card dl dt {
@@ -3307,22 +3312,27 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
   .admin-patient-journey__info-card dl dd {
     max-width: 66%;
-    font-size: 12.5px;
+    font-size: 11.5px;
   }
 
   .admin-patient-journey__timeline {
-    padding: 11px 14px 10px;
+    padding: 7px 10px 6px;
   }
 
   .admin-patient-journey__lower {
     display: grid;
     grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
+  }
+
+  .admin-patient-journey__timeline span.h-6.w-6 {
+    width: 20px;
+    height: 20px;
   }
 
   .admin-patient-journey__timeline .mt-2 {
-    margin-top: 5px;
+    margin-top: 3px;
   }
 
   .admin-patient-journey__timeline .max-w-\[90px\] {
@@ -3330,15 +3340,15 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__timeline .text-\[11px\] {
-    font-size: 10px;
-  }
-
-  .admin-patient-journey__timeline .text-\[10px\] {
     font-size: 9px;
   }
 
+  .admin-patient-journey__timeline .text-\[10px\] {
+    font-size: 8px;
+  }
+
   .admin-patient-journey__actions {
-    padding: 10px 14px;
+    padding: 8px 10px;
   }
 
   .admin-patient-journey__actions > div:first-of-type {
@@ -3352,14 +3362,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-patient-journey__actions a {
     width: 100%;
     justify-content: center;
-    height: 34px;
-    padding-left: 11px;
-    padding-right: 11px;
-    font-size: 11px;
+    height: 30px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 10px;
   }
 
   .admin-patient-journey__notes {
-    padding: 10px 14px;
+    padding: 8px 10px;
   }
 
   .admin-patient-journey__notes > div.mb-4 {
@@ -3368,13 +3378,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__notes > div.mb-4 > div {
-    padding: 8px 10px;
+    padding: 6px 8px;
     border-radius: 10px;
   }
 
   .admin-patient-journey__notes textarea {
-    min-height: 54px;
-    padding: 9px 11px;
+    height: 58px;
+    min-height: 58px;
+    padding: 7px 9px;
     border-radius: 10px;
     font-size: 12px;
   }
@@ -3384,9 +3395,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-patient-journey__notes button {
-    height: 34px;
-    min-height: 34px;
-    font-size: 11px;
+    height: 30px;
+    min-height: 30px;
+    font-size: 10px;
   }
 }
 
