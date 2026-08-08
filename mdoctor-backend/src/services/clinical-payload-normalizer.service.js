@@ -1,6 +1,7 @@
 const {
   PROTOCOL_VERSION,
   normalizeCondition,
+  normalizeConditions,
   normalizeBirthDate,
   extractUsageDays,
   hasPreviousPrescription,
@@ -86,9 +87,11 @@ function normalizeCep(value = '') {
 function normalizeChronicCondition(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return null;
+  const conditions = normalizeConditions(raw);
   return {
     raw,
-    normalized: normalizeCondition(raw)
+    normalized: conditions[0] || 'renovacao_receita', // primeira condição — backward compat
+    conditions                                          // array completo com TODAS as condições
   };
 }
 
@@ -456,6 +459,7 @@ function normalizeTypebotPayload(body = {}) {
     cep,
     chronic_condition: chronic?.normalized || null,
     chronic_condition_label: chronic?.raw || null,
+    chronic_conditions: chronic?.conditions || [],
     medication_count: medicationBundle.medication_count,
     declared_medication_count: medicationBundle.declared_medication_count,
     medications,
@@ -552,6 +556,7 @@ function toPatientEvaluationShape(normalized = {}) {
     data_nascimento: normalized.birth_date,
     condition: normalized.chronic_condition,
     doenca_cronica: normalized.chronic_condition_label,
+    chronic_conditions: normalized.chronic_conditions || [],
     medicacao_em_uso: normalized.medication_name,
     medication: normalized.medication_name,
     medications: normalized.medications,
@@ -602,6 +607,7 @@ function buildCleanBackendPayload(normalized = {}, meta = {}) {
     address_structured: normalized.address_structured,
     cep: normalized.cep,
     chronic_condition: normalized.chronic_condition,
+    chronic_conditions: normalized.chronic_conditions || [],
     medication_count: normalized.medication_count,
     medications: normalized.medications,
     previous_prescription_file: normalized.previous_prescription_file,

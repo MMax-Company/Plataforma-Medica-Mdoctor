@@ -8,6 +8,7 @@ const {
   PROTOCOL_VERSION,
   CONDITIONS,
   normalizeCondition,
+  normalizeConditions,
   extractUsageDays,
   hasContinuousMedication,
   hasPreviousPrescription,
@@ -37,7 +38,19 @@ class EligibilityEngine {
    * @returns {Object} Decision { eligible: boolean, reason: string }
    */
   evaluate(patientData) {
-    const condition = normalizeCondition(patientData.condition || patientData.doenca_cronica || '');
+    // Resolve todas as condições selecionadas (suporte a múltipla seleção no Typebot).
+    // chronic_conditions (array) tem precedência quando disponível; fallback para
+    // condition/chronic_condition (pode ser "hipertensao,dislipidemia" join) ou
+    // doenca_cronica (raw label).
+    const rawConditionInput =
+      patientData.condition ||
+      patientData.chronic_condition ||
+      patientData.doenca_cronica || '';
+    const conditions = Array.isArray(patientData.chronic_conditions) && patientData.chronic_conditions.length
+      ? patientData.chronic_conditions
+      : normalizeConditions(rawConditionInput);
+    // condition (singular) mantido para campos legados em _rejectedDecision/logs
+    const condition = conditions[0] || 'renovacao_receita';
     const flags = this._normalizeFlags(patientData.flags);
     const usageDays = extractUsageDays(patientData);
     const hasContinuousUse = hasContinuousMedication(patientData);
@@ -153,12 +166,18 @@ class EligibilityEngine {
     }
     criteriaUsed.push('Sem sinais de alerta/contraindicação básica');
 
-    // 3. Check for Allowed Conditions
-    if (!CRITERIA_ALLOW.includes(condition)) {
+    // 3. Todas as condições devem estar na lista permitida.
+    //    Se o array estiver vazio ou qualquer condição não constar em CRITERIA_ALLOW,
+    //    a renovação é recusada — sem ignorar condições silenciosamente.
+    const blockedConditions = conditions.filter((c) => !CRITERIA_ALLOW.includes(c));
+    if (!conditions.length || blockedConditions.length > 0) {
       return this._rejectedDecision({
-        reason: 'Condição fora do protocolo de renovação para telemedicina assíncrona',
+        reason: blockedConditions.length
+          ? `Condição fora do protocolo de renovação: ${blockedConditions.join(', ')}`
+          : 'Condição crônica não identificada no protocolo',
         reasonCode: 'consulta_presencial',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
         renewalStatus: 'insegura'
@@ -175,6 +194,7 @@ class EligibilityEngine {
       renewalStatus: 'coerente',
       protocolVersion: PROTOCOL_VERSION,
       conditionNormalized: condition,
+      conditionsNormalized: conditions,
       criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
       flags
     };
@@ -215,7 +235,7 @@ class EligibilityEngine {
     return 'renovacao_insegura';
   }
 
-  _rejectedDecision({ reason, reasonCode, condition, flags, criteriaUsed, renewalStatus }) {
+  _rejectedDecision({ reason, reasonCode, condition, conditions, flags, criteriaUsed, renewalStatus }) {
     return {
       eligible: false,
       reason,
@@ -224,6 +244,7 @@ class EligibilityEngine {
       renewalStatus,
       protocolVersion: PROTOCOL_VERSION,
       conditionNormalized: condition,
+      conditionsNormalized: conditions || (condition ? [condition] : []),
       criteriaUsed: criteriaUsed || [],
       flags: flags || []
     };

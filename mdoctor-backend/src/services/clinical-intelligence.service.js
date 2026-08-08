@@ -64,6 +64,56 @@ function normalizeCondition(value = '') {
   return matched ? matched.value : 'renovacao_receita';
 }
 
+// Variante plural — preserva TODAS as condições selecionadas.
+// O Typebot envia múltiplas escolhas como string separada por vírgula
+// (ex.: "has, dlp" ou "1,2") ou por " e " (ex.: "HAS e DLP").
+// Retorna array de códigos canônicos sem duplicatas; nunca vazio:
+// se nenhum token bater, retorna ['renovacao_receita'] para que o
+// engine de elegibilidade rejeite adequadamente.
+function normalizeConditions(value = '') {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+
+  const normalized = normalizeText(raw);
+
+  // Separa por vírgula, ponto e vírgula, quebra de linha ou " e "
+  const tokens = normalized
+    .split(/[,;\n\r]+|\s+e\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const numericMap = {
+    1: CONDITIONS.HAS,
+    2: CONDITIONS.DM2,
+    3: CONDITIONS.DLP,
+    4: CONDITIONS.HIPO
+  };
+
+  const found = new Set();
+
+  for (const token of tokens) {
+    if (numericMap[token]) {
+      found.add(numericMap[token]);
+      continue;
+    }
+    const matched = CONDITION_ALIASES.find((item) =>
+      item.terms.some((term) => {
+        const t = normalizeText(term);
+        return token.includes(t) || t.includes(token);
+      })
+    );
+    if (matched) found.add(matched.value);
+  }
+
+  // Fallback: nenhum token reconhecido — tenta a string inteira para não
+  // perder inputs sem separador (ex.: "hipertensao arterial" em campo livre).
+  if (found.size === 0) {
+    return [normalizeCondition(raw)]; // retorna 'renovacao_receita' se desconhecido
+  }
+
+  return [...found];
+}
+
 function toNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   const converted = Number(value);
@@ -349,6 +399,7 @@ module.exports = {
   FLAG_LABELS,
   REFUSAL_LIBRARY,
   normalizeCondition,
+  normalizeConditions,
   normalizeBirthDate,
   extractUsageDays,
   hasContinuousMedication,
