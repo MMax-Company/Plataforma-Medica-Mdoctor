@@ -81,7 +81,7 @@ function buildPosologia(med = {}) {
   const doses = dailyDosesFromFrequency(frequency);
   const frequencyLabel = doses === 3 ? 'a cada 8 horas' : doses === 2 ? 'a cada 12 horas' : 'uma vez ao dia';
 
-  return `Tomar 1 unidade por ${via}, ${frequencyLabel}.`;
+  return `Tomar 1 comprimido por ${via}, ${frequencyLabel}.`;
 }
 
 function extractMedicationRows(clinical = {}) {
