@@ -1240,9 +1240,14 @@ body {
     margin-top: 2px;
   }
 
+  /* — Footer oculto no painel médico — ocupa espaço sem valor operacional — */
+  .fila-page-dense .panel-footer {
+    display: none;
+  }
+
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 3px 8px;
+    padding: 2px 8px;
   }
 
   .fila-page-dense .dp-patient-card--queue,
