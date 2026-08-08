@@ -3236,11 +3236,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 /* Jornada do Paciente — mesma composição do administrativo, em uma tela Full HD. */
 @media (min-width: 1024px) {
-  .admin-patient-journey__content {
+  .admin-dashboard.admin-patient-journey .admin-patient-journey__content {
     padding: 6px 16px 8px;
   }
 
-  .admin-patient-journey__content > * + * {
+  .admin-dashboard.admin-patient-journey .admin-patient-journey__content > :not([hidden]) ~ :not([hidden]) {
     margin-top: 6px;
   }
 
