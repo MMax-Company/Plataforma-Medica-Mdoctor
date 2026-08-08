@@ -513,7 +513,7 @@ body {
   }
 
   .dp-col-heading {
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 800;
     letter-spacing: 0.04em;
     color: #071b3a;
@@ -521,8 +521,8 @@ body {
   }
 
   .dp-col-heading-icon {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
 
   .dp-patient-id {
@@ -574,12 +574,12 @@ body {
   }
 
   .dp-col-count-alert {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
-    min-height: 30px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
     @apply border-[#A31825]/90 bg-[#B91C2B] text-white;
     box-shadow: 0 1px 2px rgba(159, 31, 37, 0.1);
@@ -634,14 +634,14 @@ body {
   }
 
   .panel-header--operational .panel-header__logo {
-    width: 130px;
-    max-width: 130px;
-    max-height: 44px;
+    width: 148px;
+    max-width: 148px;
+    max-height: 50px;
     transform: none;
   }
 
   .panel-header--operational .panel-header__title {
-    font-size: 26px;
+    font-size: 30px;
     line-height: 1.15;
     white-space: normal;
     overflow-wrap: break-word;
@@ -649,55 +649,55 @@ body {
   }
 
   .panel-header--operational .panel-header__ops {
-    min-height: 48px;
-    padding: 6px 10px;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .panel-header--operational .panel-header__memed {
-    height: 36px;
-    padding: 0 10px;
-    font-size: 9.5px;
-  }
-
-  .panel-header--operational .panel-header__profile {
+    min-height: 54px;
+    padding: 8px 12px;
     align-items: center;
     gap: 8px;
   }
 
-  .panel-header--operational .panel-header__profile-text {
-    display: block;
-    max-width: 140px;
-  }
-
-  .panel-header--operational .panel-header__avatar {
-    height: 34px;
-    width: 34px;
+  .panel-header--operational .panel-header__memed {
+    height: 40px;
+    padding: 0 12px;
     font-size: 11px;
   }
 
+  .panel-header--operational .panel-header__profile {
+    align-items: center;
+    gap: 10px;
+  }
+
+  .panel-header--operational .panel-header__profile-text {
+    display: block;
+    max-width: 160px;
+  }
+
+  .panel-header--operational .panel-header__avatar {
+    height: 40px;
+    width: 40px;
+    font-size: 13px;
+  }
+
   .panel-header--operational .panel-header__name {
-    font-size: 12px;
+    font-size: 14px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__role {
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__logout {
-    height: 34px;
-    min-height: 34px;
-    font-size: 10px;
+    height: 38px;
+    min-height: 38px;
+    font-size: 12px;
     align-self: center;
   }
 
   .panel-header--operational .panel-header__prontuario {
-    height: 36px;
-    min-height: 36px;
-    font-size: 11px;
+    height: 42px;
+    min-height: 42px;
+    font-size: 13px;
   }
 
   .panel-header--operational + .panel-gold-band {
@@ -1212,13 +1212,13 @@ body {
 
   /* — Layout da página — */
   .fila-page-dense .panel-support-band {
-    height: 52px;
-    min-height: 52px;
+    height: 60px;
+    min-height: 60px;
   }
 
   .fila-page-dense .panel-page-body {
-    gap: 6px;
-    padding-top: 6px;
+    gap: 8px;
+    padding-top: 8px;
   }
 
   /* — Coluna — */
@@ -1227,22 +1227,22 @@ body {
   }
 
   .fila-page-dense .dp-fila-column__head {
-    min-height: 40px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    min-height: 46px;
+    padding-top: 8px;
+    padding-bottom: 8px;
   }
 
   .fila-page-dense .dp-fila-column__scroll {
-    padding: 6px;
+    padding: 8px;
   }
 
   .fila-page-dense .dp-fila-column__scroll.space-y-2 > * + * {
-    margin-top: 5px;
+    margin-top: 6px;
   }
 
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 7px 9px;
+    padding: 9px 12px;
   }
 
   .fila-page-dense .dp-patient-card--queue,
@@ -1252,62 +1252,62 @@ body {
   }
 
   .fila-page-dense .dp-patient-card__inner {
-    gap: 7px;
+    gap: 8px;
   }
 
   .fila-page-dense .dp-patient-card__head {
-    gap: 6px;
+    gap: 7px;
   }
 
   /* — Avatar — */
   .fila-page-dense .dp-patient-avatar {
-    width: 40px;
-    height: 40px;
+    width: 46px;
+    height: 46px;
     background: #F0F4FA;
     border: 1.5px solid #B8CBE4;
     color: #071B3A;
   }
 
   .fila-page-dense .dp-patient-initials {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.01em;
     padding: 0 3px;
   }
 
   .fila-page-dense .dp-patient-initials--compact {
-    font-size: 9.5px;
+    font-size: 11px;
   }
 
   /* — Texto do paciente — */
   .fila-page-dense .dp-patient-card-label {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.02em;
   }
 
   .fila-page-dense .dp-patient-card-label--compact {
-    font-size: 9.5px;
+    font-size: 11px;
   }
 
   .fila-page-dense .dp-patient-id {
-    font-size: 9.5px;
+    font-size: 11px;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
   .fila-page-dense .dp-status-badge {
-    height: 18px;
-    min-width: 18px;
-    font-size: 9px;
+    height: 21px;
+    min-width: 21px;
+    font-size: 10.5px;
     font-weight: 600;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-radius: 5px;
+    padding-left: 7px;
+    padding-right: 7px;
+    border-radius: 6px;
   }
 
   /* — Área de ações — */
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 4px;
+    margin-top: 5px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {
@@ -1316,28 +1316,28 @@ body {
 
   /* — Slot de ação: largura única para todas as colunas — */
   .fila-page-dense .dp-action-slot {
-    width: 128px;
+    width: 144px;
   }
 
   /* — Botão principal: tokens idênticos para ATENDER / ENVIAR WA / EMITIR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-card-primary {
-    height: 24px;
-    min-height: 24px;
-    font-size: 8.5px;
+    height: 29px;
+    min-height: 29px;
+    font-size: 10px;
     letter-spacing: 0.03em;
-    padding-left: 7px;
-    padding-right: 7px;
-    border-radius: 6px;
+    padding-left: 9px;
+    padding-right: 9px;
+    border-radius: 7px;
   }
 
   /* — Botão secundário: VISUALIZAR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-secondary {
-    height: 19px;
-    min-height: 19px;
-    font-size: 7.5px;
+    height: 23px;
+    min-height: 23px;
+    font-size: 9px;
     letter-spacing: 0.02em;
-    padding-left: 6px;
-    padding-right: 6px;
+    padding-left: 7px;
+    padding-right: 7px;
     border-radius: 5px;
   }
 }
