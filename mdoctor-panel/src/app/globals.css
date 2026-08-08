@@ -1247,7 +1247,7 @@ body {
 
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 2px 8px;
+    padding: 1px 8px;
   }
 
   .fila-page-dense .dp-patient-card--queue,
@@ -1287,18 +1287,19 @@ body {
 
   /* — Texto do paciente — */
   .fila-page-dense .dp-patient-card-label {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.02em;
+    line-height: 1.1;
   }
 
   .fila-page-dense .dp-patient-card-label--compact {
-    font-size: 9px;
+    font-size: 8px;
   }
 
   .fila-page-dense .dp-patient-id {
-    font-size: 9px;
-    line-height: 1.2;
+    font-size: 8px;
+    line-height: 1.1;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
