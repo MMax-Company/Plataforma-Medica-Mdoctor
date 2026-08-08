@@ -546,7 +546,7 @@ export default function FilaPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-[40vh] w-full max-w-[1366px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
+      <main className="flex min-h-[40vh] w-full max-w-[1720px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
         Carregando fila...
       </main>
     );
@@ -556,7 +556,7 @@ export default function FilaPage() {
 
   return (
     <main
-      className="relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
+      className="relative flex min-h-0 w-full max-w-[1720px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
     >
       <MedicalPanelHeader
         operational

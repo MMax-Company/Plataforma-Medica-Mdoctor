@@ -609,7 +609,8 @@ body {
   }
 
   .panel-header--operational {
-    min-height: 50px;
+    height: 68px;
+    min-height: 68px;
     border-bottom: 1px solid #e4ecf7;
   }
 
@@ -634,14 +635,14 @@ body {
   }
 
   .panel-header--operational .panel-header__logo {
-    width: 110px;
-    max-width: 110px;
-    max-height: 36px;
+    width: 128px;
+    max-width: 128px;
+    max-height: 42px;
     transform: none;
   }
 
   .panel-header--operational .panel-header__title {
-    font-size: 22px;
+    font-size: 26px;
     line-height: 1.15;
     white-space: normal;
     overflow-wrap: break-word;
@@ -649,8 +650,8 @@ body {
   }
 
   .panel-header--operational .panel-header__ops {
-    min-height: 40px;
-    padding: 4px 8px;
+    min-height: 44px;
+    padding: 5px 9px;
     align-items: center;
     gap: 6px;
   }
@@ -672,32 +673,32 @@ body {
   }
 
   .panel-header--operational .panel-header__avatar {
-    height: 30px;
-    width: 30px;
-    font-size: 11px;
+    height: 34px;
+    width: 34px;
+    font-size: 12px;
   }
 
   .panel-header--operational .panel-header__name {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__role {
-    font-size: 9.5px;
+    font-size: 10px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__logout {
-    height: 28px;
-    min-height: 28px;
-    font-size: 10px;
+    height: 32px;
+    min-height: 32px;
+    font-size: 10.5px;
     align-self: center;
   }
 
   .panel-header--operational .panel-header__prontuario {
-    height: 30px;
-    min-height: 30px;
-    font-size: 10.5px;
+    height: 34px;
+    min-height: 34px;
+    font-size: 11px;
   }
 
   .panel-header--operational + .panel-gold-band {
@@ -1212,13 +1213,33 @@ body {
 
   /* — Layout da página — */
   .fila-page-dense .panel-support-band {
-    height: 36px;
-    min-height: 36px;
+    height: 52px;
+    min-height: 52px;
+  }
+
+  /* Cabeçalho da fila: três áreas equivalentes mantêm o título no centro
+     óptico, independentemente da largura do bloco operacional à direita. */
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 7px 18px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__brand {
+    margin-right: 0;
+    padding-left: 0;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--center {
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: auto;
   }
 
   .fila-page-dense .panel-page-body {
-    gap: 4px;
-    padding-top: 4px;
+    gap: 6px;
+    padding: 6px 12px 0;
   }
 
   /* — Coluna — */
@@ -1227,17 +1248,26 @@ body {
   }
 
   .fila-page-dense .dp-fila-column__head {
-    min-height: 32px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    min-height: 40px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .fila-page-dense .dp-col-heading {
+    font-size: 13px;
+  }
+
+  .fila-page-dense .dp-col-heading-icon {
+    width: 26px;
+    height: 26px;
   }
 
   .fila-page-dense .dp-fila-column__scroll {
-    padding: 4px;
+    padding: 6px;
   }
 
   .fila-page-dense .dp-fila-column__scroll.space-y-2 > * + * {
-    margin-top: 2px;
+    margin-top: 6px;
   }
 
   /* — Footer oculto no painel médico — ocupa espaço sem valor operacional — */
@@ -1247,17 +1277,17 @@ body {
 
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 1px 8px;
+    padding: 9px 10px;
   }
 
   .fila-page-dense .dp-patient-card--queue,
   .fila-page-dense .dp-patient-card--review,
   .fila-page-dense .dp-patient-card--ready {
-    min-height: auto;
+    min-height: 80px;
   }
 
   .fila-page-dense .dp-patient-card__inner {
-    gap: 5px;
+    gap: 7px;
   }
 
   .fila-page-dense .dp-patient-card__head {
@@ -1266,15 +1296,15 @@ body {
 
   /* — Avatar — */
   .fila-page-dense .dp-patient-avatar {
-    width: 26px;
-    height: 26px;
+    width: 40px;
+    height: 40px;
     background: #F0F4FA;
     border: 1.5px solid #B8CBE4;
     color: #071B3A;
   }
 
   .fila-page-dense .dp-patient-initials {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 0.01em;
     padding: 0 2px;
@@ -1282,40 +1312,40 @@ body {
   }
 
   .fila-page-dense .dp-patient-initials--compact {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   /* — Texto do paciente — */
   .fila-page-dense .dp-patient-card-label {
-    font-size: 9px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1.1;
   }
 
   .fila-page-dense .dp-patient-card-label--compact {
-    font-size: 8px;
+    font-size: 11.5px;
   }
 
   .fila-page-dense .dp-patient-id {
-    font-size: 8px;
+    font-size: 10.5px;
     line-height: 1.1;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
   .fila-page-dense .dp-status-badge {
-    height: 15px;
-    min-width: 15px;
-    font-size: 8.5px;
+    height: 20px;
+    min-width: 20px;
+    font-size: 10px;
     font-weight: 600;
-    padding-left: 5px;
-    padding-right: 5px;
-    border-radius: 4px;
+    padding-left: 7px;
+    padding-right: 7px;
+    border-radius: 6px;
   }
 
   /* — Área de ações — */
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 2px;
+    margin-top: 4px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {
@@ -1326,29 +1356,29 @@ body {
   .fila-page-dense .dp-action-slot {
     display: flex;
     align-items: center;
-    width: 110px;
+    width: 132px;
   }
 
   /* — Botão principal: tokens idênticos para ATENDER / ENVIAR WA / EMITIR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-card-primary {
-    height: 18px;
-    min-height: 18px;
-    font-size: 8.5px;
+    height: 30px;
+    min-height: 30px;
+    font-size: 11px;
     letter-spacing: 0.03em;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-radius: 4px;
+    padding-left: 9px;
+    padding-right: 9px;
+    border-radius: 7px;
   }
 
   /* — Botão secundário: VISUALIZAR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-secondary {
-    height: 15px;
-    min-height: 15px;
-    font-size: 7.5px;
+    height: 24px;
+    min-height: 24px;
+    font-size: 9.5px;
     letter-spacing: 0.02em;
-    padding-left: 5px;
-    padding-right: 5px;
-    border-radius: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 7px;
   }
 }
 
