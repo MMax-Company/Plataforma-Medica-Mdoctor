@@ -1273,6 +1273,7 @@ body {
     font-weight: 700;
     letter-spacing: 0.01em;
     padding: 0 2px;
+    line-height: 1;
   }
 
   .fila-page-dense .dp-patient-initials--compact {
@@ -1292,6 +1293,7 @@ body {
 
   .fila-page-dense .dp-patient-id {
     font-size: 9px;
+    line-height: 1.2;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
@@ -1316,6 +1318,8 @@ body {
 
   /* — Slot de ação: largura única para todas as colunas — */
   .fila-page-dense .dp-action-slot {
+    display: flex;
+    align-items: center;
     width: 110px;
   }
 
