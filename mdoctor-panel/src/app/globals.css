@@ -3244,7 +3244,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     margin-top: 10px;
   }
 
-  .admin-patient-journey .panel-header__title {
+  .admin-dashboard.admin-patient-journey .panel-header--operational .panel-header__title {
     max-width: 100%;
     overflow: hidden;
     font-family: inherit;
