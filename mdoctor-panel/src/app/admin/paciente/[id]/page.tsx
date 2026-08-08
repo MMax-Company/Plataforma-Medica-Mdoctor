@@ -527,8 +527,9 @@ export default function AdminPacientePage() {
               </div>
             </Card>
 
-            {/* Actions */}
-            <Card className="admin-patient-journey__actions p-5">
+            <div className="admin-patient-journey__lower">
+              {/* Actions */}
+              <Card className="admin-patient-journey__actions p-5">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Ações administrativas
               </p>
@@ -600,10 +601,10 @@ export default function AdminPacientePage() {
                   {copyLabel}
                 </div>
               )}
-            </Card>
+              </Card>
 
-            {/* Admin notes */}
-            <Card className="admin-patient-journey__notes p-5">
+              {/* Admin notes */}
+              <Card className="admin-patient-journey__notes p-5">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Observações administrativas
               </p>
@@ -652,7 +653,7 @@ export default function AdminPacientePage() {
                   value={noteText}
                   onChange={(e) => setNoteText(e.target.value)}
                   placeholder="Registrar observação administrativa..."
-                  rows={2}
+                  rows={3}
                   className="w-full resize-none rounded-[14px] border border-[#E5EAF2] bg-white px-4 py-3 text-sm text-[#1E1E1E] outline-none transition focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF] placeholder:text-[#94A3B8]"
                 />
                 {noteError && (
@@ -667,7 +668,8 @@ export default function AdminPacientePage() {
                   </Button>
                 </div>
               </div>
-            </Card>
+              </Card>
+            </div>
           </>
         )}
       </div>
