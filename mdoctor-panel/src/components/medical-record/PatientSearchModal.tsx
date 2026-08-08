@@ -229,16 +229,18 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                   Nome + nascimento
                 </p>
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    type="text"
-                    className={`${inputClass} min-w-0`}
-                    placeholder="Primeiro e segundo nome ou nome completo"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void doSearch('name');
-                    }}
-                  />
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="text"
+                      className={inputClass}
+                      placeholder="Primeiro e segundo nome ou nome completo"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void doSearch('name');
+                      }}
+                    />
+                  </div>
                   <div className="flex shrink-0 gap-2">
                     <input
                       type="date"

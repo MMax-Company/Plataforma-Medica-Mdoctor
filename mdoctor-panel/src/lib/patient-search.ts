@@ -54,7 +54,8 @@ export function buildSearchQuery(params: { cpf?: string; name?: string; birthDat
 }
 
 /** Status que nunca deveriam aparecer aqui — proteção adicional no cliente,
- * não a barreira principal (essa é o filtro do backend via require_medical_decision). */
+ * não a barreira principal (essa é o filtro do backend via require_medical_decision).
+ * Inclui todos os estados intermediários/em-andamento do fluxo. */
 const NEVER_EVALUATED_STATUSES = new Set([
   'waiting',
   'queue',
@@ -64,6 +65,12 @@ const NEVER_EVALUATED_STATUSES = new Set([
   'aguardando_pagamento',
   'awaiting_prescription_upload',
   'aguardando_receita',
+  'em_atendimento',
+  'receita_em_edicao',
+  'memed_processing',
+  'aguardando_emissao',
+  'aguardando_analise',
+  'processing',
 ]);
 
 export function isEvaluatedStatus(status: string): boolean {

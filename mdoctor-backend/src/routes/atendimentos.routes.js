@@ -354,9 +354,21 @@ router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
 // Evidência de que um médico realmente avaliou o atendimento: clinical_audit
 // só é gravado por approveAtendimento/rejectAtendimento (clinical-decision.service.js),
 // nunca por rejeição automática, inelegibilidade de triagem ou abandono de fluxo.
+// A verificação de status exclui atendimentos ainda em andamento mesmo que
+// clinical_audit.decision já esteja preenchido (ex.: receita_em_edicao,
+// memed_processing, em_atendimento).
+const CONCLUDED_STATUSES = new Set([
+  'approved',
+  'delivered',
+  'rejected',
+  'receita_emitida',
+  'ready',
+]);
 function hasRegisteredMedicalDecision(item) {
   const decision = item?.dados_clinicos?.clinical_audit?.decision;
-  return decision === 'approved' || decision === 'rejected';
+  const hasDec = decision === 'approved' || decision === 'rejected';
+  const status = String(item?.status || '').toLowerCase();
+  return hasDec && CONCLUDED_STATUSES.has(status);
 }
 
 router.get('/search', requireAuth, async (req, res) => {
