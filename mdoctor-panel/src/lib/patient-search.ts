@@ -33,7 +33,7 @@ export function validateNameBirthSearch(name: string, birthDate: string): string
   if (!trimmed) return 'Informe o nome do paciente.';
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return 'Informe pelo menos primeiro e segundo nome.';
-  if (!String(birthDate || '').trim()) return 'Informe a data de nascimento.';
+  void birthDate; // data é filtro opcional — não bloqueia a busca
   return null;
 }
 

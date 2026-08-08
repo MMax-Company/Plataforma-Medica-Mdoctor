@@ -252,7 +252,7 @@ export function PatientSearchModal({ open, onClose, onSelectAtendimento }: Patie
                     <button
                       type="button"
                       className={btnSearch}
-                      disabled={!name.trim() || !birthDate || loading}
+                      disabled={!name.trim() || loading}
                       onClick={() => void doSearch('name')}
                     >
                       <Search className="h-3 w-3" />
