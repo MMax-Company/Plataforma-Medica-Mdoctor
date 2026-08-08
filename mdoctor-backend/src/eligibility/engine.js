@@ -65,6 +65,7 @@ class EligibilityEngine {
         reason: patientData._ineligibilityReason || patientData.ineligibility_reason || 'Paciente inelegível na triagem Typebot',
         reasonCode: 'consulta_presencial',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Triagem Typebot: inelegível'], flags),
         renewalStatus: 'insegura'
@@ -76,6 +77,7 @@ class EligibilityEngine {
         reason: 'Sinais de alerta relatados — atendimento presencial recomendado',
         reasonCode: 'sinais_alarme',
         condition,
+        conditions,
         flags: [...flags, 'sinais_urgencia'],
         criteriaUsed: buildCriteriaSummary(['Sem sinais de alerta'], [...flags, 'sinais_urgencia']),
         renewalStatus: 'insegura'
@@ -87,6 +89,7 @@ class EligibilityEngine {
         reason: 'Medicamento controlado ou fora do protocolo de renovação remota',
         reasonCode: 'medicacao_incompativel',
         condition,
+        conditions,
         flags: [...flags, 'contraindicacao_basica'],
         criteriaUsed: buildCriteriaSummary(criteriaUsed, [...flags, 'contraindicacao_basica']),
         renewalStatus: 'insegura'
@@ -106,6 +109,7 @@ class EligibilityEngine {
         reason: 'Falta comprovação de uso contínuo e receita anterior válida',
         reasonCode: 'documentacao_insuficiente',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Comprovação de uso contínuo', 'Receita anterior válida'], flags),
         renewalStatus: 'insegura'
@@ -117,6 +121,7 @@ class EligibilityEngine {
         reason: 'Foto legível da receita anterior é obrigatória para renovação',
         reasonCode: 'documentacao_insuficiente',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Comprovação de uso contínuo', 'Receita anterior válida'], flags),
         renewalStatus: 'insegura'
@@ -132,6 +137,7 @@ class EligibilityEngine {
         reason: 'Tempo de uso insuficiente para renovação remota segura',
         reasonCode: 'renovacao_insegura',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Tempo de uso mínimo >= 30 dias'], flags),
         renewalStatus: 'insegura'
@@ -146,6 +152,7 @@ class EligibilityEngine {
         reason: 'Receita anterior fora da janela segura (vencida há mais de 180 dias)',
         reasonCode: 'renovacao_insegura',
         condition,
+        conditions,
         flags: blockFlags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, blockFlags),
         renewalStatus: 'insegura'
@@ -159,6 +166,7 @@ class EligibilityEngine {
         reason: this._getBlockReason(flags),
         reasonCode: this._getRefusalCode(flags),
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
         renewalStatus: 'insegura'
