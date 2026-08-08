@@ -45,7 +45,7 @@ export async function applyClinicalMemedUx(): Promise<void> {
     showSuccessModal: false,
     // Restrição adicional de funcionalidades do módulo (identidade visual/comportamento
     // institucional Doctor Prescreve) — mantém tudo acima e só adiciona o que faltava.
-    optionsPrescription: false,
+    optionsPrescription: true,
     editIdentification: false,
     conclusionModalEdit: false,
     buttonClose: true,
