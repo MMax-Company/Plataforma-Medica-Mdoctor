@@ -3309,7 +3309,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
+    padding: 8px 16px 10px;
     overflow: hidden;
   }
 
@@ -3317,9 +3318,107 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     margin-top: 0;
   }
 
+  .admin-dashboard__content > section > p {
+    margin-bottom: 2px;
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard__summary,
+  .admin-dashboard__finance,
+  .admin-dashboard__time {
+    gap: 8px;
+  }
+
+  .admin-dashboard__summary > button,
+  .admin-dashboard__finance > div,
+  .admin-dashboard__time > div {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    column-gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .admin-dashboard__summary > button {
+    min-height: 48px;
+  }
+
+  .admin-dashboard__finance > div {
+    min-height: 44px;
+  }
+
+  .admin-dashboard__time > div {
+    min-height: 46px;
+  }
+
+  .admin-dashboard__summary > button > span:first-child,
+  .admin-dashboard__finance > div > span:first-child,
+  .admin-dashboard__time > div > span:first-child {
+    grid-row: 1 / 3;
+    align-self: center;
+    font-size: 13px;
+  }
+
+  .admin-dashboard__summary > button > span:nth-child(2),
+  .admin-dashboard__finance > div > span:nth-child(2),
+  .admin-dashboard__time > div > span:nth-child(2) {
+    align-self: end;
+    margin-top: 0;
+    font-size: 13.5px;
+    line-height: 1;
+  }
+
+  .admin-dashboard__summary > button > span:last-child,
+  .admin-dashboard__finance > div > span:last-child,
+  .admin-dashboard__time > div > span:last-child {
+    align-self: start;
+    margin-top: 2px;
+    font-size: 8.5px;
+    line-height: 1.12;
+  }
+
+  .admin-dashboard .panel-support-band {
+    height: 50px;
+    min-height: 50px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .admin-dashboard .panel-support-band__intro {
+    gap: 9px;
+  }
+
+  .admin-dashboard .panel-support-band__intro > div:first-child {
+    width: 30px;
+    height: 30px;
+  }
+
+  .admin-dashboard .panel-support-band__intro h2 {
+    font-size: 12px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band__intro p,
+  .admin-dashboard .panel-support-band__metrics p {
+    font-size: 9.5px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band__queue {
+    gap: 2px;
+  }
+
+  .admin-dashboard .panel-support-band__queue > p {
+    font-size: 8.5px;
+    line-height: 1.1;
+  }
+
   .admin-dashboard__journey {
     flex: 1;
-    min-height: 132px;
+    min-height: 172px;
   }
 
   .admin-dashboard__journey > section {
