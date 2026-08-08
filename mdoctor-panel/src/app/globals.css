@@ -3019,11 +3019,110 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard .panel-header--operational {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  height: 76px;
+  min-height: 76px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__shell {
+  width: 100%;
+  max-width: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 10px;
+  padding: 9px 12px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__col--brand,
+.admin-dashboard .panel-header--operational .panel-header__col--center {
+  justify-content: center;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__brand {
+  margin-right: 0;
+  padding-left: 0;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__logo {
+  width: 156px;
+  max-width: 156px;
+  max-height: 52px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__title {
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__right-group {
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__prontuario {
+  height: 34px;
+  min-height: 34px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 9.5px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__ops {
+  min-height: 40px;
+  padding: 4px 6px;
+  gap: 4px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__memed {
+  height: 28px;
+  padding-left: 8px;
+  padding-right: 8px;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__divider {
+  height: 24px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__profile {
+  gap: 4px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__profile-text {
+  max-width: 82px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 10.5px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__name {
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__role {
+  font-size: 9px;
+  line-height: 1.15;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__logout {
+  height: 28px;
+  min-height: 28px;
+  padding-left: 7px;
+  padding-right: 7px;
+  gap: 3px;
+  font-size: 9px;
 }
 
 .admin-dashboard__content {
   max-width: 1320px;
-  padding: 12px 20px 20px;
+  padding: 10px 16px 14px;
 }
 
 .admin-dashboard__summary,
@@ -3035,14 +3134,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard__summary > button,
 .admin-dashboard__finance > div,
 .admin-dashboard__time > div {
-  min-height: 76px;
-  border-radius: 12px;
+  min-height: 62px;
+  border-radius: 11px;
   border-color: rgba(203, 213, 225, 0.78);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
 }
 
 .admin-dashboard__summary > button {
-  padding: 11px;
+  padding: 8px 9px;
 }
 
 .admin-dashboard__summary > button:hover {
@@ -3057,13 +3156,58 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__finance > div {
-  min-height: 70px;
+  min-height: 58px;
+  padding: 7px 10px;
 }
 
 .admin-dashboard__time > div {
-  min-height: 62px;
-  padding: 9px 10px;
+  min-height: 56px;
+  padding: 7px 9px;
   background-color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-dashboard__summary > button > span:nth-child(2),
+.admin-dashboard__finance > div > span:nth-child(2),
+.admin-dashboard__time > div > span:nth-child(2) {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #13233d;
+}
+
+.admin-dashboard__summary > button > span:last-child,
+.admin-dashboard__finance > div > span:last-child,
+.admin-dashboard__time > div > span:last-child {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.admin-dashboard .panel-support-band {
+  height: 58px;
+  min-height: 58px;
+  border-color: #f1cf9d;
+  background: linear-gradient(90deg, #fff7ed 0%, #fffaf2 52%, #fff7ed 100%);
+  box-shadow: 0 2px 10px rgba(146, 82, 12, 0.05);
+}
+
+.admin-dashboard .panel-support-band h2,
+.admin-dashboard .panel-support-band strong,
+.admin-dashboard .panel-support-band svg {
+  color: #9a5500;
+}
+
+.admin-dashboard .panel-support-band p,
+.admin-dashboard .panel-support-band span {
+  color: #65451f;
+}
+
+.admin-dashboard .panel-support-band__intro > div:first-child {
+  background-color: #ffedd5;
+}
+
+.admin-dashboard .panel-support-band__intro,
+.admin-dashboard .panel-support-band__metrics {
+  border-color: #efd7b6;
 }
 
 .admin-dashboard__journey {
@@ -3078,22 +3222,50 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__journey > section > div:first-child {
-  min-height: 42px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 7px 12px;
 }
 
 .admin-dashboard__journey > section > div:last-child {
-  max-height: 396px;
-  min-height: 112px;
+  max-height: none;
+  min-height: 96px;
   scrollbar-color: #cbd5e1 transparent;
 }
 
 .admin-dashboard__journey > section > div:last-child > div {
-  min-height: 38px;
-  gap: 8px;
-  padding: 7px 10px;
+  display: grid;
+  grid-template-columns: 28px 64px 84px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 34px;
+  gap: 6px;
+  padding: 5px 10px;
   border-color: #edf1f6;
   transition: background-color 150ms ease;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(2) {
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(3) {
+  width: auto;
+  min-width: 0;
+  font-size: 9.5px;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(4) {
+  width: auto;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.admin-dashboard__journey > section > div:first-child h2 {
+  font-weight: 700;
+  letter-spacing: 0.025em;
 }
 
 .admin-dashboard__journey > section > div:last-child > div:hover {
@@ -3109,6 +3281,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   color: #078742;
   box-shadow: none;
   transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  justify-self: end;
 }
 
 .admin-dashboard__journey [aria-label='Ver jornada do atendimento']:hover {
@@ -3122,6 +3295,42 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   min-width: 24px;
   border-radius: 7px;
   font-weight: 700;
+}
+
+@media (min-width: 1024px) {
+  .admin-dashboard {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-dashboard__content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+  }
+
+  .admin-dashboard__content > * + * {
+    margin-top: 0;
+  }
+
+  .admin-dashboard__journey {
+    flex: 1;
+    min-height: 132px;
+  }
+
+  .admin-dashboard__journey > section {
+    min-height: 0;
+  }
+
+  .admin-dashboard__journey > section > div:last-child {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 1023px) {
