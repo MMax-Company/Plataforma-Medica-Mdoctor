@@ -42,7 +42,8 @@ async function main() {
   const r1 = await support.resolveMetaInboundRouting({ phone: '5511999990001', text: 'Oi', session: { typebot_session_id: null, metadata: {} } });
   assert.equal(r1.action, 'reply');
   assert.equal(r1.reply, support.MENU_TEXT);
-  assert(support.MENU_TEXT.includes('1 - Iniciar atendimento') && support.MENU_TEXT.includes('2 - Suporte'));
+  assert(support.MENU_TEXT.includes('1 — Iniciar atendimento') && support.MENU_TEXT.includes('2 — Suporte'));
+  assert.equal(r1.cta?.url, support.WELCOME_ORIENTATION_PDF_URL);
   results.menuSemSessao = 'ok';
 
   // 2) Opção "1" inicia o Typebot (typebot_clean) e NÃO retorna reply do menu.

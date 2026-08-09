@@ -10,8 +10,20 @@ const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey')
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
 const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
+const WELCOME_ORIENTATION_PDF_URL =
+  'https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/Orientacoes%20Gerais%20Iniciais%20Doctor%20Prescreve/Orientacoes_Doctor_Prescreve_v2.pdf';
+
 const MENU_TEXT =
-  'Olá! Sou o assistente virtual do Doctor Prescreve.\n\nDigite uma opção:\n\n1 - Iniciar atendimento\n2 - Suporte';
+  'Olá! Bem-vindo ao Doctor Prescreve.\n\nAntes de iniciar, leia atentamente as orientações abaixo sobre o funcionamento do Doctor Prescreve e do atendimento médico assíncrono.\n\nⓘ Leia as orientações antes de continuar\n\nApós a leitura, escolha uma opção:\n1 — Iniciar atendimento\n2 — Suporte';
+
+// Mesma mensagem do menu inicial, enviada como CTA URL (botão clicável que
+// abre o PDF de orientações) em vez de texto puro — ver sendCtaUrlMessage em
+// meta.provider.js e o branch routing.cta em typebot-whatsapp.bridge.js.
+const MENU_CTA = {
+  body: MENU_TEXT,
+  displayText: 'Leia as orientações',
+  url: WELCOME_ORIENTATION_PDF_URL
+};
 
 const SUPPORT_WAITING_TEXT =
   'Seu atendimento foi encaminhado para o suporte.\n\nAguarde. Nossa equipe responderá assim que possível.\n\nPara encerrar o suporte, envie 0 ou ENCERRAR.';
@@ -407,13 +419,31 @@ function normalizeMenuText(value = '') {
 const DIACRITICS_RANGE = String.fromCharCode(0x0300) + '-' + String.fromCharCode(0x036f);
 const DIACRITICS_REGEX = new RegExp('[' + DIACRITICS_RANGE + ']', 'g');
 
+// Gatilhos de início: saudações comuns + a frase enviada automaticamente
+// pelo anúncio Click-to-WhatsApp da Meta. Todas comparadas por igualdade
+// exata (sem diacríticos/caixa, pontuação final ignorada) para não sequestrar
+// texto legítimo do meio de uma conversa/triagem.
+const GREETING_EXACT_MATCHES = new Set([
+  'OI',
+  'OLA',
+  'BOM DIA',
+  'BOA TARDE',
+  'BOA NOITE',
+  'TUDO BEM',
+  // Frase exata do anúncio Meta (Click-to-WhatsApp): "Olá! Quero conhecer o
+  // Doctor Prescreve e saber como funciona o atendimento."
+  'OLA! QUERO CONHECER O DOCTOR PRESCREVE E SABER COMO FUNCIONA O ATENDIMENTO'
+]);
+
 function isGreetingText(value = '') {
   const norm = String(value || '')
     .normalize('NFD')
     .replace(DIACRITICS_REGEX, '')
     .trim()
+    .replace(/[!?.,;:]+$/g, '')
+    .trim()
     .toUpperCase();
-  return norm === 'OI' || norm === 'OLA';
+  return GREETING_EXACT_MATCHES.has(norm);
 }
 
 // DIAGNÓSTICO TEMPORÁRIO — mostra o texto só quando curto (comando de menu,
@@ -522,7 +552,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     } catch (e) {
       logger.warn('meta_inbound_greeting_survey_clear_failed', { error: e.message });
     }
-    return { handled: true, action: 'reply', reply: MENU_TEXT };
+    return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
   }
 
   try {
@@ -641,7 +671,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
   // Sem sessão clínica nem suporte ativo: mostra o menu oficial e NÃO inicia
   // o Typebot sozinho. Só "1" (tratado acima) inicia o Typebot; qualquer
   // outra entrada aqui apenas reapresenta o menu, sem tocar em sessão.
-  return { handled: true, action: 'reply', reply: MENU_TEXT };
+  return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
 }
 
 async function processIncomingMessage({ phone, text }) {
@@ -743,6 +773,8 @@ async function closeInactiveSessions() {
 module.exports = {
   SUPPORT_SUB,
   MENU_TEXT,
+  MENU_CTA,
+  WELCOME_ORIENTATION_PDF_URL,
   SUPPORT_WAITING_TEXT,
   SUPPORT_CLOSED_TEXT,
   POST_ATTENDANCE_CHOICE_INPUT_ID,

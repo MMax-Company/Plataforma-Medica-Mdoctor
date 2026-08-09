@@ -419,13 +419,23 @@ function createTypebotWhatsAppBridge(deps = {}) {
       });
 
       if (routing?.handled && routing.action === 'reply' && routing.reply) {
-        const sent = await provider.sendTextMessage({
-          to: identity.phone,
-          bsuid: identity.bsuid,
-          correlationId: messageId,
-          idempotencyKey: `${messageId}:menu`,
-          text: routing.reply
-        });
+        const sent = routing.cta
+          ? await provider.sendCtaUrlMessage({
+              to: identity.phone,
+              bsuid: identity.bsuid,
+              correlationId: messageId,
+              idempotencyKey: `${messageId}:menu`,
+              body: routing.cta.body,
+              displayText: routing.cta.displayText,
+              url: routing.cta.url
+            })
+          : await provider.sendTextMessage({
+              to: identity.phone,
+              bsuid: identity.bsuid,
+              correlationId: messageId,
+              idempotencyKey: `${messageId}:menu`,
+              text: routing.reply
+            });
         const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
         await finish({ messageId, status: 'processed', providerMessageIds });
         return {
