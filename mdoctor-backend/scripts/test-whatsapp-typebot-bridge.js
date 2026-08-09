@@ -355,7 +355,7 @@ async function main() {
     // PaymentIntent do Typebot (runtimeOptions vazio) e devolve checkoutRedirectUrl.
     createPaymentLink: async (args) => {
       paymentLinks.push(args);
-      return { token: 'tok', checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout', amountLabel: 'R$69.90' };
+      return { token: 'tok', checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout', amountLabel: 'R$49.90' };
     },
     sendPaymentIntro: async ({ session, checkoutRedirectUrl, correlationId, provider, idempotencyPrefix }) => {
       paymentIntros.push({ session, checkoutRedirectUrl, correlationId });
@@ -664,6 +664,104 @@ async function main() {
   assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
   assert.equal(legalResult.responsesSent, 2);
 
+  // Regressão do loop telefone/e-mail (produção, 09/08/2026): antes da
+  // correção, o bridge guardava expectedInputId num Map em memória de
+  // processo com prioridade sobre o valor persistido no Supabase. Em
+  // cenários com mais de um processo ativo sobre a mesma sessão (ex.:
+  // staging e produção habilitados ao mesmo tempo), um processo que não
+  // participava de uma troca ficava com o Map desatualizado, validava a
+  // resposta seguinte do paciente contra o campo errado e nunca avançava.
+  //
+  // Reproduz o incidente real com os mesmos IDs de campo do Typebot
+  // (PERSONAL_INPUTS): 1ª chamada responde o CPF (avança normalmente para
+  // "telefone", Map e banco em sincronia); em seguida simula outro processo
+  // processando a resposta de telefone SEM passar por este bridge (a sessão
+  // persistida avança para "e-mail", mas o Map local deste bridge nunca fica
+  // sabendo — ainda pensa que o próximo campo é "telefone"); a 2ª chamada
+  // deste bridge é a resposta de e-mail do paciente. Só passa se o bridge
+  // usar o estado persistido mais novo (e-mail) em vez da memória antiga
+  // (telefone).
+  const staleCacheReceipts = new Set();
+  const staleCacheCalls = [];
+  const staleCacheSent = [];
+  const CPF_INPUT_ID = 'dein7u2qnr8q32p2lv1krd5p';
+  const PHONE_INPUT_ID = 'tbla9w2i2kbeyzun88hai3s9';
+  const EMAIL_INPUT_ID = 'dwoaqosurlamebpra9yf7pm4';
+  let persistedExpectedInputId = CPF_INPUT_ID;
+  const staleCacheBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async ({ messageId }) => {
+      if (staleCacheReceipts.has(messageId)) return { claimed: false };
+      staleCacheReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'stale-cache-session',
+      metadata: { typebot_expected_input_id: persistedExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { persistedExpectedInputId = inputId; },
+    createIntegrationError: async () => {},
+    callTypebot: async (path, body) => {
+      staleCacheCalls.push({ path, body });
+      // Primeira chamada (resposta do CPF): Typebot avança para "telefone".
+      // Segunda chamada (só alcançada se o bridge usar o e-mail corretamente):
+      // Typebot avança para um campo qualquer seguinte, sem mais validação
+      // local — o que importa é que ela aconteça.
+      const nextInputId = staleCacheCalls.length === 1 ? PHONE_INPUT_ID : 'blk_proximo_campo';
+      return {
+        messages: [{ type: 'text', content: { plainText: 'Obrigado!' } }],
+        input: { id: nextInputId, type: 'text input' }
+      };
+    },
+    provider: {
+      sendTextMessage: async (payload) => {
+        staleCacheSent.push(payload);
+        return { providerMessageId: `stale-cache-${staleCacheSent.length}` };
+      },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const staleCacheSession = { id: 'wa-stale-cache', typebot_session_id: 'stale-cache-session' };
+
+  // 1ª chamada: paciente responde o CPF. expectedInputId (persistido e Map)
+  // avança para "telefone" — Map e banco ficam em sincronia neste ponto,
+  // exatamente como no incidente real antes da desincronia acontecer.
+  await staleCacheBridge({
+    messageId: 'stale-cache-cpf-turn',
+    text: '52998224725',
+    identity,
+    whatsappSession: staleCacheSession
+  });
+  assert.equal(persistedExpectedInputId, PHONE_INPUT_ID, 'primeira chamada avança o estado persistido para telefone');
+
+  // Simula outro processo (ex.: staging) processando a resposta de telefone
+  // do paciente SEM passar por este bridge — a sessão persistida avança
+  // direto para "e-mail", mas o Map em memória deste bridge nunca é
+  // atualizado (continua "sabendo" apenas do telefone).
+  persistedExpectedInputId = EMAIL_INPUT_ID;
+
+  // 2ª chamada: paciente responde com um e-mail válido. Com a correção, o
+  // bridge relê o estado persistido (e-mail) a cada chamada e valida
+  // corretamente — chega ao Typebot. No código antigo, o Map em memória
+  // ainda diria "telefone", validateEmail seria validado como telefone,
+  // falharia, e o paciente receberia de volta "informe seu telefone" (loop).
+  const staleCacheResult = await staleCacheBridge({
+    messageId: 'stale-cache-email-turn',
+    text: 'maxvini.ferr@gmail.com',
+    identity,
+    whatsappSession: staleCacheSession
+  });
+  assert.equal(staleCacheResult.validationFailed, undefined, 'estado persistido mais novo (e-mail) deve vencer a memória antiga (telefone)');
+  assert.equal(staleCacheCalls.length, 2, 'as duas respostas (CPF e e-mail) devem chegar ao Typebot — nenhuma pode travar em validação local');
+  assert.equal(staleCacheCalls[1].body.message.text, 'maxvini.ferr@gmail.com', 'a 2ª chamada ao Typebot deve usar o e-mail, não travar pedindo telefone de novo');
+  assert.equal(persistedExpectedInputId, 'blk_proximo_campo');
+  assert(!staleCacheSent.some((item) => /telefone/i.test(item.text || '')), 'não pode reaparecer pedido de telefone depois que a sessão já avançou para e-mail');
+
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
     typebotRepliesOnWhatsApp: sent.some((item) => item.type === 'text') && sent.some((item) => item.type === 'buttons') ? 'ok' : 'failed',
@@ -680,7 +778,8 @@ async function main() {
     menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
     postAttendanceSupportChoiceWiredToBackend: supportChoiceCalls.length === 2 && supportSessionCleared ? 'ok' : 'failed',
     supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed',
-    legalDocsSentAsUrlButtonsNoAttachmentNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed'
+    legalDocsSentAsUrlButtonsNoAttachmentNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed',
+    persistedStateWinsOverStaleLocalCache: staleCacheResult.validationFailed === undefined && staleCacheCalls.length === 2 ? 'ok' : 'failed'
   }));
 }
 

@@ -403,7 +403,15 @@ function createTypebotWhatsAppBridge(deps = {}) {
     // eslint-disable-next-line global-require
     require('./typebot-prescription-upload.service').getUploadStatus(token));
   const sessionQueues = new Map();
-  const expectedInputs = new Map();
+  // Removido: cache local (Map) de expectedInputId por identityKey. Ela
+  // sobrevivia entre requisições de um mesmo processo e tinha prioridade
+  // sobre o valor persistido no Supabase — em cenários com mais de um
+  // processo ativo sobre a mesma sessão (ex.: staging e produção habilitados
+  // ao mesmo tempo, ou múltiplas réplicas), um processo que "perdia" a
+  // corrida do claimMetaMessage nunca atualizava sua cache local, validava a
+  // resposta seguinte do paciente contra um input antigo e ficava travado
+  // repetindo a pergunta errada indefinidamente. currentSession (recarregada
+  // do banco no início de processInbound) é agora a única fonte de verdade.
 
   async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
@@ -477,23 +485,19 @@ function createTypebotWhatsAppBridge(deps = {}) {
 
       if (routing?.action === 'typebot_clean' && currentSession?.id) {
         currentSession = await resetTypebotSession({ sessionId: currentSession.id }) || currentSession;
-        expectedInputs.set(identityKey, null);
       }
 
       const existingSessionId = routing?.action === 'typebot_clean'
         ? null
         : (currentSession?.typebot_session_id || null);
-      let expectedInputId = expectedInputs.has(identityKey)
-        ? expectedInputs.get(identityKey)
-        : currentSession?.metadata?.typebot_expected_input_id || null;
+      const expectedInputId = currentSession?.metadata?.typebot_expected_input_id || null;
       const uploadContextBeforeChat = uploadContextFromSession(
         currentSession,
         await findUploadContext(identity?.phone)
       );
       let inboundText = String(text || '');
 
-      const atUploadChoiceStage = isUploadChoiceInput(expectedInputId)
-        || isUploadChoiceInput(currentSession?.metadata?.typebot_expected_input_id);
+      const atUploadChoiceStage = isUploadChoiceInput(expectedInputId);
       if (uploadContextBeforeChat && atUploadChoiceStage) {
         const uploadStatus = await getUploadStatus(uploadContextBeforeChat.token);
         if (uploadStatus.upload_completed) {
@@ -589,7 +593,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
       if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
       const nextInputId = typebot.input?.id || null;
-      expectedInputs.set(identityKey, nextInputId);
       await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
       // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
       logger.info('typebot_bridge_response_diagnostic', {
@@ -733,7 +736,6 @@ function createTypebotWhatsAppBridge(deps = {}) {
         });
         if (supportChoice?.action === 'clear_session' && currentSession?.id) {
           await resetTypebotSession({ sessionId: currentSession.id });
-          expectedInputs.set(identityKey, null);
           await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: null });
         }
       } catch (error) {
