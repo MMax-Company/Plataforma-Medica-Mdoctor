@@ -194,7 +194,8 @@ const TYPEBOT_METADATA_KEYS = [
   'typebot_expected_input_id',
   'typebot_payment',
   'typebot_prescription_upload',
-  'whatsapp_menu_state'
+  'whatsapp_menu_state',
+  'post_delivery_support_available'
 ];
 
 async function clearTypebotSession({ sessionId, metadataPatch = {} }) {

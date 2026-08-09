@@ -144,6 +144,21 @@ async function recordJourneyCompletedAt(attendanceId, timestamp) {
 }
 
 async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, correlationId = 'post-delivery-survey' }) {
+  // Atalho "digite 3 para falar com o suporte" (texto fixo da mensagem de
+  // entrega em delivery.service.js) precisa funcionar mesmo com a pesquisa
+  // opcional desativada — por isso é gravado sempre, antes do gate de
+  // isSurveyEnabled() abaixo. Consultado em whatsapp-support.service.js
+  // (resolveMetaInboundRouting) e limpo automaticamente em qualquer reset de
+  // sessão do Typebot (ver TYPEBOT_METADATA_KEYS).
+  const shortcutDigits = normalizePhone(phone);
+  if (shortcutDigits) {
+    try {
+      await upsertSessionMetadata({ phone: shortcutDigits, metadataPatch: { post_delivery_support_available: true } });
+    } catch (e) {
+      logger.warn('post_delivery_support_shortcut_persist_failed', { error: e.message });
+    }
+  }
+
   if (!isSurveyEnabled()) {
     return { skipped: true, reason: 'survey_disabled' };
   }

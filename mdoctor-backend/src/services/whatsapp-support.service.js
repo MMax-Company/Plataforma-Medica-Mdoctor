@@ -4,7 +4,7 @@ const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
-const { clearSurveySession, getActiveSurveySession, getSessionByPhone, clearTypebotSession } = require('../store/whatsapp-sessions.store');
+const { clearSurveySession, getActiveSurveySession, getSessionByPhone, clearTypebotSession, upsertSessionMetadata } = require('../store/whatsapp-sessions.store');
 const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
@@ -24,6 +24,16 @@ const MENU_CTA = {
   displayText: 'Leia as orientações',
   url: WELCOME_ORIENTATION_PDF_URL
 };
+
+// Estado explícito "aguardando escolha do menu inicial" — gravado na sessão
+// quando o menu (1/2) é apresentado por uma saudação, e consultado ANTES da
+// checagem de fluxo Typebot ativo. Sem isso, uma sessão Typebot antiga
+// parada em qualquer input (não só o inicial) sequestrava "1"/"2" como
+// resposta ao Typebot em vez de comando de menu (incidente 09/08/2026 —
+// sessão presa em "e-mail" fazia "1" cair na pergunta de e-mail em vez de
+// reiniciar o atendimento). Fora deste estado, 1/2/3 continuam pertencendo
+// ao Typebot normalmente quando há fluxo ativo — não é uma regra global.
+const MENU_STATE_AWAITING_CHOICE = 'awaiting_menu_choice';
 
 const SUPPORT_WAITING_TEXT =
   'Seu atendimento foi encaminhado para o suporte.\n\nAguarde. Nossa equipe responderá assim que possível.\n\nPara encerrar o suporte, envie 0 ou ENCERRAR.';
@@ -552,6 +562,11 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     } catch (e) {
       logger.warn('meta_inbound_greeting_survey_clear_failed', { error: e.message });
     }
+    try {
+      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: MENU_STATE_AWAITING_CHOICE } });
+    } catch (e) {
+      logger.warn('meta_inbound_menu_state_persist_failed', { error: e.message });
+    }
     return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
   }
 
@@ -637,6 +652,44 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     activeFlow: diagActiveFlow,
     textMasked: maskDiagnosticText(text)
   });
+
+  // Estado explícito "aguardando escolha do menu inicial" (gravado quando a
+  // saudação apresentou o menu, ver isGreetingText acima) tem prioridade
+  // sobre qualquer sessão Typebot ativa/antiga — ao contrário de
+  // stuckAtWelcomeChoice (abaixo), cobre a sessão estar presa em QUALQUER
+  // input, não só o inicial. Resolve o incidente 09/08/2026: sessão antiga
+  // presa em "e-mail" + "oi" + "1" agora reinicia o Typebot corretamente, em
+  // vez de "1" cair como resposta à pergunta de e-mail.
+  if (diagSession?.metadata?.whatsapp_menu_state === MENU_STATE_AWAITING_CHOICE) {
+    if (textNorm === '1') {
+      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
+        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
+      });
+      return { handled: true, action: 'typebot_clean' };
+    }
+    if (textNorm === '2') {
+      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
+        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
+      });
+      const result = await createWhatsAppSupportEntry({ phone });
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+    // Escolha inválida: mantém o estado de menu ativo e reapresenta o menu,
+    // sem tocar na sessão Typebot (mesmo comportamento do fallback padrão).
+    return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
+  }
+
+  // Atalho "digite 3 para falar com o suporte" da mensagem de entrega da
+  // receita (delivery.service.js) — funciona independente da pesquisa
+  // opcional pós-atendimento (post-delivery-survey.service.js) estar
+  // habilitada ou não. O marcador é gravado por triggerPostDeliverySurvey
+  // sempre que uma receita é entregue via WhatsApp, e removido junto com o
+  // resto do estado do Typebot em qualquer reset de sessão (ver
+  // TYPEBOT_METADATA_KEYS em whatsapp-sessions.store.js).
+  if (textNorm === '3' && diagSession?.metadata?.post_delivery_support_available) {
+    const result = await createWhatsAppSupportEntry({ phone });
+    return { handled: true, action: 'reply', reply: result.reply };
+  }
 
   // Sessão obsoleta parada exatamente no início do fluxo ("Vamos começar"):
   // "1"/"2" aqui não podem virar resposta ao choice input via continueChat
@@ -774,6 +827,7 @@ module.exports = {
   SUPPORT_SUB,
   MENU_TEXT,
   MENU_CTA,
+  MENU_STATE_AWAITING_CHOICE,
   WELCOME_ORIENTATION_PDF_URL,
   SUPPORT_WAITING_TEXT,
   SUPPORT_CLOSED_TEXT,
