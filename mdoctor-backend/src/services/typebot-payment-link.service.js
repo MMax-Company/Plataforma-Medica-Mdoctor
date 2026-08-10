@@ -15,8 +15,7 @@ const {
   PAYMENT_METHOD_TYPES,
   PAYMENT_PENDING_CHOICES,
   PAYMENT_PENDING_MESSAGE,
-  PIX_EXPIRES_AFTER_SECONDS,
-  PRE_PAYMENT_MESSAGE
+  PIX_EXPIRES_AFTER_SECONDS
 } = require('./typebot-payment.constants');
 
 const TOKEN_TTL_MS = Number(process.env.TYPEBOT_PAYMENT_LINK_TTL_MS || 24 * 60 * 60 * 1000);
@@ -534,13 +533,19 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
   return providerMessageIds;
 }
 
+// O texto introdutório (valor, condições, aviso de continuidade automática)
+// já é enviado pelo próprio Typebot como bolha normal (grupo "Pagamento",
+// blk_pay_intro — texto idêntico a PRE_PAYMENT_MESSAGE) antes desta função
+// ser chamada. Reenviá-lo aqui duplicava a mensagem para o paciente
+// (achado real 09/08/2026). Só o botão CTA é exclusivo do Backend, porque
+// o Typebot não tem como renderizar nativamente um link de pagamento no
+// WhatsApp.
 async function sendPaymentIntro({ session, checkoutRedirectUrl, correlationId, provider = metaProvider, idempotencyPrefix = correlationId }) {
   return sendTypebotOutputs({
     session,
     correlationId,
     provider,
     outputs: [
-      { kind: 'text', text: PRE_PAYMENT_MESSAGE },
       {
         kind: 'cta_url',
         body: 'Toque no botão abaixo para concluir o pagamento com segurança.',

@@ -472,10 +472,11 @@ async function resumeTypebotAfterPrescriptionUpload({ token, atendimentoId, corr
   }
 }
 
-// Confirmação oficial do Backend, enviada uma única vez (idempotencyKey
-// estável por atendimento) assim que a receita é validada e vinculada. O
-// Typebot retomado logo em seguida já informa a entrada na fila médica —
-// evita repetir a mesma informação em duas mensagens seguidas.
+// NÃO chamada automaticamente por ingestWhatsAppPrescriptionMedia — o grupo
+// "Receita recebida" do próprio Typebot (retomado logo em seguida) já cobre
+// esse texto por completo. Chamar as duas duplicava a confirmação para o
+// paciente (achado real 09/08/2026). Mantida/exportada apenas para reuso
+// pontual fora desse fluxo automático, se necessário.
 async function sendPostUploadConfirmation({ session, atendimentoId, correlationId, provider }) {
   const common = { to: session.phone, bsuid: session.bsuid, correlationId };
   await provider.sendTextMessage({ ...common, idempotencyKey: `prescription-received:${atendimentoId}`, text: PRESCRIPTION_RECEIVED_MESSAGE });
@@ -515,7 +516,6 @@ async function ingestWhatsAppPrescriptionMedia({
   const getAtend = deps.getAtendimento || getAtendimento;
   const completeUpload = deps.completeExternalPrescriptionUpload || completeExternalPrescriptionUpload;
   const persist = deps.persistUploadContext || persistUploadContext;
-  const sendConfirmation = deps.sendPostUploadConfirmation || sendPostUploadConfirmation;
   const hasStored = deps.hasStoredPreviousPrescription || hasStoredPreviousPrescription;
   const isPaymentConfirmed = deps.isPaymentConfirmedForUpload || isPaymentConfirmedForUpload;
   const resumeTypebot = deps.resumeTypebotAfterPrescriptionUpload || resumeTypebotAfterPrescriptionUpload;
@@ -574,7 +574,11 @@ async function ingestWhatsAppPrescriptionMedia({
   });
 
   const atendimentoId = uploadResult.atendimento?.id || uploadContext.atendimentoId;
-  await sendConfirmation({ session: whatsappSession, atendimentoId, correlationId: messageId, provider });
+  // A confirmação de recebimento não é mais enviada separadamente pelo
+  // Backend: o grupo "Receita recebida" do próprio Typebot (retomado logo
+  // abaixo) já começa com a mesma frase ("✅ Recebemos sua receita médica
+  // com sucesso.") seguida da informação de fila médica — enviar as duas
+  // duplicava a mensagem para o paciente (achado real 09/08/2026).
 
   // Retoma o Typebot automaticamente — sem depender do paciente clicar em
   // "Conferir novamente"/"Já enviei a receita". Reaproveita o mesmo mecanismo

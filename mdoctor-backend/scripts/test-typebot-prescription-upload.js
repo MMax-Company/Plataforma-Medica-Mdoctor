@@ -160,13 +160,13 @@ async function main() {
     assert.equal(result.duplicate, undefined);
     assert.equal(downloadCalls, 1);
     assert.equal(uploadCalls, 1);
-    // Só a confirmação de recebimento -- o Typebot retomado em seguida já
-    // informa a entrada na fila médica (grupo final do fluxo oficial), sem
-    // repetir a mesma informação numa segunda mensagem do Backend.
-    assert.equal(sentMessages.length, 1, 'só a confirmação exata de recebimento, uma única vez');
-    assert.equal(sentMessages[0].text, PRESCRIPTION_RECEIVED_MESSAGE);
-    assert.equal(sentMessages[0].text, '✅ Recebemos sua receita médica com sucesso.');
-    assert.equal(sentMessages[0].idempotencyKey, 'prescription-received:at-3');
+    // Achado real 09/08/2026: o Backend NÃO envia mais confirmação própria
+    // aqui -- o grupo "Receita recebida" do Typebot (retomado logo em
+    // seguida) já começa com PRESCRIPTION_RECEIVED_MESSAGE por completo,
+    // seguido da informação de fila médica. Enviar as duas duplicava a
+    // mensagem para o paciente.
+    assert.equal(sentMessages.length, 0, 'nenhuma mensagem própria do Backend -- só o Typebot retomado confirma o recebimento');
+    assert.equal(typeof PRESCRIPTION_RECEIVED_MESSAGE, 'string', 'constante preservada para reuso pontual, mesmo sem uso automático aqui');
     results.confirmacaoUnicaSemMensagemDuplicada = 'ok';
 
     assert.equal(resumeCalls.length, 1, 'retoma o Typebot automaticamente, sem depender de clique do paciente');
@@ -203,8 +203,7 @@ async function main() {
       }
     });
     assert.equal(result.handled, true, 'a mídia continua vinculada mesmo se a retomada automática falhar');
-    assert.equal(sentMessages.length, 1, 'a confirmação já enviada não é afetada pela falha da retomada');
-    assert.equal(sentMessages[0].text, '✅ Recebemos sua receita médica com sucesso.');
+    assert.equal(sentMessages.length, 0, 'sem confirmação própria do Backend; a falha é só na retomada (best-effort) do Typebot');
     results.falhaNaRetomadaNaoDerrubaIngestao = 'ok';
   }
 
