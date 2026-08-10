@@ -18,6 +18,7 @@ const {
 const { PAYMENT_AMOUNT_CENTS, PAYMENT_AMOUNT_LABEL } = require('../services/typebot-payment.constants');
 const { createAuditLog } = require('../store/audit.store');
 const { QUEUE_TYPE_MEDICAL_SUPPORT, isSupportQueue } = require('../constants/whatsapp-queue');
+const { notifyAdminAlert } = require('../services/admin-alert.service');
 
 const router = express.Router();
 
@@ -772,6 +773,11 @@ router.post(
         actor: req.user?.name || req.user?.username || 'admin',
         payload: { atendimento_id: req.params.id, motivo: String(motivo).trim() },
       });
+
+      // Alerta interno paralelo: só quando o encaminhamento efetivamente
+      // aconteceu (guards acima já impedem duplicidade). Nunca deve
+      // interferir no fluxo principal (ver admin-alert.service.js).
+      notifyAdminAlert({ type: 'medical_support_queue', id: req.params.id });
 
       res.json({ success: true, atendimento: updated });
     } catch (err) {

@@ -2,6 +2,7 @@ const { STATUS, createAtendimento, listAtendimentos, getAtendimento, updateAtend
 const { createAuditLog } = require('../store/audit.store');
 const { recordSupportTicket } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
+const { notifyAdminAlert } = require('./admin-alert.service');
 const logger = require('../config/logger');
 const { handleSurveyInbound } = require('./post-delivery-survey.service');
 const { clearSurveySession, getActiveSurveySession, getSessionByPhone, clearTypebotSession, upsertSessionMetadata } = require('../store/whatsapp-sessions.store');
@@ -141,6 +142,11 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
       atendimento_id: atendimento.id
     }
   });
+
+  // Alerta interno paralelo: só no ramo que não é duplicado (guard acima já
+  // garante um ticket aberto por telefone). Nunca deve interferir no fluxo
+  // principal (ver admin-alert.service.js).
+  notifyAdminAlert({ type: 'support_queue', id: atendimento.id });
 
   return {
     duplicate: false,

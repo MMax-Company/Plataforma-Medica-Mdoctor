@@ -25,6 +25,7 @@ const {
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
 const { persistTriagemFlow } = require('./clinical-persistence.service');
+const { notifyAdminAlert } = require('./admin-alert.service');
 const { persistUploadContext, buildUploadStatusUrl } = require('./typebot-prescription-upload.service');
 const {
   validateNestedTriagemPayload,
@@ -351,6 +352,12 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
   if (patient?.id && atendimento?.id) {
     await linkPatientToAppointment(atendimento.id, patient.id);
     atendimento.patient_id = patient.id;
+  }
+
+  // Alerta interno paralelo: só quando o atendimento efetivamente entrou na
+  // fila médica. Nunca deve interferir no fluxo principal (ver admin-alert.service.js).
+  if (atendimentoStatus === STATUS.WAITING && atendimento?.id) {
+    notifyAdminAlert({ type: 'medical_queue', id: atendimento.id });
   }
 
   if (nativePayment?.paymentRowId && atendimento?.id) {
