@@ -14,14 +14,6 @@ export type SupportQueueItem = {
   medical_support_reason?: string | null;
 };
 
-function whatsappUrl(phone?: string) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${withCountry}`;
-}
-
 function minutesWaiting(items: SupportQueueItem[]) {
   if (!items.length) return '—';
   const oldest = items
@@ -105,8 +97,13 @@ export function MedicalSupportBand({
       // best-effort
     }
     onQueueRefresh?.();
-    const url = whatsappUrl(patient.paciente_telefone);
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    if (patient.paciente_telefone) {
+      const params = new URLSearchParams({
+        telefone: patient.paciente_telefone,
+        nome: patient.paciente_nome || '',
+      });
+      window.open(`/suporte/contato?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    }
   }
 
   async function handleFinalize(patient: SupportQueueItem) {
