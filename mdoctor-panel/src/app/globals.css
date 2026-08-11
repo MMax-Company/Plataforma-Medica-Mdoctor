@@ -4006,3 +4006,222 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     max-width: 100%;
   }
 }
+
+/* OPPO A6x 5G — Chrome Android em orientação vertical (~360 CSS px).
+   Ajustes telefônicos isolados; desktop e tablet permanecem inalterados. */
+@media (max-width: 480px) {
+  .fila-page-dense,
+  .fila-page-dense main,
+  .fila-page-dense .panel-header__shell,
+  .fila-page-dense .panel-header__right-group,
+  .fila-page-dense .panel-header__ops,
+  .fila-page-dense .panel-page-body,
+  .fila-page-dense .panel-support-band,
+  .fila-page-dense .dp-fila-grid,
+  .fila-page-dense .dp-fila-column {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .fila-page-dense {
+    min-height: 100svh;
+  }
+
+  .fila-page-dense main {
+    width: 100%;
+    min-height: 100svh;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 108px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    font-size: 21px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: 100%;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    width: 100%;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__profile-text {
+    max-width: 72px;
+  }
+
+  .fila-page-dense .panel-support-band,
+  .fila-page-dense .dp-fila-column,
+  .fila-page-dense .dp-patient-card {
+    width: 100%;
+  }
+
+  .admin-dashboard {
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .admin-dashboard .panel-header--operational {
+    height: auto;
+    min-height: 0;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__shell {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      "brand title"
+      "controls controls";
+    height: auto;
+    row-gap: 7px;
+    padding: 8px 10px 10px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--brand {
+    grid-area: brand;
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__brand {
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__logo {
+    width: 108px;
+    max-width: 100%;
+    transform: none;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--center {
+    grid-area: title;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__title {
+    font-size: 21px;
+    line-height: 0.98;
+    white-space: normal;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--ops {
+    grid-area: controls;
+    width: 100%;
+    min-width: 0;
+    transform: none;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__right-group {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 7px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__prontuario {
+    justify-self: center;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__ops {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__profile-text {
+    max-width: 72px;
+  }
+
+  .admin-dashboard__content {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .admin-dashboard__summary,
+  .admin-dashboard__finance,
+  .admin-dashboard__time,
+  .admin-dashboard__journey {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-dashboard .panel-support-band {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__grid {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    row-gap: 8px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro,
+  .admin-dashboard .panel-support-band .panel-support-band__metrics,
+  .admin-dashboard .panel-support-band .panel-support-band__queue {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 0 8px;
+    border-right: 0;
+    border-bottom: 1px solid #efd7b6;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue {
+    align-items: flex-start;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro > div:first-child {
+    width: 38px;
+    height: 38px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro h2 {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro p,
+  .admin-dashboard .panel-support-band .panel-support-band__metrics p {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue > div {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue > p {
+    width: 100%;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-dashboard__journey > section,
+  .admin-dashboard__journey > section > div:last-child {
+    min-width: 0;
+  }
+}
