@@ -3775,3 +3775,234 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     min-height: 70px;
   }
 }
+
+/* Painel Médico responsivo — isolado da composição desktop aprovada. */
+@media (max-width: 1023px) {
+  .fila-page-dense {
+    min-height: 100dvh;
+    align-items: flex-start;
+  }
+
+  .fila-page-dense main {
+    min-height: 100dvh;
+    max-width: 100%;
+    flex: 0 0 auto;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .fila-page-dense .panel-header--operational {
+    height: auto;
+    min-height: 0;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "brand title"
+      "controls controls";
+    align-items: center;
+    row-gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--brand {
+    grid-area: brand;
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__brand {
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 140px;
+    max-width: 100%;
+    transform: none;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--center {
+    grid-area: title;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    padding-top: 0;
+    font-size: 28px;
+    line-height: 1;
+    white-space: normal;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--ops {
+    grid-area: controls;
+    width: 100%;
+    transform: none;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-support-band {
+    height: auto;
+    min-height: 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: auto;
+    row-gap: 10px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    grid-column: 1 / -1;
+    height: auto;
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: 0;
+    border-bottom-width: 1px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro h2,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p {
+    white-space: normal;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    height: auto;
+    min-height: 54px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics {
+    padding-left: 0;
+    padding-right: 14px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    align-items: flex-start;
+    padding-left: 14px;
+    overflow: visible;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > p {
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .fila-page-dense .panel-page-body {
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    flex: 0 0 auto;
+  }
+
+  .fila-page-dense .dp-fila-column {
+    height: auto;
+    min-height: 240px;
+    align-self: start;
+  }
+
+  .fila-page-dense .dp-fila-column__scroll {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+
+  .fila-page-dense .dp-patient-card {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    row-gap: 7px;
+    padding: 8px 10px 10px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 118px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    font-size: 23px;
+    line-height: 0.95;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 7px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__prontuario {
+    justify-self: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-support-band {
+    padding: 10px 12px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    grid-column: auto;
+    padding-bottom: 8px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    min-height: 0;
+    padding: 0 0 8px;
+    border-right: 0;
+    border-bottom-width: 1px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > div {
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-page-body {
+    padding: 8px 10px 12px;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .fila-page-dense .dp-fila-column {
+    width: 100%;
+    min-height: 220px;
+  }
+
+  .fila-page-dense .dp-action-slot {
+    width: auto;
+    max-width: 100%;
+  }
+}
