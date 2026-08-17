@@ -67,8 +67,7 @@ body {
     --lr-left-max-w: 414px;
     --lr-features-max-w: 377px;
     --lr-form-w: 365px;
-    --lr-form-h: 452px;
-    --lr-form-h-compact: 403px;
+    --lr-form-min-h: 500px;
     --lr-form-accent-h: 4.5px;
     --lr-form-px: 2.0625rem;
     --lr-form-py: 1.625rem;
@@ -93,14 +92,17 @@ body {
     --lr-main-px: 4.5rem;
     --lr-main-pt: 1.75rem;
     --lr-main-pb: 0.625rem;
-    --lr-footer-bottom: 1.625rem;
     --lr-right-nudge: 22px;
-    @apply flex h-full min-h-0 flex-col;
-    padding-bottom: 0.75rem;
+    @apply flex min-h-[100dvh] flex-col;
+  }
+
+  body:has(.staging-audit-spacer) .login-replica-shell,
+  body:has(.staging-audit-spacer) .login-replica-root {
+    min-height: calc(100dvh - 1.75rem);
   }
 
   .login-replica-main {
-    @apply min-h-0 flex-1 items-center;
+    @apply flex-1 items-center;
     display: grid;
     grid-template-columns: 1fr 0.92fr;
     column-gap: var(--lr-col-gap);
@@ -108,12 +110,10 @@ body {
     padding-bottom: var(--lr-main-pb);
     padding-left: var(--lr-main-px);
     padding-right: var(--lr-main-px);
-    transform: translateY(-0.5625rem);
   }
 
   .login-replica-left {
-    @apply flex min-h-0 flex-col items-center justify-center pr-4;
-    transform: translateY(-1.5rem);
+    @apply flex flex-col items-center justify-center pr-4;
   }
 
   .login-replica-left-inner {
@@ -122,7 +122,7 @@ body {
   }
 
   .login-replica-right {
-    @apply flex min-h-0 items-center justify-center;
+    @apply flex items-center justify-center;
     margin-left: calc(-1cm - var(--lr-right-nudge));
   }
 
@@ -166,8 +166,7 @@ body {
   .login-replica-form {
     width: var(--lr-form-w);
     max-width: 100%;
-    height: var(--lr-form-h);
-    max-height: min(var(--lr-form-h), calc(100dvh - 8.25rem));
+    min-height: var(--lr-form-min-h);
     padding-left: var(--lr-form-px);
     padding-right: var(--lr-form-px);
     padding-top: var(--lr-form-py);
@@ -196,7 +195,7 @@ body {
   }
 
   .login-replica-form-fields {
-    gap: 0.875rem;
+    gap: 1rem;
   }
 
   .login-replica-input {
@@ -204,7 +203,9 @@ body {
   }
 
   .login-replica-submit {
+    flex-shrink: 0;
     height: var(--lr-submit-h);
+    margin-top: 0.25rem;
   }
 
   .login-replica-submit-icon {
@@ -213,20 +214,15 @@ body {
   }
 
   .login-replica-footer {
-    bottom: var(--lr-footer-bottom);
-    padding-left: 2.5rem;
-    padding-right: 2.5rem;
+    flex-shrink: 0;
+    padding: 0.875rem 2.5rem 1.25rem;
     font-size: 12px;
     line-height: 1.55;
     letter-spacing: 0.025em;
-    color: #6a7788;
+    color: #475569;
   }
 
   @media (max-height: 760px) {
-    .login-replica-root {
-      --lr-form-h: var(--lr-form-h-compact);
-    }
-
     .login-replica-logo {
       max-height: var(--lr-logo-max-h-compact);
     }
@@ -249,8 +245,6 @@ body {
     }
 
     .login-replica-form {
-      height: var(--lr-form-h-compact);
-      max-height: min(var(--lr-form-h-compact), calc(100dvh - 8.5rem));
       padding-top: 1.25rem;
       padding-bottom: 1.25rem;
     }
@@ -271,7 +265,46 @@ body {
     }
 
     .login-replica-form-fields {
-      gap: 0.6875rem;
+      gap: 0.875rem;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .login-replica-main {
+      grid-template-columns: 1fr;
+      padding: 2rem 1.25rem 1rem;
+    }
+
+    .login-replica-left {
+      display: none;
+    }
+
+    .login-replica-right {
+      margin-left: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .login-replica-main {
+      align-items: start;
+      padding: 1rem 0.75rem 0.75rem;
+    }
+
+    .login-replica-form {
+      --lr-form-px: 1.25rem;
+      width: 100%;
+      min-height: 0;
+      border-radius: 20px;
+    }
+
+    .login-replica-form-options {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .login-replica-footer {
+      padding: 0.75rem 1rem 1rem;
     }
   }
 

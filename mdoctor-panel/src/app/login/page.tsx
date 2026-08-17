@@ -94,7 +94,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-replica-root relative mx-auto w-full max-w-[1366px] overflow-hidden bg-[#EEF2F7] text-[#172B4D]">
+    <div className="login-replica-root relative mx-auto w-full max-w-[1366px] bg-[#EEF2F7] text-[#172B4D]">
       <main className="login-replica-main relative z-10">
         <section className="login-replica-left">
           <div className="login-replica-left-inner">
@@ -206,7 +206,7 @@ export default function LoginPage() {
                 </div>
               </label>
 
-              <div className="flex items-center justify-between gap-4 text-[13px]">
+              <div className="login-replica-form-options flex items-center justify-between gap-4 text-[13px]">
                 <label className="flex cursor-pointer items-center gap-2.5 font-medium text-[#475569]">
                   <input
                     checked={remember}
@@ -240,8 +240,8 @@ export default function LoginPage() {
         </section>
       </main>
 
-      <footer className="login-replica-footer absolute inset-x-0 z-20 text-center">
-        Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © 2025 Todos os
+      <footer className="login-replica-footer text-center">
+        Doctor Prescreve — Plataforma de Prescrição Médica | CNPJ: 50.871.173/0001-53 | © {new Date().getFullYear()} Todos os
         direitos reservados.
       </footer>
     </div>
