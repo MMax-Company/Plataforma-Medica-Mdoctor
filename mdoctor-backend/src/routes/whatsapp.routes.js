@@ -369,6 +369,13 @@ router.post('/webhook', async (req, res) => {
                     }
                   }
 
+                  logger.info('whatsapp_inbound_extract_observability', {
+                    messageId: msg.id,
+                    messageType: msg.type,
+                    extractedText: String(text || '').length <= 40 ? String(text || '') : `[REDACTED ${String(text || '').length} chars]`,
+                    extractedFromTextBody: msg.type === 'text' && Boolean(msg.text)
+                  });
+
                   if (!identity.hasIdentifier || (!text && !mediaPayload)) {
                     logger.warn('whatsapp_business_message_skipped', {
                       messageId: msg.id,

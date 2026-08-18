@@ -434,10 +434,20 @@ function createTypebotWhatsAppBridge(deps = {}) {
     const config = getConfig();
     try {
       let currentSession = await reloadSession({ identity, whatsappSession });
+      const previousMenuState = currentSession?.metadata?.whatsapp_menu_state || null;
       const routing = await routeInbound({
         phone: identity?.phone,
         text,
-        session: currentSession
+        session: currentSession,
+        messageId
+      });
+      logger.info('whatsapp_inbound_route_observability', {
+        messageId,
+        previousMenuState,
+        handled: Boolean(routing?.handled),
+        routeAction: routing?.action || null,
+        typebotCleanSelected: routing?.action === 'typebot_clean',
+        willCallTypebot: routing?.action === 'typebot_clean' || routing?.action === 'typebot' || !routing?.handled
       });
 
       if (routing?.handled && routing.action === 'reply' && routing.reply) {
@@ -459,6 +469,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
               text: routing.reply
             });
         const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+        logger.info('whatsapp_inbound_reply_observability', {
+          messageId,
+          routeAction: routing.action,
+          responsesSent: providerMessageIds.length,
+          providerMessageIds
+        });
         await finish({ messageId, status: 'processed', providerMessageIds });
         return {
           duplicate: false,
@@ -762,6 +778,16 @@ function createTypebotWhatsAppBridge(deps = {}) {
       }
 
       await finish({ messageId, status: 'processed', providerMessageIds });
+      logger.info('whatsapp_typebot_flow_observability', {
+        messageId,
+        callPath: existingSessionId ? 'continueChat' : 'startChat',
+        typebotSessionCreated: !existingSessionId && Boolean(sessionId),
+        sessionId,
+        nextInputId,
+        responseMessageTypes: (typebot.messages || []).map((item) => item.type),
+        responsesSent: providerMessageIds.length,
+        providerMessageIds
+      });
       return {
         duplicate: false,
         responsesSent: providerMessageIds.length,
