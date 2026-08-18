@@ -399,12 +399,6 @@ async function handleRejectionResponse({ phone, text }) {
       action: 'rejection_closed_by_patient', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
-    try {
-      const { sendWhatsAppText } = require('../delivery/delivery.service');
-      await sendWhatsAppText({ to: digits, text: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.' });
-    } catch (e) {
-      logger.warn('rejection_close_send_failed', { id: match.id, error: e.message });
-    }
     return { handled: true, reply: 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.' };
   }
 
@@ -592,15 +586,6 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
     logger.warn('meta_inbound_survey_check_failed', { error: e.message });
   }
 
-  try {
-    const rejResult = await handleRejectionResponse({ phone, text });
-    if (rejResult.handled) {
-      return { handled: true, action: 'reply', reply: rejResult.reply };
-    }
-  } catch (e) {
-    logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
-  }
-
   // Estado do ticket de suporte (se houver) tem prioridade ABSOLUTA sobre
   // qualquer atalho/artefato de sessão do Typebot (stuckAtWelcomeChoice e
   // isActiveTypebotFlow, mais abaixo). Causa raiz do bug de roteamento
@@ -717,6 +702,15 @@ async function resolveMetaInboundRouting({ phone, text, session = null }) {
 
   if (diagActiveFlow && !diagGreeting) {
     return { handled: false, action: 'typebot' };
+  }
+
+  try {
+    const rejResult = await handleRejectionResponse({ phone, text });
+    if (rejResult.handled) {
+      return { handled: true, action: 'reply', reply: rejResult.reply };
+    }
+  } catch (e) {
+    logger.warn('meta_inbound_rejection_check_failed', { error: e.message });
   }
 
   if (textNorm === '1') {

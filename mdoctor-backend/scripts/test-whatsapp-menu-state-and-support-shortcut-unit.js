@@ -22,16 +22,21 @@ function stub(relativePath, exports) {
 const base = path.join(__dirname, '..', 'src', 'services', 'whatsapp-support.service.js');
 const resolveFrom = (p) => path.join(path.dirname(base), p);
 
+let atendimentos = [];
+let directDeliveryCalls = 0;
 stub(resolveFrom('../store/atendimentos.store'), {
-  STATUS: { WAITING: 'waiting', EM_ATENDIMENTO: 'em_atendimento' },
+  STATUS: { WAITING: 'waiting', EM_ATENDIMENTO: 'em_atendimento', REJECTED: 'rejected' },
   createAtendimento: async (row) => ({ id: 'atd-mock', ...row }),
-  listAtendimentos: async () => [],
+  listAtendimentos: async () => atendimentos,
   getAtendimento: async () => null,
   updateAtendimentoStatus: async () => ({})
 });
 stub(resolveFrom('../store/audit.store'), { createAuditLog: async () => {} });
 stub(resolveFrom('./clinical-persistence.service'), { recordSupportTicket: async () => {} });
 stub(resolveFrom('./post-delivery-survey.service'), { handleSurveyInbound: async () => ({ handled: false }) });
+stub(resolveFrom('../delivery/delivery.service'), {
+  sendWhatsAppText: async () => { directDeliveryCalls += 1; }
+});
 
 // Sessões em memória, com o MESMO contrato do store real
 // (whatsapp-sessions.store.js): getSessionByPhone lê, upsertSessionMetadata
@@ -95,6 +100,43 @@ async function main() {
     'estado de menu deve ser limpo depois da escolha'
   );
   results.opcao1ReiniciaSessaoAntigaPresaEmEmail = 'ok';
+
+  // Atendimento rejeitado antigo não pode sequestrar a escolha explícita do
+  // menu inicial. O estado do menu continua tendo prioridade e inicia uma
+  // sessão clínica limpa.
+  atendimentos = [{
+    id: 'atd-rejeitado-antigo',
+    status: 'rejected',
+    paciente_telefone: phone1,
+    dados_clinicos: { rejection_sub_status: 'awaiting_response' }
+  }];
+  sessionsByPhone.set(phone1, {
+    id: 'sess-phone1',
+    typebot_session_id: null,
+    metadata: { whatsapp_menu_state: support.MENU_STATE_AWAITING_CHOICE }
+  });
+  const startWithOldRejection = await support.resolveMetaInboundRouting({
+    phone: phone1,
+    text: '1',
+    session: sessionsByPhone.get(phone1)
+  });
+  assert.equal(startWithOldRejection.action, 'typebot_clean');
+  assert.equal(startWithOldRejection.reply, undefined);
+  results.rejeicaoAntigaNaoSequestraOpcao1DoMenu = 'ok';
+
+  // Sem menu ou fluxo clínico ativo, a rejeição realmente pendente mantém o
+  // comportamento anterior. O serviço apenas retorna a resposta; o bridge é
+  // o único responsável por enviá-la ao WhatsApp.
+  const pendingRejection = await support.resolveMetaInboundRouting({
+    phone: phone1,
+    text: '1',
+    session: { id: 'sess-phone1', typebot_session_id: null, metadata: {} }
+  });
+  assert.equal(pendingRejection.action, 'reply');
+  assert.equal(pendingRejection.reply, 'Atendimento encerrado. Obrigado pelo contato com o Doctor Prescreve! Até logo.');
+  assert.equal(directDeliveryCalls, 0, 'handleRejectionResponse não deve enviar diretamente');
+  results.rejeicaoPendenteRetornaRespostaSemEnvioDuplicado = 'ok';
+  atendimentos = [];
 
   // ── Caso 1b: opção "2" com estado de menu ativo vai para suporte e limpa o estado ──
   const phone2 = '5511985480002';
