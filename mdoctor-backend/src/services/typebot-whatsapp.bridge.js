@@ -114,6 +114,16 @@ const QUESTION_MERGE_INPUT_IDS = new Set([
   'r0imrcgaiv1idzkykt891q4u', 'blk_receita_choice', 'w97ho902ina4lg7b6dn0sycw', 'blk_yyroio7i', 'blk_nggi0xs0'
 ]);
 
+// A Meta limita o corpo de botões/listas interativas a 1.024 caracteres.
+// Quando uma pergunta mesclável cresce além desse limite (ex.: declaração
+// clínica detalhada), o texto completo deve continuar como mensagem separada
+// e só a confirmação vira o corpo curto dos botões. Isso evita truncamento
+// silencioso sem alterar perguntas que ainda cabem em uma única mensagem.
+const INTERACTIVE_BODY_MAX_LENGTH = 1024;
+const LONG_CHOICE_CONFIRMATION_BODIES = {
+  w9v6g0rlkucnfmxc3qh2a2qt: 'Você confirma que atende a todos os critérios acima?'
+};
+
 function richTextContainsLink(nodes = []) {
   for (const item of nodes || []) {
     if (item?.type === 'a') return true;
@@ -216,8 +226,12 @@ function convertTypebotResponse(response = {}) {
     if (QUESTION_MERGE_INPUT_IDS.has(input.id)) {
       const previous = outputs[outputs.length - 1];
       if (previous?.kind === 'text') {
-        body = previous.text;
-        outputs.pop();
+        if (previous.text.length <= INTERACTIVE_BODY_MAX_LENGTH) {
+          body = previous.text;
+          outputs.pop();
+        } else {
+          body = LONG_CHOICE_CONFIRMATION_BODIES[input.id] || body;
+        }
       }
     }
     outputs.push(choices.length <= 3
