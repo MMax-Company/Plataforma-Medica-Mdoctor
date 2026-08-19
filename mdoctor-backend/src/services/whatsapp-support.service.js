@@ -293,7 +293,12 @@ async function getPatientSupportContext(phone) {
     atendimento_id: match.id,
     status: match.status,
     support_sub_status: getSupportSubStatus(match),
-    opened_at: match.dados_clinicos?.opened_at || match.criado_em
+    opened_at: match.dados_clinicos?.opened_at || match.criado_em,
+    // Usado por resolveMetaInboundRouting para comparar freschura contra uma
+    // sessão Typebot clínica ativa (ver typebot_session_started_at) — quando
+    // um atendente começou a atender é o sinal mais forte de que o ticket
+    // ainda é atual/intencional, não residual.
+    support_started_at: match.dados_clinicos?.support_started_at || null
   };
 }
 
@@ -526,6 +531,14 @@ async function handleTypebotSupportChoice({ phone, expectedInputId, text, correl
 // mesma mensagem única (SUPPORT_CLOSED_TEXT) e sem anexar o menu na mesma
 // resposta — o menu volta a aparecer sozinho na PRÓXIMA mensagem do
 // paciente, já que o atendimento deixa de estar "aberto" (supportIsOpen).
+// Mesmos valores tratados especialmente dentro de handleSupportQueueInput
+// (abaixo) — usado por resolveMetaInboundRouting para decidir se uma
+// mensagem é um comando explícito de gestão do suporte (sempre pertence ao
+// suporte) antes de comparar freschura contra uma sessão Typebot ativa.
+const EXPLICIT_SUPPORT_COMMANDS = new Set([
+  'ENCERRAR', '0', '3', 'CHATBOT', 'INICIAR CHATBOT NOVAMENTE', '1', 'AGUARDAR', 'AGUARDAR ATENDIMENTO'
+]);
+
 async function handleSupportQueueInput({ phone, textNorm }) {
   if (textNorm === 'ENCERRAR' || textNorm === '0') {
     const result = await closeWhatsAppSupportEntry({ phone });
@@ -664,6 +677,41 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   }
 
   if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    // Comandos explícitos de gestão do suporte sempre pertencem ao suporte,
+    // não importa se existe uma sessão Typebot mais recente — são ações
+    // inequívocas do paciente sobre o próprio ticket (ver
+    // handleSupportQueueInput, mesmos valores aceitos ali).
+    const isExplicitSupportCommand = EXPLICIT_SUPPORT_COMMANDS.has(textNorm);
+
+    if (!isExplicitSupportCommand) {
+      // GAP corrigido em 19/08/2026: um ticket de suporte residual (aberto/
+      // atendido antes do início da sessão Typebot clínica ATUAL) não pode
+      // sequestrar respostas destinadas a essa sessão — ver
+      // docs/PROJECT_MEMORY.md seção 11. Comparamos qual dos dois é mais
+      // recente: ticket sem timestamp OU mais antigo que o início da sessão
+      // Typebot atual perde a prioridade (tratado como residual); ticket
+      // igual ou mais recente (suporte realmente atual/intencional) mantém a
+      // prioridade de sempre, sem nenhuma mudança de comportamento.
+      const activeFlow = isActiveTypebotFlow(diagSession);
+      const typebotStartedAt = diagSession?.metadata?.typebot_session_started_at || null;
+      const ticketFreshAt = ctx.support_started_at || ctx.opened_at || null;
+      const ticketIsResidual =
+        activeFlow && typebotStartedAt && (!ticketFreshAt || new Date(typebotStartedAt) > new Date(ticketFreshAt));
+
+      logger.info('whatsapp_support_freshness_diagnostic', {
+        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+        supportSubStatus: sub,
+        activeFlow,
+        typebotStartedAt,
+        ticketFreshAt,
+        ticketIsResidual
+      });
+
+      if (ticketIsResidual) {
+        return { handled: false, action: 'typebot' };
+      }
+    }
+
     return handleSupportQueueInput({ phone, textNorm });
   }
 

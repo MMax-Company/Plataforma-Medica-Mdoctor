@@ -195,7 +195,14 @@ const TYPEBOT_METADATA_KEYS = [
   'typebot_payment',
   'typebot_prescription_upload',
   'whatsapp_menu_state',
-  'post_delivery_support_available'
+  'post_delivery_support_available',
+  // Carimba quando a sessão Typebot ATUAL (typebot_session_id vigente)
+  // começou (só gravado no startChat, ver typebot-whatsapp.bridge.js) — usado
+  // por resolveMetaInboundRouting para distinguir um ticket de suporte
+  // residual de um ticket atual/intencional (ver whatsapp-support.service.js).
+  // Precisa ser limpo em qualquer reset de sessão, como os demais campos
+  // acima, para não sobreviver a uma sessão Typebot que já foi encerrada.
+  'typebot_session_started_at'
 ];
 
 async function clearTypebotSession({ sessionId, metadataPatch = {} }) {

@@ -377,12 +377,12 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
   const now = deps.now || (() => new Date());
-  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId }) => upsertSessionIdentity({
+  const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId, extraMetadataPatch = {} }) => upsertSessionIdentity({
     phone: identity?.phone,
     bsuid: identity?.bsuid,
     parentBsuid: identity?.parentBsuid,
     username: identity?.username,
-    metadataPatch: { typebot_expected_input_id: inputId || null }
+    metadataPatch: { typebot_expected_input_id: inputId || null, ...extraMetadataPatch }
   }));
   const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
     if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
@@ -641,7 +641,18 @@ function createTypebotWhatsAppBridge(deps = {}) {
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
       if (!existingSessionId) await saveSessionId({ sessionId: currentSession.id, typebotSessionId: sessionId });
       const nextInputId = typebot.input?.id || null;
-      await persistExpectedInput({ identity, whatsappSession: currentSession, inputId: nextInputId });
+      await persistExpectedInput({
+        identity,
+        whatsappSession: currentSession,
+        inputId: nextInputId,
+        // Carimba o início da sessão Typebot ATUAL só no startChat (nunca em
+        // continueChat) — usado por resolveMetaInboundRouting para comparar
+        // freschura contra um ticket de suporte aberto no mesmo telefone (ver
+        // whatsapp-support.service.js). GAP 19/08/2026, ainda não corrigido
+        // antes desta mudança: ticket de suporte residual sequestrava
+        // respostas de uma sessão Typebot clínica recém-iniciada.
+        extraMetadataPatch: !existingSessionId ? { typebot_session_started_at: now().toISOString() } : {}
+      });
       // DIAGNÓSTICO TEMPORÁRIO — ver comentário acima.
       logger.info('typebot_bridge_response_diagnostic', {
         messageId,
