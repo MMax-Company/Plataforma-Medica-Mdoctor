@@ -20,6 +20,19 @@ const { lookupCep } = require('../routes/cep.routes');
 // do Typebot nem dispara nenhum continueChat extra. A ordem real publicada é:
 //   endereço (q78qjnk6ticwkeifl7xe2rju) → CEP (blk_0oydu2f7) → receita anterior
 const CEP_INPUT_ID = 'blk_0oydu2f7';
+const ALERT_SIGNS_INPUT_ID = 's5VQGsVF4hQgziQsXVdwPDW';
+const ALERT_SIGN_PRESENTATION = Object.freeze({
+  'Dor/desconforto no peito': { title: 'Precordialgia', description: 'Dor, pressão, aperto ou desconforto no peito' },
+  'Falta de ar ou dificuldade para respirar': { title: 'Dispneia', description: 'Falta de ar ou dificuldade para respirar' },
+  'Desmaio, convulsão ou confusão mental': { title: 'Alteração da consciência', description: 'Desmaio, convulsão ou confusão mental' },
+  'Fraqueza súbita, alteração da fala ou assimetria facial': { title: 'Déficit neurológico', description: 'Fraqueza súbita, alteração da fala ou assimetria facial' },
+  'Sangramento importante': { title: 'Hemorragia', description: 'Sangramento importante ou persistente' },
+  'Febre alta persistente ou piora importante do estado geral': { title: 'Síndrome febril', description: 'Febre alta persistente ou piora importante do estado geral' },
+  'Pressão muito elevada acompanhada de sintomas': { title: 'Crise hipertensiva', description: 'Pressão muito elevada acompanhada de sintomas' },
+  'Glicemia muito alta ou muito baixa acompanhada de sintomas': { title: 'Disglicemia sintomática', description: 'Glicemia muito alta ou muito baixa acompanhada de sintomas' },
+  'Outro sintoma grave': { title: 'Sintoma agudo grave', description: 'Outro sintoma intenso ou de início súbito' },
+  'Nenhum Sinal ou Sintoma': { title: 'Sem sinais de alarme', description: 'Não apresento nenhum dos sinais ou sintomas acima' }
+});
 
 
 function getConfig() {
@@ -205,6 +218,9 @@ function convertTypebotResponse(response = {}) {
   if (input.type === 'choice input' && items.length && !outputs.some((o) => o.kind === 'buttons' || o.kind === 'list')) {
     const choices = items.map((item, index) => {
       const fullLabel = String(item.content || item.value);
+      const alertPresentation = input.id === ALERT_SIGNS_INPUT_ID
+        ? ALERT_SIGN_PRESENTATION[fullLabel]
+        : null;
       // A Meta limita o título da linha de lista a 24 caracteres — quando o
       // rótulo completo excede isso, a "description" (até 72 caracteres)
       // carrega o texto integral abaixo do título truncado, sem alterar
@@ -212,8 +228,10 @@ function convertTypebotResponse(response = {}) {
       const truncated = fullLabel.slice(0, 24);
       return {
         id: String(item.content || item.value || item.id || `choice-${index + 1}`).slice(0, 200),
-        title: truncated,
-        ...(fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
+        title: alertPresentation?.title || truncated,
+        ...(alertPresentation
+          ? { description: alertPresentation.description }
+          : fullLabel.length > 24 ? { description: fullLabel.slice(0, 72) } : {}),
         value: fullLabel
       };
     });

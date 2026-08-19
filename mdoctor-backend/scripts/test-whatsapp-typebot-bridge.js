@@ -761,6 +761,48 @@ async function main() {
   assert.equal(staleCacheCalls[1].body.message.text, 'maxvini.ferr@gmail.com', 'a 2ª chamada ao Typebot deve usar o e-mail, não travar pedindo telefone de novo');
   assert.equal(persistedExpectedInputId, 'blk_proximo_campo');
   assert(!staleCacheSent.some((item) => /telefone/i.test(item.text || '')), 'não pode reaparecer pedido de telefone depois que a sessão já avançou para e-mail');
+  const alertItems = [
+    ['Dor/desconforto no peito', 'dor_peito'],
+    ['Falta de ar ou dificuldade para respirar', 'dor_peito'],
+    ['Desmaio, convulsão ou confusão mental', 'dor_peito'],
+    ['Fraqueza súbita, alteração da fala ou assimetria facial', 'falta_ar'],
+    ['Sangramento importante', 'falta_ar'],
+    ['Febre alta persistente ou piora importante do estado geral', 'desmaio'],
+    ['Pressão muito elevada acompanhada de sintomas', 'desmaio'],
+    ['Glicemia muito alta ou muito baixa acompanhada de sintomas', 'febre'],
+    ['Outro sintoma grave', 'sangramento'],
+    ['Nenhum Sinal ou Sintoma', 'NAO']
+  ];
+  const alertOutput = convertTypebotResponse({
+    messages: [{ type: 'text', content: { plainText: 'Selecione o sinal de alerta:' } }],
+    input: {
+      id: 's5VQGsVF4hQgziQsXVdwPDW',
+      type: 'choice input',
+      items: alertItems.map(([content, value], index) => ({ id: `alert-${index}`, content, value }))
+    }
+  }).find((output) => output.kind === 'list');
+  assert(alertOutput, 'dez sinais devem continuar usando lista Meta');
+  assert(alertOutput.choices.every((choice) => choice.title.length <= 24), 'títulos clínicos devem respeitar 24 caracteres');
+  assert(alertOutput.choices.every((choice) => choice.description.length <= 72), 'descrições devem respeitar 72 caracteres');
+  assert.deepEqual(alertOutput.choices.map((choice) => choice.id), alertItems.map(([content]) => content), 'IDs/labels enviados de volta ao Typebot devem permanecer inalterados');
+  assert.deepEqual(alertOutput.choices.map((choice) => choice.value), alertItems.map(([content]) => content), 'values de roteamento usados pelo bridge devem permanecer inalterados');
+  assert.deepEqual(alertOutput.choices.map(({ title, description }) => ({ title, description })), [
+    { title: 'Precordialgia', description: 'Dor, pressão, aperto ou desconforto no peito' },
+    { title: 'Dispneia', description: 'Falta de ar ou dificuldade para respirar' },
+    { title: 'Alteração da consciência', description: 'Desmaio, convulsão ou confusão mental' },
+    { title: 'Déficit neurológico', description: 'Fraqueza súbita, alteração da fala ou assimetria facial' },
+    { title: 'Hemorragia', description: 'Sangramento importante ou persistente' },
+    { title: 'Síndrome febril', description: 'Febre alta persistente ou piora importante do estado geral' },
+    { title: 'Crise hipertensiva', description: 'Pressão muito elevada acompanhada de sintomas' },
+    { title: 'Disglicemia sintomática', description: 'Glicemia muito alta ou muito baixa acompanhada de sintomas' },
+    { title: 'Sintoma agudo grave', description: 'Outro sintoma intenso ou de início súbito' },
+    { title: 'Sem sinais de alarme', description: 'Não apresento nenhum dos sinais ou sintomas acima' }
+  ], 'title + description + ordem devem corresponder exatamente ao padrão aprovado');
+  assert.deepEqual(alertItems.map(([, value]) => value), [
+    'dor_peito', 'dor_peito', 'dor_peito', 'falta_ar', 'falta_ar',
+    'desmaio', 'desmaio', 'febre', 'sangramento', 'NAO'
+  ], 'values atuais do Typebot não podem ser alterados pela apresentação');
+
 
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
