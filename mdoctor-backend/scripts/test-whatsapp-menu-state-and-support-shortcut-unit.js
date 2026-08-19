@@ -23,10 +23,14 @@ const base = path.join(__dirname, '..', 'src', 'services', 'whatsapp-support.ser
 const resolveFrom = (p) => path.join(path.dirname(base), p);
 
 let atendimentos = [];
+let createdSupportTickets = 0;
 let directDeliveryCalls = 0;
 stub(resolveFrom('../store/atendimentos.store'), {
   STATUS: { WAITING: 'waiting', EM_ATENDIMENTO: 'em_atendimento', REJECTED: 'rejected' },
-  createAtendimento: async (row) => ({ id: 'atd-mock', ...row }),
+  createAtendimento: async (row) => {
+    createdSupportTickets += 1;
+    return { id: 'atd-mock', ...row };
+  },
   listAtendimentos: async () => atendimentos,
   getAtendimento: async () => null,
   updateAtendimentoStatus: async () => ({})
@@ -100,6 +104,72 @@ async function main() {
     'estado de menu deve ser limpo depois da escolha'
   );
   results.opcao1ReiniciaSessaoAntigaPresaEmEmail = 'ok';
+
+  // Regressão 19/08/2026: um ticket antigo em atendimento não pode
+  // sequestrar uma escolha explícita do menu inicial.
+  const oldSupport = {
+    id: 'support-antigo-em-atendimento',
+    status: 'em_atendimento',
+    paciente_telefone: phone1,
+    condicao: 'suporte_whatsapp',
+    dados_clinicos: {
+      queue_type: 'support',
+      whatsapp_support: true,
+      support_sub_status: 'em_atendimento'
+    }
+  };
+  atendimentos = [oldSupport];
+  sessionsByPhone.set(phone1, {
+    id: 'sess-phone1',
+    typebot_session_id: null,
+    metadata: { whatsapp_menu_state: support.MENU_STATE_AWAITING_CHOICE }
+  });
+  const ticketsBeforeOption1 = createdSupportTickets;
+  const option1WithOldSupport = await support.resolveMetaInboundRouting({
+    phone: phone1,
+    text: '1',
+    session: sessionsByPhone.get(phone1)
+  });
+  assert.equal(option1WithOldSupport.action, 'typebot_clean');
+  assert.equal(option1WithOldSupport.reply, undefined);
+  assert.equal(sessionsByPhone.get(phone1).metadata.whatsapp_menu_state, null);
+  assert.equal(createdSupportTickets, ticketsBeforeOption1, 'opção 1 não deve criar ticket de suporte');
+  results.ticketAntigoComMenuOpcao1VaiParaTypebotClean = 'ok';
+
+  sessionsByPhone.set(phone1, {
+    id: 'sess-phone1',
+    typebot_session_id: null,
+    metadata: { whatsapp_menu_state: support.MENU_STATE_AWAITING_CHOICE }
+  });
+  const ticketsBeforeOption2 = createdSupportTickets;
+  const option2WithOldSupport = await support.resolveMetaInboundRouting({
+    phone: phone1,
+    text: '2',
+    session: sessionsByPhone.get(phone1)
+  });
+  assert.equal(option2WithOldSupport.action, 'reply');
+  assert.equal(option2WithOldSupport.reply, 'Você já está na fila de suporte. Aguarde o contato da equipe.');
+  assert.equal(sessionsByPhone.get(phone1).metadata.whatsapp_menu_state, null);
+  assert.equal(createdSupportTickets, ticketsBeforeOption2, 'opção 2 deve reutilizar o ticket aberto');
+  results.ticketAntigoComMenuOpcao2ReutilizaSuporte = 'ok';
+
+  sessionsByPhone.set(phone1, {
+    id: 'sess-phone1',
+    typebot_session_id: null,
+    metadata: {}
+  });
+  const ticketsBeforeQueueIntercept = createdSupportTickets;
+  const oldSupportWithoutMenu = await support.resolveMetaInboundRouting({
+    phone: phone1,
+    text: '1',
+    session: sessionsByPhone.get(phone1)
+  });
+  assert.equal(oldSupportWithoutMenu.action, 'reply');
+  assert.equal(oldSupportWithoutMenu.reply, support.SUPPORT_WAITING_TEXT);
+  assert.equal(createdSupportTickets, ticketsBeforeQueueIntercept, 'fila existente não deve criar outro ticket');
+  results.ticketAntigoSemMenuContinuaInterceptando = 'ok';
+  results.nenhumTicketNovoIndevido = 'ok';
+  atendimentos = [];
 
   // Atendimento rejeitado antigo não pode sequestrar a escolha explícita do
   // menu inicial. O estado do menu continua tendo prioridade e inicia uma

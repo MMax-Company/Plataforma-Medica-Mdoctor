@@ -612,6 +612,34 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   // cobrindo qualquer ticket que já estivesse aguardando decisão antes
   // desta correção.
   const textNorm = normalizeMenuText(text);
+  const diagSession = resolvedSession || session;
+
+  // Estado explícito "aguardando escolha do menu inicial" (gravado quando a
+  // saudação apresentou o menu, ver isGreetingText acima) tem prioridade
+  // sobre qualquer sessão Typebot ativa/antiga — ao contrário de
+  // stuckAtWelcomeChoice (abaixo), cobre a sessão estar presa em QUALQUER
+  // input, não só o inicial. Resolve o incidente 09/08/2026: sessão antiga
+  // presa em "e-mail" + "oi" + "1" agora reinicia o Typebot corretamente, em
+  // vez de "1" cair como resposta à pergunta de e-mail.
+  if (diagSession?.metadata?.whatsapp_menu_state === MENU_STATE_AWAITING_CHOICE) {
+    if (textNorm === '1') {
+      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
+        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
+      });
+      return { handled: true, action: 'typebot_clean' };
+    }
+    if (textNorm === '2') {
+      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
+        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
+      });
+      const result = await createWhatsAppSupportEntry({ phone });
+      return { handled: true, action: 'reply', reply: result.reply };
+    }
+    // Escolha inválida: mantém o estado de menu ativo e reapresenta o menu,
+    // sem tocar na sessão Typebot (mesmo comportamento do fallback padrão).
+    return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
+  }
+
   const ctx = await getPatientSupportContext(phone);
   const sub = ctx?.support_sub_status || null;
   logger.info('typebot_routing_support_context_diagnostic', {
@@ -642,7 +670,6 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
   // remover após confirmar a causa. Não altera nenhuma decisão de roteamento,
   // só registra os componentes que a alimentam.
-  const diagSession = resolvedSession || session;
   const diagActiveFlow = isActiveTypebotFlow(diagSession);
   const diagGreeting = isGreetingText(text);
   logger.info('typebot_routing_diagnostic', {
@@ -653,32 +680,6 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     activeFlow: diagActiveFlow,
     textMasked: maskDiagnosticText(text)
   });
-
-  // Estado explícito "aguardando escolha do menu inicial" (gravado quando a
-  // saudação apresentou o menu, ver isGreetingText acima) tem prioridade
-  // sobre qualquer sessão Typebot ativa/antiga — ao contrário de
-  // stuckAtWelcomeChoice (abaixo), cobre a sessão estar presa em QUALQUER
-  // input, não só o inicial. Resolve o incidente 09/08/2026: sessão antiga
-  // presa em "e-mail" + "oi" + "1" agora reinicia o Typebot corretamente, em
-  // vez de "1" cair como resposta à pergunta de e-mail.
-  if (diagSession?.metadata?.whatsapp_menu_state === MENU_STATE_AWAITING_CHOICE) {
-    if (textNorm === '1') {
-      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
-        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
-      });
-      return { handled: true, action: 'typebot_clean' };
-    }
-    if (textNorm === '2') {
-      await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
-        logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
-      });
-      const result = await createWhatsAppSupportEntry({ phone });
-      return { handled: true, action: 'reply', reply: result.reply };
-    }
-    // Escolha inválida: mantém o estado de menu ativo e reapresenta o menu,
-    // sem tocar na sessão Typebot (mesmo comportamento do fallback padrão).
-    return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
-  }
 
   // Atalho "digite 3 para falar com o suporte" da mensagem de entrega da
   // receita (delivery.service.js) — funciona independente da pesquisa
