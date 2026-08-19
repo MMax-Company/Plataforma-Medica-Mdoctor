@@ -1,6 +1,6 @@
 # Memória Compartilhada — Doctor Prescreve
 
-**Última atualização:** 07/08/2026  
+**Última atualização:** 19/08/2026  
 **Responsável funcional:** Dr. Max Vinicius Ferreira Matos  
 **Finalidade:** fonte canônica compartilhada entre Claude Code, Codex e futuros
 agentes. Deve ser lida antes de qualquer trabalho no projeto.
@@ -369,7 +369,87 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   duplicado entre ambientes.
   Qualquer fluxo completo de teste em staging com o Typebot gera cobrança real.
 
-## 11. Manutenção desta memória
+## 11. WhatsApp — Menu, Suporte e Sinais de Alerta — baseline confirmado em 19/08/2026
+
+- **Repositório e branches:** repositório oficial `MMax-Company/Plataforma-Medica-Mdoctor`
+  (GitHub). Confirmado em 19/08/2026 que `main` e a branch efetivamente
+  implantada em produção (`codex/release-production-20260802`) **divergiram**:
+  17 commits existem só em `main` (inclui a restauração
+  `feature/restauracao-completa-homologado`/`bf57f27`/`23f00ab` e
+  `49ef07f`), e 17 commits existem só em `codex/release-production-20260802`
+  (inclui os dois commits abaixo). Referência funcional para qualquer
+  trabalho de produção é a branch de produção, não `main`, até reconciliação
+  formal autorizada pelo usuário.
+- **Estado de produção confirmado em 19/08/2026:** Railway `Backend-Mdoctor`
+  → serviço `web`, ambiente `production`, branch `codex/release-production-20260802`,
+  deployment `901a841d-be6c-497f-b172-42491b28e601`, commit `7a94d2b`,
+  status `SUCCESS` (criado 08:20 UTC). `WHATSAPP_ENABLED=true` e
+  `WHATSAPP_PROVIDER=meta` confirmados nas variáveis do serviço; o log
+  `whatsapp_disabled` no startup é exclusivo do cliente legado Baileys
+  removido, não indica Meta Cloud API desligada.
+- **Menu inicial — arquitetura confirmada:** saudação ("Oi" etc.) é
+  controlada pelo Backend, sempre reapresenta o menu (1 = iniciar
+  atendimento/`typebot_clean`, 2 = suporte) e grava
+  `whatsapp_menu_state = awaiting_menu_choice`. Enquanto esse estado está
+  ativo, a próxima escolha 1/2 pertence ao menu com prioridade sobre
+  qualquer ticket de suporte antigo ou sessão Typebot ativa/travada. Fora
+  dessa janela, sessão Typebot clínica ativa é dona normal das respostas
+  1/2/3.
+- **Dois conflitos de prioridade já corrigidos e confirmados em produção**
+  (`mdoctor-backend/src/services/whatsapp-support.service.js`):
+  - Commit `7a94d2bd8725b0edace4beb621e429416f43371f` — "prioriza menu
+    sobre suporte antigo": bloco `MENU_STATE_AWAITING_CHOICE` verificado
+    antes da checagem de `support_sub_status`/rejeição antiga. Confirmado
+    no código e em log real de produção (19/08 08:53 UTC): "1" com
+    `previousMenuState=awaiting_menu_choice` corretamente virou
+    `typebot_clean`/`startChat`, apesar de existir um ticket de suporte
+    antigo aberto no mesmo telefone.
+  - Commit `ae3bda417e566c6c4876a967fac23aea794592f6` — ajuste da
+    apresentação dos Sinais de Alerta.
+- **Sinais de Alerta — apresentação confirmada** (`ALERT_SIGN_PRESENTATION`
+  em `typebot-whatsapp.bridge.js`, commit `ae3bda4`, em produção): título +
+  descrição por sinal — Precordialgia, Dispneia, Alteração da consciência,
+  Déficit neurológico, Hemorragia, Síndrome febril, Crise hipertensiva,
+  Disglicemia sintomática, Sintoma agudo grave, Sem sinais de alarme.
+  **Pendente de conferência:** os `values` (chaves internas do mapa,
+  copiados manualmente no Typebot) não foram corrigidos nesta rodada e
+  podem estar associados à opção errada — não verificado diretamente contra
+  o Typebot publicado nesta sessão (sem acesso à API/admin do Typebot).
+- **Critérios de Elegibilidade — só o que está confirmado:** regra
+  conhecida de que existe **uma única pergunta de confirmação final**, sem
+  reconstrução/repetição em segunda mensagem (consistente com o código do
+  bridge, que só emite um bloco de choice input por resposta). **Fidelidade
+  completa ao Typebot publicado (texto, negrito, espaçamento, quebras de
+  linha, emojis, ordem, pontuação) está PENDENTE DE CONFERÊNCIA** — não foi
+  comparada nesta sessão por falta de acesso direto ao Typebot publicado.
+- **GAP ABERTO — PENDENTE / NÃO CORRIGIDO (identificado em 19/08/2026):**
+  quando existe uma sessão Typebot clínica ativa e válida
+  (`typebot_session_id` + `expected_input_id`/fluxo ativo), um ticket de
+  suporte antigo em `waiting` ou `em_atendimento` **não pode** sequestrar as
+  respostas destinadas ao Typebot — mas hoje sequestra, porque em
+  `resolveMetaInboundRouting` a checagem de `support_sub_status` tem
+  prioridade incondicional e ocorre antes da checagem de fluxo Typebot
+  ativo (`isActiveTypebotFlow`/`diagActiveFlow`). Reproduzido em produção:
+  telefone com ticket de suporte `appointments.id =
+  33c77460-fcd5-4e62-afe1-13d3a9a270e9` (aberto em 11/08/2026,
+  `support_sub_status=em_atendimento`, nunca finalizado) fez o cenário
+  `Oi → 1 → startChat → "Vamos começar" → continueChat` parar exatamente no
+  `continueChat`: o Typebot deu `startChat` com sucesso (`sessionId
+  tc261ys43cduvnepk340t6lp`, aguardando input
+  `sbjZWLJGVkHAkDqS4JQeGow`/"Vamos começar"), mas a resposta real do
+  paciente ao clicar "Vamos começar" (19/08 08:53:47 UTC) foi interceptada
+  pelo ticket antigo e respondida com a mensagem de espera do suporte, sem
+  chamar o Typebot. **Nenhuma correção foi aplicada — autorização
+  pendente.**
+- **Falha transitória Meta (ECONNRESET/fetch failed) pós-avanço de
+  cursor — diagnóstico anterior preservado, ainda sem correção:** o cursor
+  do Typebot pode avançar e persistir antes de confirmar a entrega da
+  resposta à Meta; não existe retry equivalente ao que já existe para
+  chamadas ao Typebot. Não reproduzida no teste de 19/08 — a parada desse
+  teste teve causa diferente (gap de suporte antigo acima), sem nenhum erro
+  de rede nos logs.
+
+## 12. Manutenção desta memória
 
 Atualizar este arquivo no mesmo trabalho quando mudar:
 
