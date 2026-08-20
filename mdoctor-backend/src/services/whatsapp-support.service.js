@@ -9,6 +9,19 @@ const { clearSurveySession, getActiveSurveySession, getSessionByPhone, clearType
 const { SURVEY_OPT_IN_MESSAGE } = require('../constants/patient-outcome-survey');
 
 const SUPPORT_TIMEOUT_MS = Number(process.env.SUPPORT_INACTIVITY_TIMEOUT_MS || 30 * 60 * 1000);
+// TTLs aprovados em 2026-08-20 (docs/PROJECT_MEMORY.md seção 11): ticket
+// "waiting" (na fila, ninguém atendeu ainda) expira 24h após aberto;
+// "em_atendimento" expira 24h desde a ÚLTIMA interação do paciente (não
+// desde que o atendente começou), para não fechar um atendimento humano
+// ainda em andamento. Ambos fecham como `support_sub_status: closed_inactive`
+// via o mesmo closeInactiveSessions() já existente (tick de 5min no
+// server.js) — reaproveita o mecanismo do AWAITING_DECISION.
+const SUPPORT_WAITING_TIMEOUT_MS = Number(process.env.SUPPORT_WAITING_TIMEOUT_MS || 24 * 60 * 60 * 1000);
+const SUPPORT_EM_ATENDIMENTO_TIMEOUT_MS = Number(process.env.SUPPORT_EM_ATENDIMENTO_TIMEOUT_MS || 24 * 60 * 60 * 1000);
+// Sessão Typebot clínica: expira por INATIVIDADE (não por tempo desde o
+// início) — ver typebot_last_activity_at, gravado a cada startChat/
+// continueChat em typebot-whatsapp.bridge.js.
+const TYPEBOT_INACTIVITY_TIMEOUT_MS = Number(process.env.TYPEBOT_INACTIVITY_TIMEOUT_MS || 60 * 60 * 1000);
 const TYPEBOT_URL = process.env.TYPEBOT_PUBLIC_URL || 'https://typebot.io/doctor-prescreve-8rmljgu';
 
 const WELCOME_ORIENTATION_PDF_URL =
@@ -302,6 +315,25 @@ async function getPatientSupportContext(phone) {
   };
 }
 
+// Grava a última interação do PACIENTE com um ticket waiting/em_atendimento
+// — usado só como base do TTL de 24h de em_atendimento (closeInactiveSessions,
+// abaixo). Best-effort: falha aqui nunca deve quebrar a resposta ao paciente.
+async function touchSupportInteraction(atendimentoId) {
+  if (!atendimentoId) return;
+  try {
+    const atendimento = await getAtendimento(atendimentoId);
+    if (!atendimento) return;
+    await updateAtendimentoStatus(atendimentoId, atendimento.status, {
+      dados_clinicos: {
+        ...(atendimento.dados_clinicos || {}),
+        support_last_interaction_at: new Date().toISOString()
+      }
+    });
+  } catch (e) {
+    logger.warn('support_touch_interaction_failed', { atendimentoId, error: e.message });
+  }
+}
+
 async function respondToFinalization(phone, choice) {
   const digits = normalizePhone(phone);
   const rows = await listAtendimentos();
@@ -483,6 +515,31 @@ function isActiveTypebotFlow(session = {}) {
   return true;
 }
 
+// TTL por INATIVIDADE (60min padrão, ver TYPEBOT_INACTIVITY_TIMEOUT_MS) —
+// usa typebot_last_activity_at, gravado a cada startChat/continueChat
+// (typebot-whatsapp.bridge.js), nunca typebot_session_started_at sozinho
+// (esse só marca o início, não a última resposta). Sessão sem nenhum dos
+// dois marcadores (criada antes desta correção) não expira sozinha —
+// mesmo comportamento conservador já usado no gap de residual-support.
+function isTypebotSessionExpired(session = {}) {
+  // Ordem de preferência: marcador dedicado (gravado a cada startChat/
+  // continueChat) > typebot_session_started_at (só no startChat) >
+  // timestamp persistido da própria linha whatsapp_sessions — cobre
+  // sessões que já existiam antes desta correção (2026-08-20) e nunca
+  // vão ganhar os marcadores novos sozinhas. last_message_at e updated_at
+  // são colunas reais da tabela (ver migration
+  // 20260601_doctor_prescreve_production_official.sql:386-396),
+  // atualizadas em toda escrita de sessão (upsertSessionIdentity/
+  // upsertSessionMetadata); updated_at é NOT NULL, sempre presente.
+  const lastActivity =
+    session?.metadata?.typebot_last_activity_at ||
+    session?.metadata?.typebot_session_started_at ||
+    session?.last_message_at ||
+    session?.updated_at;
+  if (!lastActivity) return false;
+  return (Date.now() - new Date(lastActivity).getTime()) > TYPEBOT_INACTIVITY_TIMEOUT_MS;
+}
+
 // Blocos do Typebot (grupo "42 — Atendimento concluído" e "Suporte (fora do
 // fluxo)") que, apesar de já existirem no fluxo do bot, não acionavam nenhuma
 // ação real no backend — o paciente escolhia "Falar com o suporte" e ninguém
@@ -572,6 +629,55 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     hasTypebotSessionId: Boolean(resolvedSession?.typebot_session_id),
     expectedInputId: resolvedSession?.metadata?.typebot_expected_input_id || null
   });
+
+  // Propriedade da conversa (2026-08-20): enquanto existir uma sessão
+  // Typebot clínica ativa e aguardando input, o Typebot é dono EXCLUSIVO —
+  // vem antes de qualquer outra interpretação, inclusive saudação ("Oi"),
+  // menu, atalho de suporte (ENCERRAR/CHATBOT/AGUARDAR/números) e ticket
+  // antigo/residual. Bug real de produção (20/08/2026): paciente respondeu
+  // "3" (Dislipidemia) a uma pergunta de múltipla escolha do Typebot, mas
+  // havia um ticket de suporte residual aberto no mesmo telefone, e "3"
+  // também é EXPLICIT_SUPPORT_COMMANDS (atalho fixo "reiniciar chatbot") —
+  // o roteador decidia pelo atalho ANTES de checar quem era dono da
+  // conversa, resetando a sessão clínica no meio da pergunta. Único caso que
+  // NÃO conta como "Typebot ativo" aqui é stuckAtWelcomeChoice (mesmo
+  // critério usado mais abaixo) — sessão presa exatamente no input inicial,
+  // onde encaminhar ao continueChat quebra o próprio Typebot ("Invalid
+  // message"); esse caso mantém seu tratamento especial existente,
+  // inalterado, mais abaixo na função.
+  const stuckAtWelcomeChoiceEarly = resolvedSession?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID;
+  if (isActiveTypebotFlow(resolvedSession) && !stuckAtWelcomeChoiceEarly) {
+    if (isTypebotSessionExpired(resolvedSession)) {
+      // Expirou por inatividade (60min, TYPEBOT_INACTIVITY_TIMEOUT_MS):
+      // limpa de fato typebot_session_id/expected_input_id/marcadores
+      // (clearTypebotSession remove todos os TYPEBOT_METADATA_KEYS) e cai
+      // para o fluxo normal abaixo (saudação/menu) já com a sessão limpa —
+      // não retorna 'typebot' aqui.
+      const lastActivityBeforeClear =
+        resolvedSession?.metadata?.typebot_last_activity_at ||
+        resolvedSession?.metadata?.typebot_session_started_at ||
+        resolvedSession?.last_message_at ||
+        resolvedSession?.updated_at ||
+        null;
+      try {
+        const cleared = await clearTypebotSession({ sessionId: resolvedSession.id });
+        if (cleared) resolvedSession = cleared;
+        logger.info('whatsapp_typebot_session_expired', {
+          phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+          lastActivity: lastActivityBeforeClear
+        });
+      } catch (e) {
+        logger.warn('whatsapp_typebot_session_expire_clear_failed', { error: e.message });
+      }
+    } else {
+      logger.info('whatsapp_typebot_ownership_diagnostic', {
+        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+        textNorm: normalizeMenuText(text),
+        expectedInputId: resolvedSession?.metadata?.typebot_expected_input_id || null
+      });
+      return { handled: false, action: 'typebot' };
+    }
+  }
 
   // Saudação ("Oi", "Olá") sempre reapresenta o menu, sem retomar survey nem
   // sessão clínica pendente. Se havia um survey ativo (ex.: paciente ignorou
@@ -712,6 +818,11 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
       }
     }
 
+    // Base do TTL de 24h de em_atendimento (closeInactiveSessions, abaixo):
+    // toda interação real do paciente com o ticket atualiza este marcador.
+    // Best-effort — não bloqueia a resposta se falhar.
+    touchSupportInteraction(ctx.atendimento_id);
+
     return handleSupportQueueInput({ phone, textNorm });
   }
 
@@ -849,13 +960,35 @@ async function closeInactiveSessions() {
 
   for (const item of rows) {
     if (!isSupportQueue(item)) continue;
-    if (getSupportSubStatus(item) !== SUPPORT_SUB.AWAITING_DECISION) continue;
+    const sub = getSupportSubStatus(item);
+    if (
+      sub !== SUPPORT_SUB.AWAITING_DECISION &&
+      sub !== SUPPORT_SUB.WAITING &&
+      sub !== SUPPORT_SUB.EM_ATENDIMENTO
+    ) continue;
 
-    const deadline = item.dados_clinicos?.support_decision_deadline;
-    const finalizedAt = item.dados_clinicos?.support_finalized_at;
-    const isExpired = deadline
-      ? now > new Date(deadline).getTime()
-      : finalizedAt && (now - new Date(finalizedAt).getTime()) > SUPPORT_TIMEOUT_MS;
+    let isExpired = false;
+    if (sub === SUPPORT_SUB.AWAITING_DECISION) {
+      const deadline = item.dados_clinicos?.support_decision_deadline;
+      const finalizedAt = item.dados_clinicos?.support_finalized_at;
+      isExpired = deadline
+        ? now > new Date(deadline).getTime()
+        : finalizedAt && (now - new Date(finalizedAt).getTime()) > SUPPORT_TIMEOUT_MS;
+    } else if (sub === SUPPORT_SUB.WAITING) {
+      // Ticket em fila, ninguém atendeu ainda — TTL desde a abertura.
+      const openedAt = item.dados_clinicos?.opened_at || item.criado_em;
+      isExpired = Boolean(openedAt) && (now - new Date(openedAt).getTime()) > SUPPORT_WAITING_TIMEOUT_MS;
+    } else if (sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+      // TTL desde a ÚLTIMA interação do paciente (touchSupportInteraction),
+      // não desde que o atendente começou — atendimento humano pode durar
+      // mais, mas precisa de um teto (ver docs/PROJECT_MEMORY.md seção 11).
+      const lastInteractionAt =
+        item.dados_clinicos?.support_last_interaction_at ||
+        item.dados_clinicos?.support_started_at ||
+        item.dados_clinicos?.opened_at ||
+        item.criado_em;
+      isExpired = Boolean(lastInteractionAt) && (now - new Date(lastInteractionAt).getTime()) > SUPPORT_EM_ATENDIMENTO_TIMEOUT_MS;
+    }
 
     if (!isExpired) continue;
 

@@ -377,12 +377,21 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
   const now = deps.now || (() => new Date());
+  // typebot_last_activity_at é gravado em TODA chamada (startChat e
+  // continueChat) — é a base do TTL de inatividade (60min,
+  // TYPEBOT_INACTIVITY_TIMEOUT_MS em whatsapp-support.service.js).
+  // Diferente de typebot_session_started_at (só no startChat, usado para
+  // freschura contra ticket residual), este marca a ÚLTIMA interação.
   const persistExpectedInput = deps.persistExpectedInput || (async ({ identity, inputId, extraMetadataPatch = {} }) => upsertSessionIdentity({
     phone: identity?.phone,
     bsuid: identity?.bsuid,
     parentBsuid: identity?.parentBsuid,
     username: identity?.username,
-    metadataPatch: { typebot_expected_input_id: inputId || null, ...extraMetadataPatch }
+    metadataPatch: {
+      typebot_expected_input_id: inputId || null,
+      typebot_last_activity_at: now().toISOString(),
+      ...extraMetadataPatch
+    }
   }));
   const reloadSession = deps.reloadSession || (async ({ identity, whatsappSession }) => {
     if (identity?.phone) return (await getSessionByPhone(identity.phone)) || whatsappSession;
