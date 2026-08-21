@@ -642,7 +642,8 @@ body {
   }
 
   .panel-header--operational {
-    min-height: 50px;
+    height: 68px;
+    min-height: 68px;
     border-bottom: 1px solid #e4ecf7;
   }
 
@@ -667,14 +668,14 @@ body {
   }
 
   .panel-header--operational .panel-header__logo {
-    width: 110px;
-    max-width: 110px;
-    max-height: 36px;
+    width: 128px;
+    max-width: 128px;
+    max-height: 42px;
     transform: none;
   }
 
   .panel-header--operational .panel-header__title {
-    font-size: 22px;
+    font-size: 26px;
     line-height: 1.15;
     white-space: normal;
     overflow-wrap: break-word;
@@ -682,8 +683,8 @@ body {
   }
 
   .panel-header--operational .panel-header__ops {
-    min-height: 40px;
-    padding: 4px 8px;
+    min-height: 44px;
+    padding: 5px 9px;
     align-items: center;
     gap: 6px;
   }
@@ -705,32 +706,32 @@ body {
   }
 
   .panel-header--operational .panel-header__avatar {
-    height: 30px;
-    width: 30px;
-    font-size: 11px;
+    height: 34px;
+    width: 34px;
+    font-size: 12px;
   }
 
   .panel-header--operational .panel-header__name {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__role {
-    font-size: 9.5px;
+    font-size: 10px;
     line-height: 1.2;
   }
 
   .panel-header--operational .panel-header__logout {
-    height: 28px;
-    min-height: 28px;
-    font-size: 10px;
+    height: 32px;
+    min-height: 32px;
+    font-size: 10.5px;
     align-self: center;
   }
 
   .panel-header--operational .panel-header__prontuario {
-    height: 30px;
-    min-height: 30px;
-    font-size: 10.5px;
+    height: 34px;
+    min-height: 34px;
+    font-size: 11px;
   }
 
   .panel-header--operational + .panel-gold-band {
@@ -1245,32 +1246,232 @@ body {
 
   /* — Layout da página — */
   .fila-page-dense .panel-support-band {
+    height: 72px;
+    min-height: 72px;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    box-sizing: border-box;
+  }
+
+  /* Cabeçalho da fila: três áreas equivalentes mantêm o título no centro
+     óptico, independentemente da largura do bloco operacional à direita. */
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    max-width: none;
+    padding: 10px 12px;
+    column-gap: 10px;
+  }
+
+  .fila-page-dense .panel-header--operational {
+    height: 82px;
+    min-height: 82px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 176px;
+    max-width: 176px;
+    max-height: 58px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    padding-top: 4px;
+    font-size: 31px;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__brand {
+    margin-right: 0;
+    padding-left: 0;
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--brand {
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--center {
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    min-height: 40px;
+    padding: 4px 6px;
+    gap: 4px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__prontuario {
+    height: 34px;
+    min-height: 34px;
+    padding-left: 10px;
+    padding-right: 10px;
+    font-size: 10px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__memed {
+    height: 28px;
+    padding-left: 8px;
+    padding-right: 8px;
+    gap: 5px;
+    font-size: 9px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__divider {
+    height: 24px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__profile {
+    gap: 4px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__profile-text {
+    max-width: 84px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 10.5px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__name {
+    font-size: 11px;
+    line-height: 1.15;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__role {
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logout {
+    height: 28px;
+    min-height: 28px;
+    padding-left: 7px;
+    padding-right: 7px;
+    gap: 3px;
+    font-size: 9px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    height: 100%;
+    grid-template-columns: minmax(0, 1.4fr) minmax(270px, 0.78fr) minmax(0, 1.25fr);
+    align-items: center;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    min-height: 0;
+    height: 100%;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    gap: 12px;
+    padding-right: 20px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro > div:first-child {
+    width: 36px;
     height: 36px;
-    min-height: 36px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro h2 {
+    white-space: nowrap;
+    font-size: 15px;
+    line-height: 1.2;
+    letter-spacing: 0.005em;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro p {
+    margin-top: 3px;
+    font-size: 11.5px;
+    line-height: 1.3;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics {
+    gap: 4px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p {
+    white-space: nowrap;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p:first-child {
+    font-size: 12px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    gap: 4px;
+    padding-left: 20px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    overflow: hidden;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > p {
+    margin-top: 0;
+    max-width: 100%;
+    font-size: 9px;
+    line-height: 1.2;
+    text-align: right;
+    overflow-wrap: normal;
   }
 
   .fila-page-dense .panel-page-body {
-    gap: 4px;
-    padding-top: 4px;
+    gap: 8px;
+    padding: 8px 12px 10px;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    gap: 10px;
   }
 
   /* — Coluna — */
   .fila-page-dense .dp-fila-column {
-    border-radius: 12px;
+    border-radius: 14px;
+    background: #f8faff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.035);
   }
 
   .fila-page-dense .dp-fila-column__head {
-    min-height: 32px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    min-height: 44px;
+    padding: 8px 14px;
+  }
+
+  .fila-page-dense .dp-col-heading {
+    font-size: 13.5px;
+    line-height: 1.15;
+    letter-spacing: 0.035em;
+  }
+
+  .fila-page-dense .dp-col-heading-icon {
+    width: 28px;
+    height: 28px;
   }
 
   .fila-page-dense .dp-fila-column__scroll {
-    padding: 4px;
+    padding: 8px;
   }
 
   .fila-page-dense .dp-fila-column__scroll.space-y-2 > * + * {
-    margin-top: 2px;
+    margin-top: 7px;
+  }
+
+  .fila-page-dense .dp-fila-column__footer {
+    display: none;
   }
 
   /* — Footer oculto no painel médico — ocupa espaço sem valor operacional — */
@@ -1280,17 +1481,19 @@ body {
 
   /* — Card: token único de espaçamento — */
   .fila-page-dense .dp-patient-card {
-    padding: 1px 8px;
+    padding: 8px 10px;
+    border-radius: 11px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.045);
   }
 
   .fila-page-dense .dp-patient-card--queue,
   .fila-page-dense .dp-patient-card--review,
   .fila-page-dense .dp-patient-card--ready {
-    min-height: auto;
+    min-height: 74px;
   }
 
   .fila-page-dense .dp-patient-card__inner {
-    gap: 5px;
+    gap: 7px;
   }
 
   .fila-page-dense .dp-patient-card__head {
@@ -1299,15 +1502,15 @@ body {
 
   /* — Avatar — */
   .fila-page-dense .dp-patient-avatar {
-    width: 26px;
-    height: 26px;
+    width: 36px;
+    height: 36px;
     background: #F0F4FA;
     border: 1.5px solid #B8CBE4;
     color: #071B3A;
   }
 
   .fila-page-dense .dp-patient-initials {
-    font-size: 10px;
+    font-size: 11.5px;
     font-weight: 700;
     letter-spacing: 0.01em;
     padding: 0 2px;
@@ -1315,40 +1518,41 @@ body {
   }
 
   .fila-page-dense .dp-patient-initials--compact {
-    font-size: 9px;
+    font-size: 11px;
   }
 
   /* — Texto do paciente — */
   .fila-page-dense .dp-patient-card-label {
-    font-size: 9px;
+    font-size: 12.5px;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1.1;
   }
 
   .fila-page-dense .dp-patient-card-label--compact {
-    font-size: 8px;
+    font-size: 11px;
   }
 
   .fila-page-dense .dp-patient-id {
-    font-size: 8px;
+    margin-top: 1px;
+    font-size: 10px;
     line-height: 1.1;
   }
 
   /* — Badge: tokens idênticos para todos os tipos — */
   .fila-page-dense .dp-status-badge {
-    height: 15px;
-    min-width: 15px;
-    font-size: 8.5px;
+    height: 19px;
+    min-width: 19px;
+    font-size: 9.5px;
     font-weight: 600;
-    padding-left: 5px;
-    padding-right: 5px;
-    border-radius: 4px;
+    padding-left: 7px;
+    padding-right: 7px;
+    border-radius: 6px;
   }
 
   /* — Área de ações — */
   .fila-page-dense .dp-patient-card__actions {
-    margin-top: 2px;
+    margin-top: 3px;
   }
 
   .fila-page-dense .dp-patient-card__actions-slot {
@@ -1359,29 +1563,31 @@ body {
   .fila-page-dense .dp-action-slot {
     display: flex;
     align-items: center;
-    width: 110px;
+    width: 118px;
   }
 
   /* — Botão principal: tokens idênticos para ATENDER / ENVIAR WA / EMITIR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-card-primary {
-    height: 18px;
-    min-height: 18px;
-    font-size: 8.5px;
+    height: 26px;
+    min-height: 26px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
     letter-spacing: 0.03em;
-    padding-left: 6px;
-    padding-right: 6px;
-    border-radius: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 7px;
   }
 
   /* — Botão secundário: VISUALIZAR RECEITA — */
   .fila-page-dense .dp-patient-card__actions-slot .dp-btn-secondary {
-    height: 15px;
-    min-height: 15px;
-    font-size: 7.5px;
+    height: 24px;
+    min-height: 24px;
+    font-size: 9.5px;
     letter-spacing: 0.02em;
-    padding-left: 5px;
-    padding-right: 5px;
-    border-radius: 4px;
+    padding-left: 8px;
+    padding-right: 8px;
+    border-radius: 7px;
   }
 }
 
@@ -2846,11 +3052,250 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard .panel-header--operational {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  height: 76px;
+  min-height: 76px;
+}
+
+/* Login mobile — OPPO A6x / Chrome Android. Desktop remains unchanged. */
+@media (max-width: 480px) {
+  body:has(.login-replica-root) {
+    overflow-y: auto;
+  }
+
+  body:has(.login-replica-root) > div {
+    height: auto;
+    max-height: none;
+    min-height: 100dvh;
+    align-items: flex-start;
+    overflow: visible;
+  }
+
+  .login-replica-root {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding-bottom: 0.75rem;
+  }
+
+  .login-replica-main {
+    display: flex;
+    min-height: auto;
+    flex: none;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem 0.875rem 0;
+    transform: none;
+  }
+
+  .login-replica-left {
+    width: 100%;
+    min-height: auto;
+    padding-right: 0;
+    transform: none;
+  }
+
+  .login-replica-left-inner {
+    max-width: 365px;
+  }
+
+  .login-replica-logo {
+    width: 155px;
+    max-width: 155px;
+    max-height: 76px;
+  }
+
+  .login-replica-headline {
+    margin-top: 0.375rem;
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  .login-replica-features {
+    margin-top: 0.625rem;
+    gap: 0.375rem;
+  }
+
+  .login-replica-feature-card {
+    min-height: 44px;
+    gap: 0.625rem;
+    padding: 0.4375rem 0.75rem;
+    border-radius: 14px;
+  }
+
+  .login-replica-feature-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .login-replica-feature-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .login-replica-right {
+    width: 100%;
+    min-height: auto;
+    margin-left: 0;
+  }
+
+  .login-replica-form {
+    width: min(100%, 365px);
+    height: auto;
+    max-height: none;
+    padding: 0.875rem 1rem 1rem;
+    border-radius: 20px;
+  }
+
+  .login-replica-form-accent {
+    right: 1rem;
+    left: 1rem;
+  }
+
+  .login-replica-form-header {
+    margin-bottom: 0.75rem;
+  }
+
+  .login-replica-form-header-icon {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 0.375rem;
+  }
+
+  .login-replica-form-header-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .login-replica-form-header h2 {
+    font-size: 20px;
+  }
+
+  .login-replica-form-header p {
+    margin-top: 0.25rem;
+    font-size: 13px;
+  }
+
+  .login-replica-form-fields {
+    gap: 0.625rem;
+  }
+
+  .login-replica-input {
+    height: 44px;
+  }
+
+  .login-replica-submit {
+    height: 46px;
+    margin-top: 0.125rem;
+  }
+
+  .login-replica-footer {
+    position: static;
+    padding: 0.75rem 1rem 0;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+}
+
+.admin-dashboard .panel-header--operational .panel-header__shell {
+  width: 100%;
+  max-width: none;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 10px;
+  padding: 9px 12px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__col--brand,
+.admin-dashboard .panel-header--operational .panel-header__col--center {
+  justify-content: center;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__brand {
+  margin-right: 0;
+  padding-left: 0;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__logo {
+  width: 156px;
+  max-width: 156px;
+  max-height: 52px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__title {
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__right-group {
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__prontuario {
+  height: 34px;
+  min-height: 34px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 9.5px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__ops {
+  min-height: 40px;
+  padding: 4px 6px;
+  gap: 4px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__memed {
+  height: 28px;
+  padding-left: 8px;
+  padding-right: 8px;
+  gap: 5px;
+  font-size: 9px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__divider {
+  height: 24px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__profile {
+  gap: 4px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__profile-text {
+  max-width: 82px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 10.5px;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__name {
+  font-size: 10.5px;
+  line-height: 1.15;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__role {
+  font-size: 9px;
+  line-height: 1.15;
+}
+
+.admin-dashboard .panel-header--operational .panel-header__logout {
+  height: 28px;
+  min-height: 28px;
+  padding-left: 7px;
+  padding-right: 7px;
+  gap: 3px;
+  font-size: 9px;
 }
 
 .admin-dashboard__content {
   max-width: 1320px;
-  padding: 12px 20px 20px;
+  padding: 10px 16px 14px;
 }
 
 .admin-dashboard__summary,
@@ -2862,14 +3307,275 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard__summary > button,
 .admin-dashboard__finance > div,
 .admin-dashboard__time > div {
-  min-height: 76px;
-  border-radius: 12px;
+  min-height: 62px;
+  border-radius: 11px;
   border-color: rgba(203, 213, 225, 0.78);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
 }
 
+/* Relação de Pacientes — usa a mesma composição do Painel Administrativo. */
+@media (min-width: 1024px) {
+  .admin-patients__content {
+    padding: 10px 18px 16px;
+  }
+
+  .admin-patients__filters {
+    display: grid;
+    grid-template-columns: minmax(360px, 520px) 220px auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .admin-patients__filters input,
+  .admin-patients__filters select,
+  .admin-patients__filters button {
+    height: 40px;
+  }
+
+  .admin-patients__filters input {
+    max-width: none;
+  }
+
+  .admin-patients__table-card {
+    border-radius: 14px;
+  }
+
+  .admin-patients__table {
+    table-layout: fixed;
+    font-size: 12.5px;
+  }
+
+  .admin-patients__table thead tr {
+    height: 38px;
+  }
+
+  .admin-patients__table tbody tr {
+    height: 54px;
+  }
+
+  .admin-patients__table th,
+  .admin-patients__table td {
+    padding: 8px 10px;
+    vertical-align: middle;
+  }
+
+  .admin-patients__table th:nth-child(1) { width: 16%; }
+  .admin-patients__table th:nth-child(2) { width: 11%; }
+  .admin-patients__table th:nth-child(3) { width: 14%; }
+  .admin-patients__table th:nth-child(4) { width: 9%; }
+  .admin-patients__table th:nth-child(5) { width: 10%; }
+  .admin-patients__table th:nth-child(6) { width: 12%; }
+  .admin-patients__table th:nth-child(7) { width: 8%; }
+  .admin-patients__table th:nth-child(8) { width: 10%; }
+  .admin-patients__table th:nth-child(9) { width: 112px; }
+
+  .admin-patients__table th,
+  .admin-patients__table td,
+  .admin-patients__table button,
+  .admin-patients__table td > span {
+    white-space: nowrap;
+  }
+
+  .admin-patients__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+  }
+
+  .admin-patients__phone {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .admin-patients__condition {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+  }
+
+  .admin-patients__table td:nth-child(4),
+  .admin-patients__table td:nth-child(5) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .admin-patients__table td:last-child {
+    text-align: right;
+  }
+
+  .admin-patients__table td:last-child button {
+    min-width: 92px;
+    padding: 7px 12px;
+  }
+}
+
+/* Jornada do Paciente — mesma composição do administrativo, em uma tela Full HD. */
+@media (min-width: 1024px) {
+  .admin-dashboard.admin-patient-journey .admin-patient-journey__content {
+    padding: 6px 16px 8px;
+  }
+
+  .admin-dashboard.admin-patient-journey .admin-patient-journey__content > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 6px;
+  }
+
+  .admin-dashboard.admin-patient-journey .panel-header--operational {
+    height: 68px;
+    min-height: 68px;
+  }
+
+  .admin-dashboard.admin-patient-journey .panel-header--operational .panel-header__title {
+    max-width: 100%;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-transform: capitalize;
+  }
+
+  .admin-patient-journey__overview {
+    gap: 8px;
+  }
+
+  .admin-patient-journey__info-card,
+  .admin-patient-journey__timeline,
+  .admin-patient-journey__actions,
+  .admin-patient-journey__notes {
+    border-color: #d9e3f0;
+    border-radius: 14px;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.045);
+  }
+
+  .admin-patient-journey__info-card {
+    padding: 8px 10px;
+  }
+
+  .admin-patient-journey__info-card > p,
+  .admin-patient-journey__timeline > p,
+  .admin-patient-journey__actions > p,
+  .admin-patient-journey__notes > p:first-child {
+    margin-bottom: 4px;
+    color: #34445d;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.065em;
+  }
+
+  .admin-patient-journey__info-card dl {
+    gap: 0;
+  }
+
+  .admin-patient-journey__info-card dl > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0;
+  }
+
+  .admin-patient-journey__info-card dl > div {
+    min-height: 22px;
+    align-items: center;
+    padding: 2px 0;
+    font-size: 11px;
+  }
+
+  .admin-patient-journey__info-card dl dt {
+    font-weight: 650;
+    color: #53627a;
+  }
+
+  .admin-patient-journey__info-card dl dd {
+    max-width: 66%;
+    font-size: 11.5px;
+  }
+
+  .admin-patient-journey__timeline {
+    padding: 7px 10px 6px;
+  }
+
+  .admin-patient-journey__lower {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.82fr) minmax(0, 1.18fr);
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .admin-patient-journey__timeline span.h-6.w-6 {
+    width: 20px;
+    height: 20px;
+  }
+
+  .admin-patient-journey__timeline .mt-2 {
+    margin-top: 3px;
+  }
+
+  .admin-patient-journey__timeline .max-w-\[90px\] {
+    max-width: 112px;
+  }
+
+  .admin-patient-journey__timeline .text-\[11px\] {
+    font-size: 9px;
+  }
+
+  .admin-patient-journey__timeline .text-\[10px\] {
+    font-size: 8px;
+  }
+
+  .admin-patient-journey__actions {
+    padding: 8px 10px;
+  }
+
+  .admin-patient-journey__actions > div:first-of-type {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 8px;
+  }
+
+  .admin-patient-journey__actions button,
+  .admin-patient-journey__actions a {
+    width: 100%;
+    justify-content: center;
+    height: 30px;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 10px;
+  }
+
+  .admin-patient-journey__notes {
+    padding: 8px 10px;
+  }
+
+  .admin-patient-journey__notes > div.mb-4 {
+    margin-bottom: 8px;
+    gap: 6px;
+  }
+
+  .admin-patient-journey__notes > div.mb-4 > div {
+    padding: 6px 8px;
+    border-radius: 10px;
+  }
+
+  .admin-patient-journey__notes textarea {
+    height: 58px;
+    min-height: 58px;
+    padding: 7px 9px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  .admin-patient-journey__notes .space-y-2 {
+    gap: 6px;
+  }
+
+  .admin-patient-journey__notes button {
+    height: 30px;
+    min-height: 30px;
+    font-size: 10px;
+  }
+}
+
 .admin-dashboard__summary > button {
-  padding: 11px;
+  padding: 8px 9px;
 }
 
 .admin-dashboard__summary > button:hover {
@@ -2884,13 +3590,58 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__finance > div {
-  min-height: 70px;
+  min-height: 58px;
+  padding: 7px 10px;
 }
 
 .admin-dashboard__time > div {
-  min-height: 62px;
-  padding: 9px 10px;
+  min-height: 56px;
+  padding: 7px 9px;
   background-color: rgba(255, 255, 255, 0.82);
+}
+
+.admin-dashboard__summary > button > span:nth-child(2),
+.admin-dashboard__finance > div > span:nth-child(2),
+.admin-dashboard__time > div > span:nth-child(2) {
+  margin-top: 3px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #13233d;
+}
+
+.admin-dashboard__summary > button > span:last-child,
+.admin-dashboard__finance > div > span:last-child,
+.admin-dashboard__time > div > span:last-child {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.admin-dashboard .panel-support-band {
+  height: 58px;
+  min-height: 58px;
+  border-color: #f1cf9d;
+  background: linear-gradient(90deg, #fff7ed 0%, #fffaf2 52%, #fff7ed 100%);
+  box-shadow: 0 2px 10px rgba(146, 82, 12, 0.05);
+}
+
+.admin-dashboard .panel-support-band h2,
+.admin-dashboard .panel-support-band strong,
+.admin-dashboard .panel-support-band svg {
+  color: #9a5500;
+}
+
+.admin-dashboard .panel-support-band p,
+.admin-dashboard .panel-support-band span {
+  color: #65451f;
+}
+
+.admin-dashboard .panel-support-band__intro > div:first-child {
+  background-color: #ffedd5;
+}
+
+.admin-dashboard .panel-support-band__intro,
+.admin-dashboard .panel-support-band__metrics {
+  border-color: #efd7b6;
 }
 
 .admin-dashboard__journey {
@@ -2905,22 +3656,50 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__journey > section > div:first-child {
-  min-height: 42px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 7px 12px;
 }
 
 .admin-dashboard__journey > section > div:last-child {
-  max-height: 396px;
-  min-height: 112px;
+  max-height: none;
+  min-height: 96px;
   scrollbar-color: #cbd5e1 transparent;
 }
 
 .admin-dashboard__journey > section > div:last-child > div {
-  min-height: 38px;
-  gap: 8px;
-  padding: 7px 10px;
+  display: grid;
+  grid-template-columns: 28px 64px 84px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 34px;
+  gap: 6px;
+  padding: 5px 10px;
   border-color: #edf1f6;
   transition: background-color 150ms ease;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(2) {
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(3) {
+  width: auto;
+  min-width: 0;
+  font-size: 9.5px;
+}
+
+.admin-dashboard__journey > section > div:last-child > div > span:nth-child(4) {
+  width: auto;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.admin-dashboard__journey > section > div:first-child h2 {
+  font-weight: 700;
+  letter-spacing: 0.025em;
 }
 
 .admin-dashboard__journey > section > div:last-child > div:hover {
@@ -2936,6 +3715,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   color: #078742;
   box-shadow: none;
   transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+  justify-self: end;
 }
 
 .admin-dashboard__journey [aria-label='Ver jornada do atendimento']:hover {
@@ -2949,6 +3729,188 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   min-width: 24px;
   border-radius: 7px;
   font-weight: 700;
+}
+
+@media (min-width: 1024px) {
+  .admin-dashboard {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-dashboard__content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 16px 10px;
+    overflow: hidden;
+  }
+
+  .admin-dashboard .admin-dashboard__content {
+    gap: 4px;
+    padding: 6px 16px 8px;
+  }
+
+  .admin-dashboard__content > * + * {
+    margin-top: 0;
+  }
+
+  .admin-dashboard__content > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 4px;
+  }
+
+  .admin-dashboard__content > section > p {
+    margin-bottom: 2px;
+    font-size: 9px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard__summary,
+  .admin-dashboard__finance,
+  .admin-dashboard__time {
+    gap: 8px;
+  }
+
+  .admin-dashboard__summary > button,
+  .admin-dashboard__finance > div,
+  .admin-dashboard__time > div {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    column-gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .admin-dashboard__summary > button {
+    min-height: 34px;
+    border-color: #b8cdf2;
+    background: linear-gradient(180deg, #e4eeff 0%, #d8e6ff 100%);
+    box-shadow:
+      0 3px 9px rgba(21, 87, 255, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .admin-dashboard__finance > div {
+    min-height: 34px;
+    border-color: #b8e2cf;
+    background: linear-gradient(180deg, #e5f8ef 0%, #d9f2e7 100%);
+    box-shadow:
+      0 3px 9px rgba(5, 150, 105, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.74);
+  }
+
+  .admin-dashboard__time > div {
+    min-height: 38px;
+    border-color: #b8cdf2;
+    background: linear-gradient(180deg, #e4eeff 0%, #d8e6ff 100%);
+    box-shadow:
+      0 3px 9px rgba(21, 87, 255, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .admin-dashboard__summary > button,
+  .admin-dashboard__finance > div {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    justify-items: center;
+    padding: 4px 7px;
+    text-align: center;
+  }
+
+  .admin-dashboard__summary > button > span:first-child,
+  .admin-dashboard__finance > div > span:first-child {
+    display: none;
+  }
+
+  .admin-dashboard__finance {
+    grid-template-columns: repeat(3, minmax(150px, 220px));
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .admin-dashboard__summary > button > span:first-child,
+  .admin-dashboard__finance > div > span:first-child,
+  .admin-dashboard__time > div > span:first-child {
+    grid-row: 1 / 3;
+    align-self: center;
+    font-size: 13px;
+  }
+
+  .admin-dashboard__summary > button > span:nth-child(2),
+  .admin-dashboard__finance > div > span:nth-child(2),
+  .admin-dashboard__time > div > span:nth-child(2) {
+    align-self: end;
+    margin-top: 0;
+    font-size: 12.5px;
+    line-height: 1;
+  }
+
+  .admin-dashboard__summary > button > span:last-child,
+  .admin-dashboard__finance > div > span:last-child,
+  .admin-dashboard__time > div > span:last-child {
+    align-self: start;
+    margin-top: 2px;
+    font-size: 8px;
+    line-height: 1.12;
+  }
+
+  .admin-dashboard .panel-support-band {
+    height: 56px;
+    min-height: 56px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+    box-shadow:
+      0 4px 12px rgba(146, 82, 12, 0.09),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+
+  .admin-dashboard .panel-support-band__intro {
+    gap: 9px;
+  }
+
+  .admin-dashboard .panel-support-band__intro > div:first-child {
+    width: 30px;
+    height: 30px;
+  }
+
+  .admin-dashboard .panel-support-band__intro h2 {
+    font-size: 12px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band__intro p,
+  .admin-dashboard .panel-support-band__metrics p {
+    font-size: 9.5px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band__queue {
+    gap: 2px;
+  }
+
+  .admin-dashboard .panel-support-band__queue > p {
+    font-size: 8.5px;
+    line-height: 1.1;
+  }
+
+  .admin-dashboard__journey {
+    flex: 1;
+    min-height: 210px;
+  }
+
+  .admin-dashboard__journey > section {
+    min-height: 0;
+  }
+
+  .admin-dashboard__journey > section > div:last-child {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
 }
 
 @media (max-width: 1023px) {
@@ -2984,5 +3946,455 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__summary > button,
   .admin-dashboard__finance > div {
     min-height: 70px;
+  }
+}
+
+/* Painel Médico responsivo — isolado da composição desktop aprovada. */
+@media (max-width: 1023px) {
+  .fila-page-dense {
+    min-height: 100dvh;
+    align-items: flex-start;
+  }
+
+  .fila-page-dense main {
+    min-height: 100dvh;
+    max-width: 100%;
+    flex: 0 0 auto;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  .fila-page-dense .panel-header--operational {
+    height: auto;
+    min-height: 0;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "brand title"
+      "controls controls";
+    align-items: center;
+    row-gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--brand {
+    grid-area: brand;
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__brand {
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 140px;
+    max-width: 100%;
+    transform: none;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--center {
+    grid-area: title;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    padding-top: 0;
+    font-size: 28px;
+    line-height: 1;
+    white-space: normal;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__col--ops {
+    grid-area: controls;
+    width: 100%;
+    transform: none;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-support-band {
+    height: auto;
+    min-height: 0;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: auto;
+    row-gap: 10px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    grid-column: 1 / -1;
+    height: auto;
+    padding-right: 0;
+    padding-bottom: 10px;
+    border-right: 0;
+    border-bottom-width: 1px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro h2,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics p {
+    white-space: normal;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    height: auto;
+    min-height: 54px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics {
+    padding-left: 0;
+    padding-right: 14px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    align-items: flex-start;
+    padding-left: 14px;
+    overflow: visible;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > p {
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .fila-page-dense .panel-page-body {
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    flex: 0 0 auto;
+  }
+
+  .fila-page-dense .dp-fila-column {
+    height: auto;
+    min-height: 240px;
+    align-self: start;
+  }
+
+  .fila-page-dense .dp-fila-column__scroll {
+    flex: 0 0 auto;
+    overflow-y: visible;
+  }
+
+  .fila-page-dense .dp-patient-card {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    row-gap: 7px;
+    padding: 8px 10px 10px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 118px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    font-size: 23px;
+    line-height: 0.95;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 7px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__prontuario {
+    justify-self: center;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+  }
+
+  .fila-page-dense .panel-support-band {
+    padding: 10px 12px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__intro {
+    grid-column: auto;
+    padding-bottom: 8px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__metrics,
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    min-height: 0;
+    padding: 0 0 8px;
+    border-right: 0;
+    border-bottom-width: 1px;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .fila-page-dense .panel-support-band:not(.panel-support-band--lg) .panel-support-band__queue > div {
+    justify-content: flex-start;
+  }
+
+  .fila-page-dense .panel-page-body {
+    padding: 8px 10px 12px;
+  }
+
+  .fila-page-dense .dp-fila-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .fila-page-dense .dp-fila-column {
+    width: 100%;
+    min-height: 220px;
+  }
+
+  .fila-page-dense .dp-action-slot {
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+/* OPPO A6x 5G — Chrome Android em orientação vertical (~360 CSS px).
+   Ajustes telefônicos isolados; desktop e tablet permanecem inalterados. */
+@media (max-width: 480px) {
+  .fila-page-dense,
+  .fila-page-dense main,
+  .fila-page-dense .panel-header__shell,
+  .fila-page-dense .panel-header__right-group,
+  .fila-page-dense .panel-header__ops,
+  .fila-page-dense .panel-page-body,
+  .fila-page-dense .panel-support-band,
+  .fila-page-dense .dp-fila-grid,
+  .fila-page-dense .dp-fila-column {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .fila-page-dense {
+    min-height: 100svh;
+  }
+
+  .fila-page-dense main {
+    width: 100%;
+    min-height: 100svh;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__shell {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__logo {
+    width: 108px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__title {
+    font-size: 21px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__right-group {
+    width: 100%;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__ops {
+    width: 100%;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .fila-page-dense .panel-header--operational .panel-header__profile-text {
+    max-width: 72px;
+  }
+
+  .fila-page-dense .panel-support-band,
+  .fila-page-dense .dp-fila-column,
+  .fila-page-dense .dp-patient-card {
+    width: 100%;
+  }
+
+  .admin-dashboard {
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  .admin-dashboard .panel-header--operational {
+    height: auto;
+    min-height: 0;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__shell {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      "brand title"
+      "controls controls";
+    height: auto;
+    row-gap: 7px;
+    padding: 8px 10px 10px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--brand {
+    grid-area: brand;
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__brand {
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__logo {
+    width: 108px;
+    max-width: 100%;
+    transform: none;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--center {
+    grid-area: title;
+    justify-content: flex-end;
+    text-align: right;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__title {
+    font-size: 21px;
+    line-height: 0.98;
+    white-space: normal;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__col--ops {
+    grid-area: controls;
+    width: 100%;
+    min-width: 0;
+    transform: none;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__right-group {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 7px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__prontuario {
+    justify-self: center;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__ops {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+
+  .admin-dashboard .panel-header--operational .panel-header__profile-text {
+    max-width: 72px;
+  }
+
+  .admin-dashboard__content {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .admin-dashboard__summary,
+  .admin-dashboard__finance,
+  .admin-dashboard__time,
+  .admin-dashboard__journey {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-dashboard .panel-support-band {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    align-items: stretch;
+    padding: 10px 12px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__grid {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    row-gap: 8px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro,
+  .admin-dashboard .panel-support-band .panel-support-band__metrics,
+  .admin-dashboard .panel-support-band .panel-support-band__queue {
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 0 8px;
+    border-right: 0;
+    border-bottom: 1px solid #efd7b6;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue {
+    align-items: flex-start;
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro > div:first-child {
+    width: 38px;
+    height: 38px;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro h2 {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__intro p,
+  .admin-dashboard .panel-support-band .panel-support-band__metrics p {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue > div {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .admin-dashboard .panel-support-band .panel-support-band__queue > p {
+    width: 100%;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .admin-dashboard__journey > section,
+  .admin-dashboard__journey > section > div:last-child {
+    min-width: 0;
   }
 }

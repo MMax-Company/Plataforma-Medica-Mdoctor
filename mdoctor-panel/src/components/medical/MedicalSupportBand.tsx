@@ -193,8 +193,8 @@ export function MedicalSupportBand({
         lg ? 'border-2' : 'border'
       }`}
     >
-      <div className="grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
-        <div className={`flex min-w-0 items-center border-r ${theme.divider} ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
+      <div className="panel-support-band__grid grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
+        <div className={`panel-support-band__intro flex min-w-0 items-center border-r ${theme.divider} ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
           <div
             className={`flex shrink-0 items-center justify-center rounded-full ${theme.iconBg} ${lg ? 'h-14 w-14' : 'h-8 w-8'}`}
           >
@@ -220,7 +220,7 @@ export function MedicalSupportBand({
           </div>
         </div>
 
-        <div className={`flex flex-col justify-center border-r ${theme.divider} ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
+        <div className={`panel-support-band__metrics flex flex-col justify-center border-r ${theme.divider} ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
           <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[17px]' : 'text-[12px]'}`}>
             <Users className={`${lg ? 'h-5 w-5' : 'h-3.5 w-3.5'} shrink-0 ${theme.title}`} aria-hidden="true" />
             <span>
@@ -235,7 +235,7 @@ export function MedicalSupportBand({
           </p>
         </div>
 
-        <div className={`flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
+        <div className={`panel-support-band__queue flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
           <div className={`flex flex-wrap items-center justify-end gap-1.5 ${lg ? 'min-h-[36px]' : 'min-h-[28px]'}`}>
             {visible.length === 0 ? (
               <span className={`dp-text-subtle font-medium ${lg ? 'text-[13px]' : 'text-[11px]'}`}>

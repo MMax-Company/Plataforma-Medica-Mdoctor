@@ -154,18 +154,17 @@ function PacientesContent() {
       : `${filtered.length} atendimento${filtered.length !== 1 ? 's' : ''}`;
 
   return (
-    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
+    <main className="admin-dashboard admin-patients flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
       <MedicalPanelHeader
         operational
         title="Relação de Pacientes"
         subtitle={subtitle}
-        titleAlign="left"
         recordButtonLabel="Dashboard"
         recordButtonIcon={<LayoutDashboard className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/dashboard')}
         onLogout={handleLogout}
       />
-      <div className="space-y-4 p-4 sm:p-6">
+      <div className="admin-patients__content space-y-4 p-4 sm:p-6">
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
@@ -173,7 +172,7 @@ function PacientesContent() {
         )}
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-3">
+        <div className="admin-patients__filters flex flex-wrap gap-3">
           <TextInput
             placeholder="Buscar por nome, telefone, doença..."
             value={search}
@@ -208,9 +207,9 @@ function PacientesContent() {
             description="Ajuste o filtro ou a busca para encontrar atendimentos."
           />
         ) : (
-          <Card className="overflow-hidden">
+          <Card className="admin-patients__table-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px] text-sm">
+              <table className="admin-patients__table w-full min-w-[1120px] text-sm">
                 <thead>
                   <tr className="border-b border-[#E5EAF2] bg-[#F8FAFC] text-xs font-black text-[#5B6475]">
                     <th className="px-4 py-3 text-left">Nome</th>
@@ -234,7 +233,7 @@ function PacientesContent() {
                         key={a.id}
                         className="border-b border-[#E5EAF2] last:border-0 hover:bg-[#F8FAFC]"
                       >
-                        <td className="px-4 py-3 font-bold text-[#1E1E1E]">
+                        <td className="admin-patients__name px-4 py-3 font-bold text-[#1E1E1E]">
                           {a.paciente_nome}
                           {hasPendingNote && (
                             <span className="ml-2 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white">
@@ -242,8 +241,8 @@ function PacientesContent() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-[#5B6475]">{maskPhone(a.paciente_telefone)}</td>
-                        <td className="px-4 py-3 text-[#5B6475]">{a.condicao || '—'}</td>
+                        <td className="admin-patients__phone px-4 py-3 text-[#5B6475]">{maskPhone(a.paciente_telefone)}</td>
+                        <td className="admin-patients__condition px-4 py-3 text-[#5B6475]">{a.condicao || '—'}</td>
                         <td className="px-4 py-3 text-[#5B6475]">{fmt(a.criado_em)}</td>
                         <td className="px-4 py-3 text-[#5B6475]">{fmt(a.atualizado_em)}</td>
                         <td className="px-4 py-3">
