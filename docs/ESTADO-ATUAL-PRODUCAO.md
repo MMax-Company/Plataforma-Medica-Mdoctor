@@ -7,8 +7,13 @@
 - Repositório: `MMax-Company/Plataforma-Medica-Mdoctor`
 - Produção: branch `main`
 - Homologação: branch `staging`
-- Commit validado em ambos os ambientes: `510715aca2aba88a459c28c49e06f48db2052aa3`
+- Produção validada: `30c5742359c53330288aaa46588ce3864d22d585`
+- Homologação validada: `13a1d5fe6f067bbfd5a9a894d10add72a456fad4`
+- As árvores Git dos dois commits são idênticas:
+  `6d0eb87a2d4edafc525c2dbd9345597e7d68096f`
 - Pull Request de normalização: #45
+- Pull Request de CI/homologação: #46
+- Pull Request de promoção para produção: #47
 - Pull Request anterior #43: encerrado após revisão da estratégia
 
 ## Estratégia de branches
@@ -20,7 +25,10 @@
 
 As proteções de `main` e `staging` exigem Pull Request, histórico linear e resolução das conversas. Force-push e exclusão estão bloqueados, inclusive para administradores.
 
-O workflow `CI` verifica segurança básica do repositório, sintaxe do backend, lint e build do painel em Pull Requests para `main` e `staging`. Os checks devem ser configurados como obrigatórios depois da primeira execução aprovada no GitHub.
+O workflow `CI` verifica segurança básica do repositório, sintaxe do backend,
+lint e build do painel em Pull Requests para `main` e `staging`. Os checks
+`Repository safety`, `Backend check` e `Panel lint and build` são obrigatórios
+nas duas branches.
 
 ## Railway
 
@@ -35,9 +43,17 @@ Os quatro serviços acompanham automaticamente a ponta de suas branches; não ex
 
 ## Última validação
 
-Executada em 21/08/2026 após o alinhamento do Railway:
+Executada em 21/08/2026 após os PRs #46 e #47 e os deploys automáticos:
 
-- Backend de produção: `/health` OK e `/readyz` OK, sem falhas ou avisos.
+- Backend de produção: deployment
+  `1f5774c8-6b3a-4363-8996-4bbf85d489ac`, `SUCCESS`; `/health` e `/readyz`
+  OK, sem falhas ou avisos.
+- Painel de produção: deployment
+  `3796f02a-113d-4bb8-a995-bb81985d8d87`, `SUCCESS`.
+- Backend de homologação: deployment
+  `389cb627-90eb-4282-a7d6-bb9208af22c6`, `SUCCESS`.
+- Painel de homologação: deployment
+  `bb8ef43d-1067-4975-bae0-ff4d8614d8e2`, `SUCCESS`.
 - Supabase conectado e persistência ativa.
 - Memed em modo real de produção, sem fallback simulado.
 - Painel: login, fila e dashboard responderam HTTP 200.

@@ -1,6 +1,6 @@
 # Memória Compartilhada — Doctor Prescreve
 
-**Última atualização:** 19/08/2026  
+**Última atualização:** 21/08/2026
 **Responsável funcional:** Dr. Max Vinicius Ferreira Matos  
 **Finalidade:** fonte canônica compartilhada entre Claude Code, Codex e futuros
 agentes. Deve ser lida antes de qualquer trabalho no projeto.
@@ -16,41 +16,24 @@ agentes. Deve ser lida antes de qualquer trabalho no projeto.
 
 ## 2. Ambientes e deploy
 
-- O projeto está em homologação: **staging é o ambiente padrão**.
+- **Staging continua sendo o ambiente padrão de desenvolvimento e validação.**
 - Painel staging: `https://painel-medico-staging-staging.up.railway.app`.
 - Backend staging: `https://mdoctor-backend-staging-staging.up.railway.app`.
+- Painel produção: `https://web-production-02fde.up.railway.app`.
+- Backend produção: `https://web-production-5f178.up.railway.app`.
+- Branch oficial de produção: `main`. Branch oficial de homologação: `staging`.
+- Railway acompanha automaticamente a ponta das branches: produção → `main` e
+  homologação → `staging`; nenhum dos quatro serviços mantém `commitSha` fixo.
 - Não alterar `main`, produção, serviços ou dados de produção sem autorização
   explícita do usuário na solicitação atual.
 - "Faça commit e deploy" não autoriza produção por si só; usar staging enquanto
   o usuário estiver revisando o painel.
 - Antes do deploy, confirmar branch e serviço Railway vinculados.
-- O último deploy de staging informado em 01/08/2026 (backend + painel) foi o
-  commit `051545b` na branch `fix/cep-upload-prescription-20260728`. Esse
-  commit corresponde ao patch preparado pelo Codex como `1067d99`
-  ("docs: registra regras finais de tempos e pendencias", em cima de
-  `5b2f843`/`06cf593`) — aplicado via `git am` a partir de
-  `af52f93`; o hash local difere do original só porque o committer muda a
-  cada `git am` (autor `Codex <codex@openai.com>` e datas originais foram
-  preservados; árvore/conteúdo idênticos, confirmado por `git apply --check`
-  limpo antes de aplicar). Confirmar sincronização entre Git local, remoto e
-  Railway antes do próximo trabalho.
-- **Deploy de produção concluído em 07/08/2026:** commit
-  `2d6c144a8c7e00fb31a38b77948a578ed592f63b` promovido para produção na
-  branch `codex/release-production-20260802`. Backend (`web`, deployment
-  `e61d2fe9-dc6c-4fe9-8b58-a3a16b134261`, SUCCESS 06:34 UTC) e Painel
-  (`Painel Medico`, deployment `bce30087-046d-4776-a99f-131f7b7428f6`,
-  SUCCESS 06:41 UTC) promovidos manualmente pelo usuário, validados via
-  Playwright e Railway MCP. Checklist pós-deploy: `/health` OK,
-  `/readyz` com `failures:[]` e `warnings:[]`, Memed `real_mode=true`
-  `env=production` `mock_fallback_allowed=false`, `WHATSAPP_ENABLED=false`
-  confirmado no log de startup (`whatsapp_disabled`), painel sem banner
-  Staging, login e fila (`/api/atendimentos/queue`) retornando 200, zero
-  erros de console. `MEMED_PRESCRITOR_DATA_NASC=09/02/1988` corrigido antes
-  do deploy. Stripe sem alteração nesta promoção (chave live compartilhada
-  entre staging e produção permanece pendência conhecida). Homologação
-  funcional de staging aprovada em 07/08/2026 (busca/prontuário,
-  admin/filtro test_patient, upload receita anterior e Memed até tela de
-  emissão — todos PASS).
+- Estado promovido e validado em 21/08/2026: produção `main` no commit
+  `30c5742359c53330288aaa46588ce3864d22d585`; staging no commit
+  `13a1d5fe6f067bbfd5a9a894d10add72a456fad4`. Os SHAs diferem pelo rebase
+  do PR de promoção, mas as árvores Git são idênticas
+  (`6d0eb87a2d4edafc525c2dbd9345597e7d68096f`).
 
 ## 3. Definição de pedido econômico
 
@@ -371,22 +354,21 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
 
 ## 11. WhatsApp — Menu, Suporte e Sinais de Alerta — baseline confirmado em 19/08/2026
 
-- **Repositório e branches:** repositório oficial `MMax-Company/Plataforma-Medica-Mdoctor`
-  (GitHub). Confirmado em 19/08/2026 que `main` e a branch efetivamente
-  implantada em produção (`codex/release-production-20260802`) **divergiram**:
-  17 commits existem só em `main` (inclui a restauração
-  `feature/restauracao-completa-homologado`/`bf57f27`/`23f00ab` e
-  `49ef07f`), e 17 commits existem só em `codex/release-production-20260802`
-  (inclui os dois commits abaixo). Referência funcional para qualquer
-  trabalho de produção é a branch de produção, não `main`, até reconciliação
-  formal autorizada pelo usuário.
-- **Estado de produção confirmado em 19/08/2026:** Railway `Backend-Mdoctor`
-  → serviço `web`, ambiente `production`, branch `codex/release-production-20260802`,
-  deployment `901a841d-be6c-497f-b172-42491b28e601`, commit `7a94d2b`,
-  status `SUCCESS` (criado 08:20 UTC). `WHATSAPP_ENABLED=true` e
-  `WHATSAPP_PROVIDER=meta` confirmados nas variáveis do serviço; o log
-  `whatsapp_disabled` no startup é exclusivo do cliente legado Baileys
-  removido, não indica Meta Cloud API desligada.
+- **Repositório e branches (normalizado em 21/08/2026):** repositório oficial
+  `MMax-Company/Plataforma-Medica-Mdoctor`. `main` é a única referência de
+  produção e `staging` é a única referência de homologação. A divergência com
+  `codex/release-production-20260802` foi reconciliada preservando exatamente
+  a árvore funcional; a branch antiga foi removida depois da criação dos
+  backups.
+- **Estado de produção confirmado em 21/08/2026:** Railway
+  `Backend-Mdoctor` → serviço `web`, ambiente `production`, branch `main`,
+  deployment `1f5774c8-6b3a-4363-8996-4bbf85d489ac`, commit `30c5742`,
+  `SUCCESS`; Railway `Painel-MDoctor` → serviço `Painel Medico`, ambiente
+  `production`, branch `main`, deployment
+  `3796f02a-113d-4bb8-a995-bb81985d8d87`, mesmo commit, `SUCCESS`.
+  O estado de WhatsApp/Meta descrito nos itens seguintes foi confirmado em
+  19/08/2026 e deve ser verificado novamente antes de qualquer mudança nesse
+  canal.
 - **Menu inicial — arquitetura confirmada:** saudação ("Oi" etc.) é
   controlada pelo Backend, sempre reapresenta o menu (1 = iniciar
   atendimento/`typebot_clean`, 2 = suporte) e grava
@@ -449,7 +431,61 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   teste teve causa diferente (gap de suporte antigo acima), sem nenhum erro
   de rede nos logs.
 
-## 12. Manutenção desta memória
+## 12. Normalização de repositório, CI e produção — 21/08/2026
+
+- A produção foi preservada antes da reconciliação por meio das branches
+  `backup/backend-prod-20260821`, `backup/painel-prod-20260821` e
+  `backup/producao-pre-deploy-20260728-branch`. Revisar a necessidade dessas
+  referências até 04/09/2026; não excluir antes de confirmar uma release/tag
+  recuperável.
+- As seis branches remanescentes foram comparadas. Mudanças seguras do painel
+  foram consolidadas no PR #44. O histórico divergente de `main` foi
+  reconciliado no PR #45 sem alterar a árvore funcional. O PR antigo #43 foi
+  revisado e encerrado por ter sido substituído pela normalização.
+- Branches temporárias/antigas removidas após a consolidação:
+  `staging/cep-retry-20260821`, `chore/normalize-main-20260821`,
+  `chore/reconcile-main-history-20260821`,
+  `codex/fix-painel-admin-visual-20260808`,
+  `codex/release-production-20260802` e
+  `fix/cep-upload-prescription-20260728`.
+- Branches oficiais protegidas no GitHub:
+  - `main`: produção; Pull Request obrigatório.
+  - `staging`: homologação; Pull Request obrigatório.
+  - ambas exigem histórico linear, resolução de conversas e checks atualizados;
+    force-push e exclusão estão bloqueados, inclusive para administradores.
+- Workflow `.github/workflows/ci.yml` criado e validado. Checks obrigatórios:
+  `Repository safety`, `Backend check` e `Panel lint and build`. A checagem de
+  segurança considera somente arquivos e linhas novas para não bloquear o
+  projeto por falsos positivos históricos. O backend executa `npm ci` e
+  verificação de sintaxe; o painel executa lint e build no Node 20, com npm
+  10.9.4 e reconciliação de dependências compatível com o runner Linux.
+- O lint do painel referenciava regras `@typescript-eslint` sem carregar o
+  plugin. O pacote oficial `typescript-eslint` foi incluído como dependência de
+  desenvolvimento e registrado no flat config. Resultado atual: zero erros e
+  seis avisos antigos de dependências de hooks; o build do Next.js passa.
+- O documento `docs/ESTADO-ATUAL-PRODUCAO.md` foi criado com branches, URLs,
+  estratégia de promoção, validações e referências de segurança.
+- PR #46 promoveu documentação e CI primeiro para `staging`. Homologação:
+  backend deployment `389cb627-90eb-4282-a7d6-bb9208af22c6` e painel
+  deployment `bb8ef43d-1067-4975-bae0-ff4d8614d8e2`, commit `13a1d5f`, ambos
+  `SUCCESS`. CI pós-merge também aprovado.
+- PR #47 promoveu `staging` para `main` por rebase autorizado. Produção:
+  backend deployment `1f5774c8-6b3a-4363-8996-4bbf85d489ac` e painel
+  deployment `3796f02a-113d-4bb8-a995-bb81985d8d87`, commit `30c5742`, ambos
+  `SUCCESS`.
+- Validação funcional final de staging e produção: `/health` OK; `/readyz`
+  sem falhas (produção também sem avisos); Supabase conectado; persistência
+  ativa; Memed real em `production`, sem fallback mock; login, fila e dashboard
+  HTTP 200; `auth_login` e `auth_me` aprovados; API retornou 18 atendimentos.
+  Em staging, o único aviso foi `NODE_ENV` diferente de `production`, esperado.
+- Railway final: backend/painel de staging acompanham `staging`; backend/painel
+  de produção acompanham `main`; nenhum serviço está preso a um `commitSha`.
+  Variáveis, domínios e demais configurações foram preservados.
+- Pendências técnicas separadas desta normalização: seis avisos de hooks no
+  painel e vulnerabilidades npm reportadas pelas instalações. Não executar
+  `npm audit fix --force` nem atualizações amplas sem análise e autorização.
+
+## 13. Manutenção desta memória
 
 Atualizar este arquivo no mesmo trabalho quando mudar:
 
