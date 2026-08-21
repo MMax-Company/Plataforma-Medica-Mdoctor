@@ -20,7 +20,7 @@
 
 As proteções de `main` e `staging` exigem Pull Request, histórico linear e resolução das conversas. Force-push e exclusão estão bloqueados, inclusive para administradores.
 
-Ainda não há workflow de CI próprio no repositório. Por isso, nenhum status check foi configurado como obrigatório; criar uma suíte automatizada é a próxima melhoria recomendada.
+O workflow `CI` verifica segurança básica do repositório, sintaxe do backend, lint e build do painel em Pull Requests para `main` e `staging`. Os checks devem ser configurados como obrigatórios depois da primeira execução aprovada no GitHub.
 
 ## Railway
 
