@@ -83,6 +83,9 @@ jobs:
           cache: npm
           cache-dependency-path: mdoctor-panel/package-lock.json
 
+      - name: Use validated npm version
+        run: npm install --global npm@10.9.4
+
       - name: Install dependencies
         run: npm ci
 
