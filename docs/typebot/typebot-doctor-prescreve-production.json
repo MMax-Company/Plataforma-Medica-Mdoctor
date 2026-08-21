@@ -1,14 +1,14 @@
 {
   "version": "6.1",
   "id": "higij2z0xihxxkr378rmljgu",
-  "name": "Doctor Prescreve Homologação",
+  "name": "Doctor Prescreve - Staging Safe",
   "events": [
     {
       "id": "k6kY6gwRE6noPoYQNGzgUq",
       "outgoingEdgeId": "oNvqaqNExdSH2kKEhKZHuE",
       "graphCoordinates": {
-        "x": -5121.33,
-        "y": -2920.13
+        "x": -4833.2,
+        "y": -3316.01
       },
       "type": "start"
     }
@@ -18,8 +18,8 @@
       "id": "kinRXxYop2X4d7F9qt8WNB",
       "title": "Bem-Vindo",
       "graphCoordinates": {
-        "x": -5114.49,
-        "y": -2803.17
+        "x": -4851.96,
+        "y": -3132.05
       },
       "blocks": [
         {
@@ -39,26 +39,59 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Olá 👋\n Este é o assistente do "
+                    "text": "Olá... 🧑🏻‍⚕️ \n"
+                  }
+                ]
+              },
+              {
+                "id": "XQNl0dZclq",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Sou o assistente do "
                   },
                   {
                     "bold": true,
                     "text": "Doctor Prescreve"
                   },
                   {
-                    "text": ".\n Aqui você pode solicitar "
+                    "text": ".\n"
+                  }
+                ]
+              },
+              {
+                "id": "55eHZXVvqk",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Aqui você pode solicitar "
                   },
                   {
                     "bold": true,
-                    "text": "avaliação médica para renovação de receita"
-                  },
+                    "text": "avaliação médica para continuidade do seu tratamento. "
+                  }
+                ]
+              },
+              {
+                "id": "_eHiA21HZi",
+                "type": "p",
+                "children": [
                   {
-                    "text": " de forma segura e legal."
+                    "text": "Com renovação de sua receita de forma segura e legal."
                   }
                 ]
               },
               {
                 "id": "2SOe6idVaZ",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "Sk7ACwsMnv",
                 "type": "p",
                 "children": [
                   {
@@ -76,7 +109,7 @@
             {
               "id": "hQw2zbp7FDX7XYK9cFpbgC",
               "outgoingEdgeId": "owiyjkzhd1c39equegqqle82",
-              "content": "Iniciar Atendimento"
+              "content": "Vamos começar"
             }
           ]
         }
@@ -86,8 +119,8 @@
       "id": "b2l6ks9gkl95zebue3wri6tr",
       "title": "Consentimento LGPD",
       "graphCoordinates": {
-        "x": -4661.68,
-        "y": -2889.4
+        "x": -4339.28,
+        "y": -2439.92
       },
       "blocks": [
         {
@@ -96,11 +129,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_gs12v9bg",
+                "id": "blk_lgpd_intro_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Antes de continuar, leia os documentos abaixo:"
+                    "text": "Leia o Consentimento para Tratamento de Dados Pessoais e de Saúde antes de continuar."
                   }
                 ]
               }
@@ -113,14 +146,14 @@
           "content": {
             "richText": [
               {
-                "id": "p_smv7kpjm",
+                "id": "blk_lgpd_docs_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "📄 "
+                    "text": " "
                   },
                   {
-                    "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf",
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_LGPD_Doctor_Prescreve.pdf",
                     "type": "a",
                     "target": "_blank",
                     "children": [
@@ -128,25 +161,9 @@
                         "text": "Consentimento LGPD"
                       }
                     ]
-                  }
-                ]
-              },
-              {
-                "id": "p_dfzimuh2",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "📄 "
                   },
                   {
-                    "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf",
-                    "type": "a",
-                    "target": "_blank",
-                    "children": [
-                      {
-                        "text": "Política de Privacidade"
-                      }
-                    ]
+                    "text": ""
                   }
                 ]
               }
@@ -154,16 +171,63 @@
           }
         },
         {
-          "id": "blk_lgpd_auth",
+          "id": "blk_lgpd_doc2_intro",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_eow1ove8",
+                "id": "blk_lgpd_doc2_intro_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Ao continuar, você autoriza o tratamento dos seus dados pessoais e de saúde para fins de triagem, atendimento, prontuário e emissão de receita digital."
+                    "text": "Leia também a Política de Privacidade do Doctor Prescreve."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_lgpd_doc2_link",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_lgpd_doc2_link_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": " "
+                  },
+                  {
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_de_Privacidade_Doctor_Prescreve.pdf",
+                    "type": "a",
+                    "target": "_blank",
+                    "children": [
+                      {
+                        "text": "Política de Privacidade"
+                      }
+                    ]
+                  },
+                  {
+                    "text": ""
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_lgpd_question",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_lgpd_question_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Após a leitura, você autoriza o Doctor Prescreve a tratar seus dados pessoais e de saúde para realizar a triagem, o atendimento médico, o registro em prontuário e a possível emissão da receita digital?"
                   }
                 ]
               }
@@ -178,13 +242,13 @@
               "id": "rx2ibesgrkoewo6gw5ah1d16",
               "outgoingEdgeId": "edge_lgpd_to_accept",
               "content": "Autorizo",
-              "value": "sim"
+              "value": "true"
             },
             {
               "id": "pco3gbkf4qv9250dxhdrgpo4",
               "outgoingEdgeId": "edge_lgpd_to_decline",
               "content": "Não autorizo",
-              "value": "nao"
+              "value": "false"
             }
           ],
           "options": {
@@ -197,30 +261,347 @@
       "id": "wupo36l29a2x66rh0bwf5yex",
       "title": "Confirmação de dados",
       "graphCoordinates": {
-        "x": -3663.81,
-        "y": 40.37
+        "x": -3298.63,
+        "y": -2667.46
       },
       "blocks": [
+        {
+          "id": "blk_clear_correction_flag",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_correction_target",
+            "expressionToEvaluate": ""
+          }
+        },
+        {
+          "id": "blk_resumo_set_condicoes",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_resumo_condicoes",
+            "expressionToEvaluate": "const raw = {{doenca_cronica}};\nif (!raw) return \"—\";\nconst map = {\n  has: \"Hipertensão arterial\",\n  dm: \"Diabetes mellitus\",\n  dlp: \"Dislipidemia\",\n  hipotireoidismo: \"Hipotireoidismo\"\n};\nconst parts = String(raw)\n  .replace(/[\\[\\]\"]/g, \"\")\n  .split(\",\")\n  .map((item) => item.trim().toLowerCase())\n  .filter(Boolean);\nconst labels = parts.map((item) => map[item] || item);\nreturn labels.length ? labels.map((l) => \"*\" + l + \"*\").join(\"\\n\") : \"—\";",
+            "isCode": true,
+            "type": "Custom"
+          }
+        },
+        {
+          "id": "blk_resumo_set_cpf_mascarado",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_resumo_cpf_mascarado",
+            "expressionToEvaluate": "const cpf = String({{cpf_paciente}} || \"\").replace(/\\D/g, \"\");\nif (cpf.length !== 11) return \"—\";\nreturn cpf.slice(0, 3) + \".•••.•••-\" + cpf.slice(9, 11);",
+            "isCode": true,
+            "type": "Custom"
+          }
+        },
+        {
+          "id": "blk_resumo_set_medicamentos",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_resumo_medicamentos",
+            "expressionToEvaluate": "const count = Math.min(3, Math.max(1, Number({{medication_count}}) || 1));\nconst meds = [\n  { nome: {{med1_nome}}, dose: {{med1_dose}}, freq: {{med1_frequencia}}, via: {{med1_via}} },\n  { nome: {{med2_nome}}, dose: {{med2_dose}}, freq: {{med2_frequencia}}, via: {{med2_via}} },\n  { nome: {{med3_nome}}, dose: {{med3_dose}}, freq: {{med3_frequencia}}, via: {{med3_via}} }\n];\nconst lines = [];\nfor (let i = 0; i < count; i++) {\n  const m = meds[i];\n  if (!m.nome) continue;\n  const parts = [m.nome];\n  if (m.dose) parts.push(m.dose);\n  if (m.freq) parts.push(m.freq);\n  if (m.via) parts.push(m.via);\n  lines.push(\"*\" + parts.join(\" — \") + \"*\");\n}\nreturn lines.length ? lines.join(\"\\n\") : \"—\";",
+            "isCode": true,
+            "type": "Custom"
+          }
+        },
         {
           "id": "k0i76xzc7cs84de90o94oy9i",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_n5phxcec",
+                "id": "p_confirm_title",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Revise os dados informados."
+                    "text": "CONFIRA SEUS DADOS"
                   }
                 ]
               },
               {
-                "id": "p_dch357f7",
+                "id": "p_confirm_b0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Confirma que estão corretos para envio à avaliação médica?"
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l1l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "1️⃣ Nome completo:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l1v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{Nome_Completo}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l2l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "2️⃣ Nome social:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l2v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{nome_social}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l3l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "3️⃣ Data de nascimento:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l3v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{data_nascimento}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l4l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "4️⃣ CPF:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l4v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{resumo_cpf_mascarado}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l5l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "5️⃣ WhatsApp:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l5v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{whatsapp}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b5",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l6l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "6️⃣ E-mail:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l6v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{Email}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b6",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l7l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "7️⃣ CEP:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l7v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{cep}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b7",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l8l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "8️⃣ Endereço:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l8v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "*{{Endereco}}*"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b8",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l9l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "9️⃣ Condições clínicas:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l9v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "{{resumo_condicoes}}"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b9",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l10l",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "🔟 Medicamentos:"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_l10v",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "{{resumo_medicamentos}}"
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_b10",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_confirm_question",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Os dados estão corretos?"
                   }
                 ]
               }
@@ -232,9 +613,16 @@
           "type": "choice input",
           "items": [
             {
-              "id": "nmhyrnorx68pd9jrp98esvli",
+              "id": "resumo_confirm",
               "outgoingEdgeId": "edge_confirm_to_webhook",
-              "content": "Confirmar dados"
+              "content": "Sim, estão corretos",
+              "value": "true"
+            },
+            {
+              "id": "resumo_corrigir",
+              "outgoingEdgeId": "edge_confirm_to_correction_menu",
+              "content": "Quero corrigir",
+              "value": "false"
             }
           ]
         }
@@ -244,8 +632,8 @@
       "id": "pjgm9a0jhn3awaa5vtmat7ko",
       "title": "Sinais de Alerta",
       "graphCoordinates": {
-        "x": -2622.6,
-        "y": -2886.75
+        "x": -3826.39,
+        "y": -3183.79
       },
       "blocks": [
         {
@@ -254,11 +642,11 @@
           "content": {
             "richText": [
               {
-                "id": "Op5YVf4beg",
+                "id": "p_sinais_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Você teve algum destes eventos recentemente?"
+                    "text": "Você apresentou recentemente algum dos sinais ou sintomas abaixo?"
                   }
                 ]
               }
@@ -296,14 +684,13 @@
             },
             {
               "id": "it_l4dxjewc",
-              "content": "Nenhum destes",
+              "content": "Nenhum sinal/sintoma",
               "value": "NAO"
             }
           ],
           "options": {
             "variableId": "he7ry4ccuhoyy3k2p11ryeuc",
-            "isMultipleChoice": true,
-            "buttonLabel": "Confirmo"
+            "isMultipleChoice": true
           }
         },
         {
@@ -333,8 +720,8 @@
       "id": "wb0gci4696hfx2s63brqetda",
       "title": "Tempo de Uso",
       "graphCoordinates": {
-        "x": -3097.42,
-        "y": -2932.25
+        "x": -3645.19,
+        "y": -2689.77
       },
       "blocks": [
         {
@@ -343,18 +730,11 @@
           "content": {
             "richText": [
               {
-                "id": "uG72499IbZ",
+                "id": "p_tempo_uso_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Há quanto tempo"
-                  },
-                  {
-                    "text": " ",
-                    "underline": true
-                  },
-                  {
-                    "text": "você usa esse medicamento?{{tempo_uso}}"
+                    "text": "Há quanto tempo você utiliza continuamente essa medicação?"
                   }
                 ]
               }
@@ -368,17 +748,20 @@
             {
               "id": "xmfrlrnrkudcos98bnhilpao",
               "outgoingEdgeId": "et9bxma730pvlnivvulwm8lf",
-              "content": "Menos de 1 mês"
+              "content": "Menos de 1 mês",
+              "value": "menos_1_mes"
             },
             {
               "id": "cx6ben72fekewftf7h8miqz8",
               "outgoingEdgeId": "a7ucrreigl4f1ol86ip3cpnh",
-              "content": "1 a 6 meses"
+              "content": "De 1 a 6 meses",
+              "value": "1_a_6_meses"
             },
             {
               "id": "hutcuflvz2hyyp87t78n3jdr",
               "outgoingEdgeId": "l698gx51k6igl8bnbhegq9iw",
-              "content": "Mais de 6 meses"
+              "content": "Mais de 6 meses",
+              "value": "mais_6_meses"
             }
           ],
           "options": {
@@ -391,8 +774,8 @@
       "id": "fni2p22kfg51hs6s6lhcteec",
       "title": "Declaração de elegibilidade",
       "graphCoordinates": {
-        "x": -2726.72,
-        "y": -2133.71
+        "x": -4554.79,
+        "y": -3351.84
       },
       "blocks": [
         {
@@ -401,7 +784,17 @@
           "content": {
             "richText": [
               {
-                "id": "6WsYxKKuUt",
+                "id": "p_decl_title",
+                "type": "p",
+                "children": [
+                  {
+                    "bold": true,
+                    "text": "CRITÉRIOS DE ELEGIBILIDADE "
+                  }
+                ]
+              },
+              {
+                "id": "p_decl_b0",
                 "type": "p",
                 "children": [
                   {
@@ -410,16 +803,16 @@
                 ]
               },
               {
-                "id": "m2reAU24hO",
+                "id": "wqpykM5PsO",
                 "type": "p",
                 "children": [
                   {
-                    "text": "📋 CRITÉRIOS DE ELEGIBILIDADE"
+                    "text": "Antes de continuar, confirme que as informações abaixo são verdadeiras:"
                   }
                 ]
               },
               {
-                "id": "fPLnHqJsaD",
+                "id": "4VOp4OUlT0",
                 "type": "p",
                 "children": [
                   {
@@ -428,25 +821,135 @@
                 ]
               },
               {
-                "id": "JnJaeLX7Eo",
+                "id": "F0_ebvWK9S",
                 "type": "p",
                 "children": [
                   {
-                    "text": "De acordo com o protocolo clínico do Doctor Prescreve, a renovação online é elegível para pacientes que:"
+                    "text": "✅ Tenho entre "
+                  },
+                  {
+                    "bold": true,
+                    "text": "18 e 80 anos"
+                  },
+                  {
+                    "text": "."
                   }
                 ]
               },
               {
-                "id": "3zW8U6K4V9",
+                "id": "05zpe2LnaY",
                 "type": "p",
                 "children": [
                   {
-                    "text": "• Possuem diagnóstico prévio de doença crônica\n• Estão em uso contínuo da medicação\n• Possuem receita anterior dentro do período aceito para triagem"
+                    "text": "✅ Possuo diagnóstico prévio de doença crônica compatível com o atendimento do "
+                  },
+                  {
+                    "bold": true,
+                    "text": "Doctor Prescreve"
+                  },
+                  {
+                    "text": "."
                   }
                 ]
               },
               {
-                "id": "gTCgPHpJhK",
+                "id": "kXMRKbiWOK",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Utilizo esta medicação de forma contínua há pelo menos "
+                  },
+                  {
+                    "bold": true,
+                    "text": "30 dias"
+                  },
+                  {
+                    "text": "."
+                  }
+                ]
+              },
+              {
+                "id": "_5Gcufh6N7",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ "
+                  },
+                  {
+                    "bold": true,
+                    "text": "Não apresento"
+                  },
+                  {
+                    "text": ", neste momento, sinais ou sintomas que indiquem urgência ou emergência médica."
+                  }
+                ]
+              },
+              {
+                "id": "b7GqWmQE-t",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Possuo uma "
+                  },
+                  {
+                    "bold": true,
+                    "text": "receita médica anterior válida"
+                  },
+                  {
+                    "text": " ou documento equivalente."
+                  }
+                ]
+              },
+              {
+                "id": "M0X9paIQTz",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Minha receita anterior foi emitida há, no máximo, "
+                  },
+                  {
+                    "bold": true,
+                    "text": "180 dias"
+                  },
+                  {
+                    "text": "."
+                  }
+                ]
+              },
+              {
+                "id": "WXpnY8U_qg",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Compreendo que a emissão da receita depende da "
+                  },
+                  {
+                    "bold": true,
+                    "text": "avaliação e aprovação do médico"
+                  },
+                  {
+                    "text": ", podendo ser recusada quando houver indicação clínica."
+                  }
+                ]
+              },
+              {
+                "id": "MZljWCPLwh",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "✅ Declaro que todas as informações fornecidas são "
+                  },
+                  {
+                    "bold": true,
+                    "text": "verdadeiras e completas"
+                  },
+                  {
+                    "text": "."
+                  }
+                ]
+              },
+              {
+                "id": "7QQfCT0HGS",
                 "type": "p",
                 "children": [
                   {
@@ -455,20 +958,12 @@
                 ]
               },
               {
-                "id": "Sbwzbf8f3c",
+                "id": "Xt9ZMPg0oe",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Você confirma que atende aos critérios acima?"
-                  }
-                ]
-              },
-              {
-                "id": "mlJPr67d5j",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "{{declaracao_elegibilidade}}"
+                    "bold": true,
+                    "text": "Você confirma que atende a todos os critérios acima?"
                   }
                 ]
               }
@@ -483,13 +978,13 @@
               "id": "bknghkx2o6o7415qlyvv1v2t",
               "outgoingEdgeId": "sozjhxmnxly3ybh3jju1awa1",
               "content": "Sim",
-              "value": "sim"
+              "value": "true"
             },
             {
               "id": "uve39ku5lajo21x78dl7i335",
               "outgoingEdgeId": "obe3sg61navcvru4wpy68uan",
               "content": "Não",
-              "value": "nao"
+              "value": "false"
             }
           ]
         }
@@ -499,8 +994,8 @@
       "id": "qcah9q14es9gj6enry35d05u",
       "title": "Tratamento Menor 30 dias",
       "graphCoordinates": {
-        "x": -1761.86,
-        "y": -2763.41
+        "x": -4586.81,
+        "y": -2595.5
       },
       "blocks": [
         {
@@ -518,11 +1013,38 @@
                 ]
               },
               {
+                "id": "CWWBjsOPna",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
                 "id": "p_2panofth",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação."
+                    "text": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. "
+                  }
+                ]
+              },
+              {
+                "id": "NIt9PVLzXg",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "OSHEehW1tz",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Recomendamos atendimento médico presencial para melhor avaliação."
                   }
                 ]
               }
@@ -535,8 +1057,8 @@
       "id": "y3vfu7p0f987fe6f1n2zx2t4",
       "title": "Sinal  alerta identificado",
       "graphCoordinates": {
-        "x": -2157.79,
-        "y": -2737.53
+        "x": -2954.88,
+        "y": -2858.51
       },
       "blocks": [
         {
@@ -558,7 +1080,34 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação."
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "n537YMSjBw",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. "
+                  }
+                ]
+              },
+              {
+                "id": "QSB4SzLNSK",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "i7VkSoPTCt",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Recomendamos atendimento médico presencial para melhor avaliação."
                   }
                 ]
               }
@@ -571,8 +1120,8 @@
       "id": "mulxehkwbcrynjfjnji1g2jx",
       "title": "Nome social",
       "graphCoordinates": {
-        "x": -3868.86,
-        "y": -2915.76
+        "x": -4993.56,
+        "y": -2370.07
       },
       "blocks": [
         {
@@ -585,7 +1134,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Como voçê gostaria de ser chamado? E sua idade?{{nome_social}}"
+                    "text": "Como você gostaria de ser chamado durante o atendimento?"
                   }
                 ]
               }
@@ -598,7 +1147,7 @@
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Exemplo: José Souza, 38 anos.",
+              "placeholder": "Exemplo: José Souza.",
               "button": "Enviar"
             },
             "variableId": "vou30coxarhyas9y5q07k78k9"
@@ -610,18 +1159,71 @@
       "id": "ulwovuu3brh5oeawwcuvr0h2",
       "title": "Pagamento",
       "graphCoordinates": {
-        "x": -5093.39,
-        "y": -1195.46
+        "x": -4352.16,
+        "y": -3295.85
       },
       "blocks": [
+        {
+          "id": "blk_pay_intro",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_pay_intro_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O valor da consulta médica e da análise das informações enviadas é de R$ 49,90."
+                  }
+                ]
+              },
+              {
+                "id": "gpkHNGdJvO",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_pay_intro_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "O pagamento corresponde à consulta e não garante a emissão da receita."
+                  }
+                ]
+              },
+              {
+                "id": "kvMTaojqMw",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_pay_intro_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Após a confirmação do pagamento, o atendimento continuará automaticamente."
+                  }
+                ]
+              }
+            ]
+          }
+        },
         {
           "id": "rapfykn1f1uno89ypqmwi43f",
           "outgoingEdgeId": "xxpw9p5hptmv7u7qlatptirp",
           "type": "payment input",
           "options": {
             "labels": {
-              "button": "Pagamento",
-              "success": "✅ Pagamento confirmado!  Agora vamos a coleta de dados Avaliação Médica."
+              "button": "Pagar R$ 49,90",
+              "success": "Pagamento confirmado.\n\nAgora vamos coletar as informações dos medicamentos e concluir o envio da sua receita anterior."
             },
             "additionalInformation": {
               "description": "Renovação de receita - Doctor Prescreve",
@@ -631,7 +1233,7 @@
             },
             "credentialsId": "cmmntjz0w000304jpawo0m0ss",
             "currency": "BRL",
-            "amount": "69.90"
+            "amount": "49.90"
           }
         }
       ]
@@ -640,8 +1242,8 @@
       "id": "vo62j813iek8fjy0uoq0ttrc",
       "title": "Doença Cronica",
       "graphCoordinates": {
-        "x": -3509.1,
-        "y": -2918.18
+        "x": -3714.95,
+        "y": -3381.94
       },
       "blocks": [
         {
@@ -650,11 +1252,74 @@
           "content": {
             "richText": [
               {
-                "id": "Xa0c1NUG04",
+                "id": "p_condicoes_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Olá, você faz tratamento para:"
+                    "text": "Para quais destas condições você faz tratamento contínuo?"
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_b0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "1. Hipertensão Arterial"
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "2. Diabetes Mellitus"
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "3. Dislipidemia"
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "4. Hipotireoidismo"
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_b1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_condicoes_instrucao",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Digite os números correspondentes separados por vírgula (ex.: 1, 3). Pode escolher mais de uma opção."
                   }
                 ]
               }
@@ -663,35 +1328,15 @@
         },
         {
           "id": "b156nm008xh7gb52n7w3egzn",
-          "type": "choice input",
-          "items": [
-            {
-              "id": "vjzl8ufgtda0h2tg4gvxvx2p",
-              "content": "Hipertensão Arterial",
-              "value": "has"
-            },
-            {
-              "id": "wvstylkrlny8u28zzuv2dixb",
-              "content": "Diabetes Melitus",
-              "value": "dm"
-            },
-            {
-              "id": "nrpsd9wjyynm4gkalizc5p65",
-              "content": "Dislipidemia",
-              "value": "dlp"
-            },
-            {
-              "id": "s6jrm608stgtegacomrr2q1a",
-              "content": "Hipotireidismo",
-              "value": "hipotireoidismo"
-            }
-          ],
+          "outgoingEdgeId": "edge_condicoes_to_route_check",
+          "type": "text input",
           "options": {
-            "variableId": "icaxqctv4r7b4du941d9qs46",
-            "isMultipleChoice": true,
-            "buttonLabel": "Confirmo"
-          },
-          "outgoingEdgeId": "edge_doenca_to_tempo"
+            "labels": {
+              "placeholder": "Ex.: 1, 3",
+              "button": "Enviar"
+            },
+            "variableId": "icaxqctv4r7b4du941d9qs46"
+          }
         }
       ]
     },
@@ -699,8 +1344,8 @@
       "id": "od03hfeq73l5xvs0lj9xrox3",
       "title": "Dados Pessoais",
       "graphCoordinates": {
-        "x": -2177.68,
-        "y": -2332.01
+        "x": -2184.04,
+        "y": -2134.52
       },
       "blocks": [
         {
@@ -721,14 +1366,48 @@
           }
         },
         {
+          "id": "blk_pergunta_nome",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_nome_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu nome completo?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "ds9z9lnz3yayokyy8d81fudj",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Qual seu nome completo?",
+              "placeholder": "Nome completo",
               "button": "Enviar"
             },
             "variableId": "vr5q57sq5ceusj07yqx37d2m7"
+          }
+        },
+        {
+          "id": "blk_pergunta_nascimento",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_nascimento_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a sua data de nascimento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -736,7 +1415,7 @@
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Nascimento (dd/mm/aaaa ou 8 dígitos)",
+              "placeholder": "DD/MM/AAAA",
               "button": "Enviar"
             },
             "variableId": "e9h5m5gzl8p1ljbomw3xe4j3",
@@ -747,15 +1426,49 @@
           }
         },
         {
+          "id": "blk_pergunta_cpf",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_cpf_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu CPF?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "dein7u2qnr8q32p2lv1krd5p",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Qual número do seu CPF?",
+              "placeholder": "00000000000",
               "button": "Enviar"
             },
             "variableId": "l0d0q94md6neae25qm9ilubn",
             "inputMode": "numeric"
+          }
+        },
+        {
+          "id": "blk_pergunta_whatsapp",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_whatsapp_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu número de WhatsApp com DDD?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -764,11 +1477,28 @@
           "options": {
             "variableId": "vqvzqoru6tx8kpuek92f2toza",
             "labels": {
-              "placeholder": "(11) 99999-9999",
+              "placeholder": "11999999999",
               "button": "Enviar"
             },
             "retryMessageContent": "Número inválido. Digite novamente com DDD.",
             "defaultCountryCode": "BR"
+          }
+        },
+        {
+          "id": "blk_pergunta_email",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_email_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu e-mail?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -777,18 +1507,36 @@
           "options": {
             "variableId": "v3VFChNVSCXQ2rXv4DrJ8Ah",
             "labels": {
-              "placeholder": "seuemail@exemplo.com",
+              "placeholder": "nome@dominio.com",
               "button": "Enviar"
             },
             "retryMessageContent": "E-mail inválido. Digite novamente (ex: nome@email.com)"
           }
         },
         {
+          "id": "blk_pergunta_cep",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_cep_p",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o seu CEP?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_0oydu2f7",
+          "outgoingEdgeId": "edge_cep_direto_endereco_manual",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "CEP (somente números)",
+              "placeholder": "00000000",
               "button": "Enviar"
             },
             "variableId": "var_9lceldd5",
@@ -796,12 +1544,227 @@
           }
         },
         {
-          "id": "q78qjnk6ticwkeifl7xe2rju",
-          "outgoingEdgeId": "edge_dados_to_receita",
+          "id": "blk_cep_normalize",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_9lceldd5",
+            "expressionToEvaluate": "(function(){ var raw = '{{var_9lceldd5}}'; return (raw || '').replace(/\\D/g, ''); })()"
+          }
+        },
+        {
+          "id": "blk_cep_valido_set",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_cep_valido",
+            "expressionToEvaluate": "(function(){ var d = '{{var_9lceldd5}}'; return /^\\d{8}$/.test(d) ? 'true' : 'false'; })()"
+          }
+        },
+        {
+          "id": "blk_cep_validate_cond",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_cep_valido",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_cep_valido",
+                    "variableId": "var_cep_valido",
+                    "comparisonOperator": "Equal to",
+                    "value": "true"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "blk_cep_erro_msg",
+          "outgoingEdgeId": "edge_cep_erro_retry",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_cep_erro",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "CEP inválido. Digite os 8 números."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_consulta_cep_backend",
+          "type": "Webhook",
+          "options": {
+            "responseVariableMapping": [
+              {
+                "id": "map_cep_logradouro",
+                "variableId": "var_cep_logradouro",
+                "bodyPath": "logradouro"
+              },
+              {
+                "id": "map_cep_bairro",
+                "variableId": "var_cep_bairro",
+                "bodyPath": "bairro"
+              },
+              {
+                "id": "map_cep_cidade",
+                "variableId": "var_cep_cidade",
+                "bodyPath": "cidade"
+              },
+              {
+                "id": "map_cep_estado",
+                "variableId": "var_cep_estado",
+                "bodyPath": "estado"
+              },
+              {
+                "id": "map_cep_encontrado",
+                "variableId": "var_cep_encontrado",
+                "bodyPath": "encontrado"
+              }
+            ],
+            "isCustomBody": true,
+            "webhook": {
+              "queryParams": [],
+              "headers": [
+                {
+                  "id": "hdr_cep_ct",
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "method": "GET",
+              "url": "https://mdoctor-backend-staging-staging.up.railway.app/api/cep/{{var_9lceldd5}}",
+              "body": "{}"
+            }
+          }
+        },
+        {
+          "id": "blk_cep_encontrado_cond",
+          "outgoingEdgeId": "edge_cep_force_manual",
+          "type": "Condition",
+          "items": []
+        },
+        {
+          "id": "blk_endereco_localizado_msg",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_loc_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Localizamos o seguinte endereço:"
+                  }
+                ]
+              },
+              {
+                "id": "p_loc_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_loc_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "{{var_cep_logradouro}}, {{var_cep_bairro}}, {{var_cep_cidade}} – {{var_cep_estado}}"
+                  }
+                ]
+              },
+              {
+                "id": "p_loc_4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_loc_5",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe o número e, se houver, o complemento do endereço."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_endereco_numero_complemento",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Endereço com CEP"
+              "placeholder": "Número e complemento",
+              "button": "Enviar"
+            },
+            "variableId": "var_endereco_numero_complemento"
+          }
+        },
+        {
+          "id": "blk_endereco_montar_localizado",
+          "outgoingEdgeId": "edge_cep_localizado_route",
+          "type": "Set variable",
+          "options": {
+            "variableId": "vi35p4gd73v2cuk9ai4jw2irs",
+            "expressionToEvaluate": "(function(){ var log = '{{var_cep_logradouro}}'; var num = '{{var_endereco_numero_complemento}}'; var bairro = '{{var_cep_bairro}}'; var cidade = '{{var_cep_cidade}}'; var estado = '{{var_cep_estado}}'; var cep = '{{var_9lceldd5}}'; var cidadeEstado = [cidade, estado].filter(Boolean).join(' – '); var parts = [log, num, bairro, cidadeEstado, cep].filter(Boolean); return parts.join(', '); })()"
+          }
+        },
+        {
+          "id": "blk_endereco_manual_msg",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "p_man_1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Não foi possível localizar automaticamente o endereço."
+                  }
+                ]
+              },
+              {
+                "id": "p_man_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "p_man_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Informe seu endereço completo: rua, número, bairro, cidade e estado."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "q78qjnk6ticwkeifl7xe2rju",
+          "outgoingEdgeId": "edge_dados_to_route_check",
+          "type": "text input",
+          "options": {
+            "labels": {
+              "placeholder": "Rua, número, bairro, cidade e estado",
+              "button": "Enviar"
             },
             "variableId": "vi35p4gd73v2cuk9ai4jw2irs",
             "isLong": false
@@ -811,39 +1774,59 @@
     },
     {
       "id": "bhrt6it0ud0teq3tw26q40ba",
-      "title": "Group #23",
+      "title": "Receita recebida",
       "graphCoordinates": {
-        "x": -4707.14,
-        "y": -1803.21
+        "x": -3588.47,
+        "y": -1972.88
       },
       "blocks": [
-        {
-          "id": "tx2n6s0hyjs8a0q6v3cbgjva",
-          "type": "image",
-          "content": {
-            "url": "https://s3.typebotstorage.com/public/workspaces/cmmhv3b27000204lbqnb1sdyp/typebots/am6igrq1rnwhivi7yejs5z1b/blocks/tx2n6s0hyjs8a0q6v3cbgjva?v=1776046752600"
-          }
-        },
         {
           "id": "raqkqz8ghhcf8bylhfuisbpb",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "p_l5v0pwbr",
+                "id": "KIbaLfYpCh",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Recebemos suas informações e a foto da receita."
+                    "text": "✅ Recebemos sua receita médica com sucesso."
                   }
                 ]
               },
               {
-                "id": "p_dmygz7pr",
+                "id": "d_dIu7iELJ",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Um médico irá analisar seu caso em breve. Você será avisado por este WhatsApp."
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "dylISFBqxN",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "​🧑‍⚕️​ Sua solicitação foi encaminhada para avaliação médica."
+                  }
+                ]
+              },
+              {
+                "id": "JWxnYhBu8w",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "QvXym5OemK",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "​​📜​ Você receberá uma mensagem por este WhatsApp assim que houver uma decisão.​"
                   }
                 ]
               }
@@ -854,137 +1837,32 @@
     },
     {
       "id": "jnbvtyzr1ffz4ff5n05a999k",
-      "title": "Group #22",
+      "title": "LGPD negado",
       "graphCoordinates": {
-        "x": -5124,
-        "y": -2209.29
+        "x": -4841.95,
+        "y": -1954.53
       },
       "blocks": [
-        {
-          "id": "kfa5kfgqdvkvttzo6xn6o8n0",
-          "type": "image",
-          "content": {
-            "url": "https://s3.typebotstorage.com/public/workspaces/cmmhv3b27000204lbqnb1sdyp/typebots/am6igrq1rnwhivi7yejs5z1b/blocks/kfa5kfgqdvkvttzo6xn6o8n0?v=1776048864333"
-          }
-        },
         {
           "id": "skre2de1bnw4113hysub3fgj",
           "type": "text",
           "content": {
             "richText": [
               {
-                "id": "lwzCfQIBVS",
+                "id": "skre2de1bnw4113hysub3fgj_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "❌ Não é possível prosseguir sem o consentimento LGPD."
+                    "text": "Sem sua autorização, não será possível continuar o atendimento."
                   }
                 ]
               },
               {
-                "id": "sZ6RlZ6qya",
+                "id": "skre2de1bnw4113hysub3fgj_p1",
                 "type": "p",
                 "children": [
                   {
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "id": "bRSP32brVM",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "A autorização é obrigatória para:"
-                  }
-                ]
-              },
-              {
-                "id": "lN43n2SBTd",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "\r\n✅ Proteger seus dados\r\n"
-                  }
-                ]
-              },
-              {
-                "id": "14FL5kKRZS",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "✅ Realizar a avaliação médica\r\n"
-                  }
-                ]
-              },
-              {
-                "id": "TxS4cwPjDN",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "✅ Emitir a receita digital"
-                  }
-                ]
-              },
-              {
-                "id": "XFaZCARN2F",
-                "type": "p",
-                "children": [
-                  {
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "id": "oR8KiA47M-",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "🔒 Documentos de referência (staging placeholders):"
-                  }
-                ]
-              },
-              {
-                "id": "9DKUHQ1JnY",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "SUPABASE_PUBLIC_LGPD_URL | SUPABASE_PUBLIC_TELEMEDICINA_TERMO_URL | SUPABASE_PUBLIC_PRIVACIDADE_URL | SUPABASE_PUBLIC_CONSENTIMENTO_URL | SUPABASE_PUBLIC_ORIENTACAO_PACIENTE_URL"
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "mzwt4y2kbvuhdz7d29dtrgp2",
-          "type": "text",
-          "content": {
-            "richText": [
-              {
-                "id": "29jI_Z1EZ9",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Atendimento encerrado."
-                  }
-                ]
-              },
-              {
-                "id": "5YvhNgGe1O",
-                "type": "p",
-                "children": [
-                  {
-                    "text": ""
-                  }
-                ]
-              },
-              {
-                "id": "rLjPdgLolv",
-                "type": "p",
-                "children": [
-                  {
-                    "text": "Até a próxima..."
+                    "text": "Nenhum atendimento foi criado e nenhuma cobrança foi realizada."
                   }
                 ]
               }
@@ -997,8 +1875,8 @@
       "id": "e84h0bt9n8hgrj4ut48h245l",
       "title": "Solicitação Elegível",
       "graphCoordinates": {
-        "x": -1727.91,
-        "y": -2300.27
+        "x": -3452.66,
+        "y": -3392.18
       },
       "blocks": [
         {
@@ -1008,11 +1886,29 @@
           "content": {
             "richText": [
               {
-                "id": "8XwmQWKlMp",
+                "id": "p_elegivel_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Sua solicitação é elegível para continuidade do fluxo. Após a etapa de pagamento (quando aplicável), seguiremos para coleta de dados clínicos e avaliação médica.{{solicitacao_elegivel_pagamento}}"
+                    "text": "Ótimo! Sua solicitação atende aos critérios iniciais. "
+                  }
+                ]
+              },
+              {
+                "id": "p_elegivel_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": ""
+                  }
+                ]
+              },
+              {
+                "id": "dIrFnClSRs",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Agora vamos confirmar seus dados pessoais e as informações sobre seus medicamentos. "
                   }
                 ]
               }
@@ -1023,10 +1919,10 @@
     },
     {
       "id": "g60uvyvi39v47j4ahnoxkxzn",
-      "title": "Group #20",
+      "title": "Pós-upload",
       "graphCoordinates": {
-        "x": -3134.73,
-        "y": -103.5
+        "x": -4277.26,
+        "y": -2663.51
       },
       "blocks": [
         {
@@ -1038,22 +1934,22 @@
               {
                 "id": "map_upload_url",
                 "variableId": "var_upload_url",
-                "bodyPath": "data.upload_url"
+                "bodyPath": "upload_url"
               },
               {
                 "id": "map_upload_status_url",
                 "variableId": "var_upload_status_url",
-                "bodyPath": "data.upload_status_url"
-              },
-              {
-                "id": "map_atendimento_id",
-                "variableId": "var_atendimento_id",
-                "bodyPath": "data.atendimentoId"
+                "bodyPath": "upload_status_url"
               },
               {
                 "id": "map_upload_status",
                 "variableId": "var_upload_status",
-                "bodyPath": "data.upload_status"
+                "bodyPath": "upload_status"
+              },
+              {
+                "id": "map_atendimento_id",
+                "variableId": "var_atendimento_id",
+                "bodyPath": "atendimento.id"
               }
             ],
             "isCustomBody": true,
@@ -1066,8 +1962,8 @@
                   "value": "application/json"
                 }
               ],
-              "url": "https://n8n-node-production-f844.up.railway.app/webhook/typebot-webhook",
-              "body": "{\n  \"from\": \"{{whatsapp}}\",\n  \"telefone\": \"{{whatsapp}}\",\n  \"patient_name\": \"{{Nome_Completo}}\",\n  \"birth_date\": \"{{data_nascimento}}\",\n  \"cpf\": \"{{cpf_paciente}}\",\n  \"whatsapp\": \"{{whatsapp}}\",\n  \"email\": \"{{Email}}\",\n  \"address\": \"{{Endereco}}\",\n  \"cep\": \"{{cep}}\",\n  \"chronic_condition\": \"{{doenca_cronica}}\",\n  \"continuous_use_days\": \"{{continuous_use_days}}\",\n  \"tempo_uso\": \"{{tempo_uso}}\",\n  \"has_warning_signs\": \"{{has_warning_signs}}\",\n  \"sinais_alerta\": \"{{sinais_alerta}}\",\n  \"eligibility_status\": \"{{eligibility_status}}\",\n  \"ineligibility_reason\": \"{{ineligibility_reason}}\",\n  \"has_previous_prescription\": \"{{has_previous_prescription}}\",\n  \"has_prescription_photo_ready\": \"{{has_prescription_photo_ready}}\",\n  \"medication_count\": \"{{medication_count}}\",\n  \"medication_1_name\": \"{{med1_nome}}\",\n  \"medication_1_dose\": \"{{med1_dose}}\",\n  \"medication_1_frequency\": \"{{med1_frequencia}}\",\n  \"medication_1_route\": \"{{med1_via}}\",\n  \"medication_2_name\": \"{{med2_nome}}\",\n  \"medication_2_dose\": \"{{med2_dose}}\",\n  \"medication_2_frequency\": \"{{med2_frequencia}}\",\n  \"medication_2_route\": \"{{med2_via}}\",\n  \"medication_3_name\": \"{{med3_nome}}\",\n  \"medication_3_dose\": \"{{med3_dose}}\",\n  \"medication_3_frequency\": \"{{med3_frequencia}}\",\n  \"medication_3_route\": \"{{med3_via}}\",\n  \"medications\": [\n    { \"name\": \"{{med1_nome}}\", \"dose\": \"{{med1_dose}}\", \"frequency\": \"{{med1_frequencia}}\", \"route\": \"{{med1_via}}\" },\n    { \"name\": \"{{med2_nome}}\", \"dose\": \"{{med2_dose}}\", \"frequency\": \"{{med2_frequencia}}\", \"route\": \"{{med2_via}}\" },\n    { \"name\": \"{{med3_nome}}\", \"dose\": \"{{med3_dose}}\", \"frequency\": \"{{med3_frequencia}}\", \"route\": \"{{med3_via}}\" }\n  ],\n  \"medication_name\": \"{{med1_nome}}\",\n  \"medication_dose\": \"{{med1_dose}}\",\n  \"medication_frequency\": \"{{med1_frequencia}}\",\n  \"medication_route\": \"{{med1_via}}\",\n  \"primeiro_medicamento\": \"{{med1_nome}} — {{med1_dose}} — {{med1_frequencia}}\",\n  \"segundo_medicamento\": \"{{med2_nome}} — {{med2_dose}} — {{med2_frequencia}}\",\n  \"terceiro_medicamento\": \"{{med3_nome}} — {{med3_dose}} — {{med3_frequencia}}\",\n  \"protocol\": \"staging-clinical-v1\",\n  \"source\": \"typebot-doctor-prescreve\",\n  \"nome\": \"{{Nome_Completo}}\",\n  \"doenca_cronica\": \"{{doenca_cronica}}\",\n  \"text\": \"Triagem Doctor Prescreve — {{Nome_Completo}} — {{doenca_cronica}} — {{med1_nome}}\",\n  \"lgpd_accepted\": \"{{lgpd_accepted}}\",\n  \"privacy_policy_accepted\": \"{{privacy_policy_accepted}}\",\n  \"telemedicine_consent_accepted\": \"{{telemedicine_consent_accepted}}\",\n  \"non_urgency_notice_accepted\": \"{{non_urgency_notice_accepted}}\",\n  \"terms_of_use_accepted\": \"{{terms_of_use_accepted}}\",\n  \"accepted_terms_at\": \"{{accepted_terms_at}}\",\n  \"accepted_terms_links\": \"{{accepted_terms_links}}\",\n  \"terms_presented\": [{\"id\":\"lgpd\",\"label\":\"Consentimento LGPD\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"privacy\",\"label\":\"Política de Privacidade\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"telemedicine\",\"label\":\"Consentimento Telemedicina Assíncrona\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\",\"step\":\"telemedicine\"},{\"id\":\"non_urgency\",\"label\":\"Aviso Importante — Não Urgência/Emergência\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf\",\"step\":\"telemedicine\"},{\"id\":\"terms_of_use\",\"label\":\"Política e Termos de Uso\",\"url\":\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\",\"step\":\"payment\"}],\n  \"terms_accepted\": \"{{terms_accepted_summary}}\",\n  \"typebot_public_id\": \"doctor-prescreve-8rmljgu\"\n}"
+              "url": "https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook",
+              "body": "{\n  \"from\": \"{{whatsapp}}\",\n  \"telefone\": \"{{whatsapp}}\",\n  \"patient_name\": \"{{Nome_Completo}}\",\n  \"birth_date\": \"{{data_nascimento}}\",\n  \"cpf\": \"{{cpf_paciente}}\",\n  \"whatsapp\": \"{{whatsapp}}\",\n  \"email\": \"{{Email}}\",\n  \"address\": \"{{Endereco}}\",\n  \"cep\": \"{{cep}}\",\n  \"chronic_condition\": \"{{doenca_cronica}}\",\n  \"continuous_use_days\": \"{{continuous_use_days}}\",\n  \"tempo_uso\": \"{{tempo_uso}}\",\n  \"has_warning_signs\": \"{{has_warning_signs}}\",\n  \"sinais_alerta\": \"{{sinais_alerta}}\",\n  \"eligibility_status\": \"{{eligibility_status}}\",\n  \"ineligibility_reason\": \"{{ineligibility_reason}}\",\n  \"has_previous_prescription\": \"{{has_previous_prescription}}\",\n  \"has_prescription_photo_ready\": \"{{has_prescription_photo_ready}}\",\n  \"medication_count\": \"{{medication_count}}\",\n  \"medication_1_name\": \"{{med1_nome}}\",\n  \"medication_1_dose\": \"{{med1_dose}}\",\n  \"medication_1_frequency\": \"{{med1_frequencia}}\",\n  \"medication_1_route\": \"{{med1_via}}\",\n  \"medication_2_name\": \"{{med2_nome}}\",\n  \"medication_2_dose\": \"{{med2_dose}}\",\n  \"medication_2_frequency\": \"{{med2_frequencia}}\",\n  \"medication_2_route\": \"{{med2_via}}\",\n  \"medication_3_name\": \"{{med3_nome}}\",\n  \"medication_3_dose\": \"{{med3_dose}}\",\n  \"medication_3_frequency\": \"{{med3_frequencia}}\",\n  \"medication_3_route\": \"{{med3_via}}\",\n  \"medications\": [\n    { \"name\": \"{{med1_nome}}\", \"dose\": \"{{med1_dose}}\", \"frequency\": \"{{med1_frequencia}}\", \"route\": \"{{med1_via}}\" },\n    { \"name\": \"{{med2_nome}}\", \"dose\": \"{{med2_dose}}\", \"frequency\": \"{{med2_frequencia}}\", \"route\": \"{{med2_via}}\" },\n    { \"name\": \"{{med3_nome}}\", \"dose\": \"{{med3_dose}}\", \"frequency\": \"{{med3_frequencia}}\", \"route\": \"{{med3_via}}\" }\n  ],\n  \"medication_name\": \"{{med1_nome}}\",\n  \"medication_dose\": \"{{med1_dose}}\",\n  \"medication_frequency\": \"{{med1_frequencia}}\",\n  \"medication_route\": \"{{med1_via}}\",\n  \"primeiro_medicamento\": \"{{med1_nome}} — {{med1_dose}} — {{med1_frequencia}}\",\n  \"segundo_medicamento\": \"{{med2_nome}} — {{med2_dose}} — {{med2_frequencia}}\",\n  \"terceiro_medicamento\": \"{{med3_nome}} — {{med3_dose}} — {{med3_frequencia}}\",\n  \"protocol\": \"staging-clinical-v1\",\n  \"source\": \"typebot-doctor-prescreve\",\n  \"nome\": \"{{Nome_Completo}}\",\n  \"doenca_cronica\": \"{{doenca_cronica}}\",\n  \"text\": \"Triagem Doctor Prescreve — {{Nome_Completo}} — {{doenca_cronica}} — {{med1_nome}}\",\n  \"lgpd_accepted\": \"{{lgpd_accepted}}\",\n  \"privacy_policy_accepted\": \"{{privacy_policy_accepted}}\",\n  \"telemedicine_consent_accepted\": \"{{telemedicine_consent_accepted}}\",\n  \"non_urgency_notice_accepted\": \"{{non_urgency_notice_accepted}}\",\n  \"terms_of_use_accepted\": \"{{terms_of_use_accepted}}\",\n  \"accepted_terms_at\": \"{{accepted_terms_at}}\",\n  \"accepted_terms_links\": \"{{accepted_terms_links}}\",\n  \"terms_presented\": [{\"id\":\"lgpd\",\"label\":\"Consentimento LGPD\",\"url\":\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_LGPD_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"privacy\",\"label\":\"Política de Privacidade\",\"url\":\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_de_Privacidade_Doctor_Prescreve.pdf\",\"step\":\"lgpd\"},{\"id\":\"telemedicine\",\"label\":\"Consentimento Telemedicina Assíncrona\",\"url\":\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\",\"step\":\"telemedicine\"},{\"id\":\"non_urgency\",\"label\":\"Aviso Importante — Não Urgência/Emergência\",\"url\":\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Aviso_Nao_Urgencia_Emergencia.pdf\",\"step\":\"telemedicine\"},{\"id\":\"terms_of_use\",\"label\":\"Política e Termos de Uso\",\"url\":\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\",\"step\":\"payment\"}],\n  \"terms_accepted\": \"{{terms_accepted_summary}}\",\n  \"typebot_public_id\": \"doctor-prescreve-8rmljgu\"\n}"
             }
           }
         }
@@ -1077,8 +1973,8 @@
       "id": "rp422fl4hazbcuxqloeav9ce",
       "title": "Nao elegivel",
       "graphCoordinates": {
-        "x": -1769.54,
-        "y": -1928.26
+        "x": -3877.04,
+        "y": -1224.91
       },
       "blocks": [
         {
@@ -1120,8 +2016,8 @@
       "id": "w1hv8mudb1upggxvd1rldzhy",
       "title": "Medicamento 1",
       "graphCoordinates": {
-        "x": -4408.68,
-        "y": -1031.6
+        "x": -3255.69,
+        "y": -1819.08
       },
       "blocks": [
         {
@@ -1142,6 +2038,23 @@
           }
         },
         {
+          "id": "blk_pergunta_med1_nome",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med1_nome_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o nome do primeiro medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_xp763m78",
           "type": "text input",
           "options": {
@@ -1153,14 +2066,48 @@
           }
         },
         {
+          "id": "blk_pergunta_med1_dose",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med1_dose_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a dose do primeiro medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_n5x21i7c",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "50 mg",
               "button": "Enviar"
             },
             "variableId": "var_qlugduhi"
+          }
+        },
+        {
+          "id": "blk_pergunta_med1_freq",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med1_freq_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Com que frequência você utiliza o primeiro medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1168,24 +2115,48 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_u67nnmfx",
-              "content": "1x ao dia"
+              "id": "it_med1_f1",
+              "content": "Uma vez ao dia",
+              "value": "Uma vez ao dia"
             },
             {
-              "id": "it_r8pyxoe2",
-              "content": "2x ao dia"
+              "id": "it_med1_f2",
+              "content": "Duas vezes ao dia",
+              "value": "Duas vezes ao dia"
             },
             {
-              "id": "it_tfkqrmxl",
-              "content": "3x ao dia"
-            },
-            {
-              "id": "it_8u6jqc4i",
-              "content": "Conforme receita anterior"
+              "id": "it_med1_f3",
+              "content": "Três vezes ao dia",
+              "value": "Três vezes ao dia"
             }
           ],
           "options": {
             "variableId": "var_8uua327o"
+          }
+        },
+        {
+          "id": "blk_med1_freq_intervalo",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_med1_freq_intervalo",
+            "expressionToEvaluate": "(function(){ var f = {{var_8uua327o}}; if (!f) return ''; if (f === 'Uma vez ao dia') return 'a cada 24 horas'; if (f === 'Duas vezes ao dia') return 'a cada 12 horas'; if (f === 'Três vezes ao dia') return 'a cada 8 horas'; return f; })()"
+          }
+        },
+        {
+          "id": "blk_pergunta_med1_via",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med1_via_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a via de administração do primeiro medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1194,12 +2165,19 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_tb0ztjb3",
-              "content": "Via oral"
+              "id": "it_med1_v1",
+              "content": "Via oral",
+              "value": "Via oral"
             },
             {
-              "id": "it_gmrbtntk",
-              "content": "Outra via"
+              "id": "it_med1_v2",
+              "content": "Via sublingual",
+              "value": "Via sublingual"
+            },
+            {
+              "id": "it_med1_v3",
+              "content": "Via subcutânea",
+              "value": "Via subcutânea"
             }
           ],
           "options": {
@@ -1212,8 +2190,8 @@
       "id": "o1xsvn2jsapc3r1p4uf33vor",
       "title": "Medicamento 2",
       "graphCoordinates": {
-        "x": -3935.78,
-        "y": -1070.34
+        "x": -3011.62,
+        "y": -1922.44
       },
       "blocks": [
         {
@@ -1234,6 +2212,23 @@
           }
         },
         {
+          "id": "blk_pergunta_med2_nome",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med2_nome_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o nome do segundo medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_fjhq98ob",
           "type": "text input",
           "options": {
@@ -1245,14 +2240,48 @@
           }
         },
         {
+          "id": "blk_pergunta_med2_dose",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med2_dose_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a dose do segundo medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_e3e58xjk",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "50 mg",
               "button": "Enviar"
             },
             "variableId": "var_r8ghfh11"
+          }
+        },
+        {
+          "id": "blk_pergunta_med2_freq",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med2_freq_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Com que frequência você utiliza o segundo medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1260,24 +2289,48 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_u33e53jo",
-              "content": "1x ao dia"
+              "id": "it_med2_f1",
+              "content": "Uma vez ao dia",
+              "value": "Uma vez ao dia"
             },
             {
-              "id": "it_7otcjheo",
-              "content": "2x ao dia"
+              "id": "it_med2_f2",
+              "content": "Duas vezes ao dia",
+              "value": "Duas vezes ao dia"
             },
             {
-              "id": "it_tokbl73j",
-              "content": "3x ao dia"
-            },
-            {
-              "id": "it_hndq2njw",
-              "content": "Conforme receita anterior"
+              "id": "it_med2_f3",
+              "content": "Três vezes ao dia",
+              "value": "Três vezes ao dia"
             }
           ],
           "options": {
             "variableId": "var_mb5cid9v"
+          }
+        },
+        {
+          "id": "blk_med2_freq_intervalo",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_med2_freq_intervalo",
+            "expressionToEvaluate": "(function(){ var f = {{var_mb5cid9v}}; if (!f) return ''; if (f === 'Uma vez ao dia') return 'a cada 24 horas'; if (f === 'Duas vezes ao dia') return 'a cada 12 horas'; if (f === 'Três vezes ao dia') return 'a cada 8 horas'; return f; })()"
+          }
+        },
+        {
+          "id": "blk_pergunta_med2_via",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med2_via_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a via de administração do segundo medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1286,12 +2339,19 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_eoecc509",
-              "content": "Via oral"
+              "id": "it_med2_v1",
+              "content": "Via oral",
+              "value": "Via oral"
             },
             {
-              "id": "it_voklo6yu",
-              "content": "Outra via"
+              "id": "it_med2_v2",
+              "content": "Via sublingual",
+              "value": "Via sublingual"
+            },
+            {
+              "id": "it_med2_v3",
+              "content": "Via subcutânea",
+              "value": "Via subcutânea"
             }
           ],
           "options": {
@@ -1304,8 +2364,8 @@
       "id": "iaurdgxvycgifdiuif84saz5",
       "title": "Medicamento 3",
       "graphCoordinates": {
-        "x": -3479.57,
-        "y": -1051.38
+        "x": -2704.99,
+        "y": -1063.46
       },
       "blocks": [
         {
@@ -1326,6 +2386,23 @@
           }
         },
         {
+          "id": "blk_pergunta_med3_nome",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med3_nome_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é o nome do terceiro medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_k8s4myef",
           "type": "text input",
           "options": {
@@ -1337,14 +2414,48 @@
           }
         },
         {
+          "id": "blk_pergunta_med3_dose",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med3_dose_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a dose do terceiro medicamento?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
           "id": "blk_g0v3kz80",
           "type": "text input",
           "options": {
             "labels": {
-              "placeholder": "Dose (ex.: 50 mg)",
+              "placeholder": "50 mg",
               "button": "Enviar"
             },
             "variableId": "var_8o8q2i2u"
+          }
+        },
+        {
+          "id": "blk_pergunta_med3_freq",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med3_freq_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Com que frequência você utiliza o terceiro medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1352,24 +2463,48 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_vfy61gj3",
-              "content": "1x ao dia"
+              "id": "it_med3_f1",
+              "content": "Uma vez ao dia",
+              "value": "Uma vez ao dia"
             },
             {
-              "id": "it_j2ckm0xp",
-              "content": "2x ao dia"
+              "id": "it_med3_f2",
+              "content": "Duas vezes ao dia",
+              "value": "Duas vezes ao dia"
             },
             {
-              "id": "it_y3f1a8m2",
-              "content": "3x ao dia"
-            },
-            {
-              "id": "it_016kni8p",
-              "content": "Conforme receita anterior"
+              "id": "it_med3_f3",
+              "content": "Três vezes ao dia",
+              "value": "Três vezes ao dia"
             }
           ],
           "options": {
             "variableId": "var_la7nbosl"
+          }
+        },
+        {
+          "id": "blk_med3_freq_intervalo",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_med3_freq_intervalo",
+            "expressionToEvaluate": "(function(){ var f = {{var_la7nbosl}}; if (!f) return ''; if (f === 'Uma vez ao dia') return 'a cada 24 horas'; if (f === 'Duas vezes ao dia') return 'a cada 12 horas'; if (f === 'Três vezes ao dia') return 'a cada 8 horas'; return f; })()"
+          }
+        },
+        {
+          "id": "blk_pergunta_med3_via",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_pergunta_med3_via_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual é a via de administração do terceiro medicamento?"
+                  }
+                ]
+              }
+            ]
           }
         },
         {
@@ -1378,12 +2513,19 @@
           "type": "choice input",
           "items": [
             {
-              "id": "it_ax7l7jfr",
-              "content": "Via oral"
+              "id": "it_med3_v1",
+              "content": "Via oral",
+              "value": "Via oral"
             },
             {
-              "id": "it_u51kf052",
-              "content": "Outra via"
+              "id": "it_med3_v2",
+              "content": "Via sublingual",
+              "value": "Via sublingual"
+            },
+            {
+              "id": "it_med3_v3",
+              "content": "Via subcutânea",
+              "value": "Via subcutânea"
             }
           ],
           "options": {
@@ -1396,8 +2538,8 @@
       "id": "huh6fmizvv701t9u7hc2mult",
       "title": "Quantidade de medicamentos",
       "graphCoordinates": {
-        "x": -4840.72,
-        "y": -931.63
+        "x": -2498.19,
+        "y": -1291.34
       },
       "blocks": [
         {
@@ -1406,11 +2548,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_fgrh1thy",
+                "id": "p_qtdmed_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Quantos medicamentos deseja renovar?"
+                    "text": "Quantos medicamentos você deseja solicitar nesta avaliação?"
                   }
                 ]
               }
@@ -1429,13 +2571,13 @@
             },
             {
               "id": "a3tft76xm1j35grku3wi2wcr",
-              "outgoingEdgeId": "edge_medcount_to_med1_b",
+              "outgoingEdgeId": "edge_medcount_to_med1",
               "content": "2",
               "value": "2"
             },
             {
               "id": "tcxyvudqg1en4j05s0bby66i",
-              "outgoingEdgeId": "edge_medcount_to_med1_c",
+              "outgoingEdgeId": "edge_medcount_to_med1",
               "content": "3",
               "value": "3"
             }
@@ -1450,8 +2592,8 @@
       "id": "grp_receita_anterior",
       "title": "Receita anterior",
       "graphCoordinates": {
-        "x": -3880,
-        "y": -2102.5
+        "x": -3344.44,
+        "y": -863.61
       },
       "blocks": [
         {
@@ -1460,11 +2602,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_q7bp6aca",
+                "id": "p_rx_q",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Você possui uma receita médica anterior e a foto dela disponível para envio agora pelo WhatsApp?"
+                    "text": "Você possui uma receita médica anterior?"
                   }
                 ]
               }
@@ -1478,14 +2620,20 @@
             {
               "id": "rec_sim",
               "outgoingEdgeId": "edge_rec_sim",
-              "content": "Sim, tenho a receita e a foto",
-              "value": "sim"
+              "content": "Sim, possuo",
+              "value": "available"
             },
             {
               "id": "rec_nao",
               "outgoingEdgeId": "edge_rec_nao",
-              "content": "Não",
-              "value": "nao"
+              "content": "Não possuo",
+              "value": "none"
+            },
+            {
+              "id": "rec_enviar_depois",
+              "outgoingEdgeId": "edge_rec_enviar_depois",
+              "content": "Enviar depois",
+              "value": "send_later"
             }
           ],
           "options": {
@@ -1498,8 +2646,8 @@
       "id": "grp_foto_receita",
       "title": "Aguardando envio da receita",
       "graphCoordinates": {
-        "x": -2960,
-        "y": -1047.5
+        "x": -3781.11,
+        "y": -1922.53
       },
       "blocks": [
         {
@@ -1516,46 +2664,45 @@
           "content": {
             "richText": [
               {
-                "id": "p_upload_intro_1",
+                "id": "UbtsTq04PG",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior."
+                    "text": "✅ Pagamento confirmado com sucesso."
                   }
                 ]
               },
               {
-                "id": "p_upload_intro_2",
+                "id": "GgVDOwWNlB",
                 "type": "p",
                 "children": [
                   {
-                    "text": "O documento deve mostrar o nome do paciente, os medicamentos, as doses, a identificação do profissional e, quando disponível, a data de emissão."
+                    "text": ""
                   }
                 ]
               },
               {
-                "id": "p_upload_intro_3",
+                "id": "TDb6NDuei-",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Envie o arquivo diretamente nesta conversa do WhatsApp. Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB)."
+                    "text": "📸​ Agora envie a foto ou o arquivo da sua receita médica anterior diretamente nesta conversa."
                   }
                 ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "blk_foto_link",
-          "type": "text",
-          "content": {
-            "richText": [
+              },
               {
-                "id": "p_upload_whatsapp_hint",
+                "id": "VXSMGwm7aQ",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Quando terminar o envio, toque em \"Conferir novamente\" para validarmos o recebimento."
+                    "text": "Formatos aceitos: "
+                  },
+                  {
+                    "bold": true,
+                    "text": "JPG, PNG ou PDF"
+                  },
+                  {
+                    "text": "."
                   }
                 ]
               }
@@ -1564,16 +2711,13 @@
         },
         {
           "id": "blk_upload_check",
-          "type": "choice input",
-          "items": [
-            {
-              "id": "upload_check_yes",
-              "outgoingEdgeId": "edge_upload_check_request",
-              "content": "Conferir novamente",
-              "value": "check"
-            }
-          ],
+          "outgoingEdgeId": "edge_upload_check_request",
+          "type": "text input",
           "options": {
+            "labels": {
+              "placeholder": "",
+              "button": "Enviar"
+            },
             "variableId": "var_upload_check_action"
           }
         }
@@ -1583,8 +2727,8 @@
       "id": "grp_gate_pagamento",
       "title": "Gate elegível pagamento",
       "graphCoordinates": {
-        "x": -4285.02,
-        "y": -2583.36
+        "x": -4446.19,
+        "y": -3179.65
       },
       "blocks": [
         {
@@ -1614,7 +2758,7 @@
                 "type": "p",
                 "children": [
                   {
-                    "text": "Triagem aprovada. Leia os termos antes do pagamento da taxa de avaliação médica."
+                    "text": "Triagem aprovada. Leia os termos antes do pagamento da consulta médica."
                   }
                 ]
               }
@@ -1627,8 +2771,8 @@
       "id": "grp_inelegivel_presencial",
       "title": "Inelegível presencial",
       "graphCoordinates": {
-        "x": -4375,
-        "y": -2222.5
+        "x": -4228.88,
+        "y": -1057.73
       },
       "blocks": [
         {
@@ -1653,11 +2797,38 @@
           "content": {
             "richText": [
               {
-                "id": "p_0bp7noe1",
+                "id": "p_inel_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação."
+                    "text": "A receita médica anterior é necessária para esta modalidade de atendimento."
+                  }
+                ]
+              },
+              {
+                "id": "p_inel_2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Sem esse documento, não será possível continuar."
+                  }
+                ]
+              },
+              {
+                "id": "p_inel_3",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Recomendamos avaliação presencial ou contato com o profissional que acompanha seu tratamento."
+                  }
+                ]
+              },
+              {
+                "id": "p_inel_4",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhuma cobrança foi realizada."
                   }
                 ]
               }
@@ -1670,8 +2841,8 @@
       "id": "grp_route_after_med1",
       "title": "Rota após medicamento 1",
       "graphCoordinates": {
-        "x": -4792.5,
-        "y": -52.5
+        "x": -2675,
+        "y": -1672.87
       },
       "blocks": [
         {
@@ -1728,8 +2899,8 @@
       "id": "grp_route_after_med2",
       "title": "Rota após medicamento 2",
       "graphCoordinates": {
-        "x": -4432.5,
-        "y": 195
+        "x": -2704.19,
+        "y": -1354.15
       },
       "blocks": [
         {
@@ -1772,8 +2943,8 @@
       "id": "grp_lgpd_accept",
       "title": "Registro LGPD",
       "graphCoordinates": {
-        "x": -4264.19,
-        "y": -2934.2
+        "x": -4627.55,
+        "y": -3212.66
       },
       "blocks": [
         {
@@ -1797,7 +2968,15 @@
           "type": "Set variable",
           "options": {
             "variableId": "var_d2fpw0vw",
-            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"}]\""
+            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"}]\""
+          }
+        },
+        {
+          "id": "blk_set_lgpd_at",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_lgpd_accepted_at",
+            "expressionToEvaluate": "{{now}}"
           }
         },
         {
@@ -1824,8 +3003,8 @@
       "id": "grp_telemedicina_consent",
       "title": "Telemedicina e não urgência",
       "graphCoordinates": {
-        "x": -3127.9,
-        "y": -2446.27
+        "x": -4473.36,
+        "y": -2833.29
       },
       "blocks": [
         {
@@ -1834,11 +3013,11 @@
           "content": {
             "richText": [
               {
-                "id": "p_bgngz4j5",
+                "id": "blk_tele_intro_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Este atendimento é uma teleconsulta assíncrona para avaliação de renovação de receita. Não substitui atendimento presencial em casos de urgência ou emergência."
+                    "text": "Leia o Consentimento para Telemedicina Assíncrona abaixo."
                   }
                 ]
               }
@@ -1851,40 +3030,88 @@
           "content": {
             "richText": [
               {
-                "id": "p_u5038ms6",
+                "id": "blk_tele_docs_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "📄 "
+                    "text": " "
                   },
                   {
-                    "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf",
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf",
                     "type": "a",
                     "target": "_blank",
                     "children": [
                       {
-                        "text": "Consentimento Telemedicina Assíncrona"
+                        "text": "Consentimento de Telemedicina"
                       }
                     ]
+                  },
+                  {
+                    "text": ""
                   }
                 ]
-              },
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_tele_doc2_intro",
+          "type": "text",
+          "content": {
+            "richText": [
               {
-                "id": "p_yglzbpta",
+                "id": "blk_tele_doc2_intro_p0",
                 "type": "p",
                 "children": [
                   {
-                    "text": "📄 "
+                    "text": "Este serviço não substitui atendimento presencial em situações de urgência ou emergência. Leia o aviso abaixo."
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_tele_doc2_link",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_tele_doc2_link_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": " "
                   },
                   {
-                    "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf",
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Aviso_Nao_Urgencia_Emergencia.pdf",
                     "type": "a",
                     "target": "_blank",
                     "children": [
                       {
-                        "text": "Aviso Importante — Não Urgência/Emergência"
+                        "text": "Aviso de Não Urgência"
                       }
                     ]
+                  },
+                  {
+                    "text": ""
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_tele_question",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_tele_question_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Após a leitura, você concorda com a realização do atendimento por telemedicina assíncrona e declara estar ciente de que este serviço não atende situações de urgência ou emergência?"
                   }
                 ]
               }
@@ -1898,14 +3125,14 @@
             {
               "id": "tele_sim",
               "outgoingEdgeId": "edge_tele_to_accept",
-              "content": "Estou ciente e desejo continuar",
-              "value": "sim"
+              "content": "Ciente e Continuar",
+              "value": "true"
             },
             {
               "id": "tele_nao",
               "outgoingEdgeId": "edge_tele_to_decline",
-              "content": "Não desejo continuar",
-              "value": "nao"
+              "content": "Não Continuar",
+              "value": "false"
             }
           ],
           "options": {
@@ -1918,8 +3145,8 @@
       "id": "grp_telemedicina_accept",
       "title": "Registro telemedicina",
       "graphCoordinates": {
-        "x": -3521.23,
-        "y": -1992.09
+        "x": -4730.19,
+        "y": -3284.38
       },
       "blocks": [
         {
@@ -1943,7 +3170,15 @@
           "type": "Set variable",
           "options": {
             "variableId": "var_d2fpw0vw",
-            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"telemedicine\\\",\\\"label\\\":\\\"Consentimento Telemedicina Assíncrona\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"non_urgency\\\",\\\"label\\\":\\\"Aviso Importante — Não Urgência/Emergência\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf\\\"}]\""
+            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"telemedicine\\\",\\\"label\\\":\\\"Consentimento Telemedicina Assíncrona\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"non_urgency\\\",\\\"label\\\":\\\"Aviso Importante — Não Urgência/Emergência\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Aviso_Nao_Urgencia_Emergencia.pdf\\\"}]\""
+          }
+        },
+        {
+          "id": "blk_set_tele_at",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_telemedicine_accepted_at",
+            "expressionToEvaluate": "{{now}}"
           }
         },
         {
@@ -1970,8 +3205,8 @@
       "id": "grp_telemedicina_decline",
       "title": "Encerramento telemedicina",
       "graphCoordinates": {
-        "x": -3520.84,
-        "y": -2302.51
+        "x": -3058.35,
+        "y": -2437.61
       },
       "blocks": [
         {
@@ -2006,8 +3241,8 @@
       "id": "grp_termos_uso",
       "title": "Termos de uso",
       "graphCoordinates": {
-        "x": -3890,
-        "y": -2562.5
+        "x": -4464.6,
+        "y": -2748.9
       },
       "blocks": [
         {
@@ -2023,6 +3258,15 @@
                     "text": "Antes de realizar o pagamento, leia e aceite os termos de uso do Doctor Prescreve."
                   }
                 ]
+              },
+              {
+                "id": "p_terms_question",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Você leu e concorda com os termos?"
+                  }
+                ]
               }
             ]
           }
@@ -2033,14 +3277,14 @@
           "content": {
             "richText": [
               {
-                "id": "p_1wqukbym",
+                "id": "p_terms_doc1_t",
                 "type": "p",
                 "children": [
                   {
-                    "text": "📄 "
+                    "text": " "
                   },
                   {
-                    "url": "https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf",
+                    "url": "https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_e_termos_de_uso_Doctor_Prescreve.pdf",
                     "type": "a",
                     "target": "_blank",
                     "children": [
@@ -2048,6 +3292,9 @@
                         "text": "Política e Termos de Uso"
                       }
                     ]
+                  },
+                  {
+                    "text": ""
                   }
                 ]
               }
@@ -2061,8 +3308,14 @@
             {
               "id": "terms_agree",
               "outgoingEdgeId": "edge_terms_to_accept",
-              "content": "Li e concordo com os termos",
-              "value": "sim"
+              "content": "Li e concordo",
+              "value": "true"
+            },
+            {
+              "id": "terms_decline",
+              "outgoingEdgeId": "edge_terms_to_decline",
+              "content": "Não concordo",
+              "value": "false"
             }
           ],
           "options": {
@@ -2075,8 +3328,8 @@
       "id": "grp_termos_accept",
       "title": "Registro termos",
       "graphCoordinates": {
-        "x": -4722.5,
-        "y": -2272.5
+        "x": -4859.07,
+        "y": -2862.97
       },
       "blocks": [
         {
@@ -2100,7 +3353,7 @@
           "type": "Set variable",
           "options": {
             "variableId": "var_d2fpw0vw",
-            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"telemedicine\\\",\\\"label\\\":\\\"Consentimento Telemedicina Assíncrona\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"non_urgency\\\",\\\"label\\\":\\\"Aviso Importante — Não Urgência/Emergência\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Aviso_Nao_Urgencia_Emergencia.pdf\\\"},{\\\"id\\\":\\\"terms_of_use\\\",\\\"label\\\":\\\"Política e Termos de Uso\\\",\\\"url\\\":\\\"https://thbwoogytwcidxrrboym.supabase.co/storage/v1/object/public/Documentos%20Doctor%20Prescreve/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\\\"}]\""
+            "expressionToEvaluate": "\"[{\\\"id\\\":\\\"lgpd\\\",\\\"label\\\":\\\"Consentimento LGPD\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_LGPD_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"privacy\\\",\\\"label\\\":\\\"Política de Privacidade\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_de_Privacidade_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"telemedicine\\\",\\\"label\\\":\\\"Consentimento Telemedicina Assíncrona\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Consentimento_Telemedicina_Assincrona_Doctor_Prescreve.pdf\\\"},{\\\"id\\\":\\\"non_urgency\\\",\\\"label\\\":\\\"Aviso Importante — Não Urgência/Emergência\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Aviso_Nao_Urgencia_Emergencia.pdf\\\"},{\\\"id\\\":\\\"terms_of_use\\\",\\\"label\\\":\\\"Política e Termos de Uso\\\",\\\"url\\\":\\\"https://usihurogvphtjedyhyfl.supabase.co/storage/v1/object/public/documentos-publicos/Politica_e_termos_de_uso_Doctor_Prescreve.pdf\\\"}]\""
           }
         },
         {
@@ -2135,8 +3388,8 @@
       "id": "grp_upload_status_check",
       "title": "Conferir novamente",
       "graphCoordinates": {
-        "x": -3385,
-        "y": -1605
+        "x": -4995.26,
+        "y": -1536.51
       },
       "blocks": [
         {
@@ -2176,9 +3429,9 @@
                   "value": "application/json"
                 }
               ],
+              "method": "GET",
               "url": "{{upload_status_url}}",
-              "body": "{}",
-              "method": "GET"
+              "body": "{}"
             }
           }
         }
@@ -2188,8 +3441,8 @@
       "id": "grp_upload_status_result",
       "title": "Resultado conferência upload",
       "graphCoordinates": {
-        "x": -3867.5,
-        "y": -1677.5
+        "x": -4865.42,
+        "y": -2350.48
       },
       "blocks": [
         {
@@ -2232,8 +3485,8 @@
       "id": "grp_upload_confirmed",
       "title": "Upload confirmado",
       "graphCoordinates": {
-        "x": -4305,
-        "y": -1757.5
+        "x": -4386.12,
+        "y": -2347.52
       },
       "blocks": [
         {
@@ -2259,20 +3512,20 @@
           "content": {
             "richText": [
               {
-                "id": "p_upload_confirmed_1",
+                "id": "p_upload_ok_1",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Receita anterior recebida e vinculada ao seu atendimento."
+                    "text": "Receita anterior recebida com sucesso."
                   }
                 ]
               },
               {
-                "id": "p_upload_confirmed_2",
+                "id": "p_upload_ok_2",
                 "type": "p",
                 "children": [
                   {
-                    "text": "Estamos realizando a conferência final das informações antes do encaminhamento para análise médica."
+                    "text": "Estamos concluindo o envio da sua solicitação."
                   }
                 ]
               }
@@ -2285,8 +3538,8 @@
       "id": "grp_upload_pending_retry",
       "title": "Upload pendente",
       "graphCoordinates": {
-        "x": -4305,
-        "y": -1507.5
+        "x": -4224.67,
+        "y": -1585.65
       },
       "blocks": [
         {
@@ -2357,8 +3610,8 @@
       "id": "grp_upload_continue_later",
       "title": "Continuar depois",
       "graphCoordinates": {
-        "x": -4705,
-        "y": -1257.5
+        "x": -4959.8,
+        "y": -1235.29
       },
       "blocks": [
         {
@@ -2406,6 +3659,320 @@
           }
         }
       ]
+    },
+    {
+      "id": "grp_receita_enviar_depois",
+      "title": "Receita anterior — enviar depois",
+      "graphCoordinates": {
+        "x": -4716.49,
+        "y": -1041.99
+      },
+      "blocks": [
+        {
+          "id": "blk_rx_enviar_depois_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_rx_enviar_depois_txt_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Sua solicitação foi salva e está aguardando a receita médica anterior."
+                  }
+                ]
+              },
+              {
+                "id": "blk_rx_enviar_depois_txt_p1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhum pagamento será solicitado neste momento."
+                  }
+                ]
+              },
+              {
+                "id": "blk_rx_enviar_depois_txt_p2",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Quando estiver com o documento, retome o atendimento pelo mesmo WhatsApp."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_correcao_menu",
+      "title": "Correção — seleção de grupo",
+      "graphCoordinates": {
+        "x": -4214.34,
+        "y": -438.89
+      },
+      "blocks": [
+        {
+          "id": "blk_correcao_menu_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_correcao_menu_txt_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Qual grupo você deseja corrigir?"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "blk_correcao_menu_choice",
+          "type": "choice input",
+          "items": [
+            {
+              "id": "corr_dados",
+              "outgoingEdgeId": "edge_corr_to_dados",
+              "content": "Dados pessoais",
+              "value": "dados"
+            },
+            {
+              "id": "corr_endereco",
+              "outgoingEdgeId": "edge_corr_to_endereco",
+              "content": "Endereço",
+              "value": "endereco"
+            },
+            {
+              "id": "corr_condicoes",
+              "outgoingEdgeId": "edge_corr_to_condicoes",
+              "content": "Condições clínicas",
+              "value": "condicoes"
+            },
+            {
+              "id": "corr_medicamentos",
+              "outgoingEdgeId": "edge_corr_to_medicamentos",
+              "content": "Medicamentos",
+              "value": "medicamentos"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grp_corr_prep_dados",
+      "title": "Preparar correção — dados",
+      "graphCoordinates": {
+        "x": -4355.92,
+        "y": -640.78
+      },
+      "blocks": [
+        {
+          "id": "blk_grp_corr_prep_dados_set",
+          "outgoingEdgeId": "edge_corr_to_dados_jump",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_correction_target",
+            "expressionToEvaluate": "dados"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_corr_prep_endereco",
+      "title": "Preparar correção — endereco",
+      "graphCoordinates": {
+        "x": -4399.31,
+        "y": -804.09
+      },
+      "blocks": [
+        {
+          "id": "blk_grp_corr_prep_endereco_set",
+          "outgoingEdgeId": "edge_corr_to_endereco_jump",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_correction_target",
+            "expressionToEvaluate": "endereco"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_corr_prep_condicoes",
+      "title": "Preparar correção — condicoes",
+      "graphCoordinates": {
+        "x": -4748.83,
+        "y": -700.32
+      },
+      "blocks": [
+        {
+          "id": "blk_grp_corr_prep_condicoes_set",
+          "outgoingEdgeId": "edge_corr_to_condicoes_jump",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_correction_target",
+            "expressionToEvaluate": "condicoes"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_corr_prep_medicamentos",
+      "title": "Preparar correção — medicamentos",
+      "graphCoordinates": {
+        "x": -4622.88,
+        "y": -512.61
+      },
+      "blocks": [
+        {
+          "id": "blk_grp_corr_prep_medicamentos_set",
+          "outgoingEdgeId": "edge_corr_to_medicamentos_jump",
+          "type": "Set variable",
+          "options": {
+            "variableId": "var_correction_target",
+            "expressionToEvaluate": "medicamentos"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_dados_route_end",
+      "title": "Rota de retorno — dados/endereço",
+      "graphCoordinates": {
+        "x": -2654.17,
+        "y": -1960.43
+      },
+      "blocks": [
+        {
+          "id": "blk_dados_route_cond",
+          "outgoingEdgeId": "edge_dados_to_receita",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_dados_route_to_resumo",
+              "outgoingEdgeId": "edge_dados_route_to_resumo",
+              "content": {
+                "logicalOperator": "OR",
+                "comparisons": [
+                  {
+                    "id": "cmp_dados_flag_1",
+                    "variableId": "var_correction_target",
+                    "comparisonOperator": "Equal to",
+                    "value": "dados"
+                  },
+                  {
+                    "id": "cmp_dados_flag_2",
+                    "variableId": "var_correction_target",
+                    "comparisonOperator": "Equal to",
+                    "value": "endereco"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grp_condicoes_route_end",
+      "title": "Rota de retorno — condições clínicas",
+      "graphCoordinates": {
+        "x": -3322.58,
+        "y": -3061.08
+      },
+      "blocks": [
+        {
+          "id": "blk_condicoes_route_cond",
+          "outgoingEdgeId": "edge_doenca_to_tempo",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_condicoes_route_to_resumo",
+              "outgoingEdgeId": "edge_condicoes_route_to_resumo",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_condicoes_flag",
+                    "variableId": "var_correction_target",
+                    "comparisonOperator": "Equal to",
+                    "value": "condicoes"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "grp_termos_decline",
+      "title": "Termos não aceitos",
+      "graphCoordinates": {
+        "x": -3089.56,
+        "y": -1420.89
+      },
+      "blocks": [
+        {
+          "id": "blk_termos_decline_txt",
+          "type": "text",
+          "content": {
+            "richText": [
+              {
+                "id": "blk_termos_decline_txt_p0",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Tudo bem. Sem o aceite dos termos de uso não é possível seguir com a avaliação médica."
+                  }
+                ]
+              },
+              {
+                "id": "blk_termos_decline_txt_p1",
+                "type": "p",
+                "children": [
+                  {
+                    "text": "Nenhuma cobrança foi realizada."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp_upload_check_gate",
+      "title": "Confirmação de upload da receita",
+      "graphCoordinates": {
+        "x": -3822.12,
+        "y": -219.41
+      },
+      "blocks": [
+        {
+          "id": "blk_upload_check_gate",
+          "outgoingEdgeId": "edge_upload_check_gate_retry",
+          "type": "Condition",
+          "items": [
+            {
+              "id": "cond_upload_check_confirmed",
+              "outgoingEdgeId": "edge_upload_check_gate_confirmed",
+              "content": {
+                "comparisons": [
+                  {
+                    "id": "cmp_upload_check_confirmed",
+                    "variableId": "var_upload_check_action",
+                    "comparisonOperator": "Equal to",
+                    "value": "Já enviei a receita"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "edges": [
@@ -2440,15 +4007,6 @@
       }
     },
     {
-      "id": "whhjc7rr0vzetkkpuxlgr57d",
-      "from": {
-        "blockId": "oq3zsok0c2tdl3qamma8tush"
-      },
-      "to": {
-        "groupId": "vo62j813iek8fjy0uoq0ttrc"
-      }
-    },
-    {
       "id": "sozjhxmnxly3ybh3jju1awa1",
       "from": {
         "blockId": "w9v6g0rlkucnfmxc3qh2a2qt",
@@ -2456,6 +4014,34 @@
       },
       "to": {
         "groupId": "e84h0bt9n8hgrj4ut48h245l"
+      }
+    },
+    {
+      "id": "gxvgai6wl7iwwc41d6lrrx6z",
+      "from": {
+        "blockId": "op525eof9wh6t3p2dgusj6vi"
+      },
+      "to": {
+        "groupId": "fni2p22kfg51hs6s6lhcteec"
+      }
+    },
+    {
+      "id": "fu2odekdi7zmcs9na14bkaks",
+      "from": {
+        "blockId": "mloj5c3l4yjapg85uzvq6rnn",
+        "itemId": "itpplgcswslda93reij8f5t5"
+      },
+      "to": {
+        "groupId": "fni2p22kfg51hs6s6lhcteec"
+      }
+    },
+    {
+      "id": "oeuocbgqpa3fmza0z9jrorm5",
+      "from": {
+        "blockId": "cf0hq8fg24uy2spkwfosmu2n"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
       }
     },
     {
@@ -2509,7 +4095,7 @@
     {
       "id": "edge_dados_to_receita",
       "from": {
-        "blockId": "q78qjnk6ticwkeifl7xe2rju"
+        "blockId": "blk_dados_route_cond"
       },
       "to": {
         "groupId": "grp_receita_anterior"
@@ -2522,8 +4108,7 @@
         "itemId": "rec_sim"
       },
       "to": {
-        "groupId": "grp_gate_pagamento",
-        "blockId": "blk_gate_set"
+        "groupId": "huh6fmizvv701t9u7hc2mult"
       }
     },
     {
@@ -2645,7 +4230,8 @@
         "blockId": "rapfykn1f1uno89ypqmwi43f"
       },
       "to": {
-        "groupId": "huh6fmizvv701t9u7hc2mult"
+        "groupId": "g60uvyvi39v47j4ahnoxkxzn",
+        "blockId": "axuwb907imxr22bqbnugj3ab"
       }
     },
     {
@@ -2764,8 +4350,8 @@
         "itemId": "nmhyrnorx68pd9jrp98esvli"
       },
       "to": {
-        "groupId": "g60uvyvi39v47j4ahnoxkxzn",
-        "blockId": "axuwb907imxr22bqbnugj3ab"
+        "groupId": "grp_gate_pagamento",
+        "blockId": "blk_gate_set"
       }
     },
     {
@@ -2778,14 +4364,21 @@
       }
     },
     {
-      "id": "edge_upload_check_request",
+      "id": "edge_doenca_to_tempo",
       "from": {
-        "blockId": "blk_upload_check",
-        "itemId": "upload_check_yes"
+        "blockId": "blk_condicoes_route_cond"
       },
       "to": {
-        "groupId": "grp_upload_status_check",
-        "blockId": "blk_upload_status_webhook"
+        "groupId": "wb0gci4696hfx2s63brqetda"
+      }
+    },
+    {
+      "id": "edge_upload_check_request",
+      "from": {
+        "blockId": "blk_upload_check"
+      },
+      "to": {
+        "groupId": "grp_upload_check_gate"
       }
     },
     {
@@ -2863,21 +4456,226 @@
       }
     },
     {
-      "id": "edge_continue_later_to_end",
+      "id": "whhjc7rr0vzetkkpuxlgr57d",
       "from": {
-        "blockId": "blk_continue_txt"
+        "blockId": "oq3zsok0c2tdl3qamma8tush"
       },
       "to": {
-        "groupId": "jnbvtyzr1ffz4ff5n05a999k"
+        "groupId": "vo62j813iek8fjy0uoq0ttrc"
       }
     },
     {
-      "id": "edge_doenca_to_tempo",
+      "id": "edge_rec_enviar_depois",
+      "from": {
+        "blockId": "blk_receita_choice",
+        "itemId": "rec_enviar_depois"
+      },
+      "to": {
+        "groupId": "grp_receita_enviar_depois"
+      }
+    },
+    {
+      "id": "edge_confirm_to_correction_menu",
+      "from": {
+        "blockId": "plhspmybxbhylbfbsvqyhlmj",
+        "itemId": "resumo_corrigir"
+      },
+      "to": {
+        "groupId": "grp_correcao_menu"
+      }
+    },
+    {
+      "id": "edge_corr_to_dados",
+      "from": {
+        "blockId": "blk_correcao_menu_choice",
+        "itemId": "corr_dados"
+      },
+      "to": {
+        "groupId": "grp_corr_prep_dados",
+        "blockId": "blk_grp_corr_prep_dados_set"
+      }
+    },
+    {
+      "id": "edge_corr_to_dados_jump",
+      "from": {
+        "blockId": "blk_grp_corr_prep_dados_set"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "emdb1ofb3knx8py3jc4ed13h"
+      }
+    },
+    {
+      "id": "edge_corr_to_endereco",
+      "from": {
+        "blockId": "blk_correcao_menu_choice",
+        "itemId": "corr_endereco"
+      },
+      "to": {
+        "groupId": "grp_corr_prep_endereco",
+        "blockId": "blk_grp_corr_prep_endereco_set"
+      }
+    },
+    {
+      "id": "edge_corr_to_endereco_jump",
+      "from": {
+        "blockId": "blk_grp_corr_prep_endereco_set"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "blk_pergunta_cep"
+      }
+    },
+    {
+      "id": "edge_corr_to_condicoes",
+      "from": {
+        "blockId": "blk_correcao_menu_choice",
+        "itemId": "corr_condicoes"
+      },
+      "to": {
+        "groupId": "grp_corr_prep_condicoes",
+        "blockId": "blk_grp_corr_prep_condicoes_set"
+      }
+    },
+    {
+      "id": "edge_corr_to_condicoes_jump",
+      "from": {
+        "blockId": "blk_grp_corr_prep_condicoes_set"
+      },
+      "to": {
+        "groupId": "vo62j813iek8fjy0uoq0ttrc",
+        "blockId": "hda2dcvh33856qga899drcfi"
+      }
+    },
+    {
+      "id": "edge_corr_to_medicamentos",
+      "from": {
+        "blockId": "blk_correcao_menu_choice",
+        "itemId": "corr_medicamentos"
+      },
+      "to": {
+        "groupId": "grp_corr_prep_medicamentos",
+        "blockId": "blk_grp_corr_prep_medicamentos_set"
+      }
+    },
+    {
+      "id": "edge_corr_to_medicamentos_jump",
+      "from": {
+        "blockId": "blk_grp_corr_prep_medicamentos_set"
+      },
+      "to": {
+        "groupId": "huh6fmizvv701t9u7hc2mult",
+        "blockId": "ng82dao2u8yp3cyr8oopz1tt"
+      }
+    },
+    {
+      "id": "edge_dados_to_route_check",
+      "from": {
+        "blockId": "q78qjnk6ticwkeifl7xe2rju"
+      },
+      "to": {
+        "groupId": "grp_dados_route_end",
+        "blockId": "blk_dados_route_cond"
+      }
+    },
+    {
+      "id": "edge_dados_route_to_resumo",
+      "from": {
+        "blockId": "blk_dados_route_cond",
+        "itemId": "cond_dados_route_to_resumo"
+      },
+      "to": {
+        "groupId": "wupo36l29a2x66rh0bwf5yex"
+      }
+    },
+    {
+      "id": "edge_condicoes_to_route_check",
       "from": {
         "blockId": "b156nm008xh7gb52n7w3egzn"
       },
       "to": {
-        "groupId": "wb0gci4696hfx2s63brqetda"
+        "groupId": "grp_condicoes_route_end",
+        "blockId": "blk_condicoes_route_cond"
+      }
+    },
+    {
+      "id": "edge_condicoes_route_to_resumo",
+      "from": {
+        "blockId": "blk_condicoes_route_cond",
+        "itemId": "cond_condicoes_route_to_resumo"
+      },
+      "to": {
+        "groupId": "wupo36l29a2x66rh0bwf5yex"
+      }
+    },
+    {
+      "id": "edge_terms_to_decline",
+      "from": {
+        "blockId": "blk_terms_choice",
+        "itemId": "terms_decline"
+      },
+      "to": {
+        "groupId": "grp_termos_decline"
+      }
+    },
+    {
+      "id": "edge_upload_check_gate_confirmed",
+      "from": {
+        "blockId": "blk_upload_check_gate",
+        "itemId": "cond_upload_check_confirmed"
+      },
+      "to": {
+        "groupId": "bhrt6it0ud0teq3tw26q40ba"
+      }
+    },
+    {
+      "id": "edge_upload_check_gate_retry",
+      "from": {
+        "blockId": "blk_upload_check_gate"
+      },
+      "to": {
+        "groupId": "grp_foto_receita",
+        "blockId": "blk_upload_check"
+      }
+    },
+    {
+      "id": "edge_cep_erro_retry",
+      "from": {
+        "blockId": "blk_cep_erro_msg"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "blk_pergunta_cep"
+      }
+    },
+    {
+      "id": "edge_cep_localizado_route",
+      "from": {
+        "blockId": "blk_endereco_montar_localizado"
+      },
+      "to": {
+        "groupId": "grp_dados_route_end",
+        "blockId": "blk_dados_route_cond"
+      }
+    },
+    {
+      "id": "edge_cep_force_manual",
+      "from": {
+        "blockId": "blk_cep_encontrado_cond"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "blk_endereco_manual_msg"
+      }
+    },
+    {
+      "id": "edge_cep_direto_endereco_manual",
+      "from": {
+        "blockId": "blk_0oydu2f7"
+      },
+      "to": {
+        "groupId": "od03hfeq73l5xvs0lj9xrox3",
+        "blockId": "blk_endereco_manual_msg"
       }
     }
   ],
@@ -3162,11 +4960,6 @@
       "isSessionVariable": false
     },
     {
-      "id": "vou30coxarhyas9y5q07k78k9",
-      "name": "nome_social",
-      "isSessionVariable": false
-    },
-    {
       "id": "var_atendimento_id",
       "name": "atendimentoId",
       "isSessionVariable": false
@@ -3174,6 +4967,76 @@
     {
       "id": "var_upload_status",
       "name": "upload_status",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_correction_target",
+      "name": "correction_target",
+      "isSessionVariable": false
+    },
+    {
+      "id": "vou30coxarhyas9y5q07k78k9",
+      "name": "nome_social",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_resumo_condicoes",
+      "name": "resumo_condicoes",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_resumo_medicamentos",
+      "name": "resumo_medicamentos",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_resumo_cpf_mascarado",
+      "name": "resumo_cpf_mascarado",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_valido",
+      "name": "cep_valido",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_logradouro",
+      "name": "cep_logradouro",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_bairro",
+      "name": "cep_bairro",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_cidade",
+      "name": "cep_cidade",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_estado",
+      "name": "cep_estado",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_cep_encontrado",
+      "name": "cep_encontrado",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_endereco_numero_complemento",
+      "name": "endereco_numero_complemento",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_lgpd_accepted_at",
+      "name": "lgpd_accepted_at",
+      "isSessionVariable": false
+    },
+    {
+      "id": "var_telemedicine_accepted_at",
+      "name": "telemedicine_accepted_at",
       "isSessionVariable": false
     }
   ],
@@ -3185,7 +5048,7 @@
     }
   },
   "createdAt": "2026-05-04T01:19:53.269Z",
-  "updatedAt": "2026-07-16T17:40:36.862Z",
+  "updatedAt": "2026-07-25T22:24:42.898Z",
   "icon": "🤝",
   "folderId": null,
   "publicId": "doctor-prescreve-8rmljgu",
@@ -3204,7 +5067,6 @@
       "oq3zsok0c2tdl3qamma8tush",
       "rapfykn1f1uno89ypqmwi43f",
       "b156nm008xh7gb52n7w3egzn",
-      "pkodixot7oiiya9iknntuvz2",
       "ds9z9lnz3yayokyy8d81fudj",
       "ar8jtu7sa8gfndqeebrvyj15",
       "dein7u2qnr8q32p2lv1krd5p",

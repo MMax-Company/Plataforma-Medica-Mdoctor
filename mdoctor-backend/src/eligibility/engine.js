@@ -8,6 +8,7 @@ const {
   PROTOCOL_VERSION,
   CONDITIONS,
   normalizeCondition,
+  normalizeConditions,
   extractUsageDays,
   hasContinuousMedication,
   hasPreviousPrescription,
@@ -37,7 +38,19 @@ class EligibilityEngine {
    * @returns {Object} Decision { eligible: boolean, reason: string }
    */
   evaluate(patientData) {
-    const condition = normalizeCondition(patientData.condition || patientData.doenca_cronica || '');
+    // Resolve todas as condições selecionadas (suporte a múltipla seleção no Typebot).
+    // chronic_conditions (array) tem precedência quando disponível; fallback para
+    // condition/chronic_condition (pode ser "hipertensao,dislipidemia" join) ou
+    // doenca_cronica (raw label).
+    const rawConditionInput =
+      patientData.condition ||
+      patientData.chronic_condition ||
+      patientData.doenca_cronica || '';
+    const conditions = Array.isArray(patientData.chronic_conditions) && patientData.chronic_conditions.length
+      ? patientData.chronic_conditions
+      : normalizeConditions(rawConditionInput);
+    // condition (singular) mantido para campos legados em _rejectedDecision/logs
+    const condition = conditions[0] || 'renovacao_receita';
     const flags = this._normalizeFlags(patientData.flags);
     const usageDays = extractUsageDays(patientData);
     const hasContinuousUse = hasContinuousMedication(patientData);
@@ -52,6 +65,7 @@ class EligibilityEngine {
         reason: patientData._ineligibilityReason || patientData.ineligibility_reason || 'Paciente inelegível na triagem Typebot',
         reasonCode: 'consulta_presencial',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Triagem Typebot: inelegível'], flags),
         renewalStatus: 'insegura'
@@ -63,6 +77,7 @@ class EligibilityEngine {
         reason: 'Sinais de alerta relatados — atendimento presencial recomendado',
         reasonCode: 'sinais_alarme',
         condition,
+        conditions,
         flags: [...flags, 'sinais_urgencia'],
         criteriaUsed: buildCriteriaSummary(['Sem sinais de alerta'], [...flags, 'sinais_urgencia']),
         renewalStatus: 'insegura'
@@ -74,6 +89,7 @@ class EligibilityEngine {
         reason: 'Medicamento controlado ou fora do protocolo de renovação remota',
         reasonCode: 'medicacao_incompativel',
         condition,
+        conditions,
         flags: [...flags, 'contraindicacao_basica'],
         criteriaUsed: buildCriteriaSummary(criteriaUsed, [...flags, 'contraindicacao_basica']),
         renewalStatus: 'insegura'
@@ -93,6 +109,7 @@ class EligibilityEngine {
         reason: 'Falta comprovação de uso contínuo e receita anterior válida',
         reasonCode: 'documentacao_insuficiente',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Comprovação de uso contínuo', 'Receita anterior válida'], flags),
         renewalStatus: 'insegura'
@@ -104,6 +121,7 @@ class EligibilityEngine {
         reason: 'Foto legível da receita anterior é obrigatória para renovação',
         reasonCode: 'documentacao_insuficiente',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Comprovação de uso contínuo', 'Receita anterior válida'], flags),
         renewalStatus: 'insegura'
@@ -119,6 +137,7 @@ class EligibilityEngine {
         reason: 'Tempo de uso insuficiente para renovação remota segura',
         reasonCode: 'renovacao_insegura',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(['Tempo de uso mínimo >= 30 dias'], flags),
         renewalStatus: 'insegura'
@@ -133,6 +152,7 @@ class EligibilityEngine {
         reason: 'Receita anterior fora da janela segura (vencida há mais de 180 dias)',
         reasonCode: 'renovacao_insegura',
         condition,
+        conditions,
         flags: blockFlags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, blockFlags),
         renewalStatus: 'insegura'
@@ -146,6 +166,7 @@ class EligibilityEngine {
         reason: this._getBlockReason(flags),
         reasonCode: this._getRefusalCode(flags),
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
         renewalStatus: 'insegura'
@@ -153,12 +174,18 @@ class EligibilityEngine {
     }
     criteriaUsed.push('Sem sinais de alerta/contraindicação básica');
 
-    // 3. Check for Allowed Conditions
-    if (!CRITERIA_ALLOW.includes(condition)) {
+    // 3. Todas as condições devem estar na lista permitida.
+    //    Se o array estiver vazio ou qualquer condição não constar em CRITERIA_ALLOW,
+    //    a renovação é recusada — sem ignorar condições silenciosamente.
+    const blockedConditions = conditions.filter((c) => !CRITERIA_ALLOW.includes(c));
+    if (!conditions.length || blockedConditions.length > 0) {
       return this._rejectedDecision({
-        reason: 'Condição fora do protocolo de renovação para telemedicina assíncrona',
+        reason: blockedConditions.length
+          ? `Condição fora do protocolo de renovação: ${blockedConditions.join(', ')}`
+          : 'Condição crônica não identificada no protocolo',
         reasonCode: 'consulta_presencial',
         condition,
+        conditions,
         flags,
         criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
         renewalStatus: 'insegura'
@@ -175,6 +202,7 @@ class EligibilityEngine {
       renewalStatus: 'coerente',
       protocolVersion: PROTOCOL_VERSION,
       conditionNormalized: condition,
+      conditionsNormalized: conditions,
       criteriaUsed: buildCriteriaSummary(criteriaUsed, flags),
       flags
     };
@@ -215,7 +243,7 @@ class EligibilityEngine {
     return 'renovacao_insegura';
   }
 
-  _rejectedDecision({ reason, reasonCode, condition, flags, criteriaUsed, renewalStatus }) {
+  _rejectedDecision({ reason, reasonCode, condition, conditions, flags, criteriaUsed, renewalStatus }) {
     return {
       eligible: false,
       reason,
@@ -224,6 +252,7 @@ class EligibilityEngine {
       renewalStatus,
       protocolVersion: PROTOCOL_VERSION,
       conditionNormalized: condition,
+      conditionsNormalized: conditions || (condition ? [condition] : []),
       criteriaUsed: criteriaUsed || [],
       flags: flags || []
     };

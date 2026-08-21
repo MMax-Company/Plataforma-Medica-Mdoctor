@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Users as UsersIcon } from 'lucide-react';
 import { logout, requireSession } from '@/services/auth.service';
 import {
   addAdminNote,
   fetchAdminAtendimento,
   forwardToDoctor,
+  hasPreviousPrescriptionFile,
   medicoResponsavel,
   resendPaymentLink,
   resendTypebotLink,
@@ -16,6 +18,20 @@ import {
 } from '@/services/admin.service';
 import { Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
+
+function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
+  const status = String(atendimento.status || '').trim().toLowerCase();
+  const delivered =
+    status === 'delivered' ||
+    status === 'finished' ||
+    atendimento.dados_clinicos?.entrega_receita?.status === 'sent';
+
+  return (
+    delivered &&
+    atendimento.condicao !== 'suporte_whatsapp' &&
+    atendimento.dados_clinicos?.queue_type !== 'support'
+  );
+}
 
 // ─── Journey derivation ───────────────────────────────────────────────────────
 
@@ -31,7 +47,7 @@ type JourneyStep = {
 function deriveJourney(a: AdminAtendimento): JourneyStep[] {
   const s = (a.status || '').toLowerCase();
   const paid = String(a.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
-  const prevPrescription = a.dados_clinicos?.previous_prescription;
+  const prevPrescription = hasPreviousPrescriptionFile(a);
 
   const isWaiting = ['waiting', 'queue', 'fila', 'triaged'].includes(s);
   const isAwaitingReceipt = s === 'awaiting_prescription_upload';
@@ -112,7 +128,7 @@ function deriveJourney(a: AdminAtendimento): JourneyStep[] {
 function StepDot({ state }: { state: StepState }) {
   if (state === 'done')
     return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0BA84F] text-white">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#0BA84F] text-white">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M2 7l4 4 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -120,20 +136,20 @@ function StepDot({ state }: { state: StepState }) {
     );
   if (state === 'current')
     return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#1557FF] bg-[#EEF4FF]">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#1557FF] bg-[#EEF4FF]">
         <span className="h-3 w-3 rounded-full bg-[#1557FF]" />
       </span>
     );
   if (state === 'blocked')
     return (
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
           <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       </span>
     );
   return (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-[#E5EAF2] bg-white">
+    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-[#E5EAF2] bg-white">
       <span className="h-2 w-2 rounded-full bg-[#D1D5DB]" />
     </span>
   );
@@ -211,7 +227,6 @@ export default function AdminPacientePage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [copyLabel, setCopyLabel] = useState<string | null>(null);
-
   const [forwardOpen, setForwardOpen] = useState(false);
   const [forwardMotivo, setForwardMotivo] = useState('');
   const [forwardLoading, setForwardLoading] = useState(false);
@@ -354,13 +369,13 @@ export default function AdminPacientePage() {
   const journey = a ? deriveJourney(a) : [];
 
   return (
-    <main className="flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
+    <main className="admin-dashboard admin-patient-journey flex min-h-screen w-full flex-col bg-[#F6F9FD] text-[#071B3A]">
       <MedicalPanelHeader
         operational
         title={a?.paciente_nome || 'Paciente'}
-        titleAlign="left"
         subtitle="Jornada do atendimento"
-        recordButtonLabel="← Pacientes"
+        recordButtonLabel="Relação de Pacientes"
+        recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/pacientes')}
         onLogout={handleLogout}
       />
@@ -371,7 +386,7 @@ export default function AdminPacientePage() {
         </div>
       )}
 
-      <div className="space-y-6 p-4 sm:p-6">
+      <div className="admin-patient-journey__content space-y-6 p-4 sm:p-6">
         {error && (
           <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
@@ -381,8 +396,8 @@ export default function AdminPacientePage() {
         {a && (
           <>
             {/* Patient info + status */}
-            <div className="grid gap-4 lg:grid-cols-2">
-              <Card className="p-5">
+            <div className="admin-patient-journey__overview grid gap-4 lg:grid-cols-2">
+              <Card className="admin-patient-journey__info-card p-5">
                 <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                   Dados do paciente
                 </p>
@@ -396,7 +411,7 @@ export default function AdminPacientePage() {
                 </dl>
               </Card>
 
-              <Card className="p-5">
+              <Card className="admin-patient-journey__info-card p-5">
                 <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                   Status do atendimento
                 </p>
@@ -432,7 +447,7 @@ export default function AdminPacientePage() {
                   <FieldRow
                     label="Receita anterior"
                     value={
-                      a.dados_clinicos?.previous_prescription ? (
+                      hasPreviousPrescriptionFile(a) ? (
                         <StatusPill tone="success">Recebida</StatusPill>
                       ) : (
                         <StatusPill tone="gold">Pendente</StatusPill>
@@ -441,13 +456,15 @@ export default function AdminPacientePage() {
                   />
                   <FieldRow label="Entrada" value={fmt(a.criado_em)} />
                   <FieldRow label="Última atualização" value={fmt(a.atualizado_em)} />
-                  {medicoResponsavel(a) && <FieldRow label="Médico responsável" value={medicoResponsavel(a)!} />}
+                  {medicoResponsavel(a) && (
+                    <FieldRow label="Médico responsável" value={medicoResponsavel(a)!} />
+                  )}
                 </dl>
               </Card>
             </div>
 
             {/* Journey timeline */}
-            <Card className="overflow-hidden p-5">
+            <Card className="admin-patient-journey__timeline overflow-hidden p-5">
               <p className="mb-5 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Jornada do paciente
               </p>
@@ -477,12 +494,12 @@ export default function AdminPacientePage() {
                       </div>
                       <div className="mt-2 max-w-[90px] text-center">
                         <p
-                          className={`text-[12.5px] font-bold leading-tight ${stepLabelColor(step.state)}`}
+                          className={`text-[11px] font-bold leading-tight ${stepLabelColor(step.state)}`}
                         >
                           {step.label}
                         </p>
                         {step.detail && (
-                          <p className="mt-0.5 text-[11px] leading-tight text-[#94A3B8]">
+                          <p className="mt-0.5 text-[10px] leading-tight text-[#94A3B8]">
                             {step.detail}
                           </p>
                         )}
@@ -510,8 +527,9 @@ export default function AdminPacientePage() {
               </div>
             </Card>
 
-            {/* Actions */}
-            <Card className="p-5">
+            <div className="admin-patient-journey__lower">
+              {/* Actions */}
+              <Card className="admin-patient-journey__actions p-5">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Ações administrativas
               </p>
@@ -535,16 +553,16 @@ export default function AdminPacientePage() {
                     href={`https://wa.me/${a.paciente_telefone.replace(/\D/g, '')}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-[#25D366] bg-[#25D366] px-3.5 text-panel-sm font-bold text-white shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#1ebe5b]"
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E5EAF2] bg-white px-3.5 text-sm font-bold shadow-[0_2px_8px_rgba(0,0,0,0.06)] hover:-translate-y-0.5 hover:bg-[#F8FAFC]"
                   >
-                    WhatsApp
+                    <span className="text-[#25D366]">WhatsApp</span> direto
                   </a>
                 )}
-                {a.condicao !== 'suporte_whatsapp' &&
+                {canForwardToMedicalSupport(a) &&
                   (a.dados_clinicos?.queue_type === 'medical_support' ? (
                     <StatusPill tone="gold">Aguardando resposta médica</StatusPill>
                   ) : (
-                    <Button onClick={() => setForwardOpen((v) => !v)} tone="primary">
+                    <Button onClick={() => setForwardOpen((value) => !value)} tone="primary">
                       🩺 Encaminhar ao Médico
                     </Button>
                   ))}
@@ -557,8 +575,8 @@ export default function AdminPacientePage() {
                   </p>
                   <textarea
                     value={forwardMotivo}
-                    onChange={(e) => setForwardMotivo(e.target.value)}
-                    placeholder="Ex.: paciente relata dúvida sobre a posologia da receita emitida..."
+                    onChange={(event) => setForwardMotivo(event.target.value)}
+                    placeholder="Ex.: paciente relata dúvida sobre a orientação da receita entregue..."
                     rows={2}
                     className="w-full resize-none rounded-[10px] border border-[#E5EAF2] bg-white px-3 py-2 text-sm text-[#1E1E1E] outline-none transition focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF] placeholder:text-[#94A3B8]"
                   />
@@ -583,10 +601,10 @@ export default function AdminPacientePage() {
                   {copyLabel}
                 </div>
               )}
-            </Card>
+              </Card>
 
-            {/* Admin notes */}
-            <Card className="p-5">
+              {/* Admin notes */}
+              <Card className="admin-patient-journey__notes p-5">
               <p className="mb-4 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Observações administrativas
               </p>
@@ -650,7 +668,8 @@ export default function AdminPacientePage() {
                   </Button>
                 </div>
               </div>
-            </Card>
+              </Card>
+            </div>
           </>
         )}
       </div>

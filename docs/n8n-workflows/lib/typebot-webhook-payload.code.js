@@ -1,9 +1,7 @@
 /**
- * LEGADO — não usar em workflows ativos.
- * Oficial: lib/typebot-webhook-triagem.code.js → POST /api/webhook/triagem
- * Este arquivo normalizava para /api/whatsapp/webhook e podia marcar payment_status=paid.
+ * n8n Code node: normaliza payload Typebot -> backend /api/whatsapp/webhook
+ * Espelha clinical-payload-normalizer.service.js (subset executável no n8n)
  */
-
 const input = $input.first().json || {};
 const headers = input.headers || {};
 const body = input.body || input;

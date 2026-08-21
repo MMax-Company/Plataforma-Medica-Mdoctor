@@ -16,11 +16,21 @@ function isRefundLocked(estorno = null) {
   return Boolean(estorno && REFUND_LOCKED_STATUSES.has(String(estorno.status || '')));
 }
 
-// O vínculo pagamento↔atendimento pode existir em três lugares, em ordem de
-// confiabilidade: payment_intent explícito na request (admin), o snapshot
-// stripe_payment gravado pelo webhook Stripe em dados_clinicos, e a tabela
-// payments. IDs de Checkout Session (cs_...) são resolvidos para o
-// payment_intent via API.
+// O vínculo pagamento↔atendimento pode existir em quatro lugares, em ordem
+// de confiabilidade: payment_intent explícito na request (admin — nunca
+// usado no fluxo automático, só aqui por retrocompatibilidade da função), o
+// snapshot stripe_payment gravado pelo webhook Stripe em dados_clinicos
+// (fluxo painel/Memed, client_reference_id), o checkout_session_id do fluxo
+// WhatsApp/Typebot (gravado por triagem-webhook.service.js a partir de
+// whatsapp_sessions.metadata.typebot_payment — por sua vez só preenchido
+// pelo webhook Stripe assinado, nunca pelo cliente), e a tabela payments.
+// IDs de Checkout Session (cs_...) são resolvidos para o payment_intent via
+// API. Achado 02/08/2026: o fluxo WhatsApp/Typebot NUNCA grava
+// dados_clinicos.stripe_payment nem payments.appointment_id (o pagamento é
+// confirmado antes do atendimento existir) — sem o candidato
+// stripe_checkout_session_id abaixo, o estorno automático de reprovação
+// nunca resolveria o payment_intent desse fluxo (nem para cartão, nem para
+// Pix), caindo sempre em payment_not_found.
 async function resolvePaymentIntentId({ stripe, atendimento, requestedPaymentIntent }) {
   const clinical = atendimento?.dados_clinicos || {};
   const stored = clinical.stripe_payment || {};
@@ -34,6 +44,12 @@ async function resolvePaymentIntentId({ stripe, atendimento, requestedPaymentInt
   }
   if (stored.session_id) {
     candidates.push({ value: String(stored.session_id).trim(), source: 'clinical_data.stripe_payment.session_id' });
+  }
+  if (clinical.stripe_checkout_session_id) {
+    candidates.push({
+      value: String(clinical.stripe_checkout_session_id).trim(),
+      source: 'clinical_data.stripe_checkout_session_id'
+    });
   }
 
   const paymentRow = await findPaymentByAppointment(atendimento?.id).catch(() => null);

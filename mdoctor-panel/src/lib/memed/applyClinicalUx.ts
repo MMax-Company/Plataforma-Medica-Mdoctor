@@ -43,6 +43,26 @@ export async function applyClinicalMemedUx(): Promise<void> {
     hidePrintDialog: true,
     hideBeacons: true,
     showSuccessModal: false,
+    // Restrição adicional de funcionalidades do módulo (identidade visual/comportamento
+    // institucional Doctor Prescreve) — mantém tudo acima e só adiciona o que faltava.
+    optionsPrescription: true,
+    editIdentification: false,
+    conclusionModalEdit: false,
+    buttonClose: true,
+    newFormula: false,
+    addPrescriptionDrug: true,
+    removePrescriptionDrug: true,
+    editPrescriptionDrugTitle: false,
+    editPosology: true,
+    editQuantity: true,
+    autocompleteManipulated: false,
+    autocompleteCompositions: true,
+    // Grafia oficial do SDK Memed é "Pheripherals" (com "h"), não "Peripherals" —
+    // a doc.memed.com.br usa as duas formas em pontos diferentes da mesma página,
+    // mas a chave que o widget realmente aceita é a com "h".
+    autocompletePheripherals: false,
+    copyMedicalRecords: false,
+    forceSign: true,
   });
 
   const providerVariants: Array<string[]> = [
@@ -60,12 +80,7 @@ export async function applyClinicalMemedUx(): Promise<void> {
       /* Memed pode rejeitar formato — tenta próximo */
     }
   }
-
-  try {
-    await sendToggle({ forceSign: true });
-  } catch {
-    /* opcional por ambiente */
-  }
+  // forceSign:true já vai no objeto principal acima — não reenviar aqui.
 }
 
 /** @deprecated */

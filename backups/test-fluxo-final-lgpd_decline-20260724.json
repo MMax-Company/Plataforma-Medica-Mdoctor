@@ -1,0 +1,31 @@
+{
+  "name": "lgpd_decline",
+  "ok": false,
+  "steps": [
+    {
+      "label": "inicio",
+      "ok": false
+    },
+    {
+      "label": "menu_para_bemvindo",
+      "ok": true,
+      "sent": "1",
+      "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+      "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+      "tries": 2
+    },
+    {
+      "label": "bemvindo_para_lgpd_caixa3",
+      "ok": true,
+      "sent": "Vamos começar",
+      "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+      "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+      "tries": 2
+    },
+    {
+      "label": "lgpd_recusa_encerra",
+      "ok": true
+    }
+  ],
+  "phone": "5511900040002"
+}

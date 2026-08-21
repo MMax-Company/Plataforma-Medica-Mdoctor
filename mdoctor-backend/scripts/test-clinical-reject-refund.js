@@ -72,7 +72,7 @@ async function main() {
 
   // 1. Pagamento de teste real (test mode)
   const intent = await stripeApi('/payment_intents', {
-    amount: '6990',
+    amount: '4990',
     currency: 'brl',
     confirm: 'true',
     payment_method: 'pm_card_visa',

@@ -1,34 +1,20 @@
 # N8N WhatsApp Staging Contract
 
-## Architecture (oficial pós-consolidação)
-
-```
-Meta Cloud API → POST /api/whatsapp/webhook → backend (menu 1/2, Typebot, suporte, upload)
-Typebot fim → n8n /webhook/typebot-webhook → POST /api/webhook/triagem
-Stripe → POST /api/webhooks/stripe (backend; n8n não confirma pagamento)
-Notificações → n8n → POST /api/whatsapp/notify-text (Meta via backend)
-Entrega → n8n → POST /api/atendimentos/:id/deliver
-```
-
-**Fora do n8n:** menu 1/2, sessão Typebot, Checkout Stripe, mídia Meta, ticket de suporte.
-
 ## Scope
 
 This document defines the formal contract between n8n and backend staging for WhatsApp triage and mock prescription delivery.
 
 In scope:
 
-- Typebot finalization → triagem (`POST /api/webhook/triagem`)
-- Atendimento delivery trigger (`POST /api/atendimentos/:id/deliver`)
-- Clinical rejection notify (`POST /api/whatsapp/notify-text`)
+- WhatsApp triage intake
+- Atendimento status updates
+- Mock prescription delivery trigger
 
-Out of scope / blocked in n8n:
+Out of scope:
 
-- Menu 1/2, Typebot start, support ticket creation
-- `POST /api/whatsapp/support`, `POST /api/whatsapp/process-message`
-- Stripe payment confirmation / `payment_status=paid` without Stripe webhook
-- Evolution / Baileys / Typebot publicUrl
-- Production WhatsApp provider activation via n8n
+- Stripe and payments
+- Production WhatsApp provider activation
+- Production environments
 
 ## Environments
 
@@ -39,24 +25,13 @@ Out of scope / blocked in n8n:
 
 ## Endpoints
 
-### 1) Typebot Triagem (oficial n8n)
-
-- Method: `POST`
-- URL: `/api/webhook/triagem`
-- Purpose: receive Typebot finalization payload and create/reuse atendimento
-- Auth: `X-MDoctor-Webhook-Secret`
-- Idempotency: `Idempotency-Key` (`typebot-result:{resultId}` preferred)
-
-> **Nota:** `POST /api/whatsapp/webhook` é exclusivo da **Meta Cloud API** (menu/sessão/Typebot/suporte/upload). Não usar n8n para menu ou suporte.
-
-### 1b) Legacy WhatsApp Triage Webhook (não usar para Typebot)
+### 1) WhatsApp Triage Webhook
 
 - Method: `POST`
 - URL: `/api/whatsapp/webhook`
-- Purpose: Meta Cloud API inbound only
-- n8n: **não** criar atendimento clínico por esta rota a partir do Typebot
+- Purpose: receive inbound WhatsApp triage message and create atendimento candidate
 
-#### Request body (expected from n8n) — LEGADO, não usar para Typebot
+#### Request body (expected from n8n)
 
 ```json
 {

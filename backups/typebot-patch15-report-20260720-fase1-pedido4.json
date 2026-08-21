@@ -1,0 +1,141 @@
+{
+  "fixed": [
+    "1) \"Confirmo\" removido de Condições clínicas (Sinais de alerta já estava sem \"Confirmo\", corrigido no pedido 3)",
+    "3) Links de documentos (Telemedicina, Termos de uso) convertidos do formato \"link embutido\" (que concatenava título+URL sem separador) para o mesmo formato de parágrafos separados já usado corretamente em Consentimento LGPD. Antes (telemedicina): \"📄  | 📄 \"",
+    "4) Texto de \"Solicitação Elegível\" corrigido (antes: \"Sua solicitação é elegível para continuidade do fluxo. Após a etapa de pagamento (quando aplicável), seguiremos para coleta de dados clínicos e avaliação médica.{{solicitacao_elegivel_pagamento}}\")",
+    "5) Ordem corrigida: receita anterior (\"Sim, possuo\") agora vai direto para Quantidade de medicamentos; Confirmação (\"Sim, estão corretos\") agora vai para o Gate de pagamento -> Termos -> Pagamento; Pagamento agora vai para o webhook de criação do atendimento -> envio da receita. Nenhum bloco teve seu outgoingEdgeId alterado — só o destino (to) de 3 edges já existentes (edge_rec_sim, edge_confirm_to_webhook, xxpw9p5hptmv7u7qlatptirp).",
+    "6) Resumo agora exibe efetivamente nome completo, nome social, nascimento, CPF, WhatsApp, e-mail, CEP, endereço, condição(ões) clínica(s) e os medicamentos preenchidos (novos blocos blk_resumo_set_condicoes e blk_resumo_set_medicamentos calculam os valores legíveis)."
+  ],
+  "notPossibleInScope": [
+    "2) \"Escolha uma opção:\" é texto fixo gerado pelo Backend ao converter \"choice input\" do Typebot para botões/lista do WhatsApp (typebot-whatsapp.bridge.js, convertTypebotResponse) — não existe em nenhum bloco do Typebot para ser editado aqui. \"Selecionado: ...\" não aparece em nenhum lugar do Typebot nem do Backend — é rótulo nativo da própria interface de lista do WhatsApp ao confirmar a escolha do paciente, fora do nosso controle. Nenhuma correção possível dentro do escopo \"somente Typebot\" desta pedido."
+  ],
+  "notes": [
+    "6) Variável do nome social (vou30coxarhyas9y5q07k78k9) não tinha \"name\" registrado — não era possível usar {{nome_social}} em lugar nenhum. Registrada.",
+    "7) Botão \"Conferir novamente\" (upload da receita) não foi alterado, conforme pedido — registrado como pendência da Fase 2 (depende de Backend + recebimento de mídia pela Meta)."
+  ],
+  "assertions": [
+    {
+      "name": "pré-condição: \"Confirmo\" presente em Condições clínicas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "confirmação: \"Escolha uma opção\" não existe como conteúdo do Typebot",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "confirmação: \"Selecionado\" não existe como conteúdo do Typebot",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) telemedicina: título e URL agora em linhas separadas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) termos: título e URL agora em linhas separadas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) mensagem de elegibilidade não menciona pagamento antes da coleta de dados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: edge_rec_sim aponta hoje para o gate de pagamento",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: edge_confirm_to_webhook aponta hoje direto para o webhook",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: edge do pagamento aponta hoje para quantidade de medicamentos",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "grupo de resumo tem o bloco de limpeza de flag (do pedido 3)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "6) resumo contém dados pessoais",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "6) resumo contém condições",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "6) resumo contém medicamentos",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V1. nenhuma opção \"Confirmo\" em Condições clínicas",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V1. nenhuma opção \"Confirmo\" em Sinais de alerta",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V2. \"Escolha uma opção\" duplicada",
+      "ok": null,
+      "detail": "Fora do escopo Typebot — controlado pelo Backend (bridge.js). Ver notPossibleInScope."
+    },
+    {
+      "name": "V3. ordem correta até o pagamento (receita->medicamentos->confirmação->termos->pagamento->webhook)",
+      "ok": true,
+      "detail": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "name": "V4. resumo completo (dados pessoais + condições + medicamentos)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V5. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    },
+    {
+      "name": "não-regressão: idade continua removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "não-regressão: placeholders de dados pessoais preservados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "não-regressão: correção \"Quero corrigir\" continua com 2 botões na confirmação",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

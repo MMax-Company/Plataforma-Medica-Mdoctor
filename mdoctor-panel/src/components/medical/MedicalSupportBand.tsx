@@ -14,14 +14,6 @@ export type SupportQueueItem = {
   medical_support_reason?: string | null;
 };
 
-function whatsappUrl(phone?: string) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  const withCountry = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${withCountry}`;
-}
-
 function minutesWaiting(items: SupportQueueItem[]) {
   if (!items.length) return '—';
   const oldest = items
@@ -105,8 +97,13 @@ export function MedicalSupportBand({
       // best-effort
     }
     onQueueRefresh?.();
-    const url = whatsappUrl(patient.paciente_telefone);
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    if (patient.paciente_telefone) {
+      const params = new URLSearchParams({
+        telefone: patient.paciente_telefone,
+        nome: patient.paciente_nome || '',
+      });
+      window.open(`/suporte/contato?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    }
   }
 
   async function handleFinalize(patient: SupportQueueItem) {
@@ -127,10 +124,16 @@ export function MedicalSupportBand({
   }
 
   async function handleResolve(patient: SupportQueueItem) {
+    const resposta = window.prompt(
+      `Registre a orientação médica para ${patient.paciente_nome}. Ela será devolvida ao suporte administrativo:`,
+    )?.trim();
+    if (!resposta) return;
+
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/resolve`, {
         method: 'POST',
-        headers: authHeaders()
+        headers: authHeaders(),
+        body: JSON.stringify({ resposta }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -144,10 +147,16 @@ export function MedicalSupportBand({
   }
 
   async function handleReturn(patient: SupportQueueItem) {
+    const motivo = window.prompt(
+      `Informe por que o caso de ${patient.paciente_nome} deve voltar ao suporte administrativo:`,
+    )?.trim();
+    if (!motivo) return;
+
     try {
       const res = await fetch(`${getApiBase()}/api/atendimentos/${patient.id}/medical-support/return`, {
         method: 'POST',
-        headers: authHeaders()
+        headers: authHeaders(),
+        body: JSON.stringify({ motivo }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -184,8 +193,8 @@ export function MedicalSupportBand({
         lg ? 'border-2' : 'border'
       }`}
     >
-      <div className="grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
-        <div className={`flex min-w-0 items-center border-r ${theme.divider} ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
+      <div className="panel-support-band__grid grid w-full grid-cols-[1.15fr_0.95fr_1.1fr] items-center gap-0">
+        <div className={`panel-support-band__intro flex min-w-0 items-center border-r ${theme.divider} ${lg ? 'gap-4 pr-5' : 'gap-2.5 pr-4'}`}>
           <div
             className={`flex shrink-0 items-center justify-center rounded-full ${theme.iconBg} ${lg ? 'h-14 w-14' : 'h-8 w-8'}`}
           >
@@ -211,7 +220,7 @@ export function MedicalSupportBand({
           </div>
         </div>
 
-        <div className={`flex flex-col justify-center border-r ${theme.divider} ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
+        <div className={`panel-support-band__metrics flex flex-col justify-center border-r ${theme.divider} ${lg ? 'gap-2 px-5' : 'gap-0.5 px-4'}`}>
           <p className={`flex items-center gap-1.5 font-semibold text-[#1A2333] ${lg ? 'text-[17px]' : 'text-[12px]'}`}>
             <Users className={`${lg ? 'h-5 w-5' : 'h-3.5 w-3.5'} shrink-0 ${theme.title}`} aria-hidden="true" />
             <span>
@@ -226,7 +235,7 @@ export function MedicalSupportBand({
           </p>
         </div>
 
-        <div className={`flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
+        <div className={`panel-support-band__queue flex min-w-0 flex-col items-end justify-center ${lg ? 'pl-4' : 'pl-3'}`}>
           <div className={`flex flex-wrap items-center justify-end gap-1.5 ${lg ? 'min-h-[36px]' : 'min-h-[28px]'}`}>
             {visible.length === 0 ? (
               <span className={`dp-text-subtle font-medium ${lg ? 'text-[13px]' : 'text-[11px]'}`}>
@@ -254,7 +263,7 @@ export function MedicalSupportBand({
                     onClick={() => handleResolve(patient)}
                     className="inline-flex h-5 cursor-pointer items-center justify-center rounded-[4px] bg-emerald-50 px-1 text-emerald-700 hover:bg-emerald-100"
                     aria-label={`Dúvida resolvida — ${patient.paciente_nome}`}
-                    title="Dúvida resolvida"
+                    title="Registrar orientação e devolver ao suporte"
                   >
                     <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                   </button>
@@ -325,7 +334,7 @@ export function MedicalSupportBand({
           </div>
           <p className={`dp-text-subtle mt-1 ${lg ? 'text-[11px]' : 'text-[10px]'}`}>
             {isMedicalSupport
-              ? 'Ver jornada abre o prontuário (somente leitura) · ✓ resolve · ↩ retorna ao suporte'
+              ? 'Ver jornada abre o prontuário (somente leitura) · ✓ registra orientação · ↩ devolve ao suporte'
               : 'Clique no número para abrir WhatsApp · ✓ para finalizar'}
           </p>
         </div>

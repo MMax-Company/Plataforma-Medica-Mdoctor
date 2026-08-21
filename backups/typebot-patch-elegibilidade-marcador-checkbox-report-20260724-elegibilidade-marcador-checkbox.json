@@ -1,0 +1,62 @@
+{
+  "fixed": [
+    "iw6zqwf26frmqnp1csxiwlbm: marcador trocado de emoji numerado (1️⃣-8️⃣) para ✅ em todos os 8 critérios, igual ao print de referência. Redação ajustada em 3 pontos para bater exatamente com o print: item 2 sem \"uma\" (\"de doença crônica\"), item 6 com vírgulas (\"há, no máximo, 180 dias\"), itens 7/8 na ordem do print (\"Compreende...\" antes de \"As informações...\"). Os outros 5 critérios e o título/pergunta final não mudaram."
+  ],
+  "notes": [],
+  "assertions": [
+    {
+      "name": "pré-condição: marcador atual é emoji numerado 1️⃣-8️⃣",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: choice Sim/Não inalterado antes de mexer",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: nenhum emoji numerado restante",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: 8 marcadores ✅ presentes",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: os 8 critérios continuam presentes (nenhum removido)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: título/intro/pergunta final preservados",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: choice Sim/Não inalterado (values/edges)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: corpo continua bem abaixo do limite de 1024 caracteres do WhatsApp",
+      "ok": true,
+      "detail": {
+        "tamanho": 551
+      }
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}

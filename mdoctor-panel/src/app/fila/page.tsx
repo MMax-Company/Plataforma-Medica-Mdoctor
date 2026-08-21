@@ -546,7 +546,7 @@ export default function FilaPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-[40vh] w-full max-w-[1366px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
+      <main className="flex min-h-[40vh] w-full max-w-[1720px] items-center justify-center bg-[#F5F8FC] text-sm text-[#5B6475]">
         Carregando fila...
       </main>
     );
@@ -556,7 +556,7 @@ export default function FilaPage() {
 
   return (
     <main
-      className="relative flex min-h-0 w-full max-w-[1366px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
+      className="relative flex min-h-0 w-full max-w-[1720px] flex-1 flex-col overflow-hidden bg-[#F6F9FD] text-[#071B3A]"
     >
       <MedicalPanelHeader
         operational
@@ -664,7 +664,7 @@ export default function FilaPage() {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 grid-cols-[7fr_7fr_6fr] items-stretch gap-3">
+        <div className="dp-fila-grid grid min-h-0 flex-1 grid-cols-3 items-stretch gap-3">
           {visibleColumns.map((column) => {
             const Icon = columnIcons[column.key as 'queue' | 'review' | 'ready'];
             return (

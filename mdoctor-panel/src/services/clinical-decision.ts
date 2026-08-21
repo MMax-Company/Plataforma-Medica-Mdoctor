@@ -103,6 +103,10 @@ export async function rejectClinicalDecision(
       reason_code: payload.reason_code || 'OUTROS',
       observacao_medica: payload.observacao_medica || payload.notes || null,
       motivo: payload.motivo || payload.notes || undefined,
+      // Texto literal digitado pelo médico no campo opcional — vira a conduta
+      // médica oficial do prontuário, substituindo o texto padrão de
+      // continuidade. Sem isso, o prontuário só teria o motivo estruturado.
+      conduta_medica: payload.conduta_medica || payload.notes || undefined,
       mensagem_whatsapp: payload.mensagem_whatsapp || CLINICAL_REJECT_WHATSAPP_MESSAGE,
       dados_clinicos: payload.dados_clinicos || {},
     }, { headers: authHeaders() });

@@ -90,21 +90,6 @@ app.get('/readyz', async (_req, res) => {
 });
 
 app.post('/webhook/whatsapp', requireWebhookSecret, async (req, res) => {
-  const strictEnv =
-    process.env.NODE_ENV === 'production' ||
-    String(process.env.ENVIRONMENT_NAME || '').toLowerCase() === 'staging';
-
-  if (strictEnv) {
-    return res.status(410).json({
-      success: false,
-      deprecated: true,
-      official_entry: 'Meta Cloud API → POST /api/whatsapp/webhook',
-      error:
-        'Proxy WhatsApp desativado em staging/produção. Entrada oficial: Meta Cloud API no backend.',
-      requestId: req.requestId
-    });
-  }
-
   metrics.whatsappReceived += 1;
   metrics.lastWebhookAt = new Date().toISOString();
 

@@ -1,0 +1,2285 @@
+FLUXO OFICIAL PROVISÓRIO — WHATSAPP + TYPEBOT + BACKEND + N8N
+
+Tipo: Especificação normativa provisória
+Status: Provisório enquanto o WhatsApp Flow estiver bloqueado por integridade
+Versão: 1.1 provisória
+Data: 24/07/2026
+Aprovador responsável: Dr. Max Vinicius Ferreira Matos
+Ambiente inicial: Staging
+Canal oficial: WhatsApp pela Meta Cloud API
+Typebot oficial: doctor-prescreve-8rmljgu
+ID interno do Typebot: higij2z0xihxxkr378rmljgu
+Valor da consulta médica: R$ 69,90
+
+Este documento define o comportamento provisório obrigatório do atendimento do Doctor Prescreve enquanto a seleção múltipla visual do WhatsApp Flow permanecer indisponível.
+
+O fluxo provisório preserva a arquitetura, a ordem clínica, as variáveis, as validações, o pagamento, o recebimento da receita, a criação do atendimento, a fila médica, a entrega, o suporte e a idempotência do fluxo-alvo oficial.
+
+A única adaptação estrutural provisória é:
+
+1. Condições clínicas serão respondidas por números ou nomes em uma única mensagem.
+2. Sinais de alerta serão respondidos por números ou nomes em uma única mensagem.
+3. Toda escolha única que puder ser exibida como botão ou lista deverá avançar imediatamente após o toque e o envio da opção, sem “Confirmar”, sem segunda pergunta e sem etapa intermediária.
+4. A quantidade selecionada controlará a coleta de um, dois ou três conjuntos completos de medicamento.
+5. Cada medicamento terá obrigatoriamente nome, dose/concentração, frequência e via de administração.
+6. Os dados de cada medicamento serão preservados como informados pelo paciente e também estruturados e normalizados para conferência no painel e preparação da prescrição na Memed.
+
+Nenhuma alteração além das expressamente descritas neste documento poderá ser aplicada sem autorização do responsável pelo projeto.
+
+======================================================================
+0. CONTROLE DO DOCUMENTO
+======================================================================
+
+0.1 FINALIDADE
+
+Este documento estabelece:
+
+- a arquitetura provisória oficial;
+- a responsabilidade de cada componente;
+- a ordem completa do atendimento;
+- as mensagens apresentadas ao paciente;
+- as perguntas, opções e values;
+- as variáveis oficiais;
+- a padronização das escolhas únicas;
+- a adaptação temporária das escolhas múltiplas;
+- as validações e regras de avanço;
+- o pagamento;
+- o recebimento da receita anterior pelo WhatsApp;
+- a criação do atendimento definitivo;
+- a entrada na fila médica;
+- a decisão médica;
+- a entrega da receita;
+- as perguntas finais opcionais;
+- o suporte;
+- o encerramento;
+- os critérios de aceite.
+
+0.2 HIERARQUIA DOCUMENTAL
+
+Enquanto estiver vigente, este arquivo será a fonte normativa do fluxo provisório.
+
+O fluxo-alvo oficial continua sendo a fonte normativa do estado definitivo. Este documento não o revoga.
+
+O documento que registra o estado atualmente implementado deve permanecer separado e não pode ser substituído.
+
+Em caso de divergência durante a vigência do modo provisório:
+
+1. Este documento prevalece quanto à interface provisória.
+2. O fluxo-alvo oficial prevalece em tudo que não tenha sido alterado expressamente aqui.
+3. Nenhum agente pode escolher por conta própria entre implementações divergentes.
+
+0.3 CONDIÇÃO PARA RETORNO AO FLUXO DEFINITIVO
+
+Quando o WhatsApp Flow estiver liberado e validado:
+
+- condições clínicas voltam à seleção múltipla visual;
+- sinais de alerta voltam à seleção múltipla visual;
+- o restante do fluxo permanece igual;
+- o retorno somente ocorrerá após autorização expressa e teste em staging.
+
+======================================================================
+1. ESCOPO CLÍNICO
+======================================================================
+
+O fluxo contempla consulta médica assíncrona para avaliação da continuidade de medicamentos de uso crônico nas seguintes condições:
+
+- hipertensão arterial;
+- diabetes mellitus tipo 2;
+- dislipidemia;
+- hipotireoidismo.
+
+Critérios gerais:
+
+- idade entre 18 e 80 anos;
+- diagnóstico prévio;
+- uso contínuo por pelo menos 30 dias;
+- ausência de sinais de alerta;
+- receita anterior válida ou documento compatível;
+- receita anterior emitida há no máximo 180 dias;
+- até três medicamentos por solicitação;
+- emissão dependente de avaliação e decisão médica.
+
+O pagamento corresponde à consulta médica e à análise das informações. Não garante a emissão da receita.
+
+O serviço não substitui atendimento presencial em situações de urgência ou emergência.
+
+======================================================================
+2. PRINCÍPIOS OBRIGATÓRIOS
+======================================================================
+
+1. A Meta Cloud API é a única entrada oficial do WhatsApp.
+2. O Backend controla menu, sessão, integração com Typebot, pagamento, mídia, atendimento, suporte, retomadas e idempotência.
+3. O Typebot controla mensagens clínicas, perguntas, variáveis, validações e avanço clínico.
+4. O n8n atua somente nos eventos definidos após os gates correspondentes.
+5. Não devem existir caminhos ativos por Evolution API, Baileys, link público do Typebot, formulário externo ou página externa de upload.
+6. Toda a conversa ocorre dentro do WhatsApp, exceto o Stripe Checkout.
+7. Cada informação é solicitada uma única vez.
+8. Resposta inválida repete somente a pergunta atual.
+9. Resposta inválida não reinicia o fluxo nem apaga respostas.
+10. Sessão clínica ativa sempre tem prioridade sobre o menu.
+11. Durante sessão clínica ativa, respostas 1, 2 ou 3 pertencem ao Typebot.
+12. Não pode existir edge ou bloco inexistente.
+13. Labels, values, conteúdos e variáveis devem ser compatíveis entre todos os componentes.
+14. Nenhuma informação clínica pode ser deduzida de texto diferente do valor efetivamente escolhido.
+15. Botões devem ser curtos, completos e compatíveis com o WhatsApp.
+16. Exemplos e placeholders não podem usar dados reais do médico ou de pacientes.
+17. O paciente não pode precisar testar formatos diferentes para conseguir avançar.
+18. Medicamentos são coletados e conferidos antes do pagamento.
+19. A receita anterior é enviada diretamente pelo WhatsApp.
+20. Pagamento, mídia, atendimento, suporte, reprovação e entrega devem ser idempotentes.
+21. Atendimento definitivo só existe depois do pagamento confirmado e da receita anterior recebida e vinculada.
+22. Pré-atendimento ou sessão aguardando documento não é atendimento definitivo.
+23. Antes da criação definitiva não pode existir reprovação médica.
+24. As perguntas finais são opcionais e não bloqueiam entrega, suporte ou encerramento.
+25. Nenhum componente pode alterar a ordem sem autorização expressa.
+26. A quantidade selecionada deve controlar exatamente quantos medicamentos serão coletados.
+27. Nenhum medicamento pode chegar ao painel sem nome, dose/concentração, frequência e via.
+28. A informação original fornecida pelo paciente deve ser preservada separadamente da informação normalizada.
+29. Normalização não pode inventar medicamento, dose, unidade, frequência ou via.
+30. Informação ambígua ou não reconhecida deve ser sinalizada para conferência médica, sem substituição automática.
+
+======================================================================
+3. REGRA OFICIAL DE PADRONIZAÇÃO DA INTERFACE
+======================================================================
+
+3.1 ESCOLHA ÚNICA
+
+Toda pergunta de escolha única deverá funcionar como a pergunta “Tempo de uso”:
+
+- o paciente toca em uma opção;
+- a opção é registrada;
+- o fluxo avança imediatamente;
+- não existe botão “Confirmar”;
+- não existe segunda pergunta de confirmação;
+- não existe etapa intermediária;
+- não é necessário enviar uma nova resposta para continuar.
+
+Aplicar obrigatoriamente em:
+
+- “Vamos começar”;
+- consentimento LGPD;
+- telemedicina e não urgência;
+- declaração de elegibilidade;
+- tempo de uso;
+- existência da receita anterior;
+- quantidade de medicamentos;
+- frequência de cada medicamento;
+- via de administração de cada medicamento;
+- confirmação dos dados;
+- seleção do grupo de correção;
+- aceite dos termos;
+- perguntas finais opcionais;
+- demais perguntas de Sim ou Não.
+
+Quando a interface técnica utilizada exigir a seta nativa do WhatsApp, o único envio da opção deve registrar e avançar. Não poderá existir uma confirmação posterior.
+
+3.2 EXCEÇÕES DE TEXTO LIVRE
+
+Continuam exigindo digitação e envio:
+
+- nome social;
+- nome completo;
+- data de nascimento;
+- CPF;
+- e-mail;
+- CEP;
+- número, complemento ou endereço;
+- nome do medicamento;
+- dose do medicamento;
+
+3.3 ESCOLHAS MÚLTIPLAS PROVISÓRIAS
+
+Enquanto o WhatsApp Flow estiver bloqueado:
+
+- condições clínicas serão apresentadas como opções numeradas;
+- sinais de alerta serão apresentados como opções numeradas;
+- o paciente responderá todas as escolhas em uma única mensagem;
+- serão aceitos números, nomes ou combinações equivalentes;
+- não existirá botão “Confirmo”;
+- não existirá uma segunda pergunta de confirmação;
+- o Backend/Typebot normalizará a resposta para os values oficiais.
+
+3.4 RESPOSTAS INVÁLIDAS
+
+Em resposta inválida:
+
+- manter a mesma sessão;
+- manter a pergunta atual;
+- preservar tudo que já foi respondido;
+- mostrar orientação curta;
+- repetir apenas a pergunta atual.
+
+É proibido:
+
+- voltar ao menu;
+- abrir nova sessão;
+- criar novo Checkout;
+- criar atendimento;
+- apagar dados;
+- avançar incorretamente;
+- encerrar abruptamente.
+
+======================================================================
+4. ARQUITETURA PROVISÓRIA OFICIAL
+======================================================================
+
+Paciente
+→ WhatsApp
+→ Meta Cloud API
+→ Backend
+→ Menu inicial
+→ Typebot
+→ Triagem clínica
+→ Dados pessoais
+→ Endereço
+→ Confirmação da receita anterior
+→ Medicamentos
+→ Conferência dos dados
+→ Termos
+→ Stripe Checkout
+→ Confirmação real do pagamento
+→ Retomada da sessão
+→ Receita anterior enviada pelo WhatsApp
+→ Backend recebe, baixa, salva e vincula a mídia
+→ Backend cria atendimento definitivo
+→ n8n processa o evento
+→ Painel médico
+→ Decisão médica
+→ Memed
+→ Receita digital
+→ WhatsApp
+→ Perguntas finais opcionais
+→ Encerramento ou suporte
+
+Sequência de gates obrigatória:
+
+TRIAGEM
+→ DADOS COMPLETOS
+→ MEDICAMENTOS COMPLETOS
+→ DADOS CONFIRMADOS
+→ TERMOS ACEITOS
+→ PAGAMENTO CONFIRMADO
+→ AGUARDANDO RECEITA ANTERIOR
+→ MÍDIA RECEBIDA, VALIDADA E VINCULADA
+→ ATENDIMENTO DEFINITIVO
+→ FILA MÉDICA
+
+É proibida a sequência:
+
+PAGAMENTO PENDENTE
+→ ATENDIMENTO DEFINITIVO
+→ REPROVAÇÃO
+→ DESCARTE DA MÍDIA
+
+======================================================================
+5. RESPONSABILIDADE DE CADA COMPONENTE
+======================================================================
+
+5.1 META CLOUD API
+
+Responsável por:
+
+- receber mensagens;
+- entregar mensagens;
+- receber textos;
+- receber respostas de botões e listas;
+- receber imagens e documentos;
+- fornecer identificadores das mensagens e mídias;
+- entregar a receita final.
+
+5.2 BACKEND
+
+Responsável por:
+
+- identificar o paciente pela identidade fornecida pela Meta;
+- verificar sessão clínica ativa;
+- verificar suporte ativo;
+- apresentar o menu somente sem contexto ativo;
+- iniciar e continuar o Typebot;
+- armazenar typebot_session_id;
+- armazenar o input esperado;
+- normalizar respostas numeradas e textuais;
+- estruturar os medicamentos coletados em uma lista de um a três itens;
+- preservar os valores originais informados pelo paciente;
+- gerar campos normalizados de nome, dose/concentração, frequência e via;
+- sinalizar informação medicamentosa ambígua para conferência médica;
+- entregar ao painel todos os medicamentos coletados, sem substituir por medicamento genérico derivado da doença;
+- impedir reinício indevido;
+- consultar e normalizar endereço;
+- criar Stripe Checkout;
+- confirmar pagamento apenas pelo webhook do Stripe;
+- retomar a sessão após pagamento uma única vez;
+- receber e baixar mídia da Meta;
+- salvar o arquivo no armazenamento já utilizado pelo projeto;
+- vincular a receita à sessão e ao paciente;
+- vincular a receita ao atendimento e ao prontuário após criação;
+- criar o atendimento definitivo;
+- impedir duplicidades;
+- controlar suporte;
+- retornar ao menu.
+
+5.3 TYPEBOT
+
+Responsável por:
+
+- apresentar mensagens clínicas;
+- apresentar consentimentos;
+- fazer as perguntas oficiais;
+- registrar respostas;
+- manter as variáveis clínicas;
+- validar entradas;
+- decidir o próximo bloco;
+- preservar a ordem;
+- retornar ao Backend o próximo input esperado.
+
+5.4 STRIPE
+
+Responsável por:
+
+- processar o Checkout;
+- confirmar pagamento real;
+- informar falha ou cancelamento;
+- fornecer identificadores da sessão e transação.
+
+5.5 N8N
+
+Responsável por:
+
+- processar eventos posteriores à criação definitiva;
+- encaminhar triagem;
+- executar notificações;
+- processar reprovação;
+- processar entrega da receita;
+- comunicar serviços quando necessário.
+
+O n8n não controla:
+
+- menu;
+- sessão do Typebot;
+- confirmação do pagamento;
+- recebimento de mídia;
+- criação duplicada do atendimento;
+- suporte.
+
+5.6 PAINEL MÉDICO E MEMED
+
+Responsáveis por:
+
+- exibir o atendimento completo;
+- exibir a receita anterior no prontuário;
+- exibir de um a três medicamentos, cada um com nome, dose/concentração, frequência e via;
+- exibir lado a lado, quando necessário, o valor original e o valor normalizado;
+- sinalizar “Requer conferência” quando um dado não puder ser normalizado com segurança;
+- permitir revisão médica;
+- registrar decisão;
+- preparar a prescrição na Memed com todos os itens estruturados e conferidos;
+- exigir validação e decisão do médico antes da emissão;
+- impedir emissão duplicada;
+- disponibilizar o documento correto para entrega.
+
+======================================================================
+6. FLUXO PROVISÓRIO OFICIAL — 26 ETAPAS
+======================================================================
+
+ETAPA 1 — MENU INICIAL
+
+Controlador: Backend + Meta
+Tipo: texto numérico
+Respostas aceitas: 1 ou 2
+
+Mensagem:
+
+Olá! Sou o assistente virtual do Doctor Prescreve.
+
+Digite uma opção:
+
+1 - Iniciar atendimento
+2 - Suporte
+
+Roteamento:
+
+- 1 → iniciar o Typebot clínico.
+- 2 → iniciar ou retomar suporte.
+
+Regras:
+
+- mostrar somente sem sessão clínica e sem suporte ativo;
+- sessão ativa tem prioridade;
+- não duplicar sessão;
+- não mostrar menu no meio da triagem;
+- retorno ao menu apenas por encerramento controlado.
+
+----------------------------------------------------------------------
+ETAPA 2 — BEM-VINDO
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+
+Mensagem:
+
+Olá! Este é o assistente do Doctor Prescreve.
+
+Aqui você pode solicitar uma consulta médica assíncrona para avaliação da continuidade de medicamentos de uso crônico.
+
+A emissão da receita dependerá da análise e da decisão do médico responsável. O pagamento corresponde à consulta e não garante a emissão da receita.
+
+Este serviço não atende situações de urgência ou emergência.
+
+Opção:
+
+- Vamos começar
+
+Roteamento:
+
+- toque em “Vamos começar” → registrar e avançar imediatamente para LGPD.
+
+----------------------------------------------------------------------
+ETAPA 3 — CONSENTIMENTO LGPD
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variáveis: lgpd_accepted, privacy_policy_accepted
+
+Mensagem:
+
+Antes de continuar, leia os documentos abaixo:
+
+Consentimento para Tratamento de Dados Pessoais e de Saúde:
+[URL pública oficial]
+
+Política de Privacidade:
+[URL pública oficial]
+
+Você autoriza o tratamento dos seus dados pessoais e de saúde para realizar a triagem, o atendimento médico, o prontuário e a possível emissão da receita digital?
+
+Opções e values:
+
+- Autorizo → true
+- Não autorizo → false
+
+Roteamento:
+
+- Autorizo → registrar e avançar.
+- Não autorizo → encerrar sem atendimento e sem cobrança.
+
+Mensagem de recusa:
+
+Sem sua autorização, não será possível continuar o atendimento.
+
+Nenhum atendimento foi criado e nenhuma cobrança foi realizada.
+
+Registro obrigatório:
+
+- data e hora;
+- versão dos documentos;
+- URLs apresentadas;
+- resposta.
+
+----------------------------------------------------------------------
+ETAPA 4 — NOME SOCIAL
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: texto curto
+Variável: nome_social
+
+Pergunta:
+
+Como você gostaria de ser chamado durante o atendimento?
+
+Placeholder:
+
+Nome ou nome social
+
+Regras:
+
+- não solicitar idade;
+- não confundir com nome completo;
+- resposta válida avança imediatamente.
+
+----------------------------------------------------------------------
+ETAPA 5 — CONDIÇÕES CLÍNICAS — MODO PROVISÓRIO
+----------------------------------------------------------------------
+
+Controlador: Typebot + normalização pelo Backend
+Tipo: texto numerado com múltiplas escolhas em uma mensagem
+Variável: doenca_cronica
+
+Pergunta:
+
+Para quais destas condições você utiliza medicação contínua?
+
+Responda com os números ou nomes das condições, separados por vírgula:
+
+1. Hipertensão arterial
+2. Diabetes mellitus tipo 2
+3. Dislipidemia
+4. Hipotireoidismo
+
+Mapeamento:
+
+- 1 ou Hipertensão arterial → has
+- 2 ou Diabetes mellitus tipo 2 → dm2
+- 3 ou Dislipidemia → dislipidemia
+- 4 ou Hipotireoidismo → hipotireoidismo
+
+Entradas válidas incluem:
+
+- 1
+- 1,2
+- 1, 2, 3, 4
+- hipertensão e diabetes
+- hipertensão, dislipidemia
+
+Regras:
+
+- aceitar uma a quatro condições;
+- normalizar variações evidentes;
+- armazenar todos os values selecionados;
+- não exibir “Confirmo”;
+- não criar pergunta posterior de confirmação;
+- uma resposta válida avança diretamente para tempo de uso.
+
+Mensagem de erro:
+
+Não consegui identificar a condição. Responda com os números ou nomes das opções, separados por vírgula.
+
+----------------------------------------------------------------------
+ETAPA 6 — TEMPO DE USO
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variável: tempo_uso
+
+Pergunta:
+
+Há quanto tempo você utiliza continuamente essa medicação?
+
+Opções e values:
+
+- Menos de 30 dias → menos_30_dias
+- De 30 dias a 6 meses → 30_dias_a_6_meses
+- Mais de 6 meses → mais_6_meses
+
+Roteamento:
+
+- Menos de 30 dias → encerrar por tratamento recente.
+- De 30 dias a 6 meses → sinais de alerta.
+- Mais de 6 meses → sinais de alerta.
+
+Comportamento obrigatório:
+
+- tocar na opção registra e avança;
+- sem “Confirmar”;
+- sem segunda resposta.
+
+Mensagem para uso inferior a 30 dias:
+
+Pelas informações fornecidas, o uso da medicação foi iniciado há menos de 30 dias.
+
+Esta modalidade é destinada à avaliação da continuidade de tratamentos já estabelecidos.
+
+Procure o médico que iniciou o tratamento ou uma avaliação presencial.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+----------------------------------------------------------------------
+ETAPA 7 — SINAIS DE ALERTA — MODO PROVISÓRIO
+----------------------------------------------------------------------
+
+Controlador: Typebot + normalização pelo Backend
+Tipo: texto numerado com múltiplas escolhas em uma mensagem
+Variável: sinais_alerta
+
+Pergunta:
+
+Você apresentou recentemente algum dos sinais ou sintomas abaixo?
+
+Responda com os números ou nomes correspondentes:
+
+1. Dor no peito
+2. Falta de ar
+3. Desmaio
+4. Febre alta persistente
+5. Sangramento
+6. Nenhum desses sinais ou sintomas
+
+Regras:
+
+- aceitar números, nomes ou combinações;
+- 6 é exclusivo;
+- 6 não pode ser combinado com outra opção;
+- não exibir “Confirmo”;
+- não criar pergunta posterior de confirmação;
+- qualquer sinal de 1 a 5 encerra sem cobrança;
+- somente 6 permite continuar.
+
+Mensagem de erro:
+
+Não consegui identificar a resposta. Envie os números ou nomes correspondentes. Se não tiver nenhum dos sinais, responda 6.
+
+Mensagem de incompatibilidade:
+
+“Nenhum desses sinais ou sintomas” não pode ser combinado com outra opção. Envie novamente apenas a resposta correta.
+
+Mensagem para sinal de alerta:
+
+Os sinais informados precisam de avaliação presencial e não devem ser conduzidos por este serviço.
+
+Procure um pronto atendimento. Em caso de sintomas intensos, piora rápida, falta de ar importante, desmaio ou risco imediato, ligue para o SAMU pelo número 192.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+----------------------------------------------------------------------
+ETAPA 8 — TELEMEDICINA E NÃO URGÊNCIA
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variáveis: telemedicine_consent_accepted, non_urgency_notice_accepted
+
+Mensagem:
+
+Este atendimento é uma teleconsulta assíncrona para avaliação da continuidade de medicamentos de uso crônico.
+
+Isso significa que o médico analisará posteriormente as informações e os documentos enviados.
+
+Este serviço não substitui atendimento presencial em situações de urgência ou emergência.
+
+Consentimento para Telemedicina Assíncrona:
+[URL pública oficial]
+
+Aviso de Não Urgência ou Emergência:
+[URL pública oficial]
+
+Você está ciente e deseja continuar?
+
+Opções e values:
+
+- Ciente e continuar → true
+- Não continuar → false
+
+Roteamento:
+
+- Ciente e continuar → registrar e avançar.
+- Não continuar → encerrar sem cobrança.
+
+Mensagem de recusa:
+
+Atendimento encerrado conforme sua escolha.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+Caso apresente sintomas de urgência ou emergência, procure atendimento presencial.
+
+----------------------------------------------------------------------
+ETAPA 9 — DECLARAÇÃO DE ELEGIBILIDADE
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variável: eligibility_declaration
+
+Mensagem:
+
+CRITÉRIOS DE ELEGIBILIDADE
+
+Para continuar, confirme que:
+
+- tem entre 18 e 80 anos;
+- possui diagnóstico prévio de uma doença crônica atendida pelo Doctor Prescreve;
+- utiliza a medicação de forma contínua há mais de 30 dias;
+- não apresenta sinais ou sintomas de alerta neste momento;
+- possui receita anterior válida ou documento compatível;
+- a receita anterior foi emitida há no máximo 180 dias;
+- as informações fornecidas são verdadeiras;
+- compreende que a emissão da receita depende da avaliação médica.
+
+Você confirma essas informações?
+
+Opções e values:
+
+- Sim → true
+- Não → false
+
+Roteamento:
+
+- Sim → dados pessoais.
+- Não → encerramento.
+
+Mensagem positiva:
+
+Sua solicitação está inicialmente elegível para continuar.
+
+Agora precisamos confirmar seus dados pessoais e as informações dos medicamentos.
+
+Mensagem negativa:
+
+Como os critérios necessários não foram confirmados, não será possível continuar com esta modalidade de atendimento.
+
+Recomendamos avaliação médica presencial ou contato com o profissional que acompanha seu tratamento.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+----------------------------------------------------------------------
+ETAPA 10 — DADOS PESSOAIS
+----------------------------------------------------------------------
+
+Controlador: Typebot + Backend para validação
+Tipo: campos de texto separados
+
+Mensagem inicial:
+
+Agora precisamos dos seus dados pessoais.
+
+10.1 Nome completo
+
+Pergunta:
+
+Qual é o seu nome completo?
+
+Placeholder: Nome completo
+Variável: Nome_Completo
+
+10.2 Data de nascimento
+
+Pergunta:
+
+Qual é a sua data de nascimento?
+
+Placeholder: DD/MM/AAAA
+Variável: data_nascimento
+
+Validação:
+
+- data válida;
+- idade entre 18 e 80 anos.
+
+Erro:
+
+Data inválida. Digite no formato DD/MM/AAAA.
+
+Se fora da faixa:
+
+Esta modalidade de atendimento está disponível para pacientes entre 18 e 80 anos.
+
+Recomendamos avaliação presencial ou atendimento com seu médico assistente.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+10.3 CPF
+
+Pergunta:
+
+Qual é o seu CPF?
+
+Placeholder: 00000000000
+Variável: cpf_paciente
+
+Validação:
+
+- aceitar formatado ou somente números;
+- normalizar;
+- validar os 11 números e os dígitos verificadores.
+
+Erro:
+
+CPF inválido. Confira os números.
+
+10.4 WhatsApp
+
+O Backend deve obter o número e a identidade da conversa pela Meta e normalizá-los.
+
+Preferência provisória:
+
+- não pedir novamente um número já identificado com segurança;
+- exibir para confirmação somente se necessário;
+- não substituir a identidade técnica da Meta por texto não validado.
+
+Variável: whatsapp
+
+10.5 E-mail
+
+Pergunta:
+
+Qual é o seu e-mail?
+
+Placeholder: nome@dominio.com
+Variável: Email
+
+Erro:
+
+E-mail inválido. Confira o endereço.
+
+----------------------------------------------------------------------
+ETAPA 11 — CEP
+----------------------------------------------------------------------
+
+Controlador: Typebot + Backend
+Tipo: texto
+Variável: cep
+
+Pergunta:
+
+Qual é o seu CEP?
+
+Placeholder: 00000000
+
+Regras:
+
+- aceitar com ou sem hífen;
+- normalizar para oito números;
+- solicitar uma única vez;
+- consultar o endereço pelo Backend;
+- falha de consulta não pode criar loop.
+
+Erro:
+
+CEP inválido. Digite os 8 números.
+
+----------------------------------------------------------------------
+ETAPA 12 — ENDEREÇO
+----------------------------------------------------------------------
+
+Controlador: Typebot + Backend
+Tipo: texto
+Variável: Endereco
+
+Se o CEP for localizado:
+
+Exibir os dados encontrados e perguntar:
+
+Informe o número e, se houver, o complemento do endereço.
+
+O Backend deve combinar:
+
+- logradouro;
+- número;
+- complemento;
+- bairro;
+- cidade;
+- estado;
+- CEP.
+
+Se a consulta falhar:
+
+Informe seu endereço completo: rua, número, bairro, cidade e estado.
+
+Regras:
+
+- não pedir CEP novamente;
+- não exigir vírgula;
+- não exigir abreviação;
+- não exigir complemento inexistente;
+- resposta válida avança;
+- não criar loop por pontuação ou formato.
+
+----------------------------------------------------------------------
+ETAPA 13 — RECEITA MÉDICA ANTERIOR
+----------------------------------------------------------------------
+
+Controlador: Typebot + Backend
+Tipo: escolha única com avanço imediato
+Variável: has_previous_prescription
+
+Pergunta:
+
+Você possui uma receita médica anterior?
+
+Opções e values:
+
+- Sim, possuo → available
+- Enviar depois → send_later
+- Não possuo → none
+
+Roteamento:
+
+- Sim, possuo → quantidade de medicamentos.
+- Enviar depois → salvar sessão ou pré-atendimento aguardando documento.
+- Não possuo → encerrar sem cobrança.
+
+Mensagem para “Enviar depois”:
+
+Sua solicitação foi salva e está aguardando a receita médica anterior.
+
+Nenhum pagamento será solicitado neste momento.
+
+Quando estiver com o documento, retome o atendimento pelo mesmo WhatsApp.
+
+Regras de “Enviar depois”:
+
+- preservar respostas;
+- preservar consentimentos;
+- não criar Checkout;
+- não cobrar;
+- não criar atendimento definitivo;
+- retomar do ponto correto no mesmo WhatsApp.
+
+Mensagem para “Não possuo”:
+
+A receita médica anterior é necessária para esta modalidade de atendimento.
+
+Sem esse documento, não será possível continuar.
+
+Recomendamos avaliação presencial ou contato com o profissional que acompanha seu tratamento.
+
+Nenhuma cobrança foi realizada e nenhuma receita foi emitida.
+
+Regra sobre a data ou o prazo da receita:
+
+- não existe pergunta ao paciente sobre quantos dias, meses ou tempo de emissão da receita;
+- não criar bloco específico para idade, validade ou data da receita;
+- não apresentar opções de prazo;
+- o requisito de emissão há no máximo 180 dias já foi confirmado dentro do bloco “Critérios de Elegibilidade”;
+- a compatibilidade do documento também será conferida durante a análise documental;
+- a conferência ocorre sem acrescentar pergunta ao fluxo;
+- depois de “Sim, possuo”, avançar diretamente para quantidade de medicamentos.
+
+----------------------------------------------------------------------
+ETAPA 14 — QUANTIDADE DE MEDICAMENTOS
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variável: medication_count
+
+Pergunta:
+
+Quantos medicamentos você deseja solicitar nesta avaliação?
+
+Opções e values:
+
+- 1 → "1"
+- 2 → "2"
+- 3 → "3"
+
+Regras:
+
+- máximo de três;
+- usar o mesmo tipo de value;
+- ao tocar, registrar e avançar para o primeiro medicamento;
+- não usar “Confirmar”;
+- durante sessão ativa, 1, 2 e 3 não abrem o menu.
+
+Roteamento obrigatório:
+
+- 1 → Medicamento 1 completo → Resumo dos dados;
+- 2 → Medicamento 1 completo → Medicamento 2 completo → Resumo dos dados;
+- 3 → Medicamento 1 completo → Medicamento 2 completo → Medicamento 3 completo → Resumo dos dados.
+
+Cada medicamento somente estará completo depois do preenchimento de:
+
+- nome;
+- dose/concentração;
+- frequência;
+- via de administração.
+
+----------------------------------------------------------------------
+ETAPA 15 — MEDICAMENTO 1
+----------------------------------------------------------------------
+
+Controlador: Typebot
+
+15.1 Nome
+
+Pergunta:
+
+Qual é o nome do primeiro medicamento?
+
+Placeholder: Nome do medicamento
+Variável: med1_nome
+
+15.2 Dose
+
+Pergunta:
+
+Qual é a dose do primeiro medicamento?
+
+Placeholder: 50 mg
+Variável: med1_dose
+
+15.3 Frequência
+
+Pergunta:
+
+Com que frequência você utiliza o primeiro medicamento?
+
+Tipo: escolha única com avanço imediato
+Variável: med1_frequencia
+
+Opções:
+
+- Uma vez ao dia
+- Duas vezes ao dia
+- Três vezes ao dia
+
+Conversão interna:
+
+- Uma vez ao dia → a cada 24 horas
+- Duas vezes ao dia → a cada 12 horas
+- Três vezes ao dia → a cada 8 horas
+
+Regras:
+
+- ao tocar, registrar e avançar imediatamente;
+- não exibir conversão ao paciente;
+- não listar intervalos adicionais;
+- não exibir “Outra frequência”;
+- manter exatamente três opções.
+
+15.4 Via de administração
+
+Pergunta:
+
+Qual é a via de administração do primeiro medicamento?
+
+Tipo: escolha única com avanço imediato
+Variável: med1_via
+
+Opções e values idênticos:
+
+- Via oral
+- Via sublingual
+- Via subcutânea
+
+Regras:
+
+- ao tocar, registrar e avançar imediatamente;
+- label, value e conteúdo enviado devem ser iguais;
+- não incluir via tópica;
+- não incluir via inalatória;
+- não incluir via intramuscular;
+- não incluir “Outra via” nesta versão.
+- manter exatamente três opções.
+
+----------------------------------------------------------------------
+ETAPA 16 — MEDICAMENTOS 2 E 3
+----------------------------------------------------------------------
+
+Controlador: Typebot
+
+Repetir exatamente a estrutura do primeiro medicamento conforme medication_count.
+
+16.1 Medicamento 2
+
+Nome:
+
+Qual é o nome do segundo medicamento?
+
+Placeholder: Nome do medicamento
+Variável: med2_nome
+
+Dose:
+
+Qual é a dose do segundo medicamento?
+
+Placeholder: 50 mg
+Variável: med2_dose
+
+Frequência:
+
+Com que frequência você utiliza o segundo medicamento?
+
+Variável: med2_frequencia
+
+Opções com avanço imediato:
+
+- Uma vez ao dia
+- Duas vezes ao dia
+- Três vezes ao dia
+
+Via:
+
+Qual é a via de administração do segundo medicamento?
+
+Variável: med2_via
+
+Opções com avanço imediato:
+
+- Via oral
+- Via sublingual
+- Via subcutânea
+
+16.2 Medicamento 3
+
+Nome:
+
+Qual é o nome do terceiro medicamento?
+
+Placeholder: Nome do medicamento
+Variável: med3_nome
+
+Dose:
+
+Qual é a dose do terceiro medicamento?
+
+Placeholder: 50 mg
+Variável: med3_dose
+
+Frequência:
+
+Com que frequência você utiliza o terceiro medicamento?
+
+Variável: med3_frequencia
+
+Opções com avanço imediato:
+
+- Uma vez ao dia
+- Duas vezes ao dia
+- Três vezes ao dia
+
+Via:
+
+Qual é a via de administração do terceiro medicamento?
+
+Variável: med3_via
+
+Opções com avanço imediato:
+
+- Via oral
+- Via sublingual
+- Via subcutânea
+
+Regra geral:
+
+- nunca mostrar isoladamente “Nome”, “Dose”, “Frequência” ou “Via”;
+- todas as perguntas devem ser completas;
+- todas as escolhas únicas registram e avançam após um único toque/envio.
+- um medicamento selecionado coleta somente o conjunto 1;
+- dois medicamentos selecionados coletam os conjuntos 1 e 2;
+- três medicamentos selecionados coletam os conjuntos 1, 2 e 3;
+- nenhum conjunto posterior pode ser pulado quando estiver incluído na quantidade selecionada;
+- nenhum conjunto excedente pode ser exibido;
+- somente depois do último conjunto exigido o fluxo segue ao resumo.
+
+16.3 Estruturação e normalização dos medicamentos
+
+Para cada medicamento, preservar dois níveis de informação:
+
+1. Dado original:
+
+- texto do nome informado pelo paciente;
+- texto da dose/concentração informado pelo paciente;
+- label e value da frequência selecionada;
+- label e value da via selecionada.
+
+2. Dado normalizado:
+
+- nome padronizado do medicamento, quando reconhecido com segurança;
+- dose/concentração separada em valor e unidade;
+- frequência normalizada;
+- via normalizada;
+- posologia estruturada para conferência médica.
+
+Mapeamento oficial da frequência:
+
+- Uma vez ao dia → 1 vez ao dia → intervalo de 24 horas;
+- Duas vezes ao dia → 2 vezes ao dia → intervalo de 12 horas;
+- Três vezes ao dia → 3 vezes ao dia → intervalo de 8 horas.
+
+Mapeamento oficial da via:
+
+- Via oral → oral;
+- Via sublingual → sublingual;
+- Via subcutânea → subcutânea.
+
+Regras obrigatórias:
+
+- a normalização deve preservar o significado do que foi informado;
+- não corrigir clinicamente nem substituir silenciosamente o medicamento;
+- não deduzir nome ou dose apenas pela doença selecionada;
+- não criar medicamento fixo, genérico ou padrão;
+- não usar posologia genérica ou quantidade fixa para todos os casos;
+- não descartar o segundo ou o terceiro medicamento;
+- não concatenar todos os medicamentos em um único campo de texto;
+- cada item deve permanecer individualmente estruturado;
+- se nome, dose ou unidade não forem reconhecidos com segurança, preservar o original e marcar “Requer conferência”;
+- o painel deve mostrar todos os itens antes da decisão médica;
+- a Memed deve receber de um a três itens correspondentes ao que foi coletado e confirmado;
+- nenhum dado pode ser enviado para emissão sem revisão e decisão do médico responsável.
+
+----------------------------------------------------------------------
+ETAPA 17 — CONFIRMAÇÃO DOS DADOS
+----------------------------------------------------------------------
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+
+Mensagem:
+
+Confira as informações abaixo.
+
+Resumo obrigatório:
+
+Paciente:
+
+- nome completo;
+- nome social;
+- data de nascimento;
+- CPF parcialmente mascarado;
+- WhatsApp;
+- e-mail;
+- CEP;
+- endereço.
+
+Condições clínicas:
+
+- condições selecionadas;
+- tempo de uso;
+- ausência de sinais de alerta.
+
+Receita anterior:
+
+- disponibilidade;
+- sem exibir prazo, idade ou data da receita, pois esse requisito já foi confirmado nos critérios de elegibilidade.
+
+Medicamentos:
+
+- nome;
+- dose;
+- frequência;
+- via;
+- somente medicamentos preenchidos.
+- mostrar exatamente a quantidade escolhida;
+- mostrar os medicamentos na ordem 1, 2 e 3;
+- não mostrar medicamento vazio;
+- não mostrar medicamento genérico deduzido da condição clínica.
+
+Pergunta:
+
+Os dados estão corretos?
+
+Opções:
+
+- Sim, estão corretos
+- Quero corrigir
+
+Roteamento:
+
+- Sim, estão corretos → termos.
+- Quero corrigir → grupo de correção.
+
+Grupos de correção com avanço imediato:
+
+- Dados pessoais
+- Endereço
+- Condições clínicas
+- Medicamentos
+
+Regras:
+
+- corrigir somente o grupo escolhido;
+- preservar os demais dados;
+- preservar consentimentos;
+- preservar sessão;
+- retornar ao resumo depois da correção;
+- nunca reiniciar o fluxo inteiro.
+
+----------------------------------------------------------------------
+ETAPA 18 — TERMOS E PAGAMENTO
+----------------------------------------------------------------------
+
+18.1 Termos de Uso
+
+Controlador: Typebot
+Tipo: escolha única com avanço imediato
+Variável: terms_of_use_accepted
+
+Mensagem:
+
+Antes de realizar o pagamento, leia e aceite os Termos de Uso do Doctor Prescreve.
+
+Política e Termos de Uso:
+[URL pública oficial]
+
+Você leu e concorda com os termos?
+
+Opções e values:
+
+- Li e concordo → true
+- Não concordo → false
+
+Roteamento:
+
+- Li e concordo → Stripe Checkout.
+- Não concordo → encerrar sem pagamento.
+
+Registro:
+
+- data;
+- hora;
+- versão;
+- URL;
+- resposta.
+
+18.2 Pagamento
+
+Controlador: Backend + Stripe
+Valor: R$ 69,90
+
+Mensagem:
+
+O valor da consulta médica e da análise das informações enviadas é de R$ 69,90.
+
+O pagamento corresponde à consulta médica e não garante a emissão da receita.
+
+Após a confirmação do pagamento, o atendimento continuará automaticamente.
+
+Botão:
+
+- Pagar R$ 69,90
+
+Estados:
+
+- pending
+- paid
+- failed
+- cancelled
+
+Regras:
+
+- Checkout criado pelo Backend;
+- Typebot não confirma pagamento;
+- n8n não confirma pagamento;
+- somente webhook válido do Stripe define paid;
+- vincular Checkout à sessão clínica;
+- usar token e idempotência;
+- repetição de clique não gera cobrança duplicada;
+- o mesmo evento do Stripe é processado uma vez;
+- retomar a sessão uma vez;
+- não retornar ao início;
+- não criar novo Checkout;
+- não criar atendimento definitivo antes da receita vinculada.
+
+Mensagem após confirmação real:
+
+Pagamento confirmado com sucesso.
+
+Agora envie sua receita médica anterior pelo WhatsApp.
+
+----------------------------------------------------------------------
+ETAPA 19 — ENVIO DA RECEITA ANTERIOR PELO WHATSAPP
+----------------------------------------------------------------------
+
+Controlador: Meta + Backend
+Canal: WhatsApp
+Estado esperado: AWAITING_PRESCRIPTION_MEDIA
+
+Mensagem:
+
+Envie agora a foto ou o arquivo da sua receita médica anterior diretamente nesta conversa.
+
+Formatos aceitos: JPG, JPEG, PNG ou PDF.
+
+Regra central:
+
+O envio e o salvamento da receita anterior já funcionaram anteriormente, inclusive com vínculo e exibição no prontuário. Portanto, esta funcionalidade deve ser preservada ou restaurada a partir do comportamento comprovadamente funcional.
+
+Fluxo técnico obrigatório:
+
+Meta recebe
+→ Backend identifica paciente e sessão
+→ Backend obtém o identificador da mídia
+→ Backend baixa o arquivo
+→ Backend valida formato e conteúdo técnico mínimo
+→ Backend salva no armazenamento já utilizado
+→ Backend vincula à sessão e ao paciente
+→ Backend cria o atendimento definitivo após todos os gates
+→ Backend vincula a mídia ao atendimento e ao prontuário
+
+Não criar:
+
+- novo sistema de upload;
+- S3 do Typebot;
+- página externa;
+- link de upload;
+- navegador;
+- formulário paralelo.
+
+Regras:
+
+- aceitar JPG, JPEG, PNG e PDF;
+- registrar identificador da mensagem Meta;
+- registrar identificador da mídia;
+- manter idempotência;
+- reenvio da mesma mídia não duplica;
+- mídia recebida sem sessão resolvida não deve ser descartada silenciosamente;
+- falha de vínculo mantém o estado aguardando documento e gera log técnico;
+- texto recebido no lugar da mídia repete somente a solicitação;
+- após validação e vínculo, retomar uma única vez;
+- o arquivo deve aparecer no prontuário correto.
+
+Mensagem se ainda não houver mídia:
+
+Ainda não identificamos o envio da receita.
+
+Envie a foto ou o arquivo diretamente nesta conversa.
+
+Mensagem após recebimento:
+
+Receita anterior recebida com sucesso.
+
+Estamos concluindo o envio da sua solicitação.
+
+----------------------------------------------------------------------
+ETAPA 20 — CRIAÇÃO DO ATENDIMENTO DEFINITIVO
+----------------------------------------------------------------------
+
+Controlador: Backend
+Tipo: automático
+
+Condições simultâneas obrigatórias:
+
+- lgpd_accepted = true;
+- privacy_policy_accepted = true;
+- telemedicine_consent_accepted = true;
+- non_urgency_notice_accepted = true;
+- eligibility_declaration = true;
+- idade válida;
+- condição contemplada;
+- uso contínuo mínimo confirmado;
+- ausência de sinais de alerta;
+- declaração de que possui receita anterior válida ou documento compatível;
+- declaração de que a receita anterior foi emitida há no máximo 180 dias;
+- dados pessoais completos;
+- endereço completo;
+- receita anterior declarada;
+- medicamentos completos;
+- dados confirmados;
+- terms_of_use_accepted = true;
+- payment_status = paid;
+- receita anterior salva e vinculada à sessão.
+
+Somente depois dessas condições:
+
+- criar atendimento definitivo;
+- vincular paciente;
+- vincular pagamento;
+- vincular consentimentos;
+- vincular medicamentos;
+- vincular receita anterior;
+- disponibilizar receita no prontuário;
+- gerar evento para a fila.
+
+Mensagem:
+
+Recebemos suas informações e criamos seu atendimento.
+
+Regras:
+
+- criar uma única vez;
+- usar chave de idempotência;
+- duplicação do webhook, upload, mensagem ou retomada não cria novo atendimento;
+- antes desta etapa existe somente sessão ou pré-atendimento;
+- não permitir status rejected antes da avaliação médica;
+- não encaminhar para fila se a mídia estiver pendente.
+
+----------------------------------------------------------------------
+ETAPA 21 — ENTRADA NA FILA MÉDICA
+----------------------------------------------------------------------
+
+Controlador: Backend + n8n
+Tipo: automático
+
+Mensagem:
+
+Sua solicitação foi enviada para avaliação médica.
+
+Você receberá uma mensagem por este WhatsApp quando houver uma decisão.
+
+Regras:
+
+- entrar somente após criação definitiva;
+- evento enviado uma única vez;
+- pagamento confirmado;
+- documento vinculado;
+- prontuário completo;
+- painel deve exibir todos os dados e a receita anterior;
+- não permitir entrada duplicada.
+
+----------------------------------------------------------------------
+ETAPA 22 — DECISÃO MÉDICA
+----------------------------------------------------------------------
+
+Controlador: Painel médico + Backend + n8n
+
+22.1 Aprovação
+
+Mensagem:
+
+Sua solicitação foi aprovada pelo médico.
+
+A receita está sendo preparada para envio.
+
+Regras:
+
+- não criar prescrição duplicada;
+- receita em edição não inicia outra;
+- receita emitida não é emitida novamente.
+
+22.2 Complementação
+
+Mensagem:
+
+Precisamos complementar algumas informações antes da conclusão da avaliação:
+
+[orientação objetiva]
+
+Regras:
+
+- retomar o mesmo atendimento;
+- preservar pagamento;
+- preservar consentimentos;
+- preservar dados válidos;
+- preservar receita anterior válida;
+- solicitar somente o item necessário.
+
+22.3 Reprovação
+
+Mensagem oficial única:
+
+Após avaliação médica, não foi possível emitir a receita solicitada.
+
+O valor pago será estornado pela mesma forma de pagamento, conforme o prazo da operadora.
+
+Caso precise de ajuda, digite 2 para falar com o suporte.
+
+Regras:
+
+- uma única notificação;
+- um único controlador;
+- não enviar textos divergentes;
+- estorno vinculado ao pagamento correto;
+- estorno e notificação idempotentes.
+
+----------------------------------------------------------------------
+ETAPA 23 — ENTREGA DA RECEITA
+----------------------------------------------------------------------
+
+Controlador: Backend + n8n + Meta
+Tipo: automático
+
+Mensagem:
+
+Sua receita está pronta.
+
+Acesse o documento pelo link seguro abaixo:
+
+[link seguro da receita]
+
+Em caso de dúvida, digite 2 para falar com o suporte.
+
+Regras:
+
+- documento correto;
+- paciente correto;
+- envio único;
+- entrega registrada;
+- não enviar prontuário;
+- não enviar documento de outro paciente;
+- após entrega, iniciar perguntas finais opcionais.
+
+----------------------------------------------------------------------
+ETAPA 24 — TRÊS PERGUNTAS FINAIS OPCIONAIS
+----------------------------------------------------------------------
+
+Controlador: Typebot ou Backend, sem alteração do conteúdo
+Tipo: escolhas únicas com avanço imediato
+
+Regras:
+
+- cada pergunta é apresentada separadamente;
+- um toque registra e avança;
+- não existe “Confirmar”;
+- não existe resposta livre;
+- Pular encerra as perguntas restantes;
+- não responder ou pular não afeta a receita;
+- respostas vinculadas ao atendimento correto.
+
+24.1 Primeira pergunta
+
+Variável: final_question_access_alternative
+
+Pergunta:
+
+Sem o Doctor Prescreve, o que você faria para conseguir sua receita?
+
+Opções e values:
+
+- Procuraria um pronto-socorro → pronto_socorro
+- Procuraria uma UBS → ubs
+- Procuraria um consultório particular → consultorio_particular
+- Ficaria sem a medicação → sem_medicacao
+- Outra alternativa → outra_alternativa
+- Pular → skipped
+
+24.2 Segunda pergunta
+
+Variável: final_question_avoided_interruption
+
+Pergunta:
+
+O Doctor Prescreve ajudou a evitar que você ficasse sem a medicação?
+
+Opções e values:
+
+- Sim → true
+- Não → false
+- Pular → skipped
+
+24.3 Terceira pergunta
+
+Variável: final_question_use_again
+
+Pergunta:
+
+Você utilizaria novamente o Doctor Prescreve?
+
+Opções e values:
+
+- Sim → true
+- Não → false
+- Pular → skipped
+
+Mensagem após respostas:
+
+Obrigado pelas respostas.
+
+Elas nos ajudam a melhorar o atendimento do Doctor Prescreve.
+
+Mensagem após Pular:
+
+Atendimento concluído.
+
+Quando precisar, envie uma nova mensagem para acessar o menu do Doctor Prescreve.
+
+----------------------------------------------------------------------
+ETAPA 25 — SUPORTE
+----------------------------------------------------------------------
+
+Controlador: Backend
+
+Mensagem inicial:
+
+Seu atendimento foi encaminhado para o suporte.
+
+Aguarde. Nossa equipe responderá assim que possível.
+
+Para encerrar o suporte, envie 0 ou ENCERRAR.
+
+Regras:
+
+- não iniciar Typebot;
+- criar ou reutilizar um único ticket;
+- não criar ticket a cada mensagem;
+- manter mensagens no mesmo ticket;
+- não mostrar menu durante suporte ativo;
+- mensagens numéricas não iniciam triagem.
+
+Comandos de encerramento:
+
+- 0
+- ENCERRAR
+
+Mensagem:
+
+Atendimento de suporte encerrado.
+
+Quando precisar, envie uma nova mensagem para acessar o menu do Doctor Prescreve.
+
+Regras:
+
+- encerrar ticket atual;
+- remover somente o estado transitório;
+- preservar histórico, atendimento, pagamento e receita;
+- próxima mensagem apresenta o menu.
+
+----------------------------------------------------------------------
+ETAPA 26 — ENCERRAMENTO E RETORNO AO MENU
+----------------------------------------------------------------------
+
+Controlador: Backend
+
+O encerramento remove somente o estado transitório da conversa.
+
+Preservar:
+
+- histórico;
+- consentimentos;
+- sessão concluída;
+- atendimento;
+- pagamento;
+- documentos;
+- prontuário;
+- receita;
+- ticket encerrado;
+- respostas finais.
+
+Na próxima mensagem:
+
+Olá! Sou o assistente virtual do Doctor Prescreve.
+
+Digite uma opção:
+
+1 - Iniciar atendimento
+2 - Suporte
+
+Regras:
+
+- não reabrir sessão concluída;
+- não recriar pagamento;
+- não reenviar receita;
+- não criar suporte sem solicitação;
+- não iniciar Typebot sem opção 1.
+
+======================================================================
+7. VARIÁVEIS OFICIAIS
+======================================================================
+
+Consentimentos e elegibilidade:
+
+- lgpd_accepted
+- privacy_policy_accepted
+- telemedicine_consent_accepted
+- non_urgency_notice_accepted
+- eligibility_declaration
+- eligibility_status
+- ineligibility_reason
+- terms_of_use_accepted
+
+Clínicas:
+
+- nome_social
+- doenca_cronica
+- tempo_uso
+- sinais_alerta
+- has_warning_signs
+
+Dados pessoais:
+
+- Nome_Completo
+- data_nascimento
+- cpf_paciente
+- whatsapp
+- Email
+- cep
+- Endereco
+
+Receita anterior:
+
+- has_previous_prescription
+- foto_receita_url ou identificador equivalente oficial
+- upload_completed
+- upload_status
+
+Pagamento:
+
+- payment_status
+- identificador do Checkout
+- identificador da transação
+
+Medicamentos:
+
+- medication_count
+- med1_nome
+- med1_dose
+- med1_frequencia
+- med1_via
+- med2_nome
+- med2_dose
+- med2_frequencia
+- med2_via
+- med3_nome
+- med3_dose
+- med3_frequencia
+- med3_via
+
+Estrutura normalizada correspondente:
+
+- medications_original
+- medications_normalized
+- normalization_status
+- normalization_warnings
+
+Cada item de medications_original deve conter:
+
+- index
+- nome_original
+- dose_original
+- frequencia_label
+- frequencia_value
+- via_label
+- via_value
+
+Cada item de medications_normalized deve conter:
+
+- index
+- nome_normalizado
+- dose_valor
+- dose_unidade
+- frequencia_por_dia
+- intervalo_horas
+- via_normalizada
+- posologia_estruturada
+- requires_review
+
+Os nomes técnicos acima poderão ser adaptados somente se o Backend já possuir equivalentes oficiais. É obrigatório manter o mesmo conteúdo, a separação por medicamento e a distinção entre dado original e normalizado.
+
+Perguntas finais:
+
+- final_question_access_alternative
+- final_question_avoided_interruption
+- final_question_use_again
+
+Sessão e atendimento:
+
+- typebot_session_id
+- input esperado
+- status da sessão
+- atendimentoId, apenas após criação definitiva
+- chaves de idempotência
+
+======================================================================
+8. CONTRATOS TÉCNICOS OBRIGATÓRIOS
+======================================================================
+
+8.1 REGISTRO MÍNIMO POR ETAPA
+
+- controlador;
+- paciente;
+- sessão;
+- input esperado;
+- variável;
+- resposta recebida;
+- value normalizado;
+- status anterior;
+- status seguinte;
+- condição de avanço;
+- identificador da mensagem;
+- chave de idempotência quando aplicável.
+
+8.2 SESSÃO CLÍNICA
+
+Deve armazenar:
+
+- identidade Meta do paciente;
+- número normalizado;
+- typebot_session_id;
+- input esperado;
+- status;
+- data da última interação;
+- metadata transitória;
+- respostas já coletadas;
+- estado de pagamento;
+- estado de espera da mídia.
+
+8.3 PAGAMENTO
+
+Deve armazenar:
+
+- paciente;
+- sessão;
+- atendimento após criação;
+- identificador do Checkout;
+- identificador da transação;
+- status;
+- valor;
+- data;
+- evento processado;
+- chave de idempotência.
+
+8.4 MÍDIA
+
+Deve armazenar:
+
+- identificador da mensagem Meta;
+- identificador da mídia;
+- paciente;
+- sessão;
+- atendimento após criação;
+- tipo do arquivo;
+- localização;
+- data;
+- status do processamento;
+- erro de processamento, quando houver;
+- vínculo com o prontuário.
+
+8.5 ATENDIMENTO
+
+Deve possuir chave que impeça criação duplicada para a mesma sessão concluída.
+
+8.6 SUPORTE
+
+Deve possuir:
+
+- ticket único ativo por contexto;
+- paciente;
+- status;
+- data de abertura;
+- data de encerramento;
+- histórico.
+
+8.7 PERGUNTAS FINAIS
+
+Devem armazenar:
+
+- atendimento;
+- variável;
+- value;
+- data e hora;
+- skipped quando o paciente pular.
+
+8.8 MEDICAMENTOS E INTEGRAÇÃO COM O PAINEL/MEMED
+
+Para cada atendimento, o contrato deve transportar uma lista com exatamente medication_count itens.
+
+Cada item deve possuir:
+
+- posição do medicamento;
+- nome original;
+- nome normalizado, quando seguro;
+- dose/concentração original;
+- valor e unidade normalizados, quando seguros;
+- frequência escolhida;
+- frequência normalizada;
+- via escolhida;
+- via normalizada;
+- posologia estruturada;
+- indicador de necessidade de conferência.
+
+Regras:
+
+- medication_count = 1 exige um item;
+- medication_count = 2 exige dois itens;
+- medication_count = 3 exige três itens;
+- quantidade divergente bloqueia o avanço e gera log técnico;
+- item incompleto bloqueia o resumo e repete somente o campo ausente;
+- o painel recebe todos os itens estruturados;
+- a integração com a Memed não pode enviar somente o primeiro item;
+- a integração não pode substituir os dados coletados por medicamento fixo derivado da doença;
+- qualquer ambiguidade deve permanecer visível ao médico;
+- a emissão continua sendo ato médico e somente ocorre após conferência e aprovação.
+
+======================================================================
+9. MENSAGENS OFICIAIS ÚNICAS
+======================================================================
+
+Deve existir um único texto oficial para:
+
+1. Recusa da LGPD.
+2. Uso inferior a 30 dias.
+3. Presença de sinais de alerta.
+4. Recusa da telemedicina.
+5. Critérios de elegibilidade não confirmados.
+6. Idade fora do protocolo.
+7. Ausência de receita anterior.
+8. Incompatibilidade documental identificada na análise, sem criar pergunta adicional ao paciente.
+9. Sessão aguardando documento.
+10. Pagamento pendente.
+11. Pagamento confirmado.
+12. Mídia pendente.
+13. Receita anterior recebida.
+14. Atendimento criado.
+15. Entrada na fila médica.
+16. Complementação.
+17. Aprovação.
+18. Reprovação.
+19. Estorno.
+20. Receita entregue.
+21. Perguntas finais respondidas.
+22. Perguntas finais puladas.
+23. Suporte iniciado.
+24. Suporte encerrado.
+25. Retorno ao menu.
+
+É proibido manter mensagens divergentes para o mesmo evento em controladores diferentes.
+
+======================================================================
+10. CRITÉRIOS DE ACEITE DO FLUXO PROVISÓRIO
+======================================================================
+
+O fluxo somente será aprovado quando:
+
+1. O menu funcionar sem sessão ativa.
+2. A opção 1 iniciar o Typebot oficial.
+3. A opção 2 iniciar suporte sem Typebot.
+4. Sessão ativa tiver prioridade sobre o menu.
+5. Respostas 1, 2 e 3 não reiniciarem o atendimento.
+6. Todas as perguntas forem exibidas integralmente.
+7. Todos os botões couberem no WhatsApp.
+8. Nenhum botão ficar cortado.
+9. Toda escolha única registrar e avançar após uma única seleção.
+10. Nenhuma escolha única apresentar “Confirmar”.
+11. Nenhuma escolha única exigir uma segunda resposta.
+12. Condições clínicas aceitarem uma a quatro escolhas em uma mensagem.
+13. Condições aceitarem números, nomes e combinações válidas.
+14. Condições normalizarem corretamente para os values oficiais.
+15. Sinais de alerta aceitarem múltiplas escolhas em uma mensagem.
+16. “Nenhum desses sinais” ser exclusivo.
+17. Não existir “Confirmo” em condições ou sinais.
+18. Tempo de uso avançar imediatamente após o toque.
+19. Quantidade de medicamentos avançar imediatamente após o toque.
+20. Frequência avançar imediatamente após o toque.
+21. Via avançar imediatamente após o toque.
+22. Consentimentos avançarem imediatamente após o toque.
+23. Perguntas finais avançarem imediatamente após o toque.
+24. A declaração de elegibilidade não repetir receita anterior.
+25. WhatsApp ser obtido da Meta sempre que possível.
+26. CEP ser solicitado uma vez.
+27. Endereço não solicitar CEP novamente.
+28. Endereço não criar loop por formato.
+29. Data apresentar pergunta e placeholder corretos.
+30. CPF apresentar pergunta, placeholder e validação corretos.
+31. E-mail apresentar pergunta e placeholder corretos.
+32. Nenhum exemplo utilizar dados reais.
+33. “Enviar depois” não criar atendimento definitivo.
+34. “Enviar depois” não criar pagamento.
+35. “Enviar depois” preservar a sessão.
+36. Não existir pergunta sobre dias, meses, data, idade ou validade da receita.
+37. O critério documental permanecer embutido na elegibilidade, sem novo bloco.
+38. Medicamentos serem coletados antes do pagamento.
+39. Medicamento 1 apresentar perguntas completas.
+40. Medicamento 2 apresentar perguntas completas.
+41. Medicamento 3 apresentar perguntas completas.
+42. Frequência possuir exatamente três opções: Uma vez ao dia, Duas vezes ao dia e Três vezes ao dia.
+43. Conversão de frequência ocorrer internamente sem alterar a resposta original.
+44. Via possuir exatamente Via oral, Via sublingual e Via subcutânea.
+45. Labels e values das vias serem idênticos.
+46. Correção retornar somente ao grupo necessário.
+47. Nenhuma edge apontar para bloco inexistente.
+48. Nenhuma variável estar indefinida.
+49. Pagamento ser confirmado somente pelo Stripe.
+50. Cobrança não ser duplicada.
+51. Retomada do pagamento ocorrer uma vez.
+52. Receita anterior ser enviada diretamente pelo WhatsApp.
+53. Nenhum upload_url ser enviado.
+54. Nenhum novo sistema de upload ser criado.
+55. O caminho de mídia já funcional ser preservado ou restaurado.
+56. Arquivo ser vinculado à sessão correta.
+57. Arquivo ser vinculado ao paciente correto.
+58. Arquivo ser vinculado ao atendimento correto.
+59. Arquivo aparecer no prontuário correto.
+60. Upload não ser duplicado.
+61. Falha de vínculo não descartar mídia silenciosamente.
+62. Retomada após mídia ocorrer uma vez.
+63. Atendimento definitivo não existir antes do pagamento e da mídia.
+64. Atendimento definitivo ser criado uma única vez.
+65. Não existir reprovação antes da criação e avaliação definitivas.
+66. Atendimento entrar uma vez na fila.
+67. Painel exibir dados e receita anterior.
+68. Reprovação utilizar texto único.
+69. Estorno estar vinculado ao pagamento correto.
+70. Receita correta ser entregue ao paciente correto.
+71. Entrega não ser duplicada.
+72. Perguntas finais aparecerem após a entrega.
+73. Todas possuírem Pular = skipped.
+74. Pular não bloquear encerramento nem suporte.
+75. Respostas finais serem vinculadas ao atendimento.
+76. Suporte não iniciar Typebot.
+77. Suporte não criar tickets duplicados.
+78. 0 e ENCERRAR encerrarem o suporte.
+79. A próxima mensagem retornar ao menu.
+80. Nenhuma resposta inválida reiniciar o fluxo.
+81. Nenhuma sessão morrer durante o atendimento.
+82. O fluxo completo funcionar pelo WhatsApp do início ao fim.
+83. medication_count = 1 coletar exatamente o Medicamento 1 completo.
+84. medication_count = 2 coletar exatamente os Medicamentos 1 e 2 completos.
+85. medication_count = 3 coletar exatamente os Medicamentos 1, 2 e 3 completos.
+86. Cada medicamento possuir nome, dose/concentração, frequência e via.
+87. Nenhum medicamento posterior exigido ser pulado.
+88. Nenhum medicamento excedente ser exibido.
+89. Os valores originais serem preservados.
+90. A normalização manter o significado dos valores originais.
+91. Informação ambígua ser marcada para conferência, sem substituição automática.
+92. O painel exibir todos os medicamentos coletados e estruturados.
+93. A integração com a Memed preparar todos os itens coletados, não apenas o primeiro.
+94. Nenhum medicamento ser deduzido automaticamente apenas pela condição clínica.
+95. Nenhuma posologia genérica ou quantidade fixa substituir os dados coletados.
+
+======================================================================
+11. TESTE HUMANO OBRIGATÓRIO EM STAGING
+======================================================================
+
+Antes de qualquer implantação em produção, executar:
+
+1. Uma condição clínica.
+2. Duas condições clínicas.
+3. As quatro condições clínicas.
+4. Resposta de condição por números.
+5. Resposta de condição por nomes.
+6. Sinal de alerta com encerramento.
+7. Nenhum sinal de alerta.
+8. Combinação inválida com “Nenhum”.
+9. Cada opção de tempo de uso.
+10. Cada consentimento positivo e negativo.
+11. Dados pessoais válidos e inválidos.
+12. CEP localizado.
+13. CEP não localizado com preenchimento manual.
+14. Enviar depois e retomar.
+15. Confirmar que nenhuma pergunta sobre prazo ou data da receita é exibida.
+16. Confirmar avanço direto de “Sim, possuo” para quantidade de medicamentos.
+17. Um medicamento.
+18. Dois medicamentos.
+19. Três medicamentos.
+20. Cada frequência.
+21. Confirmar que “Outra frequência” não é exibida.
+22. Cada via de administração.
+23. Confirmar que via tópica, inalatória, intramuscular e “Outra via” não são exibidas.
+24. Conferir o percurso de um medicamento completo.
+25. Conferir o percurso de dois medicamentos completos e em ordem.
+26. Conferir o percurso de três medicamentos completos e em ordem.
+27. Conferir que nenhum conjunto excedente aparece.
+28. Conferir valores originais no painel.
+29. Conferir valores normalizados no painel.
+30. Conferir sinalização de nome ou dose ambígua.
+31. Conferir preparação de um item para a Memed.
+32. Conferir preparação de dois itens para a Memed.
+33. Conferir preparação de três itens para a Memed.
+34. Confirmar que nenhum item é substituído por medicamento genérico derivado da doença.
+35. Correção de cada grupo.
+36. Pagamento aprovado.
+37. Clique repetido no pagamento.
+38. Retomada após Stripe.
+39. Envio de JPG.
+40. Envio de PNG.
+41. Envio de PDF.
+42. Reenvio da mesma mídia.
+43. Texto no lugar da mídia.
+44. Conferência da mídia no prontuário.
+45. Criação única do atendimento.
+46. Entrada única na fila.
+47. Aprovação.
+48. Complementação.
+49. Reprovação e estorno.
+50. Entrega correta.
+51. Perguntas finais respondidas.
+52. Perguntas finais puladas.
+53. Suporte iniciado e encerrado.
+54. Retorno ao menu.
+
+Durante o teste:
+
+- não alterar Typebot, Backend, n8n, Meta, Stripe ou banco em paralelo;
+- registrar horário e resultado;
+- registrar identificadores técnicos sem expor dados sensíveis;
+- interromper o teste se ocorrer criação ou cobrança duplicada;
+- corrigir uma regressão por vez;
+- repetir apenas o cenário afetado e depois o fluxo completo.
+
+======================================================================
+12. GOVERNANÇA E IMPLANTAÇÃO
+======================================================================
+
+12.1 LEITURA OBRIGATÓRIA
+
+Antes de trabalhar em WhatsApp, Typebot, Backend, n8n, Stripe, mídia, suporte, painel, Memed ou entrega, todos os agentes devem ler integralmente:
+
+- este documento provisório;
+- o fluxo-alvo oficial;
+- o documento do estado atualmente implementado;
+- a ordem de implantação;
+- a diretriz de uso de IA e agentes;
+- o server.js quando a tarefa envolver Backend.
+
+12.2 CONSULTA AO SERVER.JS
+
+Quando houver proposta ou correção de código no Backend:
+
+- consultar o server.js atual;
+- localizar funções, variáveis e endpoints reais;
+- informar as linhas correspondentes;
+- não inventar nomes;
+- adaptar a correção à estrutura atual;
+- atualizar as referências se o arquivo mudar.
+
+12.3 ORDEM DE IMPLANTAÇÃO
+
+Respeitar a separação:
+
+1. Core Backend.
+2. Triagem e atendimento.
+3. Pagamento.
+4. Fila e painel.
+5. Decisão médica.
+6. Prontuário.
+7. Memed.
+8. Receita e histórico.
+9. Correções de estabilidade em commits separados.
+
+Regra:
+
+- uma funcionalidade por commit;
+- não misturar alteração ampla, frontend, Backend e correção não relacionada;
+- regressões devem ser corrigidas em commit próprio.
+
+12.4 PROIBIÇÃO DE ALTERAÇÃO AUTÔNOMA
+
+Nenhum agente pode modificar:
+
+- perguntas;
+- respostas;
+- botões;
+- placeholders;
+- values;
+- variáveis;
+- ordem;
+- pagamento;
+- mídia;
+- suporte;
+- mensagens;
+- arquitetura;
+
+sem autorização expressa do responsável pelo projeto.
+
+12.5 CONFERÊNCIA ANTES DA CORREÇÃO
+
+Toda conferência deve comparar:
+
+- este fluxo provisório;
+- fluxo-alvo oficial;
+- JSON publicado do Typebot;
+- Backend implantado;
+- n8n;
+- Meta;
+- Stripe;
+- banco;
+- painel;
+- Memed;
+- entrega;
+- suporte;
+- último commit ou versão em que a função já operava.
+
+As divergências devem ser registradas antes da alteração.
+
+======================================================================
+13. DECLARAÇÃO FINAL
+======================================================================
+
+Este documento passa a ser a fonte normativa provisória para o atendimento pelo WhatsApp enquanto o WhatsApp Flow estiver bloqueado.
+
+Ele não autoriza a reconstrução de funções já comprovadamente funcionais.
+
+Em especial, o recebimento da foto ou PDF da receita, o salvamento do arquivo e sua exibição no prontuário devem utilizar o percurso já validado no projeto, com correção apenas da regressão responsável pela falha atual.
+
+A diferença provisória de interface fica limitada a:
+
+1. Condições clínicas em texto numerado com resposta única contendo todas as escolhas.
+2. Sinais de alerta em texto numerado com resposta única contendo todas as escolhas.
+3. Escolhas únicas padronizadas para registrar e avançar imediatamente após o toque, sem “Confirmar” e sem pergunta intermediária.
+
+As regras oficiais dos medicamentos ficam definidas como:
+
+1. Quantidade selecionada controla a coleta de um, dois ou três conjuntos completos.
+2. Cada conjunto contém nome, dose/concentração, frequência e via.
+3. Frequência possui somente Uma vez ao dia, Duas vezes ao dia e Três vezes ao dia.
+4. Via possui somente Via oral, Via sublingual e Via subcutânea.
+5. Cada escolha única registra e avança após um único toque.
+6. O dado original é preservado e o dado normalizado é armazenado separadamente.
+7. Painel e Memed recebem todos os medicamentos estruturados.
+8. Ambiguidade exige conferência médica e nunca autoriza substituição automática.
+
+Todo o restante da arquitetura oficial permanece obrigatório.
+

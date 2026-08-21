@@ -28,6 +28,10 @@ export type AdminAtendimento = {
   dados_clinicos?: {
     previous_prescription?: boolean;
     foto_receita_url?: string;
+    previous_prescription_file?: string;
+    prescription_photo_url?: string;
+    upload_completed?: boolean | string;
+    upload_status?: string;
     observacoes_admin?: AdminNote[];
     stripe_checkout_url?: string;
     memed_receita?: { pdfUrl?: string; receitaUrl?: string; receitaId?: string };
@@ -37,24 +41,41 @@ export type AdminAtendimento = {
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
-    // medico_id (coluna) só aceita ID numérico (resolveMedicoIdForDb em
-    // atendimentos.store.js) — o login atual usa username (ex.:
-    // "dr_max_vinicius_001"), então medico_id nunca é preenchido na prática.
-    // O responsável real fica registrado aqui por clinical-decision.service.js.
     clinical_audit?: { approvedBy?: string | null; rejectedBy?: string | null } | null;
   };
 };
 
+export function hasPreviousPrescriptionFile(a: AdminAtendimento): boolean {
+  const clinical = a.dados_clinicos;
+  return Boolean(
+    clinical?.foto_receita_url ||
+      clinical?.previous_prescription_file ||
+      clinical?.prescription_photo_url ||
+      clinical?.upload_completed === true ||
+      String(clinical?.upload_completed || '').toLowerCase() === 'true' ||
+      String(clinical?.upload_status || '').toLowerCase() === 'completed'
+  );
+}
+
+// clinical_audit.approvedBy/rejectedBy grava req.user.sub (identificador
+// técnico de login, ex.: "dr_max_vinicius_001") — nunca um nome de exibição.
+// Mapeia só para apresentação; o valor histórico gravado não é alterado.
+const KNOWN_DOCTOR_DISPLAY_NAMES: Record<string, string> = {
+  dr_max_vinicius_001: 'Dr. Max Matos',
+  'drmax.matos': 'Dr. Max Matos',
+};
+
 // Nome do responsável clínico para exibição — medico_id (coluna) é
-// estruturalmente sempre null com o esquema de login atual (ver comentário
-// acima); usa o fallback real gravado em dados_clinicos.clinical_audit.
+// estruturalmente sempre null com o esquema de login atual (username, não
+// numérico); usa o fallback real gravado em dados_clinicos.clinical_audit.
 export function medicoResponsavel(a: AdminAtendimento): string | null {
-  return (
+  const raw =
     a.medico_id ||
     a.dados_clinicos?.clinical_audit?.approvedBy ||
     a.dados_clinicos?.clinical_audit?.rejectedBy ||
-    null
-  );
+    null;
+  if (!raw) return null;
+  return KNOWN_DOCTOR_DISPLAY_NAMES[raw.trim().toLowerCase()] || raw;
 }
 
 export type AdminDashboard = {

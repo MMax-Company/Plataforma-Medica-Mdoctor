@@ -12,6 +12,8 @@ const {
 } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { findUnlinkedNativePaymentByEmail, linkPaymentToAppointment } = require('../store/payments.store');
+const { PAYMENT_AMOUNT_CENTS } = require('./typebot-payment.constants');
 const {
   buildClinicalNarrative,
   PROTOCOL_VERSION
@@ -22,8 +24,9 @@ const {
   ensurePrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('./prescription-upload-token.service');
-const { buildUploadStatusUrlByAtendimento } = require('./typebot-prescription-upload.service');
 const { persistTriagemFlow } = require('./clinical-persistence.service');
+const { notifyAdminAlert } = require('./admin-alert.service');
+const { persistUploadContext, buildUploadStatusUrl } = require('./typebot-prescription-upload.service');
 const {
   validateNestedTriagemPayload,
   nestedTriagemToTypebotFlatBody
@@ -49,6 +52,64 @@ async function resolveConfirmedPaymentFromSession(phone) {
     amount_cents: payment.amount_cents || null,
     amount_label: payment.amount_label || null,
     currency: 'brl'
+  };
+}
+
+// Mesma janela usada em stripe-webhook.service.js (linkOrRecordNativeTypebotPayment):
+// tempo entre o pagamento no bloco nativo do Typebot e a criação do
+// atendimento, que só acontece depois de CEP, receita anterior e medicamentos.
+const NATIVE_PAYMENT_LOOKBACK_MS = 6 * 60 * 60 * 1000;
+
+// Vínculo do PaymentIntent do bloco de pagamento NATIVO do Typebot (Stripe
+// conectado direto no bot, sem Checkout Session do backend e sem
+// client_reference_id do painel/Memed). O webhook Stripe já gravou esse
+// pagamento como "órfão" em payments (appointment_id null) por falta de
+// atendimento no instante do pagamento — resolve pelo mesmo e-mail desta
+// triagem e devolve o payment_intent real para persistir em
+// dados_clinicos.stripe_payment, exatamente como o estorno automático
+// (stripe-refund.service.js) já sabe ler. Sem isso, o achado real de
+// 02/08/2026 se repete: reprovação médica não encontra o pagamento a
+// estornar e depende de recuperação manual.
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Achado real 03/08/2026 (atendimento nº 1061 e nº 1065): o webhook do Stripe
+// grava o payment órfão ~300-400ms antes da triagem criar o atendimento, mas
+// a consulta pode rodar antes desse INSERT ficar visível para esta
+// transação — resultado: nenhum vínculo, mesmo com o pagamento certo já no
+// banco. Poucas tentativas curtas com intervalo progressivo (não um loop
+// longo nem retry de webhook) cobrem essa corrida entre duas requisições HTTP
+// independentes (Stripe e n8n). Nunca amplia o critério de busca (mesmo
+// e-mail/valor/moeda/janela de findUnlinkedNativePaymentByEmail) — só dá ao
+// pagamento recém-gravado mais chances/tempo de aparecer.
+const NATIVE_PAYMENT_RETRY_ATTEMPTS = 3;
+const NATIVE_PAYMENT_RETRY_DELAYS_MS = [500, 1000, 1500];
+
+async function resolvePendingNativeTypebotPayment(email) {
+  if (!email) return null;
+  const sinceIso = new Date(Date.now() - NATIVE_PAYMENT_LOOKBACK_MS).toISOString();
+  let paymentRow = null;
+  for (let attempt = 1; attempt <= NATIVE_PAYMENT_RETRY_ATTEMPTS; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    paymentRow = await findUnlinkedNativePaymentByEmail({
+      email,
+      amountCents: PAYMENT_AMOUNT_CENTS,
+      currency: 'BRL',
+      sinceIso
+    }).catch(() => null);
+    if (paymentRow || attempt === NATIVE_PAYMENT_RETRY_ATTEMPTS) break;
+    // eslint-disable-next-line no-await-in-loop
+    await delay(NATIVE_PAYMENT_RETRY_DELAYS_MS[attempt - 1]);
+  }
+  if (!paymentRow) return null;
+  return {
+    paymentRowId: paymentRow.id,
+    payment_intent: paymentRow.external_id || paymentRow.metadata?.payment_intent || null,
+    event_id: paymentRow.metadata?.event_id || null,
+    amount_cents: paymentRow.amount_cents,
+    currency: paymentRow.currency,
+    confirmed_at: paymentRow.paid_at
   };
 }
 
@@ -106,9 +167,20 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
 
   const typebotContext =
     body.typebot_context && typeof body.typebot_context === 'object' ? body.typebot_context : {};
+  const nestedFlatBody = nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem);
+  // Achado real 03/08/2026 (nº 1065): o n8n recalcula sua própria condição
+  // crônica dentro de typebot_context (sem o mapeamento numérico "1"→HAS/
+  // "2"→DM2/etc. que só existe aqui) e, por vir depois no spread, sobrescrevia
+  // o valor correto já resolvido pela triagem aninhada — derrubando
+  // atendimentos elegíveis para "consulta_presencial". typebot_context nunca
+  // pode sobrescrever chronic_condition/doenca_cronica já preenchidos pela
+  // triagem aninhada; só serve de fallback quando ela não trouxe nada.
+  const { chronic_condition: _ctxChronic, doenca_cronica: _ctxDoenca, ...typebotContextRest } = typebotContext;
   const flatBody = {
-    ...nestedTriagemToTypebotFlatBody(validation.paciente, validation.triagem),
-    ...typebotContext
+    ...nestedFlatBody,
+    ...typebotContextRest,
+    chronic_condition: nestedFlatBody.chronic_condition || _ctxChronic,
+    doenca_cronica: nestedFlatBody.doenca_cronica || _ctxDoenca
   };
   const mapped = mapTypebotPayload({
     ...flatBody,
@@ -126,13 +198,29 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     normalized.whatsapp || validation.paciente.telefone
   );
 
+  // Só busca o pagamento do bloco nativo do Typebot quando este NÃO é o
+  // fluxo do Checkout Session do backend (sessionPayment) — os dois fluxos
+  // de pagamento são mutuamente exclusivos.
+  const nativePayment = sessionPayment
+    ? null
+    : await resolvePendingNativeTypebotPayment(normalized.email);
+
+  // Achado real 03/08/2026: nativePayment (Stripe já confirmado pelo bloco
+  // nativo do Typebot, resolvido acima) só era gravado em
+  // dados_clinicos.stripe_payment — nunca alimentava payment_confirmed, que
+  // só reconhecia sessionPayment (fluxo antigo de Checkout Session). Um
+  // atendimento pago pelo bloco nativo, sem sessão de Checkout, ficava preso
+  // em "pagamento pendente" mesmo com o Stripe já confirmado. O pagamento
+  // nativo agora conta como confirmado da mesma forma que o pagamento por
+  // sessão.
+  const paymentConfirmedBySource = Boolean(sessionPayment || nativePayment);
   const patientData = {
     ...mapped.patientData,
     idempotency_key: idempotencyKey || null,
     protocol_version: PROTOCOL_VERSION,
-    pagamento_status: sessionPayment ? 'CONFIRMADO' : normalized.pagamento_status,
-    payment_status: sessionPayment ? 'paid' : normalized.payment_status,
-    payment_confirmed: sessionPayment ? true : normalized.payment_confirmed,
+    pagamento_status: paymentConfirmedBySource ? 'CONFIRMADO' : normalized.pagamento_status,
+    payment_status: paymentConfirmedBySource ? 'paid' : normalized.payment_status,
+    payment_confirmed: paymentConfirmedBySource ? true : normalized.payment_confirmed,
     queue_type: 'medical',
     validation: normalized.validation,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
@@ -225,7 +313,18 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
           stripe_amount_label: sessionPayment.amount_label,
           stripe_currency: sessionPayment.currency
         }
-      : {})
+      : nativePayment
+        ? {
+            payment_sync_source: 'stripe_native_payment_block',
+            stripe_payment: {
+              payment_intent: nativePayment.payment_intent,
+              event_id: nativePayment.event_id,
+              amount_cents: nativePayment.amount_cents,
+              currency: nativePayment.currency,
+              confirmed_at: nativePayment.confirmed_at
+            }
+          }
+        : {})
   };
 
   const patient = await findOrCreatePatient({
@@ -255,6 +354,25 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     atendimento.patient_id = patient.id;
   }
 
+  // Alerta interno paralelo: só quando o atendimento efetivamente entrou na
+  // fila médica. Nunca deve interferir no fluxo principal (ver admin-alert.service.js).
+  if (atendimentoStatus === STATUS.WAITING && atendimento?.id) {
+    notifyAdminAlert({ type: 'medical_queue', id: atendimento.id });
+  }
+
+  if (nativePayment?.paymentRowId && atendimento?.id) {
+    // Fecha o vínculo também na tabela payments (candidato payments.external_id
+    // já lido por resolvePaymentIntentId em stripe-refund.service.js) — reforça
+    // dados_clinicos.stripe_payment gravado acima, sem depender só dele.
+    await linkPaymentToAppointment(nativePayment.paymentRowId, atendimento.id, patient?.id || null).catch((error) => {
+      logger.warn('native_typebot_payment_link_failed', {
+        atendimentoId: atendimento.id,
+        paymentRowId: nativePayment.paymentRowId,
+        error: error.message
+      });
+    });
+  }
+
   try {
     await persistTriagemFlow({
       patient,
@@ -278,6 +396,30 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
       atendimentoId: atendimento.id,
       correlationId
     });
+    // Achado real 03/08/2026: nada nesse fluxo (bloco nativo do Typebot)
+    // atualizava whatsapp_sessions.metadata.typebot_prescription_upload —
+    // só o fluxo antigo de Checkout Session (completePaymentByToken) fazia
+    // isso. A sessão ficava presa apontando pro atendimento de um teste
+    // anterior, e a foto do paciente era processada contra o atendimento
+    // errado (ou rejeitado havia horas). Grava aqui, sempre que este
+    // atendimento nasce aguardando a receita anterior, sobrescrevendo
+    // qualquer contexto antigo da mesma sessão.
+    if (uploadSession?.token) {
+      await persistUploadContext({
+        identity: { phone: atendimento.paciente_telefone },
+        uploadContext: {
+          atendimentoId: atendimento.id,
+          token: uploadSession.token,
+          uploadUrl: uploadSession.uploadUrl,
+          uploadStatusUrl: buildUploadStatusUrl(uploadSession.token)
+        }
+      }).catch((error) => {
+        logger.warn('triagem_upload_context_persist_failed', {
+          atendimentoId: atendimento.id,
+          error: error.message
+        });
+      });
+    }
   }
 
   await createAuditLog({
@@ -325,14 +467,13 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
       message: 'Triagem recebida com sucesso',
       atendimentoId: atendimento.id,
       correlationId,
-      upload_url: uploadSession?.uploadUrl || null,
-      upload_status_url: uploadSession ? buildUploadStatusUrlByAtendimento(atendimento.id) : null,
-      upload_status: uploadSession ? 'pending' : null
+      upload_url: uploadSession?.uploadUrl || null
     }
   };
 }
 
 module.exports = {
   processTriagemWebhook,
+  resolvePendingNativeTypebotPayment,
   ORIGEM
 };

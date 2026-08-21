@@ -1,0 +1,38 @@
+{
+  "name": "teste4_retomar",
+  "ok": true,
+  "steps": [
+    {
+      "label": "sessao_enviar_depois_tinha_typebot_session_id",
+      "ok": true
+    },
+    {
+      "label": "retomada_preserva_typebot_session_id",
+      "ok": true
+    }
+  ],
+  "before": {
+    "id": "cc91417c-6e86-4be8-b640-cd946a2f8b8a",
+    "phone": "5511900030003",
+    "typebot_session_id": "tst3lzs3x4rjzhc3zodqc3dc",
+    "metadata": {
+      "cep_lookup": null,
+      "last_inbound_message_id": "wamid.rxant.5511900030003.1784884076386.19",
+      "typebot_expected_input_id": null
+    },
+    "status": "active",
+    "updated_at": "2026-07-24T09:07:58.229851+00:00"
+  },
+  "after": {
+    "id": "cc91417c-6e86-4be8-b640-cd946a2f8b8a",
+    "phone": "5511900030003",
+    "typebot_session_id": "tst3lzs3x4rjzhc3zodqc3dc",
+    "metadata": {
+      "cep_lookup": null,
+      "last_inbound_message_id": "wamid.rxant.5511900030003.1784884093631.1",
+      "typebot_expected_input_id": null
+    },
+    "status": "active",
+    "updated_at": "2026-07-24T09:08:14.850923+00:00"
+  }
+}

@@ -164,6 +164,14 @@ router.get('/medical-support-queue', requireAuth, requireRole('admin', 'doctor')
 
 router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
   try {
+    const resposta = String(req.body?.resposta || '').trim();
+    if (!resposta) {
+      return res.status(400).json({
+        success: false,
+        error: 'A orientação médica é obrigatória para devolver o caso ao suporte administrativo',
+      });
+    }
+
     const atendimento = await getAtendimento(req.params.id);
     if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
     if (!isMedicalSupportQueue(atendimento)) {
@@ -171,6 +179,16 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
     }
 
     const { queue_type, ...restClinical } = atendimento.dados_clinicos || {};
+    const now = new Date().toISOString();
+    const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
+    const nota = {
+      id: randomUUID(),
+      texto: `Orientação médica: ${resposta}`,
+      autor: req.user?.name || req.user?.username || 'médico',
+      criado_em: now,
+      resolvido: false,
+      origem: 'medical_support',
+    };
     const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
       // preserva medico_id/motivo_decisao — updateAtendimentoStatus os zera se
       // não forem repassados explicitamente, e esta ação não deve alterá-los.
@@ -178,8 +196,11 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
       motivo: atendimento.motivo_decisao,
       dados_clinicos: {
         ...restClinical,
-        medical_support_resolved_at: new Date().toISOString(),
+        medical_support_status: 'awaiting_admin_reply',
+        medical_support_response: resposta,
+        medical_support_resolved_at: now,
         medical_support_resolved_by: req.user?.name || req.user?.username || null,
+        observacoes_admin: [...notasExistentes, nota],
       },
     });
 
@@ -188,7 +209,7 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
       entity_id: req.params.id,
       action: 'medical_support_resolved',
       actor: req.user?.name || req.user?.username || 'doctor',
-      payload: { atendimento_id: req.params.id },
+      payload: { atendimento_id: req.params.id, response_registered: true },
     });
 
     res.json({ success: true, atendimento: updated });
@@ -199,6 +220,14 @@ router.post('/:id/medical-support/resolve', requireAuth, requireRole('admin', 'd
 
 router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'doctor'), async (req, res) => {
   try {
+    const motivo = String(req.body?.motivo || '').trim();
+    if (!motivo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Informe por que o caso está sendo devolvido ao suporte administrativo',
+      });
+    }
+
     const atendimento = await getAtendimento(req.params.id);
     if (!atendimento) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
     if (!isMedicalSupportQueue(atendimento)) {
@@ -209,10 +238,11 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
     const notasExistentes = Array.isArray(restClinical.observacoes_admin) ? restClinical.observacoes_admin : [];
     const nota = {
       id: randomUUID(),
-      texto: 'Retornado pelo médico após esclarecimento — ver jornada para detalhes.',
+      texto: `Devolvido pelo médico ao suporte administrativo: ${motivo}`,
       autor: req.user?.name || req.user?.username || 'médico',
       criado_em: new Date().toISOString(),
       resolvido: false,
+      origem: 'medical_support',
     };
 
     const updated = await updateAtendimentoStatus(req.params.id, atendimento.status, {
@@ -220,6 +250,7 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
       motivo: atendimento.motivo_decisao,
       dados_clinicos: {
         ...restClinical,
+        medical_support_status: 'returned_to_admin',
         medical_support_returned_at: new Date().toISOString(),
         observacoes_admin: [...notasExistentes, nota],
       },
@@ -230,7 +261,7 @@ router.post('/:id/medical-support/return', requireAuth, requireRole('admin', 'do
       entity_id: req.params.id,
       action: 'medical_support_returned_to_admin',
       actor: req.user?.name || req.user?.username || 'doctor',
-      payload: { atendimento_id: req.params.id },
+      payload: { atendimento_id: req.params.id, reason_registered: true },
     });
 
     res.json({ success: true, atendimento: updated });
@@ -320,8 +351,28 @@ router.get('/clinical/reject-reasons', requireAuth, (_req, res) => {
   return res.json({ success: true, reasons: listRejectReasons() });
 });
 
+// Evidência de que um médico realmente avaliou o atendimento: clinical_audit
+// só é gravado por approveAtendimento/rejectAtendimento (clinical-decision.service.js),
+// nunca por rejeição automática, inelegibilidade de triagem ou abandono de fluxo.
+// A verificação de status exclui atendimentos ainda em andamento mesmo que
+// clinical_audit.decision já esteja preenchido (ex.: receita_em_edicao,
+// memed_processing, em_atendimento).
+const CONCLUDED_STATUSES = new Set([
+  'approved',
+  'delivered',
+  'rejected',
+  'receita_emitida',
+  'ready',
+]);
+function hasRegisteredMedicalDecision(item) {
+  const decision = item?.dados_clinicos?.clinical_audit?.decision;
+  const hasDec = decision === 'approved' || decision === 'rejected';
+  const status = String(item?.status || '').toLowerCase();
+  return hasDec && CONCLUDED_STATUSES.has(status);
+}
+
 router.get('/search', requireAuth, async (req, res) => {
-  const { cpf, phone, name, birth_date, id, atendimento_id } = req.query;
+  const { cpf, phone, name, birth_date, id, atendimento_id, require_medical_decision } = req.query;
   const idValue = String(id || atendimento_id || '').trim().toLowerCase();
   const hasId = Boolean(idValue);
   const hasCpf = Boolean(String(cpf || '').replace(/\D/g, ''));
@@ -376,9 +427,16 @@ router.get('/search', requireAuth, async (req, res) => {
     return false;
   });
 
-  matched.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+  // Tela "Buscar Prontuário" (consulta arquivada) — só atendimentos com
+  // decisão médica real registrada. Sem esse filtro, aparecia AGUARDANDO,
+  // AWAITING_PRESCRIPTION_UPLOAD, inelegibilidade automática, reprovação
+  // automática do chatbot e qualquer registro que nunca chegou ao médico.
+  const evaluatedOnly = String(require_medical_decision || '') === '1';
+  const filtered = evaluatedOnly ? matched.filter(hasRegisteredMedicalDecision) : matched;
 
-  const results = matched.map((item) => ({
+  filtered.sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')));
+
+  const results = filtered.map((item) => ({
     id: item.id,
     paciente_nome: item.paciente_nome || '',
     paciente_cpf: item.paciente_cpf || '',
@@ -390,29 +448,6 @@ router.get('/search', requireAuth, async (req, res) => {
   }));
 
   return res.json({ success: true, results, total: results.length });
-});
-
-router.get('/:id/prescription-upload/status', async (req, res) => {
-  try {
-    const {
-      getPrescriptionUploadStatusByAtendimentoId
-    } = require('../services/typebot-prescription-upload.service');
-    const status = await getPrescriptionUploadStatusByAtendimentoId(req.params.id);
-    if (!status.found) {
-      return res.status(404).json({
-        success: false,
-        error: 'Atendimento não encontrado',
-        code: 'ATENDIMENTO_NOT_FOUND'
-      });
-    }
-    return res.json({ success: true, ...status });
-  } catch (error) {
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      error: error.message,
-      code: error.code || 'PRESCRIPTION_UPLOAD_STATUS_ERROR'
-    });
-  }
 });
 
 router.get('/:id', requireAuth, async (req, res) => {
@@ -578,6 +613,7 @@ router.post('/:id/clinical/reject', requireRole('admin', 'doctor'), async (req, 
     decisao: result.decisao,
     notification: result.notification,
     pendencia_pagamento: result.pendencia_pagamento || null,
+    estorno: result.estorno || null,
     reason_code: result.reason_code,
     reason_label: result.reason_label
   });
@@ -1014,16 +1050,6 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
   if (!previous) return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
   const correlationId = req.correlationId || req.get('X-Correlation-Id') || req.requestId || 'unknown';
   const criteriaUsed = previous?.elegibilidade?.criteriaUsed || [];
-  const clinicalAudit = {
-    ...(previous?.dados_clinicos?.clinical_audit || {}),
-    approvedBy: authenticatedDoctorId,
-    approvedAt: new Date().toISOString(),
-    criteriaUsed,
-    protocolVersion: previous?.elegibilidade?.protocolVersion || previous?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
-    mode: previous?.dados_clinicos?.clinical_audit?.mode || 'mock',
-    correlationId,
-    decisionRationale: motivo || notes || previous?.elegibilidade?.reason || null
-  };
 
   const atendimento = await updateAtendimentoStatus(req.params.id, normalizedStatus, {
     motivo,
@@ -1032,7 +1058,10 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     medicoId: authenticatedDoctorId,
     dados_clinicos: {
       ...(previous?.dados_clinicos || {}),
-      clinical_audit: clinicalAudit
+      // Mudança operacional (inclusive o clique em "Atender") não é uma
+      // aprovação clínica. approvedAt/approvedBy são gravados exclusivamente
+      // pelo fluxo /clinical/approve em clinical-decision.service.js.
+      clinical_audit: previous?.dados_clinicos?.clinical_audit || null
     }
   });
 
@@ -1065,8 +1094,8 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
       protocolVersion: atendimento?.dados_clinicos?.protocol_version || PROTOCOL_VERSION,
       mode: atendimento?.dados_clinicos?.clinical_audit?.mode || 'mock',
       criteriaUsed: atendimento?.elegibilidade?.criteriaUsed || [],
-      approvedBy: clinicalAudit.approvedBy,
-      approvedAt: clinicalAudit.approvedAt,
+      doctorId: authenticatedDoctorId,
+      statusChangedAt: new Date().toISOString(),
       correlationId
     }
   });

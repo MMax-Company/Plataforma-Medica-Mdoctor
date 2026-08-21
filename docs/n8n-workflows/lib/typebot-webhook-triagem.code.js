@@ -1,10 +1,6 @@
 /**
  * n8n Code node: Typebot / webhook → POST /api/webhook/triagem (Doctor Prescreve)
  * Sync into typebot-webhook-staging.json when editing.
- *
- * n8n NÃO confirma pagamento: payment_status do Typebot é só contexto.
- * Pagamento oficial: Stripe Checkout + POST /api/webhooks/stripe.
- * Idempotência: resultId/sessionId/atendimento já existente — nunca Date.now() se houver id estável.
  */
 const input = $input.first().json || {};
 const headers = input.headers || {};
@@ -21,46 +17,17 @@ function digits(v) {
   return String(v || '').replace(/\D/g, '');
 }
 
-const phoneDigits = digits(
-  pick(
-    body.paciente?.telefone,
-    body.telefone,
-    body.whatsapp,
-    body.from,
-    body.paciente_telefone,
-    body.phone
-  )
-);
-
 const correlationId =
   headers['x-correlation-id'] ||
   headers['X-Correlation-Id'] ||
   body.correlation_id ||
-  `typebot-${phoneDigits || 'anon'}-${Date.now()}`;
-
-const resultId = pick(
-  body.resultId,
-  body.result_id,
-  body.typebotResultId,
-  body.result?.id,
-  headers['x-typebot-result-id']
-);
-const sessionId = pick(
-  body.sessionId,
-  body.session_id,
-  body.typebotSessionId,
-  body.typebot_session_id
-);
-const cpfDigits = digits(pick(body.cpf, body.cpf_paciente, body.paciente?.cpf));
+  `typebot-${Date.now()}`;
 
 const idempotencyKey =
   headers['idempotency-key'] ||
   headers['Idempotency-Key'] ||
   body.idempotency_key ||
-  (resultId ? `typebot-result:${resultId}` : '') ||
-  (sessionId && phoneDigits ? `typebot-session:${sessionId}:${phoneDigits}` : '') ||
-  (phoneDigits && cpfDigits ? `triagem:${phoneDigits}:${cpfDigits}` : '') ||
-  (phoneDigits ? `triagem:${phoneDigits}` : `triagem-anon:${correlationId}`);
+  `triagem-${digits(body.paciente?.telefone || body.telefone)}-${Date.now()}`;
 
 let paciente;
 let triagem;
@@ -81,11 +48,13 @@ if (body.paciente && body.triagem) {
     observacoes: pick(body.triagem.observacoes)
   };
 } else {
-  const telefone = phoneDigits;
+  const telefone = digits(
+    pick(body.telefone, body.whatsapp, body.from, body.paciente_telefone, body.phone)
+  );
   paciente = {
     nome: pick(body.patient_name, body.nome, body.Nome_Completo, body.paciente_nome),
     telefone: telefone || pick(body.telefone, body.whatsapp),
-    cpf: cpfDigits || pick(body.cpf, body.cpf_paciente),
+    cpf: digits(pick(body.cpf, body.cpf_paciente)),
     email: pick(body.email, body.Email, body.paciente_email)
   };
   triagem = {
@@ -117,7 +86,6 @@ if (!paciente.nome) throw new Error('paciente.nome é obrigatório');
 if (!triagem.doencas) throw new Error('triagem.doencas é obrigatório');
 if (!paciente.telefone) throw new Error('paciente.telefone é obrigatório');
 
-// Contexto Typebot: payment_status é informativo — backend FASE 4B não confirma sem Stripe.
 const typebot_context = {
   patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),
   birth_date: pick(body.birth_date, body.data_nascimento),
@@ -126,8 +94,6 @@ const typebot_context = {
   payment_status: pick(body.payment_status),
   pagamento_status: pick(body.pagamento_status),
   pagamento: pick(body.pagamento),
-  payment_token: pick(body.payment_token, body.paymentToken),
-  checkout_session_id: pick(body.checkout_session_id, body.checkoutSessionId),
   eligibility_status: pick(body.eligibility_status),
   ineligibility_reason: pick(body.ineligibility_reason),
   has_previous_prescription: body.has_previous_prescription,
@@ -158,8 +124,6 @@ const typebot_context = {
   protocol: pick(body.protocol),
   source: pick(body.source),
   typebot_public_id: pick(body.typebot_public_id),
-  typebot_result_id: resultId || null,
-  typebot_session_id: sessionId || null,
   lgpd_accepted: body.lgpd_accepted,
   privacy_policy_accepted: body.privacy_policy_accepted,
   telemedicine_consent_accepted: body.telemedicine_consent_accepted,
@@ -171,12 +135,7 @@ const typebot_context = {
   terms_accepted: body.terms_accepted
 };
 
-const triagemPayload = {
-  paciente,
-  triagem,
-  typebot_context,
-  idempotency_key: idempotencyKey
-};
+const triagemPayload = { paciente, triagem, typebot_context };
 
 return [
   {

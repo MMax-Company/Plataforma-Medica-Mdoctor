@@ -33,7 +33,7 @@ export function validateNameBirthSearch(name: string, birthDate: string): string
   if (!trimmed) return 'Informe o nome do paciente.';
   const tokens = trimmed.split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return 'Informe pelo menos primeiro e segundo nome.';
-  if (!String(birthDate || '').trim()) return 'Informe a data de nascimento.';
+  void birthDate; // data é filtro opcional — não bloqueia a busca
   return null;
 }
 
@@ -46,5 +46,33 @@ export function buildSearchQuery(params: { cpf?: string; name?: string; birthDat
     q.set('name', String(params.name).trim().replace(/\s+/g, ' '));
     if (params.birthDate) q.set('birth_date', params.birthDate);
   }
+  // "Buscar Prontuário" é consulta arquivada — só atendimentos com decisão
+  // médica real registrada (regra aplicada e validada no backend, ver
+  // hasRegisteredMedicalDecision em atendimentos.routes.js).
+  q.set('require_medical_decision', '1');
   return q;
+}
+
+/** Status que nunca deveriam aparecer aqui — proteção adicional no cliente,
+ * não a barreira principal (essa é o filtro do backend via require_medical_decision).
+ * Inclui todos os estados intermediários/em-andamento do fluxo. */
+const NEVER_EVALUATED_STATUSES = new Set([
+  'waiting',
+  'queue',
+  'fila',
+  'triaged',
+  'triagem',
+  'aguardando_pagamento',
+  'awaiting_prescription_upload',
+  'aguardando_receita',
+  'em_atendimento',
+  'receita_em_edicao',
+  'memed_processing',
+  'aguardando_emissao',
+  'aguardando_analise',
+  'processing',
+]);
+
+export function isEvaluatedStatus(status: string): boolean {
+  return !NEVER_EVALUATED_STATUSES.has(String(status || '').trim().toLowerCase());
 }

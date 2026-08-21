@@ -1,0 +1,152 @@
+{
+  "name": "teste2_none",
+  "ok": false,
+  "steps": [
+    {
+      "label": "inicio",
+      "ok": false
+    },
+    {
+      "label": "menu_para_bemvindo",
+      "ok": true,
+      "sent": "1",
+      "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+      "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+      "tries": 2
+    },
+    {
+      "label": "bemvindo_para_lgpd",
+      "ok": true,
+      "sent": "Vamos começar",
+      "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+      "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+      "tries": 2
+    },
+    {
+      "label": "lgpd_para_nome_social",
+      "ok": true,
+      "sent": "Autorizo",
+      "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+      "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+      "tries": 2
+    },
+    {
+      "label": "nome_social_para_condicoes",
+      "ok": true,
+      "sent": "Paciente Teste RxN",
+      "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+      "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+      "tries": 2
+    },
+    {
+      "label": "condicoes_para_tempo_uso",
+      "ok": true,
+      "sent": "Hipertensão Arterial",
+      "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+      "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+      "tries": 2
+    },
+    {
+      "label": "tempo_uso_para_sinais_alerta",
+      "ok": true,
+      "sent": "Mais de 6 meses",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 2
+    },
+    {
+      "label": "sinais_alerta_seleciona_nenhum",
+      "ok": true,
+      "sent": "Nenhum desses sinais ou sintomas",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 1
+    },
+    {
+      "label": "sinais_alerta_confirma_para_telemedicina",
+      "ok": true,
+      "sent": "Confirmo",
+      "expectedAntes": "blk_tele_choice",
+      "expectedDepois": "blk_tele_choice",
+      "tries": 3
+    },
+    {
+      "label": "telemedicina_para_elegibilidade",
+      "ok": true,
+      "sent": "Ciente e continuar",
+      "expectedAntes": "w9v6g0rlkucnfmxc3qh2a2qt",
+      "expectedDepois": "w9v6g0rlkucnfmxc3qh2a2qt",
+      "tries": 2
+    },
+    {
+      "label": "elegibilidade_para_dados_pessoais",
+      "ok": true,
+      "sent": "Sim",
+      "expectedAntes": "ds9z9lnz3yayokyy8d81fudj",
+      "expectedDepois": "ds9z9lnz3yayokyy8d81fudj",
+      "tries": 2
+    },
+    {
+      "label": "nome_completo",
+      "ok": true,
+      "sent": "Paciente Teste RxN Completo",
+      "expectedAntes": "ar8jtu7sa8gfndqeebrvyj15",
+      "expectedDepois": "ar8jtu7sa8gfndqeebrvyj15",
+      "tries": 2
+    },
+    {
+      "label": "nascimento",
+      "ok": true,
+      "sent": "10/05/1990",
+      "expectedAntes": "dein7u2qnr8q32p2lv1krd5p",
+      "expectedDepois": "dein7u2qnr8q32p2lv1krd5p",
+      "tries": 2
+    },
+    {
+      "label": "cpf",
+      "ok": true,
+      "sent": "52998224725",
+      "expectedAntes": "tbla9w2i2kbeyzun88hai3s9",
+      "expectedDepois": "tbla9w2i2kbeyzun88hai3s9",
+      "tries": 2
+    },
+    {
+      "label": "whatsapp",
+      "ok": true,
+      "sent": "5511900030002",
+      "expectedAntes": "dwoaqosurlamebpra9yf7pm4",
+      "expectedDepois": "dwoaqosurlamebpra9yf7pm4",
+      "tries": 2
+    },
+    {
+      "label": "email_para_cep",
+      "ok": true,
+      "sent": "teste.rxn@example.com",
+      "expectedAntes": "blk_0oydu2f7",
+      "expectedDepois": "blk_0oydu2f7",
+      "tries": 2
+    },
+    {
+      "label": "cep_localizado",
+      "ok": true,
+      "sent": "01310100",
+      "expectedAntes": "blk_endereco_numero_complemento",
+      "expectedDepois": "blk_endereco_numero_complemento",
+      "tries": 2
+    },
+    {
+      "label": "numero_complemento_para_receita_anterior",
+      "ok": true,
+      "sent": "123",
+      "expectedAntes": "blk_receita_choice",
+      "expectedDepois": "blk_receita_choice",
+      "tries": 2
+    },
+    {
+      "label": "none_encerra_sem_proximo_input",
+      "ok": true,
+      "expectedDepois": null
+    }
+  ],
+  "phone": "5511900030002"
+}

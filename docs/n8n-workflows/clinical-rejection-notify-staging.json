@@ -17,7 +17,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-webhook-secret'] || headers['X-Webhook-Secret'] || headers['x-mdoctor-webhook-secret'] || headers['X-MDoctor-Webhook-Secret'] || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst phone = String(body.phone || body.paciente_telefone || body.to || '').replace(/\\D/g, '');\nif (!phone) throw new Error('phone required');\n\nconst message = String(body.message || 'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.');\nconst dryRun = body.dryRun === true || String($env.WHATSAPP_DRY_RUN || 'true') === 'true';\nconst atendimentoId = String(body.atendimentoId || body.atendimento_id || '').trim();\nconst correlationId = String(body.correlationId || headers['x-correlation-id'] || headers['X-Correlation-Id'] || `reject-${Date.now()}`);\nconst idempotencyKey = String(\n  headers['idempotency-key'] ||\n  headers['Idempotency-Key'] ||\n  body.idempotency_key ||\n  (atendimentoId ? `clinical-reject:${atendimentoId}` : `clinical-reject:${phone}:${correlationId}`)\n);\n\nconst backendUrl = String(\n  $env.BACKEND_BASE_URL || $env.BACKEND_URL_STAGING || 'https://mdoctor-backend-staging-staging.up.railway.app'\n).replace(/\\/$/, '');\nif (backendUrl.includes('web-production')) throw new Error('Backend staging must not be production web');\n\nreturn [{\n  json: {\n    phone,\n    message,\n    dryRun,\n    backendUrl,\n    atendimentoId: atendimentoId || null,\n    correlationId,\n    idempotencyKey,\n    secret\n  }\n}];"
+        "jsCode": "const input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst secret = String($env.N8N_WEBHOOK_SECRET || '').trim();\nconst incoming = String(headers['x-webhook-secret'] || headers['X-Webhook-Secret'] || '').trim();\nif (secret && incoming !== secret) throw new Error('Invalid webhook secret');\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst phone = String(body.phone || body.paciente_telefone || '').replace(/\\D/g, '');\nif (!phone) throw new Error('phone required');\n\nconst message = String(body.message || 'Após avaliação médica, não foi possível aprovar sua renovação de receita por teleconsulta. Recomendamos atendimento presencial para melhor avaliação.');\nconst dryRun = body.dryRun === true || String($env.WHATSAPP_DRY_RUN || 'true') === 'true';\n\nconst metaToken = String($env.WHATSAPP_ACCESS_TOKEN || '').trim();\nconst metaPhoneNumberId = String($env.WHATSAPP_PHONE_NUMBER_ID || '').trim();\nconst metaApiVersion = String($env.WHATSAPP_GRAPH_API_VERSION || 'v25.0').trim();\nconst metaUrl = `https://graph.facebook.com/${metaApiVersion}/${metaPhoneNumberId}/messages`;\n\nreturn [{ json: { phone, message, dryRun, metaUrl, metaToken, atendimentoId: body.atendimentoId, correlationId: body.correlationId || `reject-${Date.now()}` } }];"
       },
       "id": "validate-payload",
       "name": "Validate Payload",
@@ -45,38 +45,26 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.backendUrl + '/api/whatsapp/notify-text' }}",
+        "url": "={{ $json.metaUrl }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.metaToken }}"
+            },
+            {
               "name": "Content-Type",
               "value": "application/json"
-            },
-            {
-              "name": "X-MDoctor-Webhook-Secret",
-              "value": "={{ $json.secret }}"
-            },
-            {
-              "name": "X-Correlation-Id",
-              "value": "={{ $json.correlationId }}"
-            },
-            {
-              "name": "Idempotency-Key",
-              "value": "={{ $json.idempotencyKey }}"
-            },
-            {
-              "name": "X-N8N-Workflow",
-              "value": "clinical-rejection-notify-staging"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ phone: $json.phone, message: $json.message, atendimentoId: $json.atendimentoId, idempotency_key: $json.idempotencyKey }) }}"
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone, type: 'text', text: { body: $json.message } }) }}"
       },
-      "id": "backend-meta-send",
-      "name": "POST Backend Notify Meta",
+      "id": "meta-send",
+      "name": "Meta Send Text",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [780, 120]
@@ -84,7 +72,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ success: true, dryRun: $('Validate Payload').first().json.dryRun, atendimentoId: $('Validate Payload').first().json.atendimentoId, correlationId: $('Validate Payload').first().json.correlationId, idempotencyKey: $('Validate Payload').first().json.idempotencyKey, official_send: 'POST /api/whatsapp/notify-text', sent: !$('Validate Payload').first().json.dryRun, backend: $json }) }}"
+        "responseBody": "={{ JSON.stringify({ success: true, dryRun: $json.dryRun, atendimentoId: $json.atendimentoId, correlationId: $json.correlationId, sent: !$json.dryRun }) }}"
       },
       "id": "respond-ok",
       "name": "Respond OK",
@@ -103,10 +91,10 @@
     "Dry Run?": {
       "main": [
         [{ "node": "Respond OK", "type": "main", "index": 0 }],
-        [{ "node": "POST Backend Notify Meta", "type": "main", "index": 0 }]
+        [{ "node": "Meta Send Text", "type": "main", "index": 0 }]
       ]
     },
-    "POST Backend Notify Meta": {
+    "Meta Send Text": {
       "main": [[{ "node": "Respond OK", "type": "main", "index": 0 }]]
     }
   },
@@ -114,8 +102,6 @@
     "executionOrder": "v1"
   },
   "meta": {
-    "template": "clinical-rejection-notify-staging",
-    "active": true,
-    "notes": "Envio via backend Meta (POST /api/whatsapp/notify-text). Evolution/Baileys removidos."
+    "template": "clinical-rejection-notify-staging"
   }
 }

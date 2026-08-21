@@ -177,46 +177,12 @@ async function clearSurveySession(phone) {
   return data;
 }
 
-const TRANSIENT_CLINICAL_METADATA_KEYS = [
-  'typebot_expected_input_id',
-  'typebot_multi_choice',
-  'typebot_payment',
-  'typebot_prescription_upload'
-];
-
-/**
- * FASE 6B — remove metadata transitória da sessão WhatsApp ao entrar em suporte.
- * Não altera atendimentos clínicos, pagamentos confirmados ou arquivos já salvos.
- */
-async function clearTransientClinicalSessionMetadata({ whatsappSession }) {
-  if (!whatsappSession?.id) return null;
-
-  const metadata = { ...(whatsappSession.metadata || {}) };
-  for (const key of TRANSIENT_CLINICAL_METADATA_KEYS) {
-    delete metadata[key];
-  }
-
-  const data = await dbQuery('limpar metadata clínica transitória whatsapp session', async (supabase) =>
-    supabase
-      .from(T.WHATSAPP_SESSIONS)
-      .update({
-        typebot_session_id: null,
-        metadata,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', whatsappSession.id)
-      .select('*')
-      .single()
-  );
-  return data;
-}
-
 async function setTypebotSessionId({ sessionId, typebotSessionId }) {
-  if (!sessionId) return null;
+  if (!sessionId || !typebotSessionId) return null;
   const data = await dbQuery('salvar sessão Typebot no WhatsApp', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
-      .update({ typebot_session_id: typebotSessionId || null, updated_at: new Date().toISOString() })
+      .update({ typebot_session_id: typebotSessionId, updated_at: new Date().toISOString() })
       .eq('id', sessionId)
       .select('*')
       .single()
@@ -228,7 +194,20 @@ const TYPEBOT_METADATA_KEYS = [
   'typebot_expected_input_id',
   'typebot_payment',
   'typebot_prescription_upload',
-  'whatsapp_menu_state'
+  'whatsapp_menu_state',
+  'post_delivery_support_available',
+  // Carimba quando a sessão Typebot ATUAL (typebot_session_id vigente)
+  // começou (só gravado no startChat, ver typebot-whatsapp.bridge.js) — usado
+  // por resolveMetaInboundRouting para distinguir um ticket de suporte
+  // residual de um ticket atual/intencional (ver whatsapp-support.service.js).
+  // Precisa ser limpo em qualquer reset de sessão, como os demais campos
+  // acima, para não sobreviver a uma sessão Typebot que já foi encerrada.
+  'typebot_session_started_at',
+  // Última atividade da sessão Typebot atual (gravado a cada startChat/
+  // continueChat) — base do TTL de inatividade de 60min. Mesmo motivo do
+  // campo acima: precisa ser limpo em qualquer reset, senão sobrevive a uma
+  // sessão já encerrada/expirada.
+  'typebot_last_activity_at'
 ];
 
 async function clearTypebotSession({ sessionId, metadataPatch = {} }) {
@@ -261,9 +240,31 @@ function getActiveSurveySession(session = {}) {
   return session?.metadata?.post_delivery_survey || null;
 }
 
+// Marcadores de jornada (metrica de tempo do painel admin — ver
+// admin.routes.js computeTempos): staged em whatsapp_sessions.metadata no
+// momento em que ocorrem (primeiro "Oi" e clique em "Vamos começar"), e
+// consumidos (copiados para dados_clinicos.jornada do atendimento) no
+// webhook do n8n que cria o atendimento — ver whatsapp.routes.js. Limpos
+// aqui logo após o consumo para que a PRÓXIMA jornada do mesmo telefone
+// (ex.: renovação) comece com marcadores zerados, em vez de herdar os
+// valores da jornada anterior.
+const JOURNEY_METADATA_KEYS = ['journey_started_at', 'welcome_clicked_at'];
+
+async function clearJourneyMarkers(phone) {
+  const session = await getSessionByPhone(phone);
+  if (!session?.id) return null;
+  const metadata = { ...(session.metadata || {}) };
+  for (const key of JOURNEY_METADATA_KEYS) delete metadata[key];
+  const now = new Date().toISOString();
+  const data = await dbQuery('limpar marcadores de jornada whatsapp session', async (supabase) =>
+    supabase.from(T.WHATSAPP_SESSIONS).update({ metadata, updated_at: now }).eq('id', session.id).select('*').single()
+  );
+  return data;
+}
+
 module.exports = {
+  clearJourneyMarkers,
   clearSurveySession,
-  clearTransientClinicalSessionMetadata,
   clearTypebotSession,
   getActiveSurveySession,
   getSessionByBsuid,
@@ -271,6 +272,5 @@ module.exports = {
   normalizePhone,
   setTypebotSessionId,
   upsertSessionIdentity,
-  upsertSessionMetadata,
-  TRANSIENT_CLINICAL_METADATA_KEYS
+  upsertSessionMetadata
 };

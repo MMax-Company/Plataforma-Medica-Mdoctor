@@ -1,60 +1,168 @@
 {
-  "name": "[LEGACY DISABLED] Typebot Webhook - Staging COPIAR",
-  "active": false,
+  "name": "Typebot Webhook - Staging",
+  "active": true,
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "typebot-webhook-copiar-legacy",
+        "path": "typebot-webhook",
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "tb-wh-legacy",
-      "name": "Webhook Legacy Blocked",
+      "id": "tb-wh",
+      "name": "Webhook Typebot",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300],
-      "webhookId": "typebot-webhook-copiar-legacy"
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "typebot-webhook-staging"
     },
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "/**\n * Histórico preservado — NÃO reutilizar.\n * Caminho oficial pós-consolidação:\n *   Typebot → n8n /webhook/typebot-webhook → POST /api/webhook/triagem\n * Bloqueado:\n *   - POST /api/whatsapp/webhook (entrada Meta, não triagem n8n)\n *   - POST /api/whatsapp/support\n *   - POST /api/whatsapp/process-message\n *   - payment_status=\"paid\" sem Stripe\n *   - menus / Evolution / Baileys / TYPEBOT_PUBLIC_URL\n */\nreturn [{\n  json: {\n    success: false,\n    deprecated: true,\n    official_workflow: 'docs/n8n-workflows/typebot-webhook-staging.json',\n    official_entry: 'POST /api/webhook/triagem',\n    official_n8n_webhook: '/webhook/typebot-webhook',\n    error: 'Workflow COPIAR desativado. Use Typebot Webhook - Staging (triagem).',\n    blocked_paths: [\n      '/api/whatsapp/webhook',\n      '/api/whatsapp/support',\n      '/api/whatsapp/process-message'\n    ]\n  }\n}];"
+        "jsCode": "/**\n * n8n Code node: normaliza payload Typebot -> backend /api/whatsapp/webhook\n * Espelha clinical-payload-normalizer.service.js (subset executável no n8n)\n */\nconst input = $input.first().json || {};\nconst headers = input.headers || {};\nconst body = input.body || input;\n\nconst flowEnv = String($env.FLOW_ENV || 'staging').toLowerCase();\nif (flowEnv !== 'staging') throw new Error('FLOW_ENV must be staging');\n\nconst PROTOCOL = 'staging-clinical-v1';\nconst INELIGIBLE_MSG =\n  'Pelas informações fornecidas, não será possível seguir com a renovação por teleconsulta neste momento. Recomendamos atendimento médico presencial para melhor avaliação.';\n\nfunction pick(...values) {\n  for (const v of values) if (v !== undefined && v !== null && String(v).trim() !== '') return v;\n  return null;\n}\n\nfunction asBool(v) {\n  const s = String(v || '').trim().toLowerCase();\n  if (['sim', 'true', '1', 'yes', 's'].includes(s)) return true;\n  if (['nao', 'não', 'false', '0', 'no', 'n'].includes(s)) return false;\n  return null;\n}\n\nfunction digits(v, max) {\n  const d = String(v || '').replace(/\\D/g, '');\n  if (!d) return null;\n  return max ? d.slice(0, max) : d;\n}\n\nfunction normalizeBirthDate(value) {\n  const raw = String(value || '').trim();\n  if (!raw) return null;\n  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;\n  const d8 = raw.replace(/\\D/g, '');\n  if (d8.length === 8) return `${d8.slice(4, 8)}-${d8.slice(2, 4)}-${d8.slice(0, 2)}`;\n  const m = raw.match(/^(\\d{1,2})[\\/\\-.](\\d{1,2})[\\/\\-.](\\d{4})$/);\n  if (m) return `${m[3]}-${String(m[2]).padStart(2, '0')}-${String(m[1]).padStart(2, '0')}`;\n  return null;\n}\n\nfunction normalizeCpf(v) {\n  const d = digits(v, 11);\n  return d && d.length === 11 ? d : null;\n}\n\nfunction normalizeWhatsapp(v) {\n  const d = digits(v);\n  if (!d) return null;\n  if (d.length >= 12 && d.startsWith('55')) return `+${d}`;\n  if (d.length >= 10) return `+55${d}`;\n  return null;\n}\n\nfunction normalizeEmail(v) {\n  const e = String(v || '').trim().toLowerCase();\n  return e.includes('@') && e.includes('.') ? e : null;\n}\n\nfunction normalizeCep(v) {\n  const d = digits(v, 8);\n  return d && d.length === 8 ? d : null;\n}\n\nfunction normalizeCondition(v) {\n  const t = String(v || '').toLowerCase();\n  if (t.includes('hipert') || t === 'has') return 'hipertensao';\n  if (t.includes('diabet') || t === 'dm' || t === 'dm2') return 'diabetes_tipo_2';\n  if (t.includes('dislip') || t === 'dlp' || t.includes('colesterol')) return 'dislipidemia';\n  if (t.includes('hipotire') || t.includes('tireoide')) return 'hipotireoidismo';\n  return 'renovacao_receita';\n}\n\nfunction normalizePayment(v) {\n  const s = String(pick(v.payment_status, v.pagamento_status, v.pagamento) || '').toLowerCase();\n  const paid = ['paid', 'pago', 'confirmado', 'confirmed', 'success'].includes(s);\n  return { payment_status: paid ? 'paid' : 'unpaid', pagamento_status: paid ? 'CONFIRMADO' : 'PENDENTE', paid };\n}\n\nfunction mapFrequency(text) {\n  const t = String(text || '').toLowerCase();\n  if (t.includes('12/12') || t.includes('2x') || t.includes('2 x')) return '12/12h';\n  if (t.includes('8/8') || t.includes('3x') || t.includes('3 x')) return '8/8h';\n  if (t.includes('1x') || t.includes('1 x') || t.includes('ao dia')) return '24h';\n  return 'Conforme orientação médica';\n}\n\nfunction parseMedication(text, overrides = {}) {\n  const raw = String(text || '').trim();\n  if (!raw && !overrides.name) return null;\n  const lower = `${raw} ${overrides.frequency || ''}`.toLowerCase();\n  let name = overrides.name || '';\n  let dose = overrides.dose || '';\n  let unit = overrides.unit || 'mg';\n  const dm = raw.match(/(\\d+(?:[.,]\\d+)?)\\s*(mg|g|ml|mcg)?/i);\n  if (dm) {\n    dose = String(dose || dm[1]).replace(',', '.');\n    unit = (dm[2] || unit).toLowerCase();\n  }\n  if (!name) {\n    const nm = raw.match(/^([a-zA-ZÀ-ÿ][a-zA-ZÀ-ÿ\\s-]+?)(?=\\s+\\d|\\s*,|\\s+tomo|$)/i);\n    name = nm ? nm[1].trim() : raw.split(/[,\\d]/)[0].trim();\n  }\n  name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();\n  const frequency = overrides.frequency || mapFrequency(lower);\n  const route = overrides.route || 'oral';\n  const posology =\n    frequency === '12/12h'\n      ? `Tomar 1 comprimido por via oral a cada 12 horas${dose ? ` (${dose}${unit})` : ''}.`\n      : `Tomar conforme prescrição anterior${dose ? ` — ${dose}${unit}` : ''}.`;\n  return { name, dose, unit, route, frequency, posology, usage: 'contínuo', raw_text: raw };\n}\n\nfunction normalizeMedications(body, count) {\n  const n = Math.min(3, Math.max(1, Number(count || 1)));\n  const slots = [\n    { text: pick(body.primeiro_medicamento, body.medication_name), o: { name: body.med1_nome, dose: body.med1_dose, frequency: body.med1_frequencia, route: body.med1_via } },\n    { text: body.segundo_medicamento, o: { name: body.med2_nome, dose: body.med2_dose, frequency: body.med2_frequencia, route: body.med2_via } },\n    { text: body.terceiro_medicamento, o: { name: body.med3_nome, dose: body.med3_dose, frequency: body.med3_frequencia, route: body.med3_via } }\n  ];\n  const meds = [];\n  for (let i = 0; i < n; i++) {\n    const parsed = parseMedication(slots[i].text, slots[i].o);\n    if (parsed) meds.push({ index: i + 1, ...parsed });\n  }\n  return meds;\n}\n\nfunction mapWarningFlags(v) {\n  const n = String(v || '').trim().toLowerCase();\n  if (!n || n === 'nao' || n === 'não' || n.includes('nenhum')) return [];\n  const flags = [];\n  if (n.includes('dor no peito') || n.includes('falta de ar') || n.includes('desmaio')) flags.push('sinais_urgencia');\n  if (n.includes('febre') || n.includes('sangramento')) flags.push('sinais_urgencia');\n  if (!flags.length && n !== 'nao') flags.push('sinais_urgencia');\n  return flags;\n}\n\nfunction usageDays(tempoUso) {\n  const t = String(tempoUso || '').toLowerCase();\n  if (t.includes('mais de 6')) return 180;\n  if (t.includes('1 a 6') || t.includes('1-6')) return 60;\n  if (t.includes('menos de 1')) return 15;\n  return null;\n}\n\nconst fromDigits = digits(body.from || body.whatsapp || body.telefone);\nconst whatsapp = normalizeWhatsapp(fromDigits);\nif (!whatsapp) throw new Error('missing whatsapp/telefone');\n\nconst birthDate = normalizeBirthDate(pick(body.birth_date, body.data_nascimento));\nconst payment = normalizePayment(body);\nconst medications = normalizeMedications(body, body.medication_count);\nconst hasRx = asBool(body.has_previous_prescription) ?? asBool(body.receita_anterior);\nconst rxFile = pick(body.previous_prescription_file, body.foto_receita_url, body.fotoReceitaUrl);\nconst warningFlags = mapWarningFlags(body.sinais_alerta);\nconst hasWarning = asBool(body.has_warning_signs) === true || warningFlags.length > 0;\nconst days = usageDays(body.tempo_uso);\nconst chronic = normalizeCondition(pick(body.chronic_condition, body.doenca_cronica));\n\nlet eligibility_status = String(body.eligibility_status || '').toLowerCase() || 'eligible';\nlet ineligibility_reason = body.ineligibility_reason || null;\nif (hasRx !== true) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Ausência de comprovação de receita anterior.';\n} else if (hasWarning) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Sinais de alerta relatados.';\n} else if (!payment.paid) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Pagamento não confirmado.';\n} else if (days !== null && days < 30) {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Tempo de uso insuficiente.';\n} else if (chronic === 'renovacao_receita') {\n  eligibility_status = 'ineligible';\n  ineligibility_reason = 'Doença fora do protocolo.';\n}\n\nconst correlationId = headers['x-correlation-id'] || headers['X-Correlation-Id'] || `typebot-${Date.now()}`;\nconst idempotencyKey = headers['idempotency-key'] || headers['Idempotency-Key'] || `${fromDigits}-${Date.now()}`;\n\nconst clean = {\n  patient_name: pick(body.patient_name, body.nome, body.Nome_Completo),\n  birth_date: birthDate,\n  cpf: normalizeCpf(pick(body.cpf, body.cpf_paciente)),\n  whatsapp,\n  email: normalizeEmail(pick(body.email, body.Email)),\n  address: pick(body.address, body.Endereco, body.endereco),\n  cep: normalizeCep(pick(body.cep, body.CEP)),\n  chronic_condition: chronic,\n  medication_count: medications.length,\n  medications,\n  previous_prescription_file: rxFile || null,\n  has_previous_prescription: hasRx === true,\n  upload_url: pick(body.upload_url, body.uploadUrl) || null,\n  has_warning_signs: hasWarning,\n  eligibility_status,\n  ineligibility_reason,\n  payment_status: payment.payment_status,\n  protocol: PROTOCOL,\n  source: 'typebot',\n  correlation_id: correlationId,\n  queue_type: 'medical',\n  continuous_use_days: days,\n  lgpd_accepted: asBool(body.lgpd_accepted) === true,\n  privacy_policy_accepted: asBool(body.privacy_policy_accepted) === true,\n  telemedicine_consent_accepted: asBool(body.telemedicine_consent_accepted) === true,\n  non_urgency_notice_accepted: asBool(body.non_urgency_notice_accepted) === true,\n  terms_of_use_accepted: asBool(body.terms_of_use_accepted) === true,\n  accepted_terms_at: pick(body.accepted_terms_at) || (asBool(body.terms_of_use_accepted) ? new Date().toISOString() : null),\n  accepted_terms_links: body.accepted_terms_links || body.acceptedTermsLinks || [],\n  terms_presented: body.terms_presented || body.termsPresented || null,\n  terms_accepted: body.terms_accepted_summary || body.terms_accepted || null,\n  typebot_public_id: pick(body.typebot_public_id, 'doctor-prescreve-8rmljgu')\n};\n\nconst text =\n  String(body.text || '').trim() ||\n  `Triagem ${clean.patient_name || ''} | ${chronic} | ${medications[0]?.name || ''} | elegível: ${eligibility_status}`;\n\nreturn [\n  {\n    json: {\n      correlationId,\n      idempotencyKey,\n      payload: {\n        from: fromDigits,\n        text,\n        rawMessage: {\n          provider: 'typebot',\n          messageId: idempotencyKey,\n          timestamp: new Date().toISOString(),\n          channel: 'whatsapp',\n          source: flowEnv,\n          original: {\n            ...body,\n            ...clean,\n            pagamento_status: payment.pagamento_status,\n            data_nascimento: birthDate,\n            normalized_at: new Date().toISOString()\n          }\n        }\n      },\n      clean\n    }\n  }\n];\n"
       },
-      "id": "tb-build-legacy",
-      "name": "Legacy Blocked",
+      "id": "tb-build",
+      "name": "Build Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mdoctor-backend-staging-staging.up.railway.app/api/whatsapp/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-MDoctor-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "X-Correlation-Id",
+              "value": "={{ $json.correlationId }}"
+            },
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.idempotencyKey }}"
+            },
+            {
+              "name": "X-N8N-Workflow",
+              "value": "typebot-webhook-staging"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "tb-post",
+      "name": "POST Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const backend = $input.first().json || {};\nconst ctx = $('Build Payload').first().json;\nreturn [{\n  json: {\n    ok: backend.success !== false,\n    success: backend.success !== false,\n    duplicate: Boolean(backend.duplicate),\n    correlationId: ctx.correlationId,\n    atendimento: backend.atendimento || null,\n    upload_url: backend.upload_url || null,\n    status: backend.status || null,\n    prescription_upload_pending: Boolean(backend.prescription_upload_pending)\n  }\n}];"
+      },
+      "id": "tb-wrap",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        300
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json }}",
+        "responseBody": "={{ { success: true, message: 'Triagem recebida com sucesso!', upload_url: $json.upload_url || null } }}",
         "options": {
-          "responseCode": 410
+          "responseCode": 200
         }
       },
-      "id": "tb-respond-legacy",
-      "name": "Respond 410 Gone",
+      "id": "407e8516-e4ca-441e-b247-f090d70974a7",
+      "name": "Resposta Sucesso",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.3,
-      "position": [700, 300]
+      "position": [
+        960,
+        300
+      ]
     }
   ],
   "connections": {
-    "Webhook Legacy Blocked": {
-      "main": [[{ "node": "Legacy Blocked", "type": "main", "index": 0 }]]
+    "Webhook Typebot": {
+      "main": [
+        [
+          {
+            "node": "Build Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Legacy Blocked": {
-      "main": [[{ "node": "Respond 410 Gone", "type": "main", "index": 0 }]]
+    "Build Payload": {
+      "main": [
+        [
+          {
+            "node": "POST Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST Backend": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Response": {
+      "main": [
+        [
+          {
+            "node": "Resposta Sucesso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1"
-  },
-  "meta": {
-    "active": false,
-    "notes": "Histórico desativado. Oficial: typebot-webhook-staging.json → /api/webhook/triagem"
   }
 }

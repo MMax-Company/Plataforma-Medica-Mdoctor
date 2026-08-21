@@ -41,6 +41,57 @@ const headerBtnClass =
 const headerBtnCompactClass =
   'border border-slate-300 bg-white px-2.5 py-1 rounded-lg font-bold text-[9px] text-slate-700 uppercase tracking-wide hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45';
 
+// ── Bloco "Dados do Paciente" (aside) — helpers puros de formatação ────────
+
+function formatPhoneBR(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  const local = digits.length > 11 && digits.startsWith('55') ? digits.slice(2) : digits;
+  if (local.length === 11) return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
+  if (local.length === 10) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
+  return raw;
+}
+
+function formatCep(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  return digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : raw;
+}
+
+function parseBirthDate(raw: string): Date | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+  const slash = trimmed.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
+  if (slash) return new Date(Number(slash[3]), Number(slash[2]) - 1, Number(slash[1]));
+  return null;
+}
+
+function calculateAge(raw: string): number | null {
+  const date = parseBirthDate(raw);
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - date.getFullYear();
+  const monthDiff = now.getMonth() - date.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function formatBirthDateDisplay(raw: string): string {
+  const date = parseBirthDate(raw);
+  if (!date) return raw;
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${date.getFullYear()}`;
+}
+
+function formatSexoLabel(raw: string): string {
+  const text = raw.trim().toLowerCase();
+  if (!text) return 'Sexo não informado';
+  if (text === 'm' || text.startsWith('masculino')) return 'Masculino';
+  if (text === 'f' || text.startsWith('feminino')) return 'Feminino';
+  return raw.trim();
+}
+
 function ClinicalBlock({
   title,
   value,
@@ -172,35 +223,6 @@ export function ProntuarioOperacionalModal({
     if (ok) { onCompleted?.(); onClose(); }
   }
 
-  const patientRows = atendimento
-    ? [
-        {
-          label: '📅 Data de nascimento',
-          value: firstText(clinical.data_nascimento, clinical.birth_date),
-        },
-        {
-          label: '🪪 CPF',
-          value: atendimento.paciente_cpf
-            ? isValidCpf(atendimento.paciente_cpf)
-              ? atendimento.paciente_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-              : atendimento.paciente_cpf
-            : 'Não informado',
-        },
-        {
-          label: '✉️ E-mail',
-          value: atendimento.paciente_email || 'Não informado',
-          highlight: true,
-        },
-        { label: '📞 WhatsApp', value: atendimento.paciente_telefone || 'Não informado' },
-        {
-          label: '📍 Endereço',
-          value: firstText(clinical.endereco, clinical.address),
-          multiline: true,
-        },
-      ]
-    : [];
-
-  const cepValue = atendimento ? firstText(clinical.cep, clinical.postal_code) : 'Não informado';
   const socialName = atendimento
     ? firstText(clinical.nome_social, clinical.social_name)
     : 'Não informado';
@@ -211,6 +233,52 @@ export function ProntuarioOperacionalModal({
         clinical.terms_of_use_accepted === true ? 'Termos ✓' : 'Termos —',
       ].join(' · ')
     : 'Não informado';
+
+  // 1. Identificação
+  const sexoRaw = firstText(clinical.sexo, clinical.paciente_sexo);
+  const sexoLabel = sexoRaw === 'Não informado' ? 'Sexo não informado' : formatSexoLabel(sexoRaw);
+  const dobRaw = firstText(clinical.data_nascimento, clinical.birth_date);
+  const dobAge = dobRaw !== 'Não informado' ? calculateAge(dobRaw) : null;
+  const dobLabel =
+    dobRaw === 'Não informado'
+      ? 'Não informado'
+      : `${formatBirthDateDisplay(dobRaw)}${dobAge !== null ? ` (${dobAge} anos)` : ''}`;
+  const cpfLabel =
+    atendimento && atendimento.paciente_cpf
+      ? isValidCpf(atendimento.paciente_cpf)
+        ? atendimento.paciente_cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
+        : atendimento.paciente_cpf
+      : 'Não informado';
+
+  // 2. Atendimento
+  const shortAtendimentoId = atendimento ? atendimento.id.slice(0, 8) : '';
+
+  // 3. Contato
+  const whatsappLabel = atendimento?.paciente_telefone ? formatPhoneBR(atendimento.paciente_telefone) : 'Não informado';
+  const emailLabel = atendimento?.paciente_email || 'Não informado';
+
+  // 4. Endereço — usa campos estruturados quando existirem, senão cai no texto livre da triagem.
+  const logradouro = firstText(clinical.logradouro);
+  const numero = firstText(clinical.numero);
+  const complemento = firstText(clinical.complemento);
+  const bairro = firstText(clinical.bairro);
+  const cidade = firstText(clinical.cidade);
+  const uf = firstText(clinical.uf, clinical.estado);
+  const cepRaw = firstText(clinical.cep, clinical.postal_code);
+  const freeTextAddress = firstText(clinical.endereco, clinical.address);
+  const hasStructuredAddress = logradouro !== 'Não informado' || bairro !== 'Não informado' || cidade !== 'Não informado';
+  const addressLines: string[] = hasStructuredAddress
+    ? [
+        logradouro !== 'Não informado' ? `${logradouro}${numero !== 'Não informado' ? `, ${numero}` : ''}` : null,
+        complemento !== 'Não informado' ? complemento : null,
+        bairro !== 'Não informado' ? bairro : null,
+        cidade !== 'Não informado' ? `${cidade}${uf !== 'Não informado' ? `/${uf}` : ''}` : null,
+        cepRaw !== 'Não informado' ? formatCep(cepRaw) : null,
+      ].filter((line): line is string => Boolean(line))
+    : [freeTextAddress, cepRaw !== 'Não informado' ? formatCep(cepRaw) : null].filter(
+        (line): line is string => Boolean(line) && line !== 'Não informado',
+      );
+  if (!addressLines.length) addressLines.push('Não informado');
 
   return createPortal(
     <div
@@ -360,76 +428,101 @@ export function ProntuarioOperacionalModal({
 
             <div className="mb-2 grid min-h-0 w-full flex-1 grid-cols-1 items-stretch gap-3 overflow-hidden lg:grid-cols-[240px_1fr]">
               <aside className="flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-                <div className="flex h-full flex-col justify-between">
-                  <h2 className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    Dados do Paciente
-                  </h2>
+                <div className="flex h-full flex-col justify-between overflow-y-auto">
+                  <div className="flex flex-col gap-2">
+                    <h2 className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                      Dados do Paciente
+                    </h2>
 
-                  <div className="flex shrink-0 items-center gap-2 border-b border-slate-100 pb-2">
-                    <div className="flex h-9 w-9 min-w-[36px] items-center justify-center rounded-full bg-[#eff6ff] text-xs font-black text-[#2563eb]">
-                      {initials(atendimento.paciente_nome)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1">
-                        <h3 className="text-[12px] font-black leading-none text-slate-900">
+                    {/* 1. Identificação */}
+                    <div className="flex items-start gap-2 border-b border-slate-100 pb-2">
+                      <div className="flex h-9 w-9 min-w-[36px] items-center justify-center rounded-full bg-[#eff6ff] text-xs font-black text-[#2563eb]">
+                        {initials(atendimento.paciente_nome)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="line-clamp-2 text-[12px] font-black leading-tight text-slate-900">
                           {atendimento.paciente_nome || 'Não informado'}
                         </h3>
-                        <span className="rounded bg-[#eff6ff] px-1 py-0.5 text-[8px] font-bold text-[#2563eb]">
-                          {firstText(clinical.idade, clinical.age)}
+                        {socialName !== 'Não informado' ? (
+                          <p className="mt-0.5 text-[9px] font-semibold text-slate-600">Nome social: {socialName}</p>
+                        ) : null}
+                        <span className="mt-1 inline-block rounded bg-[#eff6ff] px-1 py-0.5 text-[8px] font-bold text-[#2563eb]">
+                          {sexoLabel}
                         </span>
                       </div>
-                      {socialName !== 'Não informado' ? (
-                        <p className="mt-0.5 text-[9px] font-semibold text-slate-600">Nome social: {socialName}</p>
-                      ) : null}
-                      <p className="mt-0.5 text-[8.5px] font-bold text-slate-400">
-                        Atendimento: <span className="break-all text-[#2563eb]">{atendimento.id}</span>
-                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-0.5 border-b border-slate-100 pb-2 text-[10px] font-semibold text-slate-600">
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">🎂 Nascimento</span>
+                        <span className="font-bold text-slate-900">{dobLabel}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">🪪 CPF</span>
+                        <span className="font-bold text-slate-900">{cpfLabel}</span>
+                      </div>
+                    </div>
+
+                    {/* 2. Atendimento */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 text-[9px] font-bold">
+                      <span className="text-slate-400">Atendimento</span>
+                      <span
+                        className="cursor-copy whitespace-nowrap text-[#2563eb]"
+                        title={`ID completo: ${atendimento.id} (clique para copiar)`}
+                        onClick={() => navigator.clipboard?.writeText(atendimento.id)}
+                      >
+                        {shortAtendimentoId}
+                      </span>
+                    </div>
+
+                    {/* 3. Contato */}
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2 text-[10px] font-semibold text-slate-600">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-400">📞 WhatsApp</span>
+                          <span className="font-bold text-slate-900">{whatsappLabel}</span>
+                        </div>
+                        <div className="mt-0.5 flex items-center justify-between">
+                          <span className="text-slate-400">✉️ E-mail</span>
+                          <span className="max-w-[120px] truncate font-bold text-[#2563eb]">{emailLabel}</span>
+                        </div>
+                      </div>
                       {whatsappUrl ? (
                         <a
                           href={whatsappUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-0.5 block text-[8.5px] font-bold text-[#16a34a] hover:underline"
+                          title="Abrir conversa no WhatsApp"
+                          aria-label="Abrir conversa no WhatsApp"
+                          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none text-[#16a34a] hover:bg-[#f0fdf4]"
                         >
-                          💬 Contato via WhatsApp
+                          💬
                         </a>
-                      ) : (
-                        <span className="mt-0.5 block text-[8.5px] font-bold text-[#16a34a]">
-                          💬 Contato via WhatsApp
-                        </span>
-                      )}
+                      ) : null}
+                    </div>
+
+                    {/* 4. Endereço */}
+                    <div className="border-b border-slate-100 pb-2 text-[10px] font-semibold text-slate-600">
+                      <span className="text-slate-400">📍 Endereço</span>
+                      <div className="mt-0.5 leading-tight text-slate-900">
+                        {addressLines.map((line, index) => (
+                          <p key={`${line}-${index}`} className="font-bold">
+                            {line}
+                          </p>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-1 flex-col justify-between gap-0.5 py-1 text-[10px] font-semibold text-slate-600">
-                    {patientRows.map(({ label, value, highlight, multiline }) => (
-                      <div
-                        key={label}
-                        className={`flex border-b border-slate-50 pb-0.5 ${
-                          multiline ? 'items-start gap-1' : 'items-center justify-between'
-                        }`}
-                      >
-                        <span className="text-slate-400">{label}</span>
-                        <span
-                          className={`font-bold ${highlight ? 'text-[#2563eb]' : 'text-slate-900'} ${
-                            multiline ? 'max-w-[120px] text-right leading-tight' : ''
-                          } ${label.includes('E-mail') ? 'max-w-[120px] truncate' : ''}`}
-                        >
-                          {value}
-                        </span>
-                      </div>
-                    ))}
-                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-1">
-                      <span className="text-slate-400">📮 CEP</span>
-                      <span className="font-bold text-slate-900">{cepValue}</span>
+                  {/* 5. Dados administrativos — compacto e secundário */}
+                  <div className="mt-2 shrink-0 space-y-0.5 text-[8px] font-semibold text-slate-400">
+                    <div className="flex items-center justify-between">
+                      <span>💳 Pagamento</span>
+                      <span className="font-bold text-slate-500">{atendimento.pagamento_status || 'Não informado'}</span>
                     </div>
-                    <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-1">
-                      <span className="text-slate-400">💳 Pagamento</span>
-                      <span className="font-bold text-slate-900">{atendimento.pagamento_status || 'Não informado'}</span>
-                    </div>
-                    <div className="shrink-0 border-t border-slate-100 pt-1">
-                      <span className="text-slate-400">🔒 Consentimentos</span>
-                      <p className="mt-0.5 text-[8px] font-bold leading-tight text-slate-900">{consentSummary}</p>
+                    <div>
+                      <span>🔒 Consentimentos</span>
+                      <p className="mt-0.5 leading-tight text-slate-500">{consentSummary}</p>
                     </div>
                   </div>
                 </div>

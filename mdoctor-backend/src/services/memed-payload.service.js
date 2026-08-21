@@ -63,15 +63,12 @@ function buildMedicationLabel(med = {}) {
   return `${name} ${dose} ${unit}`.trim();
 }
 
-// Posologia compatível com a Memed a partir da frequência coletada no chatbot
-// (1/2/3 vezes ao dia). Usa o texto já normalizado pela triagem quando
-// disponível; caso contrário (medicamento sem posology persistida) gera no
-// mesmo formato — sem repetir dose/concentração, já presente no nome do item.
+// Posologia padronizada para a Memed — sempre recomputada a partir dos dados
+// estruturados do medicamento (frequency + route). O campo med.posology salvo
+// pelo chatbot não é reutilizado: textos históricos podem conter "unidade" ou
+// outras variações não padronizadas; a geração aqui garante sempre o formato
+// "Tomar 1 comprimido por…" independente do que estiver no banco.
 function buildPosologia(med = {}) {
-  if (med.posology && !isInvalidClinicalValue(med.posology)) {
-    return compactWhitespace(med.posology);
-  }
-
   const frequency = compactWhitespace(med.frequency);
   const route = compactWhitespace(med.route || 'oral');
   const via =
@@ -80,11 +77,8 @@ function buildPosologia(med = {}) {
       : `via ${route}`;
   const doses = dailyDosesFromFrequency(frequency);
   const frequencyLabel = doses === 3 ? 'a cada 8 horas' : doses === 2 ? 'a cada 12 horas' : 'uma vez ao dia';
-  // "comprimido" para vias orais/sublinguais; "unidade" só para
-  // injetável/subcutânea (ver mesmo critério em dispensingUnitLabel abaixo).
-  const unit = route.toLowerCase().includes('subcut') ? 'unidade' : 'comprimido';
 
-  return `Tomar 1 ${unit} por ${via}, ${frequencyLabel}.`;
+  return `Tomar 1 comprimido por ${via}, ${frequencyLabel}.`;
 }
 
 function extractMedicationRows(clinical = {}) {

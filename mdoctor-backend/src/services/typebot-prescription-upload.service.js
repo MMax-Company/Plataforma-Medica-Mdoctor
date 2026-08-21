@@ -3,9 +3,10 @@ const { dbQuery } = require('../db/persistence');
 const { STATUS, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { upsertSessionIdentity, getSessionByPhone } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
+const { findPaymentByAppointment } = require('../store/payments.store');
 const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer.service');
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
-const { resolveTokenRecord, createPrescriptionUploadSession } = require('./prescription-upload-token.service');
+const { resolveTokenRecord, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
@@ -76,7 +77,35 @@ function extractUploadSession(atendimento = {}) {
   };
 }
 
-async function findPendingUploadContext(phone) {
+// Achado real 03/08/2026: o contexto cacheado em
+// whatsapp_sessions.metadata.typebot_prescription_upload era aceito sem
+// checar se o atendimento referenciado ainda estava aberto — uma foto nova
+// era processada contra um atendimento de HORAS atrás, já rejeitado, só
+// porque a sessão nunca tinha sido atualizada para o atendimento atual.
+// Revalida contra o banco antes de confiar nesse cache: precisa existir,
+// estar exatamente em AWAITING_PRESCRIPTION_UPLOAD (nunca rejected/
+// delivered/encerrado) e pertencer ao mesmo telefone desta conversa. Se
+// falhar qualquer checagem, retorna null — o chamador cai na busca por
+// telefone, que sempre reflete o estado real e atual do banco.
+async function resolveValidatedSessionUploadContext(whatsappSession, phone) {
+  const cached = uploadContextFromSession(whatsappSession);
+  if (!cached?.atendimentoId) return null;
+  const atendimento = await getAtendimento(cached.atendimentoId);
+  if (!atendimento) return null;
+  if (atendimento.status !== STATUS.AWAITING_PRESCRIPTION_UPLOAD) return null;
+  if (phone && !phonesMatch(atendimento.paciente_telefone, phone)) return null;
+  return cached;
+}
+
+async function findPendingUploadContext(phone, { whatsappSession = null } = {}) {
+  // Resolução por sessão tem prioridade, mas só depois de revalidada contra
+  // o banco (ver resolveValidatedSessionUploadContext) — isso evita o erro
+  // de ambiguidade (2+ atendimentos pendentes pro mesmo telefone) quando a
+  // sessão já resolve isso sem ambiguidade nenhuma, sem reabrir a falha de
+  // confiar num contexto de um atendimento já encerrado.
+  const sessionContext = await resolveValidatedSessionUploadContext(whatsappSession, phone);
+  if (sessionContext) return sessionContext;
+
   const rows = await listAtendimentos({ status: STATUS.AWAITING_PRESCRIPTION_UPLOAD });
   const matches = rows.filter(
     (row) => phonesMatch(row.paciente_telefone, phone) && !hasStoredPreviousPrescription(row.dados_clinicos || {})
@@ -116,14 +145,25 @@ async function findUploadContextForPhone(phone) {
 // (ou seja, nunca interfere no caminho feliz). Só reabre o atendimento
 // quando o ÚNICO motivo da rejeição foi pagamento — nunca toca em
 // atendimentos rejeitados por motivo clínico/dados incompletos. Reaproveita
-// createPrescriptionUploadSession (mesma função do caminho normal) para
-// criar o token de upload e virar o status — sem duplicar lógica.
+// ensurePrescriptionUploadSession (mesma função do caminho normal) para
+// criar/reaproveitar o token de upload e virar o status — sem duplicar lógica.
 async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId = null } = {}) {
   const rows = await listAtendimentos({ status: STATUS.REJECTED });
   const match = rows.find(
     (row) => phonesMatch(row.paciente_telefone, phone) && row.elegibilidade?.reasonCode === 'pagamento_pendente'
   );
   if (!match) return null;
+
+  // Achado 02/08/2026: esta reconciliação só marcava pagamento_status =
+  // CONFIRMADO, sem gravar o checkout_session_id — sem isso, um estorno
+  // automático numa reprovação médica posterior deste atendimento nunca
+  // resolveria o payment_intent (ver stripe-refund.service.js). Busca o
+  // mesmo dado que triagem-webhook.service.js já usa como fonte de verdade
+  // (whatsapp_sessions.metadata.typebot_payment, só preenchido pelo webhook
+  // Stripe assinado), pelo MESMO telefone deste atendimento.
+  const whatsappSession = await getSessionByPhone(phone).catch(() => null);
+  const sessionPayment = whatsappSession?.metadata?.typebot_payment;
+  const checkoutSessionId = sessionPayment?.checkout_session_id || null;
 
   const clinical = match.dados_clinicos || {};
   await updateAtendimentoStatus(match.id, STATUS.REJECTED, {
@@ -144,6 +184,9 @@ async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId
       payment_confirmed: true,
       pagamento_status: 'CONFIRMADO',
       payment_sync_source: 'whatsapp_session_reconciliation',
+      ...(checkoutSessionId ? { stripe_checkout_session_id: checkoutSessionId } : {}),
+      stripe_paid_at: sessionPayment?.paid_at || clinical.stripe_paid_at || null,
+      stripe_event_id: sessionPayment?.stripe_event_id || clinical.stripe_event_id || null,
       validation: {
         ...(clinical.validation || {}),
         payment_confirmed: true,
@@ -153,7 +196,7 @@ async function reconcileRejectedPaymentPendingAppointment(phone, { correlationId
     }
   });
 
-  const session = await createPrescriptionUploadSession({ atendimentoId: match.id, correlationId });
+  const session = await ensurePrescriptionUploadSession({ atendimentoId: match.id, correlationId });
   return {
     atendimentoId: match.id,
     token: session.token,
@@ -311,12 +354,18 @@ async function claimPrescriptionUploadResume(session, { token, atendimentoId }) 
       started_at: now
     }
   };
+  // Permite claim se: (a) completed_at nulo — nenhuma retomada em andamento/concluída;
+  // ou (b) token diferente — atendimento anterior do mesmo número já concluído não deve
+  // bloquear o token do atendimento atual.
   const rows = await dbQuery('claim prescription upload resume', async (supabase) =>
     supabase
       .from(T.WHATSAPP_SESSIONS)
       .update({ metadata, updated_at: now })
       .eq('id', session.id)
-      .filter('metadata->prescription_upload_resume->>completed_at', 'is', null)
+      .or(
+        'metadata->prescription_upload_resume->>completed_at.is.null,' +
+        `metadata->prescription_upload_resume->>token.neq.${token}`
+      )
       .select('id')
   );
   return Array.isArray(rows) && rows.length === 1;
@@ -423,20 +472,34 @@ async function resumeTypebotAfterPrescriptionUpload({ token, atendimentoId, corr
   }
 }
 
-// Confirmação oficial do Backend, enviada uma única vez (idempotencyKey
-// estável por atendimento) assim que a receita é validada e vinculada. O
-// Typebot retomado logo em seguida já informa a entrada na fila médica —
-// evita repetir a mesma informação em duas mensagens seguidas.
+// NÃO chamada automaticamente por ingestWhatsAppPrescriptionMedia — o grupo
+// "Receita recebida" do próprio Typebot (retomado logo em seguida) já cobre
+// esse texto por completo. Chamar as duas duplicava a confirmação para o
+// paciente (achado real 09/08/2026). Mantida/exportada apenas para reuso
+// pontual fora desse fluxo automático, se necessário.
 async function sendPostUploadConfirmation({ session, atendimentoId, correlationId, provider }) {
   const common = { to: session.phone, bsuid: session.bsuid, correlationId };
   await provider.sendTextMessage({ ...common, idempotencyKey: `prescription-received:${atendimentoId}`, text: PRESCRIPTION_RECEIVED_MESSAGE });
 }
 
-// Fase 2 pedido 2 já é a única fonte de verdade sobre pagamento confirmado
-// (whatsapp_sessions.metadata.typebot_payment). Aqui só LEMOS esse estado —
-// não criamos nova forma de verificar "paid" nem tocamos no pagamento.
-function isPaymentConfirmedByPedido2(whatsappSession = {}) {
-  return whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid';
+// Achado real 03/08/2026: isPaymentConfirmedByPedido2 só reconhecia
+// whatsapp_sessions.metadata.typebot_payment (fluxo antigo de Checkout
+// Session) — o bloco de pagamento NATIVO do Typebot nunca escreve esse
+// campo, então todo pagamento real por ele sempre caía aqui como "não
+// confirmado", mesmo com dados_clinicos.stripe_payment/payments já
+// vinculados pelo 22f1901. Aceita qualquer uma das três fontes, sempre
+// restritas ao atendimentoId JÁ resolvido e validado por
+// resolveValidatedSessionUploadContext/findPendingUploadContext — nunca
+// aceita um pagamento vinculado a outro atendimento.
+async function isPaymentConfirmedForUpload(whatsappSession = {}, atendimentoId = null, deps = {}) {
+  if (whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid') return true;
+  if (!atendimentoId) return false;
+  const getAtend = deps.getAtendimento || getAtendimento;
+  const findPayment = deps.findPaymentByAppointment || findPaymentByAppointment;
+  const atendimento = await getAtend(atendimentoId);
+  if (atendimento?.dados_clinicos?.stripe_payment?.payment_intent) return true;
+  const payment = await findPayment(atendimentoId);
+  return payment?.status === 'paid';
 }
 
 async function ingestWhatsAppPrescriptionMedia({
@@ -453,9 +516,8 @@ async function ingestWhatsAppPrescriptionMedia({
   const getAtend = deps.getAtendimento || getAtendimento;
   const completeUpload = deps.completeExternalPrescriptionUpload || completeExternalPrescriptionUpload;
   const persist = deps.persistUploadContext || persistUploadContext;
-  const sendConfirmation = deps.sendPostUploadConfirmation || sendPostUploadConfirmation;
   const hasStored = deps.hasStoredPreviousPrescription || hasStoredPreviousPrescription;
-  const isPaymentConfirmed = deps.isPaymentConfirmedByPedido2 || isPaymentConfirmedByPedido2;
+  const isPaymentConfirmed = deps.isPaymentConfirmedForUpload || isPaymentConfirmedForUpload;
   const resumeTypebot = deps.resumeTypebotAfterPrescriptionUpload || resumeTypebotAfterPrescriptionUpload;
 
   const mediaKey = String(mediaId || '').trim();
@@ -468,14 +530,14 @@ async function ingestWhatsAppPrescriptionMedia({
     return { handled: true, duplicate: true };
   }
 
-  const uploadContext = uploadContextFromSession(whatsappSession, await findPending(identity?.phone));
+  const uploadContext = await findPending(identity?.phone, { whatsappSession });
   if (!uploadContext?.token) {
     const err = new Error('Nenhuma sessão de upload de receita pendente para este contato');
     err.code = 'WHATSAPP_UPLOAD_NO_SESSION';
     throw err;
   }
 
-  if (!isPaymentConfirmed(whatsappSession)) {
+  if (!(await isPaymentConfirmed(whatsappSession, uploadContext.atendimentoId, deps))) {
     const err = new Error('Pagamento não confirmado para esta sessão — receita não pode ser vinculada a um atendimento definitivo ainda');
     err.code = 'PRESCRIPTION_PAYMENT_NOT_CONFIRMED';
     err.statusCode = 409;
@@ -512,7 +574,11 @@ async function ingestWhatsAppPrescriptionMedia({
   });
 
   const atendimentoId = uploadResult.atendimento?.id || uploadContext.atendimentoId;
-  await sendConfirmation({ session: whatsappSession, atendimentoId, correlationId: messageId, provider });
+  // A confirmação de recebimento não é mais enviada separadamente pelo
+  // Backend: o grupo "Receita recebida" do próprio Typebot (retomado logo
+  // abaixo) já começa com a mesma frase ("✅ Recebemos sua receita médica
+  // com sucesso.") seguida da informação de fila médica — enviar as duas
+  // duplicava a mensagem para o paciente (achado real 09/08/2026).
 
   // Retoma o Typebot automaticamente — sem depender do paciente clicar em
   // "Conferir novamente"/"Já enviei a receita". Reaproveita o mesmo mecanismo
@@ -547,13 +613,14 @@ module.exports = {
   findUploadContextForPhone,
   getUploadStatus,
   ingestWhatsAppPrescriptionMedia,
-  isPaymentConfirmedByPedido2,
+  isPaymentConfirmedForUpload,
   isUploadChoiceInput,
   isUploadConfirmationText,
   outputsContainUrl,
   persistUploadContext,
   readProcessedIds,
   reconcileRejectedPaymentPendingAppointment,
+  resolveValidatedSessionUploadContext,
   responseLooksLikeUploadStage,
   resumeTypebotAfterPrescriptionUpload,
   revertPrescriptionUploadResume,

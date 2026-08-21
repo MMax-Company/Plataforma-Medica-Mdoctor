@@ -1153,17 +1153,17 @@
               {
                 "id": "map_upload_url",
                 "variableId": "var_upload_url",
-                "bodyPath": "upload_url"
+                "bodyPath": "data.upload_url"
               },
               {
                 "id": "map_upload_status_url",
                 "variableId": "var_upload_status_url",
-                "bodyPath": "upload_status_url"
+                "bodyPath": "data.upload_status_url"
               },
               {
                 "id": "map_atendimento_id",
                 "variableId": "var_atendimento_id",
-                "bodyPath": "atendimentoId"
+                "bodyPath": "data.atendimentoId"
               }
             ],
             "isCustomBody": true,
@@ -2253,17 +2253,17 @@
               {
                 "id": "map_status_upload_completed",
                 "variableId": "var_upload_completed",
-                "bodyPath": "upload_completed"
+                "bodyPath": "data.upload_completed"
               },
               {
                 "id": "map_status_upload_message",
                 "variableId": "var_upload_check_message",
-                "bodyPath": "message"
+                "bodyPath": "data.message"
               },
               {
                 "id": "map_status_upload_url",
                 "variableId": "var_upload_url",
-                "bodyPath": "upload_url"
+                "bodyPath": "data.upload_url"
               }
             ],
             "isCustomBody": true,

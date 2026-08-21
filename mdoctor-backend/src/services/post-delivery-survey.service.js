@@ -26,6 +26,7 @@ const {
   upsertSessionMetadata
 } = require('../store/whatsapp-sessions.store');
 const { createAuditLog } = require('../store/audit.store');
+const { getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 
 const INVALID_ANSWER_MESSAGE = 'Não entendi sua resposta. Responda apenas com o número da opção indicada.';
 
@@ -36,6 +37,13 @@ function isSurveySkipText(raw = '') {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '');
   return ['encerrar', 'pular', 'skip', 'sair', 'cancelar'].includes(normalized);
+}
+
+// "3" e o atalho de suporte anunciado na mensagem de entrega da receita
+// ("digite 3 para falar com o suporte"). Nao intercepta no passo q1: la o "3"
+// e uma resposta legitima do questionario ("Consultorio particular").
+function isSurveySupportRequestText(raw = '') {
+  return String(raw || '').trim() === '3';
 }
 
 function isSurveyEnabled() {
@@ -109,7 +117,48 @@ async function setSurveySession({ phone, patientId, outcomeId, attendanceId, ste
   }
 }
 
+// Marcador de jornada (métrica de tempo do painel admin — ver
+// admin.routes.js computeTempos): grava o fim da Jornada Completa no exato
+// momento em que a mensagem pós-entrega (convite ao questionário 1/2/3) é
+// enviada — best-effort, nunca bloqueia nem falha o disparo do survey em si.
+// Idempotente por construção: triggerPostDeliverySurvey só chega até aqui
+// uma vez por atendimento (guarda de "existing" acima já impede reentrada).
+async function recordJourneyCompletedAt(attendanceId, timestamp) {
+  try {
+    const atendimento = await getAtendimento(attendanceId);
+    if (!atendimento) return;
+    await updateAtendimentoStatus(attendanceId, atendimento.status, {
+      medicoId: atendimento.medico_id,
+      motivo: atendimento.motivo_decisao,
+      dados_clinicos: {
+        ...(atendimento.dados_clinicos || {}),
+        jornada: {
+          ...(atendimento.dados_clinicos?.jornada || {}),
+          pos_entrega_enviada_em: timestamp
+        }
+      }
+    });
+  } catch (error) {
+    logger.warn('post_delivery_survey_journey_marker_failed', { attendanceId, error: error.message });
+  }
+}
+
 async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, correlationId = 'post-delivery-survey' }) {
+  // Atalho "digite 3 para falar com o suporte" (texto fixo da mensagem de
+  // entrega em delivery.service.js) precisa funcionar mesmo com a pesquisa
+  // opcional desativada — por isso é gravado sempre, antes do gate de
+  // isSurveyEnabled() abaixo. Consultado em whatsapp-support.service.js
+  // (resolveMetaInboundRouting) e limpo automaticamente em qualquer reset de
+  // sessão do Typebot (ver TYPEBOT_METADATA_KEYS).
+  const shortcutDigits = normalizePhone(phone);
+  if (shortcutDigits) {
+    try {
+      await upsertSessionMetadata({ phone: shortcutDigits, metadataPatch: { post_delivery_support_available: true } });
+    } catch (e) {
+      logger.warn('post_delivery_support_shortcut_persist_failed', { error: e.message });
+    }
+  }
+
   if (!isSurveyEnabled()) {
     return { skipped: true, reason: 'survey_disabled' };
   }
@@ -151,6 +200,8 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
     correlationId,
     idempotencyKey: `survey-opt-in:${attendanceId}:${outcome.id}`
   });
+
+  await recordJourneyCompletedAt(attendanceId, new Date().toISOString());
 
   await createAuditLog({
     entity_type: 'patient_outcome_survey',
@@ -225,6 +276,35 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
       completed: false,
       outcome,
       reply: SURVEY_OPT_IN_DECLINED_MESSAGE
+    };
+  }
+
+  if (step !== 'q1' && isSurveySupportRequestText(rawText)) {
+    await clearSurveySession(digits);
+    // eslint-disable-next-line global-require
+    const { createWhatsAppSupportEntry } = require('./whatsapp-support.service');
+    const supportResult = await createWhatsAppSupportEntry({ phone: digits, correlationId });
+    if (sendOutbound) {
+      await sendSurveyWhatsApp({
+        phone: digits,
+        text: supportResult.reply,
+        correlationId,
+        idempotencyKey: `survey-support:${outcome.id}:${Date.now()}`
+      });
+    }
+    await createAuditLog({
+      entity_type: 'patient_outcome_survey',
+      entity_id: outcome.id,
+      action: 'survey_interrupted_support',
+      actor: 'patient',
+      payload: { correlationId, attendance_id: outcome.attendance_id, step }
+    });
+    return {
+      handled: true,
+      step: 'support_requested',
+      completed: false,
+      outcome,
+      reply: supportResult.reply
     };
   }
 

@@ -19,7 +19,7 @@
 
   async function init() {
     const params = new URLSearchParams(window.location.search);
-    amountEl.textContent = 'R$ 69,90';
+    amountEl.textContent = 'R$ 49,90';
 
     if (params.get('cancelled') === '1') {
       setStatus('Pagamento cancelado. Volte ao WhatsApp para tentar novamente ou continuar depois.', 'error');
@@ -33,6 +33,8 @@
       payButton.style.display = 'none';
       return;
     }
+
+    amountEl.textContent = data.amount_label || 'R$ 49,90';
 
     if (data.payment_status === 'paid') {
       payButton.style.display = 'none';

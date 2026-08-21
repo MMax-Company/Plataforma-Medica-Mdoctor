@@ -3,6 +3,7 @@ const { isVisibleInMedicalPanel } = require('./clinical-payload-normalizer.servi
 const { buildRejectMotivoText, validateRejectPayload } = require('../constants/clinical-reject-reasons');
 const { createAuditLog } = require('../store/audit.store');
 const { STATUS, getAtendimento, updateAtendimentoStatus, createDecisaoLog } = require('../store/atendimentos.store');
+const { refundRejectedAtendimento } = require('./stripe-refund.service');
 const {
   enqueueClinicalRejection,
   enqueueClinicalApproval,
@@ -479,6 +480,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       atendimento: previous,
       decisao: null,
       pendencia_pagamento: previous.dados_clinicos?.pendencia_pagamento || null,
+      estorno: previous.dados_clinicos?.estorno || null,
       notification: notification || { sent: false, skipped: true, reason: 'telefone_ausente' },
       correlationId,
       reason_code: previousRejection.code || null,
@@ -537,28 +539,56 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     }
   });
 
-  // Reprovação médica NÃO estorna automaticamente (Fase 3 Pedido 1): nenhum
-  // código de estorno é chamado aqui. Quando há pagamento confirmado, fica
-  // apenas registrada a pendência administrativa para tratamento manual
-  // futuro; sem pagamento confirmado não há pendência a registrar.
+  // Reprovação médica COM estorno automático (reativado em 02/08/2026, a
+  // pedido explícito do Max — ver docs/STRIPE-ESTORNO-REPROVACAO.md). Único
+  // ponto autorizado a chamar refundRejectedAtendimento é este; o
+  // payment_intent NUNCA vem do corpo da requisição/painel — só de fontes
+  // verificadas pelo webhook Stripe (dados_clinicos.stripe_payment,
+  // tabela payments), conforme controle obrigatório do doc. Se o estorno
+  // falhar por qualquer motivo, cai para pendência administrativa manual em
+  // vez de travar ou desfazer a reprovação clínica.
   const paymentConfirmed = String(previous.pagamento_status || '').toUpperCase() === 'CONFIRMADO';
-  const pendenciaPagamento = paymentConfirmed
-    ? {
-        status: 'pendente_analise_administrativa',
-        motivo: 'Reprovação médica sem estorno automático — aguardando tratamento administrativo do pagamento',
-        registered_at: new Date().toISOString(),
-        registered_by: doctorId || null,
-        correlation_id: correlationId
-      }
-    : {
-        status: 'sem_pagamento_confirmado',
-        motivo: `Pagamento não confirmado (${previous.pagamento_status || 'ausente'}) — nenhuma pendência administrativa a registrar`,
-        registered_at: new Date().toISOString()
-      };
+  let estorno = null;
+  let pendenciaPagamento;
+  if (paymentConfirmed) {
+    estorno = await refundRejectedAtendimento({
+      atendimento: previous,
+      requestedPaymentIntent: null,
+      doctorId,
+      correlationId
+    });
+    const refundAndamento = ['succeeded', 'pending', 'requires_action', 'already_refunded'].includes(estorno.status);
+    pendenciaPagamento = refundAndamento
+      ? {
+          status: estorno.status === 'succeeded' ? 'estorno_concluido' : 'estorno_iniciado',
+          motivo: 'Reprovação médica — estorno automático iniciado',
+          refund_id: estorno.refund_id || null,
+          refund_status: estorno.status,
+          registered_at: new Date().toISOString(),
+          registered_by: doctorId || null,
+          correlation_id: correlationId
+        }
+      : {
+          status: 'pendente_analise_administrativa',
+          motivo: `Reprovação médica — estorno automático não concluído (${estorno.error_code || estorno.status}) — aguardando tratamento administrativo do pagamento`,
+          registered_at: new Date().toISOString(),
+          registered_by: doctorId || null,
+          correlation_id: correlationId
+        };
+  } else {
+    pendenciaPagamento = {
+      status: 'sem_pagamento_confirmado',
+      motivo: `Pagamento não confirmado (${previous.pagamento_status || 'ausente'}) — nenhuma pendência administrativa a registrar`,
+      registered_at: new Date().toISOString()
+    };
+  }
 
-  // Persiste o estado da pendência antes de enfileirar. Se o banco recusar a
-  // mensagem, uma repetição da rota recupera este estado sem duplicar o registro.
+  // Persiste o estado da pendência/estorno antes de enfileirar. Se o banco
+  // recusar a mensagem, uma repetição da rota recupera este estado sem
+  // duplicar o registro (refundRejectedAtendimento já é idempotente por
+  // dados_clinicos.estorno.refund_id + idempotency key Stripe).
   mergedClinical.pendencia_pagamento = pendenciaPagamento;
+  if (estorno) mergedClinical.estorno = estorno;
   await updateAtendimentoStatus(atendimentoId, STATUS.REJECTED, {
     motivo,
     medicoId: doctorId,
@@ -616,6 +646,8 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
       whatsappSkipped: notification.skipped || false,
       whatsappError: notification.error || null,
       pendencia_pagamento_status: pendenciaPagamento?.status || null,
+      estorno_status: estorno?.status || null,
+      estorno_refund_id: estorno?.refund_id || null,
       protocolVersion: PROTOCOL_VERSION
     }
   });
@@ -629,6 +661,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     decisao,
     notification,
     pendencia_pagamento: pendenciaPagamento,
+    estorno,
     correlationId,
     reason_code: reasonCode,
     reason_label: reasonMeta.label

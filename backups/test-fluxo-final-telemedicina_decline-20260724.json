@@ -1,0 +1,79 @@
+{
+  "name": "telemedicina_decline",
+  "ok": false,
+  "steps": [
+    {
+      "label": "inicio",
+      "ok": false
+    },
+    {
+      "label": "menu_para_bemvindo",
+      "ok": true,
+      "sent": "1",
+      "expectedAntes": "sbjZWLJGVkHAkDqS4JQeGow",
+      "expectedDepois": "sbjZWLJGVkHAkDqS4JQeGow",
+      "tries": 2
+    },
+    {
+      "label": "bemvindo_para_lgpd_caixa3",
+      "ok": true,
+      "sent": "Vamos começar",
+      "expectedAntes": "ivbr3o1a7lv8izhfteuerhqx",
+      "expectedDepois": "ivbr3o1a7lv8izhfteuerhqx",
+      "tries": 2
+    },
+    {
+      "label": "lgpd_autorizo_para_nome_social",
+      "ok": true,
+      "sent": "Autorizo",
+      "expectedAntes": "oq3zsok0c2tdl3qamma8tush",
+      "expectedDepois": "oq3zsok0c2tdl3qamma8tush",
+      "tries": 3
+    },
+    {
+      "label": "nome_social_para_condicoes",
+      "ok": true,
+      "sent": "Paciente Teste TeleDecline",
+      "expectedAntes": "b156nm008xh7gb52n7w3egzn",
+      "expectedDepois": "b156nm008xh7gb52n7w3egzn",
+      "tries": 2
+    },
+    {
+      "label": "condicoes_para_tempo_uso",
+      "ok": true,
+      "sent": "Hipertensão Arterial",
+      "expectedAntes": "r0imrcgaiv1idzkykt891q4u",
+      "expectedDepois": "r0imrcgaiv1idzkykt891q4u",
+      "tries": 2
+    },
+    {
+      "label": "tempo_uso_para_sinais_alerta",
+      "ok": true,
+      "sent": "Mais de 6 meses",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 2
+    },
+    {
+      "label": "sinais_alerta_seleciona_nenhum",
+      "ok": true,
+      "sent": "Nenhum desses sinais ou sintomas",
+      "expectedAntes": "s5VQGsVF4hQgziQsXVdwPDW",
+      "expectedDepois": "s5VQGsVF4hQgziQsXVdwPDW",
+      "tries": 1
+    },
+    {
+      "label": "sinais_alerta_confirma_para_telemedicina_caixa3",
+      "ok": true,
+      "sent": "Confirmo",
+      "expectedAntes": "blk_tele_choice",
+      "expectedDepois": "blk_tele_choice",
+      "tries": 2
+    },
+    {
+      "label": "telemedicina_recusa_encerra",
+      "ok": true
+    }
+  ],
+  "phone": "5511900040003"
+}

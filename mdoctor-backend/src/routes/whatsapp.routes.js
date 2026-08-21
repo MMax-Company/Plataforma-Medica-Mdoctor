@@ -7,12 +7,7 @@ const { createPatient } = require('../store/patients.store');
 const { STATUS, createAtendimento, getAtendimento, listAtendimentos } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
 const { requireAuth } = require('../auth/auth.middleware');
-const {
-  getWhatsAppProviderStatus,
-  sendPrescription,
-  sendWhatsAppText,
-  isSandboxMode
-} = require('../delivery/delivery.service');
+const { getWhatsAppProviderStatus, sendPrescription, isSandboxMode } = require('../delivery/delivery.service');
 const {
   buildClinicalNarrative,
   getRefusalMessage,
@@ -24,24 +19,20 @@ const {
   ensurePrescriptionUploadSession,
   isExternalUploadEnabled
 } = require('../services/prescription-upload-token.service');
-const {
-  closeWhatsAppSupportEntry,
-  createWhatsAppSupportEntry
-} = require('../services/whatsapp-support.service');
-const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
-const {
-  upsertSessionIdentity,
-  setTypebotSessionId,
-  clearTransientClinicalSessionMetadata
-} = require('../store/whatsapp-sessions.store');
-const metaProvider = require('../services/providers/meta.provider');
-const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
-const { routeMetaWhatsAppInbound } = require('../services/whatsapp-meta-inbound.service');
 const { claimMetaMessage, finishMetaMessage } = require('../store/whatsapp-meta-receipts.store');
 const {
+  createWhatsAppSupportEntry,
+  closeWhatsAppSupportEntry,
+  processIncomingMessage,
+  WELCOME_CHOICE_INPUT_ID
+} = require('../services/whatsapp-support.service');
+const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
+const { upsertSessionIdentity, getSessionByPhone, clearJourneyMarkers, clearTypebotSession } = require('../store/whatsapp-sessions.store');
+const metaProvider = require('../services/providers/meta.provider');
+const { createTypebotWhatsAppBridge } = require('../services/typebot-whatsapp.bridge');
+const {
   findPendingUploadContext,
-  ingestWhatsAppPrescriptionMedia,
-  buildUploadStatusUrlByAtendimento
+  ingestWhatsAppPrescriptionMedia
 } = require('../services/typebot-prescription-upload.service');
 const {
   applyPrescriptionMetadataToClinical,
@@ -50,7 +41,6 @@ const {
   isAlreadyStoredInBucket,
   isHttpUrl
 } = require('../services/previous-prescription-storage.service');
-const { resolveConfirmedWhatsAppPayment } = require('../services/typebot-payment-link.service');
 
 const { verifyN8nWebhookSecret } = require('../middlewares/n8n-webhook-auth');
 
@@ -196,87 +186,36 @@ router.post('/test-send', requireAuth, async (req, res) => {
   }
 });
 
-/**
- * n8n → Meta: notificação textual (ex.: reprovação clínica).
- * Não é entrada de menu/suporte/Typebot — só envio outbound via provider Meta.
- */
-router.post('/notify-text', async (req, res) => {
-  const auth = verifyN8nWebhookSecret(req);
-  if (!auth.ok) return res.status(auth.status).json(auth.body);
-
-  const requestId = req.requestId || 'unknown';
-  const correlationId = auth.correlationId || req.get('X-Correlation-Id') || requestId;
-  const idempotencyKey = String(
-    req.get('Idempotency-Key') || req.body?.idempotency_key || ''
-  ).trim();
-  const to = String(req.body?.phone || req.body?.to || req.body?.telefone || '').replace(/\D/g, '');
-  const text = String(req.body?.message || req.body?.text || '').trim();
-  const atendimentoId = String(req.body?.atendimentoId || req.body?.atendimento_id || '').trim() || null;
-
-  if (!to || !text) {
-    return res.status(400).json({
-      success: false,
-      correlationId,
-      error: 'Campos obrigatórios: phone (ou to) e message (ou text)'
-    });
-  }
-
-  try {
-    const delivery = await sendWhatsAppText({
-      to,
-      text,
-      correlationId,
-      idempotencyKey: idempotencyKey || `notify-text:${atendimentoId || to}:${text.slice(0, 24)}`
-    });
-
-    await createAuditLog({
-      entity_type: 'whatsapp_notify_text',
-      entity_id: atendimentoId,
-      action: 'n8n_notify_text_sent',
-      actor: 'n8n',
-      payload: {
-        requestId,
-        correlationId,
-        atendimento_id: atendimentoId,
-        phone: to.replace(/\d(?=\d{4})/g, '*'),
-        provider: delivery?.provider || 'meta'
-      }
-    });
-
-    return res.json({
-      success: true,
-      correlationId,
-      atendimentoId,
-      delivery
-    });
-  } catch (error) {
-    logger.warn('whatsapp_notify_text_failed', {
-      correlationId,
-      atendimentoId,
-      error: error.message,
-      code: error.code || null
-    });
-    return res.status(error.statusCode || 502).json({
-      success: false,
-      correlationId,
-      error: error.message,
-      code: error.code || 'NOTIFY_TEXT_FAILED'
-    });
-  }
-});
-
 router.post('/support', async (req, res) => {
   const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  logger.warn('whatsapp_legacy_support_endpoint_blocked', { correlationId: auth.correlationId });
-  return res.status(410).json({
-    success: false,
-    deprecated: true,
-    official_entry: 'POST /api/whatsapp/webhook',
-    error: 'Endpoint legado desativado. Entrada oficial: Meta Cloud API webhook.',
-    correlationId: auth.correlationId
-  });
+  const requestId = req.requestId || 'unknown';
+  const correlationId = auth.correlationId;
+  const { from, phone } = req.body || {};
+  const idempotencyKey = String(req.get('Idempotency-Key') || req.body?.messageId || '').trim();
+
+  try {
+    const result = await createWhatsAppSupportEntry({
+      phone: from || phone,
+      correlationId,
+      idempotencyKey,
+      requestId
+    });
+    return res.json({
+      success: true,
+      correlationId,
+      duplicate: result.duplicate,
+      reply: result.reply,
+      atendimento: result.atendimento
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      correlationId,
+      error: error.message
+    });
+  }
 });
 
 router.post('/support/close', async (req, res) => {
@@ -313,14 +252,19 @@ router.post('/process-message', async (req, res) => {
   const auth = verifyN8nWebhookSecret(req);
   if (!auth.ok) return res.status(auth.status).json(auth.body);
 
-  logger.warn('whatsapp_legacy_process_message_blocked', { correlationId: auth.correlationId });
-  return res.status(410).json({
-    success: false,
-    deprecated: true,
-    official_entry: 'POST /api/whatsapp/webhook',
-    error: 'Endpoint legado desativado. Entrada oficial: Meta Cloud API webhook.',
-    correlationId: auth.correlationId
-  });
+  const { phone, from, text } = req.body || {};
+  const resolvedPhone = phone || from;
+  if (!resolvedPhone || !text) {
+    return res.status(400).json({ success: false, error: 'phone e text obrigatórios' });
+  }
+
+  try {
+    const result = await processIncomingMessage({ phone: resolvedPhone, text });
+    return res.json({ success: true, reply: result.reply });
+  } catch (error) {
+    logger.warn('process_message_failed', { error: error.message });
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
 });
 
 router.get('/webhook', (req, res) => {
@@ -343,6 +287,18 @@ router.get('/webhook', (req, res) => {
 router.post('/webhook', async (req, res) => {
   // Check if this is a Meta WhatsApp Webhook payload
   if (req.body && req.body.object === 'whatsapp_business_account') {
+    // Staging pode permanecer inscrito no mesmo WABA da produção enquanto a
+    // assinatura antiga é removida na Meta. Nesse intervalo, nunca deixe o
+    // ambiente desabilitado reivindicar message_id, persistir sessão ou enviar
+    // resposta: produção e staging compartilham a trava de idempotência e o
+    // primeiro ambiente a reivindicar o evento impediria o processamento certo.
+    if (process.env.WHATSAPP_ENABLED !== 'true') {
+      logger.info('whatsapp_business_webhook_skipped_disabled', {
+        environmentName: process.env.ENVIRONMENT_NAME || null
+      });
+      return res.status(200).send('EVENT_RECEIVED');
+    }
+
     // Respond HTTP 200 quickly to Meta
     res.status(200).send('EVENT_RECEIVED');
 
@@ -413,6 +369,13 @@ router.post('/webhook', async (req, res) => {
                     }
                   }
 
+                  logger.info('whatsapp_inbound_extract_observability', {
+                    messageId: msg.id,
+                    messageType: msg.type,
+                    extractedText: String(text || '').length <= 40 ? String(text || '') : `[REDACTED ${String(text || '').length} chars]`,
+                    extractedFromTextBody: msg.type === 'text' && Boolean(msg.text)
+                  });
+
                   if (!identity.hasIdentifier || (!text && !mediaPayload)) {
                     logger.warn('whatsapp_business_message_skipped', {
                       messageId: msg.id,
@@ -431,6 +394,51 @@ router.post('/webhook', async (req, res) => {
                     type: msg.type
                   });
 
+                  // Marcadores de jornada (métrica de tempo do painel admin — ver
+                  // admin.routes.js computeTempos / whatsapp-sessions.store.js
+                  // clearJourneyMarkers): "journey_started_at" grava o primeiro "Oi"
+                  // do ciclo atual (só quando ainda não há marcador pendente — o
+                  // anterior já foi consumido e limpo ao criar o atendimento
+                  // anterior, então sua ausência aqui significa "jornada nova").
+                  // "welcome_clicked_at" grava a resposta ao choice "Vamos começar"
+                  // (primeiro input do Typebot), detectada pelo estado da sessão
+                  // ANTES deste upsert (typebot_expected_input_id ainda aponta pra
+                  // esse input). Peek somente leitura — não altera nada por si só.
+                  const priorSessionForJourney = identity.phone
+                    ? await getSessionByPhone(identity.phone).catch(() => null)
+                    : null;
+                  const journeyMarkerPatch = {};
+                  const isNewJourney = !priorSessionForJourney?.metadata?.journey_started_at;
+                  if (isNewJourney) {
+                    journeyMarkerPatch.journey_started_at = new Date().toISOString();
+                  }
+                  // Achado real 03/08/2026: nada resetava typebot_session_id (nem
+                  // typebot_expected_input_id/typebot_payment/typebot_prescription_upload)
+                  // ao começar uma jornada nova para o MESMO telefone — o Typebot
+                  // continuava (continueChat) a conversa antiga em vez de começar do
+                  // zero (startChat), podendo herdar variáveis/estado de uma triagem
+                  // anterior (ex.: eligibility_status setado numa resposta de teste
+                  // horas atrás). Sempre que detectamos jornada nova E já existe uma
+                  // sessão anterior com typebot_session_id, zera esse estado antes de
+                  // qualquer chamada ao Typebot — a jornada nova nunca reaproveita
+                  // respostas/variáveis de uma triagem anterior.
+                  if (isNewJourney && priorSessionForJourney?.id && priorSessionForJourney?.typebot_session_id) {
+                    try {
+                      await clearTypebotSession({ sessionId: priorSessionForJourney.id });
+                      logger.info('whatsapp_new_journey_typebot_session_reset', {
+                        sessionId: priorSessionForJourney.id
+                      });
+                    } catch (e) {
+                      logger.warn('whatsapp_new_journey_typebot_session_reset_failed', { error: e.message });
+                    }
+                  }
+                  if (
+                    priorSessionForJourney?.metadata?.typebot_expected_input_id === WELCOME_CHOICE_INPUT_ID &&
+                    !priorSessionForJourney?.metadata?.welcome_clicked_at
+                  ) {
+                    journeyMarkerPatch.welcome_clicked_at = new Date().toISOString();
+                  }
+
                   let whatsappSession;
                   try {
                     whatsappSession = await upsertSessionIdentity({
@@ -442,7 +450,8 @@ router.post('/webhook', async (req, res) => {
                         last_inbound_message_id: msg.id,
                         // parentBsuid é best-effort (ver whatsapp-meta-identity.service.js) —
                         // guardamos a proveniência para não ser lido como dado confirmado.
-                        ...(identity.parentBsuid ? { parent_bsuid_confirmed: identity.parentBsuidConfirmed } : {})
+                        ...(identity.parentBsuid ? { parent_bsuid_confirmed: identity.parentBsuidConfirmed } : {}),
+                        ...journeyMarkerPatch
                       }
                     });
                   } catch (e) {
@@ -455,176 +464,68 @@ router.post('/webhook', async (req, res) => {
                   }
 
                   if (mediaPayload) {
-                    // FASE 5B: claim Meta antes do ingest — mesma messageId não processa duas vezes.
-                    const mediaClaimed = await claimMetaMessage({
-                      messageId: msg.id,
-                      whatsappSessionId: whatsappSession.id
-                    });
-                    if (!mediaClaimed.claimed) {
+                    // Mesma trava atômica (unique constraint em meta_message_id)
+                    // já usada no caminho de texto (typebot-whatsapp.bridge.js),
+                    // agora também no caminho de mídia: uma reentrega do mesmo
+                    // webhook da Meta não pode baixar/gravar a mesma foto/PDF
+                    // duas vezes nem disparar retomada duplicada do Typebot.
+                    const mediaClaim = await claimMetaMessage({ messageId: msg.id, whatsappSessionId: whatsappSession.id });
+                    if (!mediaClaim.claimed) {
                       logger.info('whatsapp_business_media_duplicate_skipped', { messageId: msg.id });
                       continue;
                     }
-
-                    let pendingUpload = null;
                     try {
-                      pendingUpload = await findPendingUploadContext(identity.phone, { whatsappSession });
-                    } catch (lookupError) {
-                      logger.error('whatsapp_business_media_upload_lookup_failed', {
-                        messageId: msg.id,
-                        error: lookupError.message,
-                        code: lookupError.code || null,
-                        atendimentoIds: lookupError.atendimentoIds || null
-                      });
-                      await finishMetaMessage({
-                        messageId: msg.id,
-                        status: 'failed',
-                        errorMessage: lookupError.message
-                      });
-                      await metaProvider.sendTextMessage({
-                        to: identity.phone,
-                        bsuid: identity.bsuid,
-                        correlationId: msg.id,
-                        idempotencyKey: `${msg.id}:upload-ambiguous`,
-                        text: lookupError.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
-                          ? 'Encontramos mais de um atendimento aguardando receita neste número. Nossa equipe vai revisar — não envie o arquivo novamente por enquanto.'
-                          : `Não foi possível receber a foto da receita: ${lookupError.message}`
-                      }).catch(() => {});
-                      continue;
-                    }
-
-                    if (!pendingUpload) {
-                      logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
-                      await finishMetaMessage({
-                        messageId: msg.id,
-                        status: 'failed',
-                        errorMessage: 'no_upload_session'
-                      });
-                      await metaProvider.sendTextMessage({
-                        to: identity.phone,
-                        bsuid: identity.bsuid,
-                        correlationId: msg.id,
-                        idempotencyKey: `${msg.id}:no-upload-session`,
-                        text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
-                      }).catch(() => {});
-                      continue;
-                    }
-
-                    try {
-                      const ingestResult = await ingestWhatsAppPrescriptionMedia({
+                      const pendingUpload = await findPendingUploadContext(identity.phone, { whatsappSession });
+                      if (!pendingUpload) {
+                        logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
+                        await metaProvider.sendTextMessage({
+                          to: identity.phone,
+                          bsuid: identity.bsuid,
+                          correlationId: msg.id,
+                          idempotencyKey: `${msg.id}:no-upload-session`,
+                          text: 'Não localizamos uma solicitação aguardando o envio de documentos no momento.\n\nSe você já concluiu ou teve sua solicitação encerrada, não é necessário reenviar.\n\nEm caso de dúvida, digite 2 para falar com o suporte.'
+                        }).catch(() => {});
+                        await finishMetaMessage({ messageId: msg.id, status: 'processed' }).catch(() => {});
+                        continue;
+                      }
+                      await ingestWhatsAppPrescriptionMedia({
                         ...mediaPayload,
                         identity,
                         whatsappSession,
                         messageId: msg.id
                       });
-                      await finishMetaMessage({
-                        messageId: msg.id,
-                        status: 'processed',
-                        providerMessageIds: []
-                      });
-
-                      // FASE 5B: um único continueChat por upload — não reenviar "Conferir novamente" no bridge.
-                      const resume = ingestResult?.whatsappResume || {};
-                      if (resume.ok === true || resume.alreadyResumed === true || ingestResult?.alreadyProcessed) {
-                        logger.info('WhatsApp business prescription media processed', {
-                          from: maskedFrom,
-                          messageId: msg.id,
-                          duplicate: Boolean(ingestResult.duplicate),
-                          alreadyProcessed: Boolean(ingestResult.alreadyProcessed),
-                          resumeOk: resume.ok === true,
-                          alreadyResumed: Boolean(resume.alreadyResumed)
-                        });
-                        continue;
-                      }
-
-                      logger.warn('whatsapp_business_media_resume_incomplete', {
-                        messageId: msg.id,
-                        resumeCode: resume.code || null
-                      });
+                      logger.info('whatsapp_business_prescription_media_handled', { messageId: msg.id });
+                      await finishMetaMessage({ messageId: msg.id, status: 'processed' }).catch(() => {});
                       continue;
                     } catch (error) {
                       logger.error('whatsapp_business_prescription_media_failed', {
                         messageId: msg.id,
                         error: error.message,
-                        code: error.code || null
+                        code: error.code || null,
+                        // IDs técnicos só no log — nunca expostos ao paciente
+                        // (ver mensagem genérica abaixo para o caso de ambiguidade).
+                        ...(error.atendimentoIds ? { atendimentoIds: error.atendimentoIds } : {})
                       });
-                      await finishMetaMessage({
-                        messageId: msg.id,
-                        status: 'failed',
-                        errorMessage: error.message
-                      });
+                      await finishMetaMessage({ messageId: msg.id, status: 'failed', errorMessage: error.message }).catch(() => {});
+                      const patientMessage = error.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
+                        ? 'Encontramos mais de uma solicitação em aberto para este número. Para sua segurança, um atendente vai verificar manualmente — digite 2 para falar com o suporte.'
+                        : `Não foi possível receber a foto da receita: ${error.message}`;
                       await metaProvider.sendTextMessage({
                         to: identity.phone,
                         bsuid: identity.bsuid,
                         correlationId: msg.id,
                         idempotencyKey: `${msg.id}:upload-error`,
-                        text: error.code === 'WHATSAPP_UPLOAD_AMBIGUOUS_ATENDIMENTO'
-                          ? 'Encontramos mais de um atendimento aguardando receita neste número. Nossa equipe vai revisar — não envie o arquivo novamente por enquanto.'
-                          : `Não foi possível receber a foto da receita: ${error.message}`
+                        text: patientMessage
                       }).catch(() => {});
                       continue;
                     }
                   }
 
-                  const inboundRoute = await routeMetaWhatsAppInbound({
-                    phone: identity.phone,
-                    text,
-                    whatsappSession,
-                    messageId: msg.id
-                  });
-
-                  if (inboundRoute.clearClinicalMetadata) {
-                    const cleared = await clearTransientClinicalSessionMetadata({ whatsappSession });
-                    if (cleared) {
-                      whatsappSession = cleared;
-                    }
-                  } else if (inboundRoute.clearTypebotSession) {
-                    await setTypebotSessionId({
-                      sessionId: whatsappSession.id,
-                      typebotSessionId: null
-                    });
-                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
-                  }
-
-                  if (inboundRoute.action === 'reply') {
-                    const claimed = await claimMetaMessage({
-                      messageId: msg.id,
-                      whatsappSessionId: whatsappSession.id
-                    });
-                    if (!claimed.claimed) continue;
-
-                    const sent = await metaProvider.sendTextMessage({
-                      to: identity.phone,
-                      bsuid: identity.bsuid,
-                      correlationId: msg.id,
-                      idempotencyKey: `${msg.id}:menu`,
-                      text: inboundRoute.reply
-                    });
-                    await finishMetaMessage({
-                      messageId: msg.id,
-                      status: 'processed',
-                      providerMessageIds: sent?.providerMessageId ? [sent.providerMessageId] : []
-                    });
-                    logger.info('WhatsApp business menu reply sent', {
-                      from: maskedFrom,
-                      messageId: msg.id
-                    });
-                    continue;
-                  }
-
-                  if (inboundRoute.action === 'typebot_bootstrap') {
-                    await setTypebotSessionId({
-                      sessionId: whatsappSession.id,
-                      typebotSessionId: null
-                    });
-                    whatsappSession = { ...whatsappSession, typebot_session_id: null };
-                  }
-
                   const result = await handleTypebotWhatsAppInbound({
                     messageId: msg.id,
-                    text: inboundRoute.text ?? text,
+                    text,
                     identity,
-                    whatsappSession,
-                    menuBootstrap: inboundRoute.action === 'typebot_bootstrap'
+                    whatsappSession
                   });
                   logger.info('WhatsApp business message processed', {
                     from: maskedFrom,
@@ -795,62 +696,21 @@ router.post('/webhook', async (req, res) => {
   });
   const originalPayload = mapped.original;
   const normalized = mapped.normalized;
-
-  // FASE 4B: pagamento confirmado somente via Checkout Stripe da sessão WhatsApp.
-  // payment_status="paid" do Typebot NÃO confirma o atendimento.
-  const stripePayment = await resolveConfirmedWhatsAppPayment({
-    phone: normalized.whatsapp || from,
-    paymentToken: req.body?.payment_token || originalPayload?.payment_token || null
-  });
-  const paymentConfirmed = stripePayment.confirmed === true;
-  const pagamentoStatus = paymentConfirmed ? 'CONFIRMADO' : 'PENDENTE';
-  const paymentStatus = paymentConfirmed ? 'paid' : 'unpaid';
-
-  if (paymentConfirmed) {
-    normalized.payment_status = paymentStatus;
-    normalized.pagamento_status = pagamentoStatus;
-    normalized.payment_confirmed = true;
-    if (normalized.validation) {
-      normalized.validation.payment_confirmed = true;
-      const hasPreviousRx = normalized.has_previous_prescription === true;
-      const prescriptionFile = String(normalized.previous_prescription_file || '').trim();
-      const requiredOk = normalized.validation.required?.ok !== false;
-      const awaitingAfterPay =
-        isExternalUploadEnabled() && hasPreviousRx && !prescriptionFile && requiredOk;
-      normalized.validation.awaiting_prescription_upload = awaitingAfterPay;
-      normalized.validation.can_enter_medical_queue =
-        normalized.eligibility_status === 'eligible' &&
-        requiredOk &&
-        Boolean(prescriptionFile) &&
-        !awaitingAfterPay;
-    }
-  } else {
-    normalized.payment_status = paymentStatus;
-    normalized.pagamento_status = pagamentoStatus;
-    normalized.payment_confirmed = false;
-    if (normalized.validation) {
-      normalized.validation.payment_confirmed = false;
-      normalized.validation.awaiting_prescription_upload = false;
-      normalized.validation.can_enter_medical_queue = false;
-    }
-  }
-
   const patientData = {
     ...mapped.patientData,
     rawMessage,
     idempotency_key: idempotencyKey || null,
     protocol_version: PROTOCOL_VERSION,
-    pagamento_status: pagamentoStatus,
-    payment_status: paymentStatus,
-    payment_confirmed: paymentConfirmed,
-    payment_token: paymentConfirmed ? stripePayment.payment_token : null,
-    checkout_session_id: paymentConfirmed ? stripePayment.checkout_session_id : null,
+    pagamento_status: normalized.pagamento_status,
+    payment_status: normalized.payment_status,
+    payment_confirmed: normalized.payment_confirmed,
     queue_type: 'medical',
     validation: normalized.validation,
     prescription_upload_pending: normalized.validation?.awaiting_prescription_upload === true
   };
 
   const decision = eligibilityEngine.evaluate(patientData);
+  const paymentConfirmed = normalized.payment_confirmed === true;
   const canEnterMedicalQueue =
     normalized.validation?.can_enter_medical_queue === true && decision.eligible === true && paymentConfirmed;
 
@@ -962,6 +822,20 @@ router.post('/webhook', async (req, res) => {
     atendimentoStatus = STATUS.AWAITING_PRESCRIPTION_UPLOAD;
   }
 
+  // Marcadores de jornada (métrica de tempo do painel admin — ver
+  // admin.routes.js computeTempos): consumidos aqui, no exato momento em que
+  // "o n8n envia os dados para o painel médico" (fim do Tempo de Triagem —
+  // atendimento.criado_em já cumpre esse papel; nada novo precisa ser
+  // gravado para ele). Copiados para dados_clinicos.jornada e, logo após a
+  // criação do atendimento, removidos da sessão (best-effort) para que a
+  // PRÓXIMA jornada deste telefone não herde os marcadores desta.
+  const journeyPhone = normalized.whatsapp || from;
+  const journeySession = journeyPhone ? await getSessionByPhone(journeyPhone).catch(() => null) : null;
+  const jornada = {
+    primeiro_oi_em: journeySession?.metadata?.journey_started_at || null,
+    triagem_iniciada_em: journeySession?.metadata?.welcome_clicked_at || null
+  };
+
   const enrichedClinicalData = applyPrescriptionMetadataToClinical(
     {
     ...patientData,
@@ -973,17 +847,7 @@ router.post('/webhook', async (req, res) => {
     foto_receita_url: prescriptionMeta?.foto_receita_url || normalized.previous_prescription_file || null,
     queue_type: 'medical',
     protocol_version: PROTOCOL_VERSION,
-    payment_token: paymentConfirmed ? stripePayment.payment_token : null,
-    checkout_session_id: paymentConfirmed ? stripePayment.checkout_session_id : null,
-    stripe_payment: paymentConfirmed
-      ? {
-          checkout_session_id: stripePayment.checkout_session_id,
-          payment_token: stripePayment.payment_token,
-          confirmed_at: new Date().toISOString(),
-          source: 'stripe_checkout',
-          reason: stripePayment.reason || null
-        }
-      : null,
+    jornada,
     clinical_summary: clinicalNarrative.summary,
     queixa_principal: clinicalNarrative.chiefComplaint,
     historico_clinico: clinicalNarrative.clinicalHistory,
@@ -1046,12 +910,24 @@ router.post('/webhook', async (req, res) => {
     paciente_cpf: normalized.cpf,
     paciente_email: normalized.email,
     condicao: normalized.chronic_condition_label || normalized.chronic_condition,
-    pagamento_status: pagamentoStatus,
+    pagamento_status: normalized.pagamento_status,
     status: atendimentoStatus,
     risco: canEnterMedicalQueueAfterIngest || atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD ? 'BAIXO' : 'BLOQUEADO',
     elegibilidade: decision,
     dados_clinicos: enrichedClinicalData
   });
+
+  if (journeySession?.id) {
+    try {
+      await clearJourneyMarkers(journeyPhone);
+    } catch (e) {
+      logger.warn('whatsapp_journey_markers_clear_failed', {
+        atendimentoId: atendimento.id,
+        correlationId,
+        error: e.message
+      });
+    }
+  }
 
   if (atendimentoStatus === STATUS.AWAITING_PRESCRIPTION_UPLOAD) {
     uploadSession = await ensurePrescriptionUploadSession({
@@ -1063,7 +939,7 @@ router.post('/webhook', async (req, res) => {
   const reply = canEnterMedicalQueueAfterIngest
     ? 'Recebemos seus dados. Sua solicitação entrou na fila médica para análise.'
     : uploadSession?.uploadUrl
-      ? 'Envie agora uma foto legível ou um arquivo em PDF da sua receita anterior nesta conversa do WhatsApp. Formatos aceitos: JPG, JPEG, PNG ou PDF (até 10 MB).'
+      ? `Para concluir sua solicitação, envie agora a foto da sua receita anterior pelo link seguro: ${uploadSession.uploadUrl} Seu atendimento só será encaminhado para análise médica após o envio da imagem.`
       : !paymentConfirmed
         ? 'Pagamento não confirmado. Sua solicitação não entrou na fila médica.'
         : `${INELIGIBLE_USER_MESSAGE} ${getRefusalMessage(decision.reasonCode)}`.trim();
@@ -1111,8 +987,6 @@ router.post('/webhook', async (req, res) => {
     atendimento,
     decision,
     upload_url: uploadSession?.uploadUrl || null,
-    upload_status_url: uploadSession ? buildUploadStatusUrlByAtendimento(atendimento.id) : null,
-    upload_status: uploadSession ? 'pending' : null,
     upload_expires_at: uploadSession?.expiresAt || null,
     awaiting_prescription_upload: atendimento.status === STATUS.AWAITING_PRESCRIPTION_UPLOAD
   });

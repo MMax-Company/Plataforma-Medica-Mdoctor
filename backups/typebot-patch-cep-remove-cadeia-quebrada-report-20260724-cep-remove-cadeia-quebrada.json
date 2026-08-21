@@ -1,0 +1,65 @@
+{
+  "fixed": [
+    "blk_0oydu2f7 (input do CEP): agora aponta direto para blk_endereco_manual_msg -> q78qjnk6ticwkeifl7xe2rju (nova edge edge_cep_direto_endereco_manual), pulando toda a cadeia nativa quebrada de normalização/validação/consulta de CEP (blk_cep_normalize, blk_cep_valido_set, blk_cep_validate_cond, blk_cep_erro_msg, blk_consulta_cep_backend, blk_cep_encontrado_cond — mantidos como blocos órfãos, não removidos). Causa raiz: blk_cep_normalize lia {{var_9lceldd5}} na mesma rodada em que acabara de ser definida (limitação de engine do Typebot), via vazio, e SOBRESCREVIA a variável com string vazia — apagando o CEP correto capturado pelo próprio input, mesmo quando válido. Reproduzido ao vivo antes deste patch: CEP válido \"01209003\" sempre resultava em \"CEP inválido. Digite os 8 números.\" O bridge já valida o CEP (8 dígitos) antes de enviar ao Typebot — a cadeia nativa era 100% redundante e, pior, destrutiva."
+  ],
+  "notes": [],
+  "assertions": [
+    {
+      "name": "pré-condição: blk_0oydu2f7 ainda não tem outgoingEdgeId próprio (sequencial hoje)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: variável correta (var_9lceldd5)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: blk_endereco_manual_msg existe",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pré-condição: blk_cep_normalize (causa raiz) ainda tem a leitura autorreferente",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: blk_0oydu2f7 aponta para a nova edge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: nova edge aponta para blk_endereco_manual_msg no grupo correto",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: rota final do endereço manual preservada (q78qjnk6ticwkeifl7xe2rju -> grp_dados_route_end)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: rota de correção de endereço (menu) preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "pós: fix anterior (edge_cep_force_manual) continua intacto (não afetado por este patch)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    }
+  ]
+}

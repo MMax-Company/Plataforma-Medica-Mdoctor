@@ -1,0 +1,255 @@
+{
+  "fixed": [
+    "med1: frequência sem \"Outra frequência\" (3 opções); via sem tópica/inalatória, com Via subcutânea (3 opções)",
+    "med2: frequência sem \"Outra frequência\" (3 opções); via sem tópica/inalatória, com Via subcutânea (3 opções)",
+    "med3: frequência sem \"Outra frequência\" (3 opções); via sem tópica/inalatória, com Via subcutânea (3 opções)",
+    "4) Grupos grp_med1_freq_outra, grp_med2_freq_outra, grp_med3_freq_outra e as 6 edges exclusivas removidos; blocos de conversão de frequência (24h/12h/8h) preservados."
+  ],
+  "notes": [
+    "1) Quantidade de medicamentos já registrava medication_count e avançava imediatamente para Medicamento 1, sem botão Confirmar — nenhuma alteração necessária, apenas confirmado por assertion."
+  ],
+  "assertions": [
+    {
+      "name": "1) 3 opções de quantidade (1, 2, 3)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) todas as opções avançam direto para Medicamento 1, sem Confirmar",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "1) variável correta (medication_count)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med1: 4 opções de frequência antes (com Outra frequência)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med1: 3 opções de frequência depois",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med1: 4 opções de via antes (oral, sublingual, tópica, inalatória)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med1: item de via tópica encontrado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med1: 3 opções de via depois (oral, sublingual, subcutânea)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med1: label = value em todas as opções de via",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med2: 4 opções de frequência antes (com Outra frequência)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med2: 3 opções de frequência depois",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med2: 4 opções de via antes (oral, sublingual, tópica, inalatória)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med2: item de via tópica encontrado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med2: 3 opções de via depois (oral, sublingual, subcutânea)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med2: label = value em todas as opções de via",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med3: 4 opções de frequência antes (com Outra frequência)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "2) med3: 3 opções de frequência depois",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med3: 4 opções de via antes (oral, sublingual, tópica, inalatória)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med3: item de via tópica encontrado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med3: 3 opções de via depois (oral, sublingual, subcutânea)",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "3) med3: label = value em todas as opções de via",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med1_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med2_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med3_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med1_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med1_freq_outra_back existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med2_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med2_freq_outra_back existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med3_freq_outra existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med3_freq_outra_back existe antes da remoção",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med1_freq_outra removido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med2_freq_outra removido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) grupo grp_med3_freq_outra removido",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med1_freq_outra removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med1_freq_outra_back removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med2_freq_outra removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med2_freq_outra_back removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med3_freq_outra removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) edge edge_med3_freq_outra_back removida",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) bloco de conversão blk_med1_freq_intervalo preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) bloco de conversão blk_med2_freq_intervalo preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "4) bloco de conversão blk_med3_freq_intervalo preservado",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. nenhuma edge nova quebrada",
+      "ok": true,
+      "detail": {
+        "preExistentes": [
+          "gxvgai6wl7iwwc41d6lrrx6z",
+          "fu2odekdi7zmcs9na14bkaks",
+          "oeuocbgqpa3fmza0z9jrorm5"
+        ],
+        "novas": []
+      }
+    },
+    {
+      "name": "V. edge_medcount_to_med1 preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. edge_med1_to_route preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. edge_med2_to_route preservada",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "V. edge_med3_to_foto preservada",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

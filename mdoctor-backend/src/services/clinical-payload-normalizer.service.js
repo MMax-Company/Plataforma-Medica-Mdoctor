@@ -1,6 +1,7 @@
 const {
   PROTOCOL_VERSION,
   normalizeCondition,
+  normalizeConditions,
   normalizeBirthDate,
   extractUsageDays,
   hasPreviousPrescription,
@@ -86,9 +87,11 @@ function normalizeCep(value = '') {
 function normalizeChronicCondition(value = '') {
   const raw = String(value || '').trim();
   if (!raw) return null;
+  const conditions = normalizeConditions(raw);
   return {
     raw,
-    normalized: normalizeCondition(raw)
+    normalized: conditions[0] || 'renovacao_receita', // primeira condição — backward compat
+    conditions                                          // array completo com TODAS as condições
   };
 }
 
@@ -141,11 +144,6 @@ function normalizeConsentAcceptance(payload = {}) {
   };
 }
 
-/**
- * FASE 4B: payment_status="paid" (ou equivalentes) vindos do Typebot NÃO confirmam
- * o atendimento sozinhos. Só confirma com prova Stripe injetada pelo backend
- * (stripe_payment_verified === true após validar Checkout Session).
- */
 function normalizePaymentStatus(payload = {}) {
   const raw = String(
     pickFirst(payload.payment_status, payload.pagamento_status, payload.pagamento, payload.paymentStatus) || ''
@@ -153,17 +151,8 @@ function normalizePaymentStatus(payload = {}) {
     .trim()
     .toLowerCase();
 
-  const claimedPaid = PAID_VALUES.has(raw) || raw === 'confimed';
-  if (payload.stripe_payment_verified === true) {
-    return { payment_status: 'paid', pagamento_status: 'CONFIRMADO', paid: true };
-  }
-
-  return {
-    payment_status: claimedPaid ? 'unverified' : (raw || 'unpaid'),
-    pagamento_status: 'PENDENTE',
-    paid: false,
-    payment_claimed_by_typebot: claimedPaid
-  };
+  if (PAID_VALUES.has(raw) || raw === 'confimed') return { payment_status: 'paid', pagamento_status: 'CONFIRMADO', paid: true };
+  return { payment_status: 'unpaid', pagamento_status: 'PENDENTE', paid: false };
 }
 
 function capitalizeMedicationName(name = '') {
@@ -192,28 +181,17 @@ function mapRoute(text = '') {
   return 'oral';
 }
 
-// Palavra de dosagem na posologia: "comprimido" para vias orais/sublinguais
-// (a grande maioria dos casos — renovação de receita por via oral), mantendo
-// "unidade" só para injetável/subcutânea (ex.: insulina, onde "comprimido"
-// não faz sentido clínico). Achado em homologação real (26/07): a palavra
-// genérica "unidade" confundia a leitura da receita na farmácia.
-function dosageUnitWord(route = '') {
-  const r = String(route || '').toLowerCase();
-  return r.includes('subcut') || r.includes('injet') ? 'unidade' : 'comprimido';
-}
-
 // Posologia compatível com a Memed a partir das opções fechadas do chatbot
 // (1/2/3 vezes ao dia x via oral/sublingual/subcutânea). Nunca cai mais na
 // frase genérica "Tomar conforme prescrição anterior" — casos não mapeados
 // (ou legados) recebem a mesma redação de "uma vez ao dia".
 function buildPosology({ frequency, route }) {
   const routeLabel = route === 'oral' || !route ? 'por via oral' : `por via ${route}`;
-  const unit = dosageUnitWord(route);
-  if (frequency === '12/12h') return `Tomar 1 ${unit} ${routeLabel}, a cada 12 horas.`;
-  if (frequency === '8/8h') return `Tomar 1 ${unit} ${routeLabel}, a cada 8 horas.`;
-  if (frequency === '1x à noite') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (à noite).`;
-  if (frequency === '1x pela manhã') return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia (pela manhã).`;
-  return `Tomar 1 ${unit} ${routeLabel}, uma vez ao dia.`;
+  if (frequency === '12/12h') return `Tomar 1 unidade ${routeLabel}, a cada 12 horas.`;
+  if (frequency === '8/8h') return `Tomar 1 unidade ${routeLabel}, a cada 8 horas.`;
+  if (frequency === '1x à noite') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (à noite).`;
+  if (frequency === '1x pela manhã') return `Tomar 1 unidade ${routeLabel}, uma vez ao dia (pela manhã).`;
+  return `Tomar 1 unidade ${routeLabel}, uma vez ao dia.`;
 }
 
 function parseMedicationFreeText(text = '', overrides = {}) {
@@ -481,6 +459,7 @@ function normalizeTypebotPayload(body = {}) {
     cep,
     chronic_condition: chronic?.normalized || null,
     chronic_condition_label: chronic?.raw || null,
+    chronic_conditions: chronic?.conditions || [],
     medication_count: medicationBundle.medication_count,
     declared_medication_count: medicationBundle.declared_medication_count,
     medications,
@@ -577,6 +556,7 @@ function toPatientEvaluationShape(normalized = {}) {
     data_nascimento: normalized.birth_date,
     condition: normalized.chronic_condition,
     doenca_cronica: normalized.chronic_condition_label,
+    chronic_conditions: normalized.chronic_conditions || [],
     medicacao_em_uso: normalized.medication_name,
     medication: normalized.medication_name,
     medications: normalized.medications,
@@ -627,6 +607,7 @@ function buildCleanBackendPayload(normalized = {}, meta = {}) {
     address_structured: normalized.address_structured,
     cep: normalized.cep,
     chronic_condition: normalized.chronic_condition,
+    chronic_conditions: normalized.chronic_conditions || [],
     medication_count: normalized.medication_count,
     medications: normalized.medications,
     previous_prescription_file: normalized.previous_prescription_file,

@@ -29,6 +29,7 @@ async function main() {
   let storedExpectedInputId = null;
   const bridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     findPendingUploadContext: async () => null,
     persistUploadContext: async () => {},
     uploadContextFromSession: () => null,
@@ -90,6 +91,7 @@ async function main() {
   const startGate = new Promise((resolve) => { releaseStart = resolve; });
   const rapidBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async () => ({ claimed: true }),
     finishMetaMessage: async () => {},
     setTypebotSessionId: async ({ typebotSessionId }) => { rapidStoredSessionId = typebotSessionId; },
@@ -122,50 +124,6 @@ async function main() {
   assert(rapidCalls[0].path.includes('/startChat'));
   assert(rapidCalls[1].path.includes('/sessions/rapid-session/continueChat'));
 
-  let clearedSessionId = 'stale-session';
-  const greetingCalls = [];
-  const greetingBridge = createTypebotWhatsAppBridge({
-    ...uploadBridgeMocks,
-    claimMetaMessage: async () => ({ claimed: true }),
-    finishMetaMessage: async () => {},
-    setTypebotSessionId: async ({ typebotSessionId }) => { clearedSessionId = typebotSessionId; },
-    reloadSession: async ({ whatsappSession }) => ({
-      ...whatsappSession,
-      typebot_session_id: clearedSessionId,
-      metadata: { typebot_expected_input_id: 'sbjZWLJGVkHAkDqS4JQeGow' }
-    }),
-    persistExpectedInput: async () => {},
-    createIntegrationError: async () => {},
-    callTypebot: async (path, body) => {
-      greetingCalls.push({ path, body });
-      if (path.includes('/startChat')) {
-        return {
-          sessionId: 'fresh-session',
-          messages: [{ type: 'text', content: { plainText: 'Olá 👋 Bem-vindo ao Doctor Prescreve.' } }],
-          input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Vamos Começar' }] }
-        };
-      }
-      return {
-        messages: [{ type: 'text', content: { plainText: 'Invalid message. Please, try again.' } }],
-        input: { id: 'sbjZWLJGVkHAkDqS4JQeGow', type: 'choice input', items: [{ content: 'Vamos Começar' }] }
-      };
-    },
-    provider: {
-      sendTextMessage: async () => ({ providerMessageId: 'meta-greeting-text' }),
-      sendButtonMessage: async () => ({ providerMessageId: 'meta-greeting-buttons' }),
-      sendListMessage: async () => ({ providerMessageId: 'meta-greeting-list' })
-    }
-  });
-  const greetingResult = await greetingBridge({
-    messageId: 'wamid-greeting',
-    text: 'Oi',
-    identity: { phone: '5511999999999', bsuid: null },
-    whatsappSession: { id: 'wa-greeting', typebot_session_id: 'stale-session' }
-  });
-  assert.equal(greetingResult.sessionIdReused, false);
-  assert(greetingCalls.some((call) => call.path.includes('/startChat')));
-  assert(!greetingCalls.some((call) => call.path.includes('/sessions/stale-session/continueChat')));
-
   const retryCalls = [];
   const retryFinishes = [];
   const retryLogs = [];
@@ -174,6 +132,7 @@ async function main() {
   let retryStoredSessionId = null;
   const retryBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (retryReceipts.has(messageId)) return { claimed: false };
       retryReceipts.add(messageId);
@@ -238,7 +197,7 @@ async function main() {
     { id: 'dein7u2qnr8q32p2lv1krd5p', invalid: '11111111111', valid: '52998224725' },
     { id: 'tbla9w2i2kbeyzun88hai3s9', invalid: '119123', valid: '11985485777' },
     { id: 'dwoaqosurlamebpra9yf7pm4', invalid: 'max@', valid: 'max@example.com' },
-    { id: 'q78qjnk6ticwkeifl7xe2rju', invalid: 'Rua A', valid: 'Rua Aurora, 965' },
+    { id: 'q78qjnk6ticwkeifl7xe2rju', invalid: 'Rua A', valid: 'Rua Aurora, 965, República, São Paulo, SP' },
     { id: 'blk_0oydu2f7', invalid: '123', valid: '01209003' }
   ];
   const validationResults = [];
@@ -249,6 +208,7 @@ async function main() {
     let expectedInputId = testCase.id;
     const validationBridge = createTypebotWhatsAppBridge({
       ...uploadBridgeMocks,
+      resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
       claimMetaMessage: async ({ messageId }) => {
         if (validationReceipts.has(messageId)) return { claimed: false };
         validationReceipts.add(messageId);
@@ -328,6 +288,7 @@ async function main() {
   let medDoseExpectedInputId = 'blk_xp763m78';
   const medDoseBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (medDoseReceipts.has(messageId)) return { claimed: false };
       medDoseReceipts.add(messageId);
@@ -375,9 +336,11 @@ async function main() {
 
   const paymentSent = [];
   const paymentLinks = [];
+  const paymentIntros = [];
   const paymentReceipts = new Set();
   const paymentBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
     claimMetaMessage: async ({ messageId }) => {
       if (paymentReceipts.has(messageId)) return { claimed: false };
       paymentReceipts.add(messageId);
@@ -388,40 +351,30 @@ async function main() {
     reloadSession: async ({ whatsappSession }) => whatsappSession,
     persistExpectedInput: async () => {},
     createIntegrationError: async () => {},
+    // Checkout Stripe (Fase 2 pedido 2): createPaymentLink não recebe mais
+    // PaymentIntent do Typebot (runtimeOptions vazio) e devolve checkoutRedirectUrl.
     createPaymentLink: async (args) => {
       paymentLinks.push(args);
-      return {
-        token: 'tok',
-        checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout',
-        amountLabel: 'R$ 69,90',
-        paymentStatus: 'pending'
-      };
+      return { token: 'tok', checkoutRedirectUrl: 'https://staging.example/api/typebot-payment/tok/checkout', amountLabel: 'R$49.90' };
     },
-    sendPaymentIntro: async ({ session, checkoutRedirectUrl, correlationId, provider }) => {
-      const text = await provider.sendTextMessage({ to: session.phone, text: 'intro', correlationId, idempotencyKey: `${correlationId}:0` });
-      const cta = await provider.sendCtaUrlMessage({
+    sendPaymentIntro: async ({ session, checkoutRedirectUrl, correlationId, provider, idempotencyPrefix }) => {
+      paymentIntros.push({ session, checkoutRedirectUrl, correlationId });
+      const sent = await provider.sendTextMessage({
         to: session.phone,
-        body: 'cta',
-        displayText: 'Pagar R$ 69,90',
-        url: checkoutRedirectUrl,
+        bsuid: session.bsuid,
         correlationId,
-        idempotencyKey: `${correlationId}:1`
+        idempotencyKey: `${idempotencyPrefix}:0`,
+        text: `Pagamento: ${checkoutRedirectUrl}`
       });
-      paymentSent.push(text, cta);
-      return [text?.providerMessageId, cta?.providerMessageId].filter(Boolean);
+      return sent?.providerMessageId ? [sent.providerMessageId] : [];
     },
     callTypebot: async () => ({
       sessionId: 'pay-session',
-      messages: [],
-      input: {
-        id: 'rapfykn1f1uno89ypqmwi43f',
-        type: 'payment input',
-        runtimeOptions: { paymentIntentSecret: 'pi_123_secret_abc', publicKey: 'pk_test_x', amountLabel: 'R$69.90' }
-      }
+      messages: [{ type: 'text', content: { plainText: 'Termos aceitos. Você será direcionado ao pagamento.' } }],
+      input: { id: 'rapfykn1f1uno89ypqmwi43f', type: 'payment input' }
     }),
     provider: {
       sendTextMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
-      sendCtaUrlMessage: async (payload) => { paymentSent.push(payload); return { providerMessageId: `pay-${paymentSent.length}` }; },
       sendButtonMessage: async () => ({}),
       sendListMessage: async () => ({})
     }
@@ -432,74 +385,424 @@ async function main() {
     identity,
     whatsappSession: { id: 'wa-pay', typebot_session_id: 'pay-session' }
   });
-  assert.equal(payResult.responsesSent, 2, 'intro + botão CTA de pagamento');
+  assert.equal(payResult.responsesSent, 2, 'texto do bot + convite de pagamento (Checkout)');
   assert.equal(paymentLinks.length, 1);
   assert.equal(paymentLinks[0].typebotSessionId, 'pay-session');
-  assert.equal(paymentSent.some((item) => item.displayText === 'Pagar R$ 69,90'), true);
-  assert.equal(paymentSent.some((item) => String(item.url || '').includes('/checkout')), true);
-  assert.equal(paymentSent.every((item) => !String(item.text || item.url || '').includes('railway')), true);
+  assert.deepEqual(paymentLinks[0].runtimeOptions, {}, 'Typebot não fornece mais PaymentIntent — Checkout é só do Backend');
+  assert.equal(paymentLinks[0].existingSession.id, 'wa-pay', 'Checkout reaproveita a sessão clínica existente');
+  assert(paymentSent[1].text.includes('https://staging.example/api/typebot-payment/tok/checkout'));
+  assert.equal(paymentSent[1].idempotencyKey, 'pay-1:payment-intro:0');
 
-  const bootstrapCalls = [];
-  const bootstrapSent = [];
-  let bootstrapSessionId = null;
-  let bootstrapExpectedInputId = null;
-  const bootstrapBridge = createTypebotWhatsAppBridge({
+  // Retomada quando o pagamento já foi confirmado (ex.: paciente reenvia
+  // resposta antes do webhook resolver, ou reabre o link já pago): não
+  // reabre Checkout nem reenvia o convite — só retoma o fluxo uma vez.
+  const alreadyPaidSent = [];
+  const alreadyPaidCompletions = [];
+  const alreadyPaidBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    createPaymentLink: async () => ({ alreadyPaid: true, token: 'tok-paid' }),
+    completePaymentByToken: async (token, args) => {
+      alreadyPaidCompletions.push({ token, session: args.session });
+      return { ok: true, responsesSent: 1 };
+    },
+    callTypebot: async () => ({
+      sessionId: 'pay-session-2',
+      messages: [{ type: 'text', content: { plainText: 'Confirme os termos.' } }],
+      input: { id: 'rapfykn1f1uno89ypqmwi43f', type: 'payment input' }
+    }),
+    provider: {
+      sendTextMessage: async (payload) => { alreadyPaidSent.push(payload); return { providerMessageId: `already-${alreadyPaidSent.length}` }; },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const alreadyPaidResult = await alreadyPaidBridge({
+    messageId: 'pay-already-1',
+    text: 'oi',
+    identity,
+    whatsappSession: { id: 'wa-pay-2', typebot_session_id: 'pay-session-2' }
+  });
+  assert.equal(alreadyPaidResult.paymentAlreadyPaid, true);
+  assert.equal(alreadyPaidCompletions.length, 1, 'retomada acionada exatamente uma vez');
+  assert.equal(alreadyPaidCompletions[0].token, 'tok-paid');
+  assert.equal(alreadyPaidResult.responsesSent, 1 + 1, 'texto do bot + retomada');
+
+  const menuSent = [];
+  let menuCleared = false;
+  const menuBridge = createTypebotWhatsAppBridge({
     ...uploadBridgeMocks,
     claimMetaMessage: async () => ({ claimed: true }),
     finishMetaMessage: async () => {},
-    setTypebotSessionId: async ({ typebotSessionId }) => { bootstrapSessionId = typebotSessionId; },
+    setTypebotSessionId: async () => {},
+    clearTypebotSession: async () => { menuCleared = true; return { id: 'wa-menu', typebot_session_id: null, metadata: {} }; },
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    resolveMetaInboundRouting: async ({ text }) => {
+      const norm = String(text || '').trim();
+      if (norm === '1') return { handled: true, action: 'typebot_clean' };
+      if (norm === '2') return { handled: true, action: 'reply', reply: 'Aguarde suporte.' };
+      return { handled: true, action: 'reply', reply: 'Menu inicial' };
+    },
+    callTypebot: async (path) => {
+      assert(path.includes('/startChat'));
+      return {
+        sessionId: 'menu-session',
+        messages: [{ type: 'text', content: { plainText: 'Typebot iniciado.' } }],
+        input: { id: 'choice-1', type: 'choice input', items: [{ content: 'Sim' }] }
+      };
+    },
+    provider: {
+      sendTextMessage: async (payload) => { menuSent.push(payload); return { providerMessageId: `menu-${menuSent.length}` }; },
+      sendButtonMessage: async (payload) => { menuSent.push(payload); return { providerMessageId: `menu-${menuSent.length}` }; },
+      sendListMessage: async () => ({})
+    }
+  });
+
+  const menuOi = await menuBridge({
+    messageId: 'menu-oi',
+    text: 'Oi',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: null }
+  });
+  assert.equal(menuOi.menuHandled, true);
+  assert.equal(menuSent.length, 1);
+  assert.equal(menuSent[0].text, 'Menu inicial');
+  assert.equal(menuCleared, false);
+
+  const menuInvalid = await menuBridge({
+    messageId: 'menu-invalid',
+    text: 'xyz',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: null }
+  });
+  assert.equal(menuInvalid.menuHandled, true);
+  assert.equal(menuSent[menuSent.length - 1].text, 'Menu inicial');
+
+  const menuStart = await menuBridge({
+    messageId: 'menu-start',
+    text: '1',
+    identity,
+    whatsappSession: { id: 'wa-menu', typebot_session_id: 'stale-session' }
+  });
+  assert.equal(menuStart.menuHandled, undefined);
+  assert.equal(menuCleared, true);
+  assert(menuSent.some((item) => item.text === 'Typebot iniciado.' || item.body));
+
+  const supportChoiceCalls = [];
+  let supportSessionCleared = false;
+  const supportBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    clearTypebotSession: async () => { supportSessionCleared = true; return { id: 'wa-support', typebot_session_id: null, metadata: {} }; },
     reloadSession: async ({ whatsappSession }) => ({
       ...whatsappSession,
-      typebot_session_id: bootstrapSessionId,
-      metadata: { typebot_expected_input_id: bootstrapExpectedInputId }
+      typebot_session_id: 'support-session',
+      metadata: { typebot_expected_input_id: 'blk_pos_atend_choice' }
     }),
-    persistExpectedInput: async ({ inputId }) => { bootstrapExpectedInputId = inputId; },
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    handleTypebotSupportChoice: async (args) => {
+      supportChoiceCalls.push(args);
+      if (args.text === 'Falar com o suporte') return { action: 'support_created' };
+      if (args.text === 'Encerrar atendimento') return { action: 'clear_session' };
+      return null;
+    },
+    callTypebot: async () => ({
+      messages: [{ type: 'text', content: { plainText: 'Você será atendido pela equipe de suporte.' } }],
+      input: { id: 'blk_suporte_choice', type: 'choice input', items: [{ content: 'Voltar ao menu principal' }, { content: 'Encerrar' }] }
+    }),
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'support-1' }),
+      sendButtonMessage: async () => ({ providerMessageId: 'support-1' }),
+      sendListMessage: async () => ({})
+    }
+  });
+
+  const supportChosen = await supportBridge({
+    messageId: 'support-suporte',
+    text: 'Falar com o suporte',
+    identity,
+    whatsappSession: { id: 'wa-support', typebot_session_id: 'support-session' }
+  });
+  assert.equal(supportChosen.duplicate, false);
+  assert.equal(supportChoiceCalls[0].expectedInputId, 'blk_pos_atend_choice');
+  assert.equal(supportChoiceCalls[0].text, 'Falar com o suporte');
+  assert.equal(supportSessionCleared, false, '"Falar com o suporte" não deve limpar a sessão do Typebot');
+
+  const supportEncerrar = await supportBridge({
+    messageId: 'support-encerrar',
+    text: 'Encerrar atendimento',
+    identity,
+    whatsappSession: { id: 'wa-support', typebot_session_id: 'support-session' }
+  });
+  assert.equal(supportEncerrar.duplicate, false);
+  assert.equal(supportSessionCleared, true, '"Encerrar atendimento" deve limpar a sessão do Typebot');
+
+  let supportErrorLogged = false;
+  const supportErrorBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async () => ({ claimed: true }),
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'support-session-2',
+      metadata: { typebot_expected_input_id: 'blk_pos_atend_choice' }
+    }),
+    persistExpectedInput: async () => {},
+    createIntegrationError: async ({ integration }) => { if (integration === 'whatsapp_support') supportErrorLogged = true; },
+    handleTypebotSupportChoice: async () => { throw new Error('falha ao criar ticket'); },
+    callTypebot: async () => ({ messages: [{ type: 'text', content: { plainText: 'ok' } }] }),
+    provider: {
+      sendTextMessage: async () => ({ providerMessageId: 'support-err-1' }),
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({})
+    }
+  });
+  const supportErrorResult = await supportErrorBridge({
+    messageId: 'support-error-1',
+    text: 'Falar com o suporte',
+    identity,
+    whatsappSession: { id: 'wa-support-2', typebot_session_id: 'support-session-2' }
+  });
+  assert.equal(supportErrorResult.duplicate, false, 'falha ao criar o ticket de suporte não pode quebrar a resposta ao paciente');
+  assert.equal(supportErrorLogged, true);
+
+  // Documentos jurídicos (LGPD/Telemedicina/Termos): o Typebot manda um
+  // parágrafo por documento com um link (type:'a', url + rótulo). WhatsApp
+  // não consegue esconder a URL numa mensagem de texto — precisa virar botão
+  // de URL (sendCtaUrlMessage): abre o link externamente, sem baixar PDF
+  // nenhum no WhatsApp e sem mostrar a URL em lugar nenhum.
+  const legalDocsSent = [];
+  const legalTextsSent = [];
+  const legalReceipts = new Set();
+  const legalBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async ({ messageId }) => {
+      if (legalReceipts.has(messageId)) return { claimed: false };
+      legalReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => whatsappSession,
+    persistExpectedInput: async () => {},
+    createIntegrationError: async () => {},
+    // Igual ao fluxo real: o Typebot manda a introdução do grupo como
+    // mensagem de texto própria (blk_lgpd_intro), ANTES da mensagem com os
+    // links (blk_lgpd_docs) — não junto no mesmo richText.
+    callTypebot: async () => ({
+      sessionId: 'legal-session',
+      messages: [
+        {
+          type: 'text',
+          content: { richText: [{ type: 'p', children: [{ text: 'Antes de continuar, leia os documentos abaixo:' }] }] }
+        },
+        {
+          type: 'text',
+          content: {
+            richText: [
+              {
+                type: 'p',
+                children: [{ type: 'a', url: 'https://storage.example/Consentimento_LGPD_Doctor_Prescreve.pdf', children: [{ text: 'Consentimento LGPD' }] }]
+              },
+              {
+                type: 'p',
+                children: [{ type: 'a', url: 'https://storage.example/Politica_de_Privacidade_Doctor_Prescreve.pdf', children: [{ text: 'Política de Privacidade' }] }]
+              }
+            ]
+          }
+        }
+      ],
+      input: { id: 'blk_lgpd_choice', type: 'choice input', items: [{ content: 'Autorizo' }, { content: 'Não autorizo' }] }
+    }),
+    provider: {
+      sendTextMessage: async (payload) => { legalTextsSent.push(payload); return { providerMessageId: `legal-text-${legalTextsSent.length}` }; },
+      sendButtonMessage: async () => ({}),
+      sendListMessage: async () => ({}),
+      sendDocumentMessage: async () => { throw new Error('sendDocumentMessage não deve mais ser usado para documentos jurídicos'); },
+      sendCtaUrlMessage: async (payload) => { legalDocsSent.push(payload); return { providerMessageId: `legal-doc-${legalDocsSent.length}` }; }
+    }
+  });
+  const legalResult = await legalBridge({
+    messageId: 'legal-1',
+    text: 'Oi',
+    identity,
+    whatsappSession: { id: 'wa-legal', typebot_session_id: null }
+  });
+  assert.equal(legalDocsSent.length, 2, 'os 2 documentos do parágrafo devem virar 2 botões de URL');
+  assert(legalDocsSent.every((d) => /^https:\/\//.test(d.url)), 'a URL real vai só no campo url do botão, nunca no texto');
+  assert(legalDocsSent.every((d) => d.displayText.length <= 20), 'rótulo do botão respeita o limite de 20 caracteres da Meta');
+  assert.equal(legalDocsSent[0].displayText, 'Consentimento LGPD');
+  assert.equal(legalDocsSent[1].displayText, 'Política Privacidade', 'rótulo completo (sem abreviar para "Privacidade"), dentro do limite de 20 caracteres');
+  // Primeiro botão do grupo: a introdução (enviada pelo Typebot como
+  // mensagem própria, ANTES da mensagem com os links) vira o corpo deste
+  // botão, em vez de virar uma mensagem de texto separada.
+  assert.equal(legalDocsSent[0].body, 'Antes de continuar, leia os documentos abaixo:', 'primeiro botão usa a introdução do grupo como corpo');
+  assert.equal(legalTextsSent.length, 0, 'a introdução não deve virar uma mensagem de texto separada');
+  // Segundo botão em diante: nenhum texto intermediário -- nem o nome do
+  // documento repetido, nem a introdução de novo, nem o texto padrão de
+  // fallback ("Toque no botão abaixo para continuar."). A Meta exige
+  // `body.text` não-vazio em toda mensagem cta_url e rejeita um corpo só de
+  // espaço em branco com erro 131008 (confirmado ao vivo) -- o mínimo
+  // aceito é um único ícone neutro, sem palavras.
+  assert.equal(legalDocsSent[1].body, '📄', 'segundo botão em diante usa só o ícone neutro, sem repetir texto');
+  assert(legalDocsSent.every((d) => !String(d.body || '').includes('Toque no botão')), 'texto padrão de fallback não pode aparecer nos botões jurídicos');
+  assert(legalTextsSent.every((t) => !String(t.text || '').includes('http')), 'nenhuma URL pode vazar para uma mensagem de texto');
+  assert.equal(legalResult.responsesSent, 2);
+
+  // Regressão do loop telefone/e-mail (produção, 09/08/2026): antes da
+  // correção, o bridge guardava expectedInputId num Map em memória de
+  // processo com prioridade sobre o valor persistido no Supabase. Em
+  // cenários com mais de um processo ativo sobre a mesma sessão (ex.:
+  // staging e produção habilitados ao mesmo tempo), um processo que não
+  // participava de uma troca ficava com o Map desatualizado, validava a
+  // resposta seguinte do paciente contra o campo errado e nunca avançava.
+  //
+  // Reproduz o incidente real com os mesmos IDs de campo do Typebot
+  // (PERSONAL_INPUTS): 1ª chamada responde o CPF (avança normalmente para
+  // "telefone", Map e banco em sincronia); em seguida simula outro processo
+  // processando a resposta de telefone SEM passar por este bridge (a sessão
+  // persistida avança para "e-mail", mas o Map local deste bridge nunca fica
+  // sabendo — ainda pensa que o próximo campo é "telefone"); a 2ª chamada
+  // deste bridge é a resposta de e-mail do paciente. Só passa se o bridge
+  // usar o estado persistido mais novo (e-mail) em vez da memória antiga
+  // (telefone).
+  const staleCacheReceipts = new Set();
+  const staleCacheCalls = [];
+  const staleCacheSent = [];
+  const CPF_INPUT_ID = 'dein7u2qnr8q32p2lv1krd5p';
+  const PHONE_INPUT_ID = 'tbla9w2i2kbeyzun88hai3s9';
+  const EMAIL_INPUT_ID = 'dwoaqosurlamebpra9yf7pm4';
+  let persistedExpectedInputId = CPF_INPUT_ID;
+  const staleCacheBridge = createTypebotWhatsAppBridge({
+    ...uploadBridgeMocks,
+    resolveMetaInboundRouting: async () => ({ handled: false, action: 'typebot' }),
+    claimMetaMessage: async ({ messageId }) => {
+      if (staleCacheReceipts.has(messageId)) return { claimed: false };
+      staleCacheReceipts.add(messageId);
+      return { claimed: true };
+    },
+    finishMetaMessage: async () => {},
+    setTypebotSessionId: async () => {},
+    reloadSession: async ({ whatsappSession }) => ({
+      ...whatsappSession,
+      typebot_session_id: 'stale-cache-session',
+      metadata: { typebot_expected_input_id: persistedExpectedInputId }
+    }),
+    persistExpectedInput: async ({ inputId }) => { persistedExpectedInputId = inputId; },
     createIntegrationError: async () => {},
     callTypebot: async (path, body) => {
-      bootstrapCalls.push({ path, body });
-      assert.equal(path, '/typebots/doctor-prescreve-8rmljgu/startChat');
-      assert.deepEqual(body, {});
+      staleCacheCalls.push({ path, body });
+      // Primeira chamada (resposta do CPF): Typebot avança para "telefone".
+      // Segunda chamada (só alcançada se o bridge usar o e-mail corretamente):
+      // Typebot avança para um campo qualquer seguinte, sem mais validação
+      // local — o que importa é que ela aconteça.
+      const nextInputId = staleCacheCalls.length === 1 ? PHONE_INPUT_ID : 'blk_proximo_campo';
       return {
-        sessionId: 'bootstrap-session',
-        messages: [{ type: 'text', content: { plainText: 'Olá 👋 Bem-vindo ao Doctor Prescreve.' } }],
-        input: {
-          id: 'sbjZWLJGVkHAkDqS4JQeGow',
-          type: 'choice input',
-          items: [{ content: 'Vamos Começar' }]
-        }
+        messages: [{ type: 'text', content: { plainText: 'Obrigado!' } }],
+        input: { id: nextInputId, type: 'text input' }
       };
     },
     provider: {
       sendTextMessage: async (payload) => {
-        bootstrapSent.push({ type: 'text', payload });
-        return { providerMessageId: 'meta-bootstrap-text' };
+        staleCacheSent.push(payload);
+        return { providerMessageId: `stale-cache-${staleCacheSent.length}` };
       },
-      sendButtonMessage: async (payload) => {
-        bootstrapSent.push({ type: 'buttons', payload });
-        return { providerMessageId: 'meta-bootstrap-buttons' };
-      },
+      sendButtonMessage: async () => ({}),
       sendListMessage: async () => ({})
     }
   });
-  const bootstrapResult = await bootstrapBridge({
-    messageId: 'wamid-bootstrap-1',
-    text: '1',
+  const staleCacheSession = { id: 'wa-stale-cache', typebot_session_id: 'stale-cache-session' };
+
+  // 1ª chamada: paciente responde o CPF. expectedInputId (persistido e Map)
+  // avança para "telefone" — Map e banco ficam em sincronia neste ponto,
+  // exatamente como no incidente real antes da desincronia acontecer.
+  await staleCacheBridge({
+    messageId: 'stale-cache-cpf-turn',
+    text: '52998224725',
     identity,
-    whatsappSession: { id: 'wa-bootstrap', typebot_session_id: null },
-    menuBootstrap: true
+    whatsappSession: staleCacheSession
   });
-  assert.equal(bootstrapResult.duplicate, false);
-  assert.equal(bootstrapSessionId, 'bootstrap-session');
-  assert.equal(bootstrapCalls.length, 1, 'bootstrap não deve continueChat / auto-clicar Vamos Começar');
-  assert.equal(bootstrapExpectedInputId, 'sbjZWLJGVkHAkDqS4JQeGow');
-  assert.equal(bootstrapSent[0].payload.text, 'Olá 👋 Bem-vindo ao Doctor Prescreve.');
-  assert.equal(bootstrapSent[1].type, 'buttons');
-  assert.equal(bootstrapSent[1].payload.buttons[0].title, 'Vamos Começar');
-  assert.equal(
-    bootstrapSent.every((item) => !/typebot\.(io|co)\//i.test(JSON.stringify(item.payload))),
-    true,
-    'não deve enviar link público do Typebot'
-  );
+  assert.equal(persistedExpectedInputId, PHONE_INPUT_ID, 'primeira chamada avança o estado persistido para telefone');
+
+  // Simula outro processo (ex.: staging) processando a resposta de telefone
+  // do paciente SEM passar por este bridge — a sessão persistida avança
+  // direto para "e-mail", mas o Map em memória deste bridge nunca é
+  // atualizado (continua "sabendo" apenas do telefone).
+  persistedExpectedInputId = EMAIL_INPUT_ID;
+
+  // 2ª chamada: paciente responde com um e-mail válido. Com a correção, o
+  // bridge relê o estado persistido (e-mail) a cada chamada e valida
+  // corretamente — chega ao Typebot. No código antigo, o Map em memória
+  // ainda diria "telefone", validateEmail seria validado como telefone,
+  // falharia, e o paciente receberia de volta "informe seu telefone" (loop).
+  const staleCacheResult = await staleCacheBridge({
+    messageId: 'stale-cache-email-turn',
+    text: 'maxvini.ferr@gmail.com',
+    identity,
+    whatsappSession: staleCacheSession
+  });
+  assert.equal(staleCacheResult.validationFailed, undefined, 'estado persistido mais novo (e-mail) deve vencer a memória antiga (telefone)');
+  assert.equal(staleCacheCalls.length, 2, 'as duas respostas (CPF e e-mail) devem chegar ao Typebot — nenhuma pode travar em validação local');
+  assert.equal(staleCacheCalls[1].body.message.text, 'maxvini.ferr@gmail.com', 'a 2ª chamada ao Typebot deve usar o e-mail, não travar pedindo telefone de novo');
+  assert.equal(persistedExpectedInputId, 'blk_proximo_campo');
+  assert(!staleCacheSent.some((item) => /telefone/i.test(item.text || '')), 'não pode reaparecer pedido de telefone depois que a sessão já avançou para e-mail');
+  const alertItems = [
+    ['Dor/desconforto no peito', 'dor_peito'],
+    ['Falta de ar ou dificuldade para respirar', 'dor_peito'],
+    ['Desmaio, convulsão ou confusão mental', 'dor_peito'],
+    ['Fraqueza súbita, alteração da fala ou assimetria facial', 'falta_ar'],
+    ['Sangramento importante', 'falta_ar'],
+    ['Febre alta persistente ou piora importante do estado geral', 'desmaio'],
+    ['Pressão muito elevada acompanhada de sintomas', 'desmaio'],
+    ['Glicemia muito alta ou muito baixa acompanhada de sintomas', 'febre'],
+    ['Outro sintoma grave', 'sangramento'],
+    ['Nenhum Sinal ou Sintoma', 'NAO']
+  ];
+  const alertOutput = convertTypebotResponse({
+    messages: [{ type: 'text', content: { plainText: 'Selecione o sinal de alerta:' } }],
+    input: {
+      id: 's5VQGsVF4hQgziQsXVdwPDW',
+      type: 'choice input',
+      items: alertItems.map(([content, value], index) => ({ id: `alert-${index}`, content, value }))
+    }
+  }).find((output) => output.kind === 'list');
+  assert(alertOutput, 'dez sinais devem continuar usando lista Meta');
+  assert(alertOutput.choices.every((choice) => choice.title.length <= 24), 'títulos clínicos devem respeitar 24 caracteres');
+  assert(alertOutput.choices.every((choice) => choice.description.length <= 72), 'descrições devem respeitar 72 caracteres');
+  assert.deepEqual(alertOutput.choices.map((choice) => choice.id), alertItems.map(([content]) => content), 'IDs/labels enviados de volta ao Typebot devem permanecer inalterados');
+  assert.deepEqual(alertOutput.choices.map((choice) => choice.value), alertItems.map(([content]) => content), 'values de roteamento usados pelo bridge devem permanecer inalterados');
+  assert.deepEqual(alertOutput.choices.map(({ title, description }) => ({ title, description })), [
+    { title: 'Precordialgia', description: 'Dor, pressão, aperto ou desconforto no peito' },
+    { title: 'Dispneia', description: 'Falta de ar ou dificuldade para respirar' },
+    { title: 'Alteração da consciência', description: 'Desmaio, convulsão ou confusão mental' },
+    { title: 'Déficit neurológico', description: 'Fraqueza súbita, alteração da fala ou assimetria facial' },
+    { title: 'Hemorragia', description: 'Sangramento importante ou persistente' },
+    { title: 'Síndrome febril', description: 'Febre alta persistente ou piora importante do estado geral' },
+    { title: 'Crise hipertensiva', description: 'Pressão muito elevada acompanhada de sintomas' },
+    { title: 'Disglicemia sintomática', description: 'Glicemia muito alta ou muito baixa acompanhada de sintomas' },
+    { title: 'Sintoma agudo grave', description: 'Outro sintoma intenso ou de início súbito' },
+    { title: 'Sem sinais de alarme', description: 'Não apresento nenhum dos sinais ou sintomas acima' }
+  ], 'title + description + ordem devem corresponder exatamente ao padrão aprovado');
+  assert.deepEqual(alertItems.map(([, value]) => value), [
+    'dor_peito', 'dor_peito', 'dor_peito', 'falta_ar', 'falta_ar',
+    'desmaio', 'desmaio', 'febre', 'sangramento', 'NAO'
+  ], 'values atuais do Typebot não podem ser alterados pela apresentação');
+
 
   console.log(JSON.stringify({
     patientSendsOi: 'ok',
@@ -511,8 +814,14 @@ async function main() {
     retryCauseIsExact: retryLogs.every((item) => /ECONNRESET|EAI_AGAIN/.test(item.error.message)) ? 'ok' : 'failed',
     invalidThenValidForEveryPersonalField: validationResults.length === 7 && validationResults.every((item) => item === 'ok') ? 'ok' : 'failed',
     paymentLinkSentOnPaymentInput: payResult.responsesSent === 2 && paymentLinks.length === 1 ? 'ok' : 'failed',
+    paymentAlreadyPaidResumesOnce: alreadyPaidCompletions.length === 1 && alreadyPaidResult.paymentAlreadyPaid ? 'ok' : 'failed',
     textInputWithoutMessagesSendsPlaceholder: medDoseResult.responsesSent === 1 ? 'ok' : 'failed',
-    menuOneBootstrapsOfficialTypebotWelcome: bootstrapResult.responsesSent === 2 ? 'ok' : 'failed'
+    menuShowsBeforeTypebot: menuOi.menuHandled ? 'ok' : 'failed',
+    menuOptionOneStartsCleanTypebot: menuStart.responsesSent >= 1 && menuCleared ? 'ok' : 'failed',
+    postAttendanceSupportChoiceWiredToBackend: supportChoiceCalls.length === 2 && supportSessionCleared ? 'ok' : 'failed',
+    supportChoiceFailureDoesNotBreakReply: supportErrorResult.duplicate === false && supportErrorLogged ? 'ok' : 'failed',
+    legalDocsSentAsUrlButtonsNoAttachmentNoRawUrl: legalDocsSent.length === 2 && legalTextsSent.every((t) => !String(t.text || '').includes('http')) ? 'ok' : 'failed',
+    persistedStateWinsOverStaleLocalCache: staleCacheResult.validationFailed === undefined && staleCacheCalls.length === 2 ? 'ok' : 'failed'
   }));
 }
 

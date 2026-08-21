@@ -10,12 +10,12 @@ const {
   PAYMENT_AMOUNT_LABEL,
   PAYMENT_BUTTON_LABEL,
   PAYMENT_CANCELLED_MESSAGE,
-  PAYMENT_CONFIRMED_MESSAGE,
   PAYMENT_FAILED_MESSAGE,
   PAYMENT_INPUT_ID,
+  PAYMENT_METHOD_TYPES,
   PAYMENT_PENDING_CHOICES,
   PAYMENT_PENDING_MESSAGE,
-  PRE_PAYMENT_MESSAGE
+  PIX_EXPIRES_AFTER_SECONDS
 } = require('./typebot-payment.constants');
 
 const TOKEN_TTL_MS = Number(process.env.TYPEBOT_PAYMENT_LINK_TTL_MS || 24 * 60 * 60 * 1000);
@@ -97,6 +97,14 @@ async function createCheckoutSession(stripe, { token, typebotSessionId, identity
   return stripe.checkout.sessions.create({
     mode: 'payment',
     locale: 'pt-BR',
+    // Pix + cartão (cartão continua primeiro na lista/UI padrão da Stripe).
+    // Mesmo valor, mesmo checkout, mesmo webhook checkout.session.completed
+    // e mesma verificação de amount_total/currency — nenhuma lógica de
+    // confirmação nova para Pix.
+    payment_method_types: PAYMENT_METHOD_TYPES,
+    payment_method_options: {
+      pix: { expires_after_seconds: PIX_EXPIRES_AFTER_SECONDS }
+    },
     line_items: [{
       quantity: 1,
       price_data: {
@@ -525,13 +533,19 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
   return providerMessageIds;
 }
 
+// O texto introdutório (valor, condições, aviso de continuidade automática)
+// já é enviado pelo próprio Typebot como bolha normal (grupo "Pagamento",
+// blk_pay_intro — texto idêntico a PRE_PAYMENT_MESSAGE) antes desta função
+// ser chamada. Reenviá-lo aqui duplicava a mensagem para o paciente
+// (achado real 09/08/2026). Só o botão CTA é exclusivo do Backend, porque
+// o Typebot não tem como renderizar nativamente um link de pagamento no
+// WhatsApp.
 async function sendPaymentIntro({ session, checkoutRedirectUrl, correlationId, provider = metaProvider, idempotencyPrefix = correlationId }) {
   return sendTypebotOutputs({
     session,
     correlationId,
     provider,
     outputs: [
-      { kind: 'text', text: PRE_PAYMENT_MESSAGE },
       {
         kind: 'cta_url',
         body: 'Toque no botão abaixo para concluir o pagamento com segurança.',
@@ -590,14 +604,6 @@ async function completePaymentByToken(token, deps = {}) {
 
   const correlationId = `typebot-payment-${payment.checkout_session_id || payment.token}`;
   try {
-    await provider.sendTextMessage({
-      to: session.phone,
-      bsuid: session.bsuid,
-      correlationId,
-      idempotencyKey: `${correlationId}:confirmed`,
-      text: PAYMENT_CONFIRMED_MESSAGE
-    });
-
     const typebot = await callTypebot(
       `/sessions/${encodeURIComponent(payment.typebot_session_id)}/continueChat`,
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
@@ -643,7 +649,7 @@ async function completePaymentByToken(token, deps = {}) {
       bsuid: session.bsuid,
       metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
     }).catch(() => {});
-    return { ok: true, responsesSent: providerMessageIds.length + 1 };
+    return { ok: true, responsesSent: providerMessageIds.length };
   } catch (error) {
     await revertFlowResume(session);
     await logError({
