@@ -67,13 +67,66 @@ Reimplementado sobre `d55a1c2` (PR `fix/admin-alert-whatsapp-template-20260830`)
   permanecem intactos.
 - Teste: `scripts/test-admin-alert-templates-unit.js`.
 
+## Homologação em produção — 30/08/2026
+
+PR #54 mergeado em `staging` (squash `76bb991`), auto-deploy em backend staging
+e — por acoplamento de branch — no `web` de produção (ambos `SUCCESS`,
+`/health` e `/readyz` 200, Supabase conectado, sem restart loop).
+
+Teste em produção via `railway run` (sem Stripe, 1 atendimento `test_patient`
+`medical_queue`/`waiting`/pago/elegível/foto fictícia, já removido):
+
+| Verificação | Resultado |
+|---|---|
+| `admin_alert_dispatch` | 1 (`type: medical_queue`, `shortId: 48796F`) |
+| `whatsappConfigured` | `true` |
+| Template usado | `doctor_admin_alerta_fila_medica_v1` (`APPROVED`, `pt_BR`, `{{1}} = 48796F`) |
+| Resposta síncrona da Meta | `message_status: accepted`, `wamid.HBgN…QjJDMjkyMUIxMAA=` |
+| Webhook de status (assíncrono) | **`failed`** |
+
+Erro no webhook de status:
+
+```
+code:  131042
+title: Business eligibility payment issue
+motivo: "your WhatsApp Business account payment has been restricted"
+        (business_id 2276030586264187 / asset 1922123701817210 — a WABA de produção)
+```
+
+### O que isso comprova
+
+1. O template `doctor_admin_alerta_fila_medica_v1` está `APPROVED` e foi
+   **efetivamente usado em produção**.
+2. A Meta **aceitou** o envio inicialmente (`message_status: accepted`) e
+   retornou `wamid`.
+3. A falha veio só no **webhook assíncrono**: `131042`, "Business eligibility
+   payment issue", por **restrição de pagamento na WABA**.
+4. Portanto:
+   - o erro anterior `131047` / janela de 24 h foi **resolvido** pela migração
+     para template (a Meta não reclamou de re-engajamento);
+   - o bloqueio atual **não é do código**;
+   - o bloqueio atual **não é do template**;
+   - o bloqueio atual é **billing / elegibilidade da conta WhatsApp Business**
+     e afeta qualquer envio (template ou texto livre), para qualquer
+     destinatário.
+5. O **Telegram continua funcionando** como canal paralelo independente
+   (`dispatch telegram = sent`), cobrindo o requisito de o alerta chegar fora da
+   janela de 24 h enquanto o WhatsApp está bloqueado.
+
+### Por que não há fallback automático para o `131042`
+
+O provider recebe `200 / accepted` **antes** do webhook de falha. Do ponto de
+vista do código o envio do template teve sucesso; o `131042` chega depois, num
+canal (webhook de status) que não realimenta o caminho de envio. Além disso, o
+fallback de texto livre cairia no **mesmo** `131042` (mesma WABA). Não se deve
+disparar reenvio automático a partir desse erro assíncrono.
+
 ## Próximo passo
 
-1. Homologar `fix/admin-alert-whatsapp-template-20260830` em `staging`
-   (auto-deploy no backend staging e — por acoplamento de branch — no `web` de
-   produção).
-2. Validar entrega **fora da janela de 24 h**: disparar 1 alerta `medical_queue`
-   de teste (`test_patient`, via `railway run`, sem Stripe) e conferir o webhook
-   de status da Meta = `sent` → `delivered` (não `failed`/`131047`).
+1. Resolver a **restrição de pagamento da WABA `1922123701817210`** no billing
+   hub da Meta (link no corpo do erro `131042`). **Não requer novo código.**
+2. Depois disso, repetir **um único** teste `test_patient` (via `railway run`,
+   sem Stripe) e confirmar a evolução do status do template:
+   `accepted → sent → delivered` (não `failed`).
 3. Se a qualidade do template cair para `PAUSED`, o fallback de texto livre
    mantém o comportamento anterior dentro da janela; Telegram sempre cobre.

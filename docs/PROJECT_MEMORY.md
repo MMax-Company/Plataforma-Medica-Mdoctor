@@ -334,6 +334,20 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   independente. Provider: `meta.provider.sendTemplateMessage`. Nenhum template
   é criado ou alterado na Meta pelo código — apenas referenciados os já
   aprovados. Detalhamento em `docs/ALERTA-ADMIN-WHATSAPP-TEMPLATES.md`.
+- **Homologação em produção — 30/08/2026 (PR #54, squash `76bb991`):** deploy OK
+  em backend staging e `web` de produção. Teste `railway run` (1 `test_patient`
+  `medical_queue`, já removido): `admin_alert_dispatch = 1`, template
+  `doctor_admin_alerta_fila_medica_v1` usado, Meta respondeu `accepted` + `wamid`.
+  O webhook de status retornou **`failed` com `131042` "Business eligibility
+  payment issue"** — restrição de pagamento na WABA `1922123701817210`. Isso
+  confirma que o `131047` (janela de 24 h) foi resolvido pela migração para
+  template; o bloqueio atual **não é do código nem do template**, é
+  billing/elegibilidade da conta WhatsApp Business e afeta qualquer envio. O
+  Telegram seguiu entregando (`telegram = sent`). Sem fallback automático para
+  esse erro assíncrono (o provider recebe `200/accepted` antes do webhook).
+  Quando a restrição de pagamento for removida, repetir um único teste
+  `test_patient` para confirmar `accepted → sent/delivered`. Nenhum código novo
+  é necessário para o `131042`.
 
 ## 10. Configuração Stripe — estado auditado em 07/08/2026
 
