@@ -150,6 +150,51 @@ async function sendTextMessage({ to, bsuid, recipientId, text, correlationId, id
   );
 }
 
+// Envio de template (categoria Utility/Marketing) — entrega TAMBÉM fora da
+// janela de atendimento de 24h, ao contrário de sendTextMessage (Meta 131047).
+// bodyParameters preenche {{1}}, {{2}}, ... do corpo do template, em ordem.
+async function sendTemplateMessage({
+  to,
+  bsuid,
+  recipientId,
+  name,
+  languageCode = 'pt_BR',
+  bodyParameters = [],
+  correlationId,
+  idempotencyKey
+}) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const templateName = String(name || '').trim();
+  const language = String(languageCode || '').trim();
+  if (!templateName || !language || !Array.isArray(bodyParameters)) {
+    const error = new Error('Envio de template Meta requer name, languageCode e bodyParameters em array');
+    error.code = 'INVALID_TEMPLATE_PAYLOAD';
+    throw error;
+  }
+
+  return postMessage(
+    {
+      ...recipient,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: language },
+        ...(bodyParameters.length > 0
+          ? {
+              components: [
+                {
+                  type: 'body',
+                  parameters: bodyParameters.map((value) => ({ type: 'text', text: String(value) }))
+                }
+              ]
+            }
+          : {})
+      }
+    },
+    { correlationId, idempotencyKey }
+  );
+}
+
 async function sendButtonMessage({ to, bsuid, recipientId, body, buttons, correlationId, idempotencyKey }) {
   const recipient = resolveRecipient({ to, bsuid, recipientId });
   return postMessage({
@@ -466,6 +511,7 @@ module.exports = {
   createMessageTemplate,
   deleteMessageTemplate,
   sendTextMessage,
+  sendTemplateMessage,
   sendButtonMessage,
   sendCtaUrlMessage,
   sendListMessage,

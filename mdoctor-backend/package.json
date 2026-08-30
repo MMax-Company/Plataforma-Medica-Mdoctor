@@ -151,6 +151,7 @@
     "test:whatsapp-typebot-bridge": "node scripts/test-whatsapp-typebot-bridge.js",
     "test:whatsapp-cep-autofill": "node scripts/test-whatsapp-cep-autofill-unit.js",
     "test:medical-queue-alert": "node scripts/test-medical-queue-alert-unit.js",
+    "test:admin-alert-templates": "node scripts/test-admin-alert-templates-unit.js",
     "test:whatsapp-meta-templates": "node scripts/test-whatsapp-meta-templates.js",
     "test:whatsapp-coexistence": "node scripts/test-whatsapp-coexistence.js",
     "start": "node server.js",
