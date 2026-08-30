@@ -366,6 +366,70 @@ async function linkPatientToAppointment(appointmentId, patientId) {
   return data ? fromSupabase(data) : null;
 }
 
+// Alerta "novo paciente na fila médica": ponto ÚNICO de disparo, ligado à
+// materialização real da entrada na fila (status canônico waiting + visível no
+// painel médico), independente do caminho — criado direto em waiting,
+// awaiting_prescription_upload → waiting após o upload da receita, reconciliação
+// de pagamento, etc. Idempotente por dados_clinicos.medical_queue_alert_sent_at:
+// dispara uma vez só por atendimento, nunca em retry / webhook repetido / upload
+// repetido / flapping de status (waiting → em_atendimento → waiting). Totalmente
+// isolado: nenhuma falha aqui pode afetar a criação ou a mudança de status.
+const medicalQueueAlertInFlight = new Set();
+
+async function persistMedicalQueueAlertMarker(id) {
+  // Relê o estado atual antes de gravar — o marcador é um patch de UM campo em
+  // dados_clinicos (JSON); reescrever a partir de um snapshot antigo poderia
+  // reverter uma atualização clínica concorrente.
+  const current = await getAtendimento(id);
+  if (!current?.id) return false;
+  if (current.dados_clinicos?.medical_queue_alert_sent_at) return false;
+  const table = await getAppointmentTable();
+  const clinical = {
+    ...(current.dados_clinicos || {}),
+    medical_queue_alert_sent_at: new Date().toISOString()
+  };
+  const col = table === 'atendimentos' ? 'dados_clinicos' : 'clinical_data';
+  // Update direto (nunca via updateAtendimentoStatus) — evita recursão no hook.
+  await dbQuery('marca alerta fila médica', async (supabase) =>
+    supabase.from(table).update({ [col]: clinical }).eq('id', id).select('id').maybeSingle()
+  );
+  return true;
+}
+
+async function announceMedicalQueueEntryOnce(atendimento) {
+  try {
+    if (!atendimento?.id) return;
+    if (normalizeStatus(atendimento.status) !== STATUS.WAITING) return;
+    if (atendimento.dados_clinicos?.medical_queue_alert_sent_at) return;
+    if (medicalQueueAlertInFlight.has(atendimento.id)) return;
+
+    // Lazy require: mantém o store desacoplado dos serviços e evita ciclo.
+    const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
+    if (!isVisibleInMedicalPanel(atendimento)) return;
+
+    medicalQueueAlertInFlight.add(atendimento.id);
+    try {
+      // Grava o marcador ANTES de notificar; se a releitura já achar o marcador
+      // (outra execução ganhou a corrida), não notifica de novo.
+      const claimed = await persistMedicalQueueAlertMarker(atendimento.id);
+      if (!claimed) return;
+      const { notifyAdminAlert } = require('../services/admin-alert.service');
+      await notifyAdminAlert({ type: 'medical_queue', id: atendimento.id });
+    } finally {
+      medicalQueueAlertInFlight.delete(atendimento.id);
+    }
+  } catch (error) {
+    try {
+      require('../config/logger').warn('medical_queue_alert_hook_failed', {
+        atendimentoId: atendimento?.id || null,
+        error: error.message
+      });
+    } catch {
+      /* logger indisponível — ignora */
+    }
+  }
+}
+
 async function createAtendimento(input) {
   const atendimento = normalizeAtendimento(input);
   const table = await getAppointmentTable();
@@ -382,8 +446,11 @@ async function createAtendimento(input) {
     }
   }
   if (created?.id && atendimento.patient_id && !created.patient_id) {
-    return (await linkPatientToAppointment(created.id, atendimento.patient_id)) || created;
+    const linked = (await linkPatientToAppointment(created.id, atendimento.patient_id)) || created;
+    announceMedicalQueueEntryOnce(linked).catch(() => {});
+    return linked;
   }
+  announceMedicalQueueEntryOnce(created).catch(() => {});
   return created;
 }
 
@@ -479,7 +546,9 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
     // histórico opcional até migration 20260601 completa
   }
 
-  return fromSupabase(data);
+  const updated = fromSupabase(data);
+  announceMedicalQueueEntryOnce(updated).catch(() => {});
+  return updated;
 }
 
 async function createDecisaoLog(input = {}) {
@@ -647,5 +716,7 @@ module.exports = {
   createDecisaoLog,
   listDecisoesLog,
   listRecentDecisoesLog,
-  createEntregaReceitaLog
+  createEntregaReceitaLog,
+  // exposto só para teste do ponto único de alerta da fila médica
+  announceMedicalQueueEntryOnce
 };

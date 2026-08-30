@@ -66,6 +66,14 @@ async function sendTelegramAlert(type, shortId) {
 
 async function notifyAdminAlert({ type, id }) {
   const shortId = shortIdFrom(id);
+  // Diagnóstico: qual canal está configurado (sem expor segredo). Permite
+  // conferir pelos logs se ADMIN_ALERT_PHONE / TELEGRAM_* estão presentes.
+  logger.info('admin_alert_dispatch', {
+    type,
+    shortId,
+    whatsappConfigured: Boolean(getAdminAlertPhone()),
+    telegramConfigured: telegramProvider.isConfigured()
+  });
   // Disparados em paralelo e isolados — nenhum dos dois pode esperar ou
   // derrubar o outro, e nenhum dos dois pode propagar erro ao chamador.
   await Promise.all([sendWhatsAppAlert(type, shortId), sendTelegramAlert(type, shortId)]);
