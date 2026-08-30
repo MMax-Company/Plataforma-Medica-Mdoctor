@@ -19,6 +19,9 @@ let currentRow = null; // o que getAtendimento (releitura) devolve
 
 // fake supabase encadeável: cobre select().eq().maybeSingle() (leitura) e
 // update().eq().select().maybeSingle() (gravação do marcador)
+let channelsConfigured = true;
+let markerAlreadySet = false; // simula corrida: write condicional não casa linha
+
 function fakeSupabase() {
   return {
     from: () => {
@@ -28,8 +31,13 @@ function fakeSupabase() {
         select: () => chain,
         update: (patch) => { chain._op = 'update'; chain._patch = patch; return chain; },
         eq: () => chain,
+        is: () => chain,
         maybeSingle: async () => {
-          if (chain._op === 'update') { markerWrites.push(chain._patch); return { id: 'atd-1' }; }
+          if (chain._op === 'update') {
+            if (markerAlreadySet) return null; // filtro .is(...null) não casou
+            markerWrites.push(chain._patch);
+            return { id: 'atd-1' };
+          }
           return currentRow;
         },
         single: async () => currentRow
@@ -45,7 +53,8 @@ stub(storePath, '../services/clinical-payload-normalizer.service', {
   isVisibleInMedicalPanel: () => visible
 });
 stub(storePath, '../services/admin-alert.service', {
-  notifyAdminAlert: async (payload) => { alerts.push(payload); }
+  notifyAdminAlert: async (payload) => { alerts.push(payload); return { whatsapp: 'sent', telegram: 'skipped', delivered: true }; },
+  adminAlertChannelsConfigured: () => channelsConfigured
 });
 stub(storePath, '../config/logger', { info: () => {}, warn: () => {}, error: () => {} });
 
@@ -71,7 +80,10 @@ function arm({ status = 'waiting', clinical = { previous_prescription_url: PHOTO
   };
 }
 
-function reset() { alerts = []; markerWrites = []; visible = true; currentRow = null; }
+function reset() {
+  alerts = []; markerWrites = []; visible = true; currentRow = null;
+  channelsConfigured = true; markerAlreadySet = false;
+}
 
 async function main() {
   const results = {};
@@ -103,6 +115,21 @@ async function main() {
   }));
   assert.equal(alerts.length, 0, 'corrida: releitura acha o marcador, não notifica');
   results.marcadorNaReleitura_naoNotifica = 'ok';
+
+  // 2c) write condicional não casa linha (outra execução gravou entre releitura e write) -> 0 alerta
+  reset();
+  markerAlreadySet = true;
+  await announceMedicalQueueEntryOnce(arm());
+  assert.equal(alerts.length, 0, 'corrida no write condicional: claimed=false, não notifica');
+  results.writeCondicionalPerdeCorrida_naoNotifica = 'ok';
+
+  // 2d) nenhum canal configurado -> 0 alerta, 0 marcador (retenta na próxima transição)
+  reset();
+  channelsConfigured = false;
+  await announceMedicalQueueEntryOnce(arm());
+  assert.equal(alerts.length, 0, 'sem canal: não notifica');
+  assert.equal(markerWrites.length, 0, 'sem canal: NÃO marca (permite retry futuro)');
+  results.semCanalConfigurado_naoMarca = 'ok';
 
   // 3) waiting mas NÃO visível (sem foto ainda) -> 0 alerta
   reset();

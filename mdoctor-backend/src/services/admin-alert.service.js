@@ -37,46 +37,58 @@ function getAdminAlertPhone() {
   return String(process.env.ADMIN_ALERT_PHONE || '').trim();
 }
 
+// true quando pelo menos um canal (WhatsApp texto livre ou Telegram) tem
+// configuração para tentar o envio.
+function adminAlertChannelsConfigured() {
+  return Boolean(getAdminAlertPhone()) || telegramProvider.isConfigured();
+}
+
+// Retorna 'sent' | 'skipped' | 'failed' — nunca lança.
 async function sendWhatsAppAlert(type, shortId) {
+  const phone = getAdminAlertPhone();
+  if (!phone) return 'skipped';
+  const buildText = ALERT_TEXTS[type];
+  if (!buildText) return 'skipped';
   try {
-    const phone = getAdminAlertPhone();
-    if (!phone) return;
-
-    const buildText = ALERT_TEXTS[type];
-    if (!buildText) return;
-
     await metaProvider.sendTextMessage({ to: phone, text: buildText(shortId) });
+    return 'sent';
   } catch (error) {
     logger.warn('admin_alert_send_failed', { channel: 'whatsapp', type, error });
+    return 'failed';
   }
 }
 
 async function sendTelegramAlert(type, shortId) {
+  if (!telegramProvider.isConfigured()) return 'skipped';
+  const buildText = TELEGRAM_ALERT_TEXTS[type];
+  if (!buildText) return 'skipped';
   try {
-    if (!telegramProvider.isConfigured()) return;
-
-    const buildText = TELEGRAM_ALERT_TEXTS[type];
-    if (!buildText) return;
-
     await telegramProvider.sendTextMessage({ text: buildText(shortId) });
+    return 'sent';
   } catch (error) {
     logger.warn('admin_alert_send_failed', { channel: 'telegram', type, error });
+    return 'failed';
   }
 }
 
 async function notifyAdminAlert({ type, id }) {
   const shortId = shortIdFrom(id);
-  // Diagnóstico: qual canal está configurado (sem expor segredo). Permite
-  // conferir pelos logs se ADMIN_ALERT_PHONE / TELEGRAM_* estão presentes.
+  // Disparados em paralelo e isolados — nenhum dos dois pode esperar ou
+  // derrubar o outro, e nenhum dos dois pode propagar erro ao chamador.
+  const [whatsapp, telegram] = await Promise.all([
+    sendWhatsAppAlert(type, shortId),
+    sendTelegramAlert(type, shortId)
+  ]);
+  // Diagnóstico (sem expor segredo): canal configurado + resultado do envio.
   logger.info('admin_alert_dispatch', {
     type,
     shortId,
     whatsappConfigured: Boolean(getAdminAlertPhone()),
-    telegramConfigured: telegramProvider.isConfigured()
+    telegramConfigured: telegramProvider.isConfigured(),
+    whatsapp,
+    telegram
   });
-  // Disparados em paralelo e isolados — nenhum dos dois pode esperar ou
-  // derrubar o outro, e nenhum dos dois pode propagar erro ao chamador.
-  await Promise.all([sendWhatsAppAlert(type, shortId), sendTelegramAlert(type, shortId)]);
+  return { whatsapp, telegram, delivered: whatsapp === 'sent' || telegram === 'sent' };
 }
 
-module.exports = { notifyAdminAlert };
+module.exports = { notifyAdminAlert, adminAlertChannelsConfigured };
