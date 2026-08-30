@@ -366,6 +366,90 @@ async function linkPatientToAppointment(appointmentId, patientId) {
   return data ? fromSupabase(data) : null;
 }
 
+// Alerta "novo paciente na fila médica": ponto ÚNICO de disparo, ligado à
+// materialização real da entrada na fila (status canônico waiting + visível no
+// painel médico), independente do caminho — criado direto em waiting,
+// awaiting_prescription_upload → waiting após o upload da receita, reconciliação
+// de pagamento, etc. Idempotente por dados_clinicos.medical_queue_alert_sent_at:
+// dispara uma vez só por atendimento, nunca em retry / webhook repetido / upload
+// repetido / flapping de status (waiting → em_atendimento → waiting). Totalmente
+// isolado: nenhuma falha aqui pode afetar a criação ou a mudança de status.
+const medicalQueueAlertInFlight = new Set();
+
+async function persistMedicalQueueAlertMarker(id) {
+  // Relê o estado imediatamente antes de gravar para minimizar a janela em que
+  // a reescrita de dados_clinicos (JSON) poderia reverter uma atualização
+  // clínica concorrente — mesma limitação de todos os writes de dados_clinicos
+  // neste código (markUploadSessionCompleted, triagem-webhook, etc.), aqui
+  // ainda mais estreita: só grava o marcador (1 chave) e o write é
+  // CONDICIONAL — só efetiva se o marcador ainda estiver nulo, então duas
+  // execuções concorrentes nunca dão dois writes.
+  const current = await getAtendimento(id);
+  if (!current?.id) return false;
+  if (current.dados_clinicos?.medical_queue_alert_sent_at) return false;
+  const table = await getAppointmentTable();
+  const col = table === 'atendimentos' ? 'dados_clinicos' : 'clinical_data';
+  const clinical = {
+    ...(current.dados_clinicos || {}),
+    medical_queue_alert_sent_at: new Date().toISOString()
+  };
+  // Update direto (nunca via updateAtendimentoStatus) — evita recursão no hook.
+  const data = await dbQuery('marca alerta fila médica', async (supabase) =>
+    supabase
+      .from(table)
+      .update({ [col]: clinical })
+      .eq('id', id)
+      .is(`${col}->>medical_queue_alert_sent_at`, null)
+      .select('id')
+      .maybeSingle()
+  );
+  return Boolean(data?.id);
+}
+
+async function announceMedicalQueueEntryOnce(atendimento) {
+  try {
+    if (!atendimento?.id) return;
+    if (normalizeStatus(atendimento.status) !== STATUS.WAITING) return;
+    if (atendimento.dados_clinicos?.medical_queue_alert_sent_at) return;
+    if (medicalQueueAlertInFlight.has(atendimento.id)) return;
+
+    // Lazy require: mantém o store desacoplado dos serviços e evita ciclo.
+    const { isVisibleInMedicalPanel } = require('../services/clinical-payload-normalizer.service');
+    if (!isVisibleInMedicalPanel(atendimento)) return;
+
+    medicalQueueAlertInFlight.add(atendimento.id);
+    try {
+      const { notifyAdminAlert, adminAlertChannelsConfigured } = require('../services/admin-alert.service');
+      // Nenhum canal configurado (ADMIN_ALERT_PHONE / TELEGRAM_*): não grava o
+      // marcador — assim a próxima transição legítima para a fila tenta de novo
+      // quando um canal existir (a alternativa marcaria e perderia o alerta
+      // para sempre). Não spamma: o hook só dispara em transição real.
+      if (!adminAlertChannelsConfigured()) {
+        require('../config/logger').info('medical_queue_alert_no_channel', {
+          atendimentoId: atendimento.id
+        });
+        return;
+      }
+      // Marca ANTES de notificar (at-most-once — a regra é "nunca duplicar");
+      // write condicional: se outra execução ganhou a corrida, claimed=false.
+      const claimed = await persistMedicalQueueAlertMarker(atendimento.id);
+      if (!claimed) return;
+      await notifyAdminAlert({ type: 'medical_queue', id: atendimento.id });
+    } finally {
+      medicalQueueAlertInFlight.delete(atendimento.id);
+    }
+  } catch (error) {
+    try {
+      require('../config/logger').warn('medical_queue_alert_hook_failed', {
+        atendimentoId: atendimento?.id || null,
+        error: error.message
+      });
+    } catch {
+      /* logger indisponível — ignora */
+    }
+  }
+}
+
 async function createAtendimento(input) {
   const atendimento = normalizeAtendimento(input);
   const table = await getAppointmentTable();
@@ -382,8 +466,11 @@ async function createAtendimento(input) {
     }
   }
   if (created?.id && atendimento.patient_id && !created.patient_id) {
-    return (await linkPatientToAppointment(created.id, atendimento.patient_id)) || created;
+    const linked = (await linkPatientToAppointment(created.id, atendimento.patient_id)) || created;
+    announceMedicalQueueEntryOnce(linked).catch(() => {});
+    return linked;
   }
+  announceMedicalQueueEntryOnce(created).catch(() => {});
   return created;
 }
 
@@ -479,7 +566,9 @@ async function updateAtendimentoStatus(id, status, meta = {}) {
     // histórico opcional até migration 20260601 completa
   }
 
-  return fromSupabase(data);
+  const updated = fromSupabase(data);
+  announceMedicalQueueEntryOnce(updated).catch(() => {});
+  return updated;
 }
 
 async function createDecisaoLog(input = {}) {
@@ -647,5 +736,7 @@ module.exports = {
   createDecisaoLog,
   listDecisoesLog,
   listRecentDecisoesLog,
-  createEntregaReceitaLog
+  createEntregaReceitaLog,
+  // exposto só para teste do ponto único de alerta da fila médica
+  announceMedicalQueueEntryOnce
 };
