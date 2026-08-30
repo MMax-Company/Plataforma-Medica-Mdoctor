@@ -317,6 +317,23 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   do PaymentIntent confirmado; a foto foi armazenada e o atendimento seguiu
   para `waiting`, elegível, pago e na fila médica. Durante essa etapa, suporte
   continua sendo a opção 2; opção 3 somente após entrega da receita emitida.
+- **Alerta administrativo no WhatsApp via template Utility (decisão permanente,
+  30/08/2026):** o alerta interno para o administrador (`admin-alert.service.js`,
+  disparado uma única vez pelo ponto central `announceMedicalQueueEntryOnce` no
+  store, com idempotência por `dados_clinicos.medical_queue_alert_sent_at`) passa
+  a enviar **template Utility aprovado** pela Meta como canal primário, porque
+  texto livre só é entregue dentro da janela de 24 h (fora dela a Meta falha o
+  webhook de status com `131047` "Re-engagement message"). Mapa fixo
+  `ALERT_TEMPLATES`: `medical_queue → doctor_admin_alerta_fila_medica_v1`,
+  `support_queue → doctor_admin_alerta_suporte_v1`,
+  `medical_support_queue → doctor_admin_alerta_suporte_medico_v1` — todos
+  `pt_BR`, categoria `UTILITY`, `APPROVED` na WABA de produção `1922123701817210`,
+  1 variável posicional `{{1}}` = `shortId`. Fallback: se o template lançar
+  (ex.: `PAUSED` por queda de qualidade) cai no texto livre `ALERT_TEXTS`, que
+  só entrega dentro da janela. Telegram permanece como canal paralelo
+  independente. Provider: `meta.provider.sendTemplateMessage`. Nenhum template
+  é criado ou alterado na Meta pelo código — apenas referenciados os já
+  aprovados. Detalhamento em `docs/ALERTA-ADMIN-WHATSAPP-TEMPLATES.md`.
 
 ## 10. Configuração Stripe — estado auditado em 07/08/2026
 
