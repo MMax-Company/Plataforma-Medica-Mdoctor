@@ -192,10 +192,26 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
   };
 }
 
+// Sub-status que ainda exigem ação da equipe de suporte — só estes alimentam
+// a faixa/contador do painel. AWAITING_DECISION (pós "Finalizar atendimento")
+// já é decisão do paciente: o suporte concluiu, então o ticket sai do contador
+// imediatamente, sem esperar a resposta 1/2 nem o timeout de inatividade.
+// Os demais sub-status (closed_by_patient, converted, inactive) já não são
+// "open" em supportIsOpen.
+const ACTIVE_SUPPORT_SUB_STATUSES = new Set([
+  SUPPORT_SUB.WAITING,
+  SUPPORT_SUB.EM_ATENDIMENTO
+]);
+
+function supportNeedsPanelAction(atendimento) {
+  return supportIsOpen(atendimento)
+    && ACTIVE_SUPPORT_SUB_STATUSES.has(getSupportSubStatus(atendimento));
+}
+
 async function listWhatsAppSupportQueue() {
   const rows = await listAtendimentos();
   return rows
-    .filter((item) => isSupportQueue(item) && supportIsOpen(item))
+    .filter((item) => isSupportQueue(item) && supportNeedsPanelAction(item))
     .sort((a, b) => String(a.criado_em).localeCompare(String(b.criado_em)));
 }
 
