@@ -11,7 +11,7 @@ const {
   listAtendimentos
 } = require('../store/atendimentos.store');
 const { getRememberedWebhookResult, rememberWebhookResult } = require('../store/webhook-idempotency.store');
-const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { getSessionByPhone, clearJourneyMarkers } = require('../store/whatsapp-sessions.store');
 const { findUnlinkedNativePaymentByEmail, linkPaymentToAppointment } = require('../store/payments.store');
 const { PAYMENT_AMOUNT_CENTS } = require('./typebot-payment.constants');
 const {
@@ -32,6 +32,45 @@ const {
 } = require('./triagem-nested.mapper');
 
 const ORIGEM = 'typebot-triagem';
+
+// Marcadores de início da jornada (métrica de tempo do painel admin —
+// admin.routes.js computeTempos). Ficam staged em whatsapp_sessions.metadata
+// (journey_started_at / welcome_clicked_at, gravados pelo webhook inbound do
+// WhatsApp) e são copiados para o atendimento AQUI, no momento da criação.
+//
+// whatsapp_sessions é uma linha persistente por telefone: um marcador de uma
+// jornada anterior que não tenha sido limpo pode ficar "congelado" na sessão
+// (auditoria 07/09/2026). Por isso só se aceita o marcador quando ele é
+// coerente com ESTA jornada: não pode ser posterior à criação do atendimento
+// e não pode ser mais antigo que MAX_JOURNEY_AGE_MS. Sem marcador válido, o
+// campo fica ausente — nunca se inventa horário. Logo após criar o
+// atendimento, os marcadores são limpos da sessão (clearJourneyMarkers) para
+// a próxima jornada do mesmo telefone começar do zero.
+const MAX_JOURNEY_AGE_MS = 24 * 60 * 60 * 1000;
+
+function validJourneyMarker(iso, referenceMs) {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  if (t > referenceMs + 60 * 1000) return null;
+  if (t < referenceMs - MAX_JOURNEY_AGE_MS) return null;
+  return new Date(t).toISOString();
+}
+
+function resolveJourneyMarkers(session, referenceMs) {
+  let primeiroOiEm = validJourneyMarker(session?.metadata?.journey_started_at, referenceMs);
+  let triagemIniciadaEm = validJourneyMarker(session?.metadata?.welcome_clicked_at, referenceMs);
+  // Ordem impossível (primeiro "Oi" depois do clique em "Vamos começar") =
+  // sessão contaminada por jornada anterior — descarta os dois.
+  if (primeiroOiEm && triagemIniciadaEm && Date.parse(triagemIniciadaEm) < Date.parse(primeiroOiEm)) {
+    primeiroOiEm = null;
+    triagemIniciadaEm = null;
+  }
+  const jornada = {};
+  if (primeiroOiEm) jornada.primeiro_oi_em = primeiroOiEm;
+  if (triagemIniciadaEm) jornada.triagem_iniciada_em = triagemIniciadaEm;
+  return jornada;
+}
 
 // Sincronização de pagamento: a confirmação real do Stripe já vive em
 // whatsapp_sessions.metadata.typebot_payment (Fase 2 pedido 2), mas o
@@ -266,6 +305,13 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     atendimentoStatus = STATUS.WAITING;
   }
 
+  const journeyPhone = normalized.whatsapp || validation.paciente.telefone || null;
+  const journeyReferenceMs = Date.now();
+  const journeySession = journeyPhone
+    ? await getSessionByPhone(journeyPhone).catch(() => null)
+    : null;
+  const jornada = resolveJourneyMarkers(journeySession, journeyReferenceMs);
+
   const enrichedClinicalData = {
     ...patientData,
     original_payload: originalPayload,
@@ -279,6 +325,7 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
     medications: normalized.medications || [],
     queue_type: 'medical',
     protocol_version: PROTOCOL_VERSION,
+    ...(Object.keys(jornada).length ? { jornada } : {}),
     clinical_summary: clinicalNarrative.summary,
     queixa_principal: clinicalNarrative.chiefComplaint,
     historico_clinico: clinicalNarrative.clinicalHistory,
@@ -351,6 +398,19 @@ async function processTriagemWebhook({ body = {}, correlationId, idempotencyKey,
   if (patient?.id && atendimento?.id) {
     await linkPatientToAppointment(atendimento.id, patient.id);
     atendimento.patient_id = patient.id;
+  }
+
+  // Marcadores de jornada já foram copiados para dados_clinicos.jornada acima;
+  // limpa da sessão (best-effort) para a PRÓXIMA jornada deste telefone não
+  // herdar os timestamps desta. Nunca interfere no fluxo principal.
+  if (journeySession?.id) {
+    await clearJourneyMarkers(journeyPhone).catch((error) => {
+      logger.warn('triagem_journey_markers_clear_failed', {
+        atendimentoId: atendimento?.id,
+        correlationId,
+        error: error.message
+      });
+    });
   }
 
   // Alerta "novo paciente na fila médica": disparado no ponto único
@@ -477,3 +537,7 @@ module.exports = {
   resolvePendingNativeTypebotPayment,
   ORIGEM
 };
+// Exposto para validação isolada do guard anti-contaminação dos marcadores
+// de jornada (whatsapp_sessions é persistente por telefone).
+module.exports.resolveJourneyMarkers = resolveJourneyMarkers;
+module.exports.validJourneyMarker = validJourneyMarker;
