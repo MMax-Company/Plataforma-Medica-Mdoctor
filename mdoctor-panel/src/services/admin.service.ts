@@ -96,10 +96,15 @@ export type AdminDashboard = {
   };
   tempos: {
     amostra: number;
+    amostra_por_indicador?: Partial<Record<string, number>>;
+    pagamento_fila: string | null;
     triagem: string | null;
     espera_medica: string | null;
     avaliacao: string | null;
+    geracao_receita: string | null;
     emissao_receita: string | null;
+    receita_pronta_entrega: string | null;
+    envio_receita_anterior: string | null;
     jornada_completa: string | null;
     suporte_administrativo: string | null;
     suporte_medico: string | null;
