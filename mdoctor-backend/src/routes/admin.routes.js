@@ -13,6 +13,7 @@ const {
   updateAtendimentoStatus,
   listRecentDecisoesLog,
   listDecisoesLog,
+  listStatusHistory,
   statusInGroup,
 } = require('../store/atendimentos.store');
 const { PAYMENT_AMOUNT_CENTS, PAYMENT_AMOUNT_LABEL } = require('../services/typebot-payment.constants');
@@ -214,6 +215,32 @@ async function findEventosMedicos(atendimentoId) {
   };
 }
 
+// Etapas intermediárias da jornada a partir de appointment_status_history
+// (transições reais já gravadas — nada é inventado). Usa sempre a PRIMEIRA
+// ocorrência de cada status (a tabela pode ter linhas repetidas de "delivered"
+// por redundância de auditoria).
+async function findEtapasStatusHistory(atendimentoId) {
+  const historico = await listStatusHistory(atendimentoId);
+  const firstAt = (status) => {
+    const alvo = String(status).toLowerCase();
+    return historico.reduce(
+      (earliest, h) =>
+        h.status_novo === alvo && h.criado_em && (!earliest || new Date(h.criado_em) < new Date(earliest))
+          ? h.criado_em
+          : earliest,
+      null,
+    );
+  };
+  return {
+    aguardandoUploadEm: firstAt('awaiting_prescription_upload'),
+    filaEm: firstAt('waiting'),
+    receitaEmEdicaoEm: firstAt('receita_em_edicao'),
+    receitaEmitidaEm: firstAt('receita_emitida'),
+    receitaProntaEm: firstAt('ready'),
+    entregueEm: firstAt('delivered'),
+  };
+}
+
 async function computeTempos(atendimentos) {
   // Tickets de Suporte Geral via WhatsApp (isSupportQueue) nunca passam pelo
   // pipeline triagem → fila médica → avaliação → emissão — não são
@@ -223,7 +250,11 @@ async function computeTempos(atendimentos) {
   );
 
   const comEventosMedicos = await Promise.all(
-    concluidos.map(async (a) => ({ atendimento: a, eventos: await findEventosMedicos(a.id) })),
+    concluidos.map(async (a) => ({
+      atendimento: a,
+      eventos: await findEventosMedicos(a.id),
+      etapas: await findEtapasStatusHistory(a.id),
+    })),
   );
 
   const triagemValues = [];
@@ -231,8 +262,14 @@ async function computeTempos(atendimentos) {
   const avaliacaoValues = [];
   const emissaoReceitaValues = [];
   const jornadaCompletaValues = [];
+  // Etapas adicionais reconstruídas de appointment_status_history + timestamps
+  // já gravados (auditoria 07/09/2026) — sem estimativa.
+  const pagamentoFilaValues = [];
+  const envioReceitaAnteriorValues = [];
+  const geracaoReceitaValues = [];
+  const receitaProntaEntregaValues = [];
 
-  for (const { atendimento: a, eventos } of comEventosMedicos) {
+  for (const { atendimento: a, eventos, etapas } of comEventosMedicos) {
     const c = a.dados_clinicos || {};
     const atendidoEm = eventos.atendidoEm;
     const decisaoEm = eventos.decisaoEm || c.clinical_audit?.approvedAt || c.clinical_audit?.rejectedAt || null;
@@ -267,6 +304,31 @@ async function computeTempos(atendimentos) {
       const jornadaCompleta = minutesBetween(jornada.primeiro_oi_em, entregaEm);
       if (jornadaCompleta !== null) jornadaCompletaValues.push(jornadaCompleta);
     }
+
+    // Pagamento confirmado → entrada na fila médica.
+    const pagoEm = c.stripe_paid_at || c.stripe_payment?.confirmed_at || null;
+    if (pagoEm && etapas.filaEm) {
+      const v = minutesBetween(pagoEm, etapas.filaEm);
+      if (v !== null) pagamentoFilaValues.push(v);
+    }
+
+    // Envio da receita anterior pelo paciente: awaiting_prescription_upload → waiting.
+    if (etapas.aguardandoUploadEm && etapas.filaEm) {
+      const v = minutesBetween(etapas.aguardandoUploadEm, etapas.filaEm);
+      if (v !== null) envioReceitaAnteriorValues.push(v);
+    }
+
+    // Geração da receita na Memed: receita_em_edicao → receita_emitida.
+    if (etapas.receitaEmEdicaoEm && etapas.receitaEmitidaEm) {
+      const v = minutesBetween(etapas.receitaEmEdicaoEm, etapas.receitaEmitidaEm);
+      if (v !== null) geracaoReceitaValues.push(v);
+    }
+
+    // Receita pronta até entrega ao paciente: ready → delivered.
+    if (etapas.receitaProntaEm && etapas.entregueEm) {
+      const v = minutesBetween(etapas.receitaProntaEm, etapas.entregueEm);
+      if (v !== null) receitaProntaEntregaValues.push(v);
+    }
   }
 
   return {
@@ -277,16 +339,24 @@ async function computeTempos(atendimentos) {
     // contando nos indicadores que não dependem desses dois marcadores).
     amostra: jornadaCompletaValues.length,
     amostra_por_indicador: {
+      pagamento_fila: pagamentoFilaValues.length,
       triagem: triagemValues.length,
       espera_medica: esperaMedicaValues.length,
       avaliacao: avaliacaoValues.length,
+      geracao_receita: geracaoReceitaValues.length,
       emissao_receita: emissaoReceitaValues.length,
+      receita_pronta_entrega: receitaProntaEntregaValues.length,
+      envio_receita_anterior: envioReceitaAnteriorValues.length,
       jornada_completa: jornadaCompletaValues.length,
     },
+    pagamento_fila: formatMinutes(average(pagamentoFilaValues)),
     triagem: formatMinutes(average(triagemValues)),
     espera_medica: formatMinutes(average(esperaMedicaValues)),
     avaliacao: formatMinutes(average(avaliacaoValues)),
+    geracao_receita: formatMinutes(average(geracaoReceitaValues)),
     emissao_receita: formatMinutes(average(emissaoReceitaValues)),
+    receita_pronta_entrega: formatMinutes(average(receitaProntaEntregaValues)),
+    envio_receita_anterior: formatMinutes(average(envioReceitaAnteriorValues)),
     jornada_completa: formatMinutes(average(jornadaCompletaValues)),
     suporte_administrativo: null,
     suporte_medico: null,
