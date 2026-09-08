@@ -106,6 +106,42 @@ Suporte administrativo e suporte médico permanecem exibindo `—` enquanto não
 houver marcadores próprios. Nunca fabricar média. A amostra do cabeçalho usa
 somente jornadas completas com os marcadores exigidos e receita entregue.
 
+**Correção 07/09/2026 (escopo mínimo, sem migration):**
+
+- `primeiro_oi_em` / `triagem_iniciada_em` agora são gravados em
+  `appointments.clinical_data.jornada` pelo `processTriagemWebhook`
+  (`triagem-webhook.service.js`), copiados de
+  `whatsapp_sessions.metadata.journey_started_at` / `welcome_clicked_at` e
+  limpos da sessão logo após criar o atendimento (`clearJourneyMarkers`).
+  Antes, só o caminho legado `whatsapp.routes.js` fazia isso e o caminho real
+  (Typebot/n8n) não — nenhum dos 78 atendimentos tinha os marcadores.
+- Guard anti-contaminação (`resolveJourneyMarkers`): a sessão do WhatsApp é
+  persistente por telefone; um marcador só é aceito se não for posterior à
+  criação do atendimento e não for mais antigo que 24h, e a ordem
+  oi ≤ "vamos começar" tem de bater. Sem marcador válido, o campo fica
+  ausente — nunca se estima horário.
+- Backfill dos 7 atendimentos históricos foi descartado: auditoria de
+  07/09/2026 confirmou 0 vínculo 1:1 confiável entre `appointments` e
+  `whatsapp_sessions` (marcadores congelados/ausentes, sessão criada depois
+  do atendimento, ou telefone sem sessão). Triagem e Jornada Completa só
+  passam a ter amostra com atendimentos novos.
+- Novos indicadores de etapa no bloco de tempos, reconstruídos de
+  `appointment_status_history` (nova leitura `listStatusHistory`, sempre
+  `MIN(created_at)` por status — a tabela tem `delivered` repetido) +
+  `clinical_data.stripe_paid_at`, sem estimativa: **pagamento → fila**
+  (`stripe_paid_at → waiting`), **envio da receita anterior**
+  (`awaiting_prescription_upload → waiting`), **geração da receita**
+  (`receita_em_edicao → receita_emitida`), **receita pronta → entrega**
+  (`ready → delivered`). Amostra real hoje: 4-5 atendimentos por indicador.
+- Painel: cada indicador de tempo mostra a própria amostra (fim do
+  "amostra: 0" genérico); cards, financeiro e indicadores entram no refresh
+  automático de 30s do dashboard (`refreshDashboard`), antes só a lista de
+  colunas atualizava sozinha.
+- `scripts/test-journey-markers.js` cobre os novos indicadores e o guard
+  anti-contaminação (5 cenários). Pré-existente e não relacionado:
+  `scripts/test-triagem-payment-source-of-truth.js` já falhava antes
+  (`ensurePrescriptionUploadSession is not a function` no stub do teste).
+
 ## 7. Estado operacional registrado em 01/08/2026
 
 - **Baseline visual Memed homologada pelo usuário em 03/08/2026:** o painel de

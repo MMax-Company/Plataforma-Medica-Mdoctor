@@ -225,23 +225,46 @@ const bodyColumns: Array<{
 // administrativo"/"Suporte médico" não têm evento distinto — recebem "—" em
 // vez de um número fabricado (o backend retorna null nesses casos).
 const TIME_METRIC_KEYS = [
+  'pagamento_fila',
   'triagem',
   'espera_medica',
   'avaliacao',
+  'geracao_receita',
   'emissao_receita',
+  'receita_pronta_entrega',
+  'envio_receita_anterior',
   'jornada_completa',
   'suporte_administrativo',
   'suporte_medico',
 ] as const;
 
 const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
+  pagamento_fila: 'Pagamento → fila',
   triagem: 'Triagem clínica',
   espera_medica: 'Espera médica',
   avaliacao: 'Avaliação médica',
+  geracao_receita: 'Geração da receita',
   emissao_receita: 'Emissão da receita',
+  receita_pronta_entrega: 'Receita pronta → entrega',
+  envio_receita_anterior: 'Envio da receita anterior',
   jornada_completa: 'Jornada completa',
   suporte_administrativo: 'Suporte administrativo',
   suporte_medico: 'Suporte médico',
+};
+
+// Amostra própria de cada indicador (nº de atendimentos reais que entraram no
+// cálculo). "Suporte adm/médico" não têm evento no modelo de dados — sem
+// amostra. Evita o "amostra: 0" genérico enganoso no cabeçalho.
+const TIME_METRIC_SAMPLE_KEYS: Partial<Record<(typeof TIME_METRIC_KEYS)[number], string>> = {
+  pagamento_fila: 'pagamento_fila',
+  triagem: 'triagem',
+  espera_medica: 'espera_medica',
+  avaliacao: 'avaliacao',
+  geracao_receita: 'geracao_receita',
+  emissao_receita: 'emissao_receita',
+  receita_pronta_entrega: 'receita_pronta_entrega',
+  envio_receita_anterior: 'envio_receita_anterior',
+  jornada_completa: 'jornada_completa',
 };
 
 function metricTileClass(bg: string, border: string, interactive: boolean) {
@@ -250,7 +273,17 @@ function metricTileClass(bg: string, border: string, interactive: boolean) {
   } ${bg} ${border}`;
 }
 
-function MetricTileContent({ emoji, value, label }: { emoji: string; value: ReactNode; label: string }) {
+function MetricTileContent({
+  emoji,
+  value,
+  label,
+  sample,
+}: {
+  emoji: string;
+  value: ReactNode;
+  label: string;
+  sample?: string;
+}) {
   return (
     <>
       <span className="text-base leading-none" aria-hidden>
@@ -258,6 +291,9 @@ function MetricTileContent({ emoji, value, label }: { emoji: string; value: Reac
       </span>
       <span className="mt-1 text-[17px] font-black leading-none text-[#1E1E1E]">{value}</span>
       <span className="mt-0.5 text-[9px] font-bold leading-tight text-[#5B6475]">{label}</span>
+      {sample !== undefined && (
+        <span className="mt-0.5 text-[8px] font-semibold leading-tight text-[#94A3B8]">{sample}</span>
+      )}
     </>
   );
 }
@@ -378,6 +414,15 @@ export default function AdminDashboardPage() {
     }
   }
 
+  async function refreshDashboard() {
+    try {
+      const dashboard = await fetchAdminDashboard();
+      setData(dashboard);
+    } catch {
+      /* mantém os cards/indicadores anteriores — próximo ciclo tenta de novo */
+    }
+  }
+
   async function handleResolveNote(atendimentoId: string, noteId: string) {
     setResolvingNoteId(noteId);
     try {
@@ -433,6 +478,7 @@ export default function AdminDashboardPage() {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void refreshAtendimentos();
+        void refreshDashboard();
         void fetchSupportQueue();
       }
     }, 30000);
@@ -534,14 +580,31 @@ export default function AdminDashboardPage() {
             <section>
               <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
                 Indicadores de tempo médio
-                {` · amostra: ${data.tempos.amostra} atendimento${data.tempos.amostra !== 1 ? 's' : ''}`}
+                <span className="ml-1 font-semibold normal-case tracking-normal text-[#94A3B8]">
+                  · cada indicador mostra a própria amostra de atendimentos reais
+                </span>
               </p>
-              <div className="admin-dashboard__time grid grid-cols-7 gap-1.5">
-                {TIME_METRIC_KEYS.map((key) => (
-                  <div key={key} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
-                    <MetricTileContent emoji="⏱️" value={data.tempos[key] ?? '—'} label={TIME_METRIC_LABELS[key]} />
-                  </div>
-                ))}
+              <div className="admin-dashboard__time grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+                {TIME_METRIC_KEYS.map((key) => {
+                  const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
+                  const sampleCount = sampleKey
+                    ? data.tempos.amostra_por_indicador?.[sampleKey]
+                    : undefined;
+                  const sampleLabel =
+                    sampleCount === undefined
+                      ? undefined
+                      : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
+                  return (
+                    <div key={key} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
+                      <MetricTileContent
+                        emoji="⏱️"
+                        value={data.tempos[key] ?? '—'}
+                        label={TIME_METRIC_LABELS[key]}
+                        sample={sampleLabel}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </section>
 

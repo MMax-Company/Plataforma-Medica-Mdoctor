@@ -115,6 +115,22 @@ async function testComputeTemposComJornada() {
         { atendimento_id: 'at-jornada-1', status_novo: 'approved', criado_em: '2026-07-01T10:20:22.000Z' }
       ];
     },
+    listStatusHistory: async (atendimentoId) => {
+      if (atendimentoId !== 'at-jornada-1') return [];
+      // Inclui linha 'delivered' repetida de propósito — computeTempos deve
+      // usar a PRIMEIRA ocorrência (10:35:00), não a segunda (10:41:00).
+      return [
+        { status_novo: 'awaiting_prescription_upload', criado_em: '2026-07-01T10:12:00.000Z' },
+        { status_novo: 'waiting', criado_em: '2026-07-01T10:15:00.000Z' },
+        { status_novo: 'em_atendimento', criado_em: '2026-07-01T10:20:00.000Z' },
+        { status_novo: 'approved', criado_em: '2026-07-01T10:20:22.000Z' },
+        { status_novo: 'receita_em_edicao', criado_em: '2026-07-01T10:21:00.000Z' },
+        { status_novo: 'receita_emitida', criado_em: '2026-07-01T10:24:00.000Z' },
+        { status_novo: 'ready', criado_em: '2026-07-01T10:24:10.000Z' },
+        { status_novo: 'delivered', criado_em: '2026-07-01T10:35:00.000Z' },
+        { status_novo: 'delivered', criado_em: '2026-07-01T10:41:00.000Z' }
+      ];
+    },
     statusInGroup: (status, group) => group === 'queue' && status === 'waiting'
   });
   stub(resolveFrom('../constants/whatsapp-queue'), {
@@ -136,6 +152,7 @@ async function testComputeTemposComJornada() {
           triagem_iniciada_em: '2026-07-01T10:02:00.000Z',
           pos_entrega_enviada_em: '2026-07-01T10:40:00.000Z'
         },
+        stripe_paid_at: '2026-07-01T10:13:00.000Z',
         clinical_audit: { approvedAt: '2026-07-01T10:25:00.000Z' },
         entrega_receita: { sent_at: '2026-07-01T10:35:00.000Z' }
       }
@@ -167,6 +184,17 @@ async function testComputeTemposComJornada() {
   assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue');
   results.computeTemposLeJornadaCorretamente = 'ok';
 
+  // Etapas reconstruídas de appointment_status_history (+ stripe_paid_at).
+  assert.equal(tempos.pagamento_fila, '2 min', 'stripe_paid_at 10:13 -> waiting 10:15');
+  assert.equal(tempos.envio_receita_anterior, '3 min', 'awaiting_prescription_upload 10:12 -> waiting 10:15');
+  assert.equal(tempos.geracao_receita, '3 min', 'receita_em_edicao 10:21 -> receita_emitida 10:24');
+  assert.equal(tempos.receita_pronta_entrega, '11 min', 'ready 10:24:10 -> PRIMEIRO delivered 10:35 (ignora o 10:41 repetido)');
+  assert.equal(tempos.amostra_por_indicador.pagamento_fila, 1);
+  assert.equal(tempos.amostra_por_indicador.envio_receita_anterior, 1);
+  assert.equal(tempos.amostra_por_indicador.geracao_receita, 1);
+  assert.equal(tempos.amostra_por_indicador.receita_pronta_entrega, 1);
+  results.computeTemposEtapasStatusHistory = 'ok';
+
   assert.equal(admin.isAdministrativePending({ status: 'awaiting_prescription_upload', dados_clinicos: {} }), true);
   assert.equal(admin.isAdministrativePending({ status: 'waiting', pagamento_status: 'PENDENTE', dados_clinicos: {} }), true);
   assert.equal(admin.isAdministrativePending({ status: 'waiting', pagamento_status: 'CONFIRMADO', dados_clinicos: {} }), false);
@@ -183,9 +211,64 @@ async function testComputeTemposComJornada() {
   return 'ok';
 }
 
+// Guard anti-contaminação: whatsapp_sessions é uma linha persistente por
+// telefone; um marcador "congelado" de jornada anterior não pode entrar num
+// atendimento novo (auditoria 07/09/2026 — 0 de 7 históricos tinham vínculo
+// confiável exatamente por isso).
+function testJourneyMarkerContaminationGuard() {
+  const base = path.join(__dirname, '..', 'src', 'services', 'triagem-webhook.service.js');
+  const resolveFrom = (p) => path.join(path.dirname(base), p);
+  // stubs mínimos só para o require não tentar rede/banco no carregamento
+  stub(resolveFrom('../store/whatsapp-sessions.store'), {
+    getSessionByPhone: async () => null,
+    clearJourneyMarkers: async () => null
+  });
+  stub(resolveFrom('../store/patients.store'), { findOrCreatePatient: async () => null });
+  delete require.cache[require.resolve(base)];
+  const { resolveJourneyMarkers } = require(base);
+
+  const nowMs = Date.parse('2026-09-07T12:00:00.000Z');
+
+  // 1) Jornada válida: marcadores minutos antes da criação → copiados.
+  const ok = resolveJourneyMarkers(
+    { metadata: { journey_started_at: '2026-09-07T11:48:00.000Z', welcome_clicked_at: '2026-09-07T11:50:00.000Z' } },
+    nowMs
+  );
+  assert.equal(ok.primeiro_oi_em, '2026-09-07T11:48:00.000Z');
+  assert.equal(ok.triagem_iniciada_em, '2026-09-07T11:50:00.000Z');
+
+  // 2) Marcador congelado de 32 dias antes (caso real nº 1090) → descartado.
+  const stale = resolveJourneyMarkers(
+    { metadata: { journey_started_at: '2026-07-30T05:47:54.000Z', welcome_clicked_at: '2026-07-30T05:49:36.000Z' } },
+    nowMs
+  );
+  assert.deepEqual(stale, {}, 'marcador antigo demais não contamina o atendimento novo');
+
+  // 3) Marcador no futuro (posterior à criação) → descartado.
+  const future = resolveJourneyMarkers(
+    { metadata: { journey_started_at: '2026-09-07T12:30:00.000Z' } },
+    nowMs
+  );
+  assert.deepEqual(future, {});
+
+  // 4) Ordem impossível (oi depois do "Vamos começar") → descarta os dois.
+  const inverted = resolveJourneyMarkers(
+    { metadata: { journey_started_at: '2026-09-07T11:55:00.000Z', welcome_clicked_at: '2026-09-07T11:50:00.000Z' } },
+    nowMs
+  );
+  assert.deepEqual(inverted, {});
+
+  // 5) Sessão inexistente → sem campo, sem erro.
+  assert.deepEqual(resolveJourneyMarkers(null, nowMs), {});
+
+  results.journeyMarkerContaminationGuard = 'ok';
+  return 'ok';
+}
+
 async function main() {
   results.recordJourneyCompletedAt = await testRecordJourneyCompletedAt();
   results.computeTemposComJornada = await testComputeTemposComJornada();
+  results.journeyMarkerGuard = testJourneyMarkerContaminationGuard();
   console.log(JSON.stringify(results, null, 2));
 }
 

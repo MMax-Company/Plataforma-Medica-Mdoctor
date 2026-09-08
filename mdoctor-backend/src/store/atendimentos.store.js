@@ -576,6 +576,28 @@ async function listRecentDecisoesLog(limit = 30) {
   }));
 }
 
+// Histórico de status do atendimento (appointment_status_history) — inserido
+// best-effort por updateAtendimentoStatus a cada transição. Diferente de
+// medical_decisions, guarda também os estágios intermediários
+// (awaiting_prescription_upload, waiting, receita_em_edicao, receita_emitida,
+// ready) usados pelos indicadores de etapa do painel administrativo. Pode ter
+// linhas repetidas para o mesmo status (redundância de auditoria conhecida) —
+// quem consome deve usar a PRIMEIRA ocorrência de cada etapa.
+async function listStatusHistory(atendimentoId) {
+  const data = await dbQuery('listar histórico de status', async (supabase) =>
+    supabase
+      .from(T.APPOINTMENT_STATUS_HISTORY)
+      .select('new_status, previous_status, created_at')
+      .eq('appointment_id', atendimentoId)
+      .order('created_at', { ascending: true })
+  );
+  return (data || []).map((row) => ({
+    status_novo: String(row.new_status || '').toLowerCase(),
+    status_anterior: row.previous_status || null,
+    criado_em: row.created_at
+  }));
+}
+
 async function createEntregaReceitaLog(input = {}) {
   const log = {
     id: resolveDeliveryLogId(input.id),
@@ -647,5 +669,6 @@ module.exports = {
   createDecisaoLog,
   listDecisoesLog,
   listRecentDecisoesLog,
+  listStatusHistory,
   createEntregaReceitaLog
 };
