@@ -11,7 +11,13 @@ const {
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
 const { validateTypebotInput } = require('./typebot-personal-data.validation');
-const { resolveMetaInboundRouting, handleTypebotSupportChoice } = require('./whatsapp-support.service');
+const {
+  resolveMetaInboundRouting,
+  handleTypebotSupportChoice,
+  MENU_TEXT,
+  MENU_CTA,
+  MENU_STATE_AWAITING_CHOICE
+} = require('./whatsapp-support.service');
 const { lookupCep } = require('../routes/cep.routes');
 
 // Autopreenchimento de endereço por CEP (restaurado 2026-08-29, reverte a
@@ -329,6 +335,21 @@ function isRetryableTypebotError(error) {
   return /fetch failed|network|socket|timeout/i.test(describeError(error));
 }
 
+// Sessão Typebot residual (achado 09/09/2026): o backend ainda aponta pra um
+// typebot_session_id que o runtime do Typebot já não reconhece mais (TTL
+// interno do Typebot, reinício do serviço, etc. — não precisa ser o mesmo
+// motivo do nosso TYPEBOT_INACTIVITY_TIMEOUT_MS local). Nesse caso o Typebot
+// responde HTTP 404 com a mensagem "Session not found" em vez de continuar a
+// conversa. Isso NÃO é uma falha transitória (não adianta re-tentar o mesmo
+// continueChat) nem um erro fatal — é só um sinal de que o estado local está
+// desatualizado. Ver recoverFromStaleTypebotSession, usado só quando esta
+// função retorna true E a chamada era um continueChat (existingSessionId).
+function isStaleTypebotSessionError(error) {
+  if (!error) return false;
+  if (/session not found/i.test(String(error.message || ''))) return true;
+  return error.code === 'TYPEBOT_RUNTIME_ERROR' && Number(error.status) === 404;
+}
+
 function wait(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
@@ -483,6 +504,112 @@ function createTypebotWhatsAppBridge(deps = {}) {
   // resposta seguinte do paciente contra um input antigo e ficava travado
   // repetindo a pergunta errada indefinidamente. currentSession (recarregada
   // do banco no início de processInbound) é agora a única fonte de verdade.
+
+  // Recuperação de sessão Typebot residual (achado 09/09/2026, "Session not
+  // found" no continueChat — ver isStaleTypebotSessionError). Chamada no
+  // máximo uma vez por mensagem, sempre a partir do catch em volta da
+  // chamada continueChat, nunca em loop: limpa SOMENTE o estado transitório
+  // do Typebot desta sessão (clearTypebotSession — typebot_session_id,
+  // typebot_expected_input_id e demais metadata do Typebot; nunca toca
+  // paciente/atendimento/pagamento/receita/consentimento/histórico) e
+  // reavalia o telefone com a MESMA regra de roteamento já usada para toda
+  // mensagem nova (resolveMetaInboundRouting) — se essa regra já sabe o que
+  // responder (ticket de suporte aberto, retomada etc.), usamos a resposta
+  // dela; caso contrário caímos no menu inicial oficial (1/2), do mesmo jeito
+  // que uma saudação normal faria. Nunca chama o Typebot de novo aqui (nem
+  // continueChat com o sessionId inválido, nem um startChat automático) —
+  // evita repetir o erro e evita criar sessão Typebot sem o paciente pedir.
+  async function recoverFromStaleTypebotSession({ error, messageId, identity, currentSession, text }) {
+    const staleSessionId = currentSession?.typebot_session_id || null;
+    logger.warn('whatsapp_typebot_stale_session_detected', {
+      messageId,
+      staleSessionId,
+      error: error.message
+    });
+    await logError({
+      integration: 'typebot_runtime',
+      correlationId: messageId,
+      error,
+      request: {
+        message_id: messageId,
+        whatsapp_session_id: currentSession?.id || null,
+        phase: 'stale_session_recovery'
+      }
+    }).catch(() => {});
+
+    let recoveredSession = currentSession;
+    if (currentSession?.id) {
+      try {
+        recoveredSession = (await resetTypebotSession({ sessionId: currentSession.id })) || currentSession;
+      } catch (e) {
+        logger.warn('whatsapp_typebot_stale_session_clear_failed', { messageId, error: e.message });
+      }
+    }
+
+    let recoveryRouting = null;
+    try {
+      recoveryRouting = await routeInbound({ phone: identity?.phone, text, session: recoveredSession, messageId });
+    } catch (e) {
+      logger.warn('whatsapp_typebot_stale_session_reroute_failed', { messageId, error: e.message });
+    }
+
+    const useRoutingReply = recoveryRouting?.handled && recoveryRouting.action === 'reply' && recoveryRouting.reply;
+    const replyText = useRoutingReply ? recoveryRouting.reply : MENU_TEXT;
+    const replyCta = useRoutingReply ? recoveryRouting.cta : MENU_CTA;
+    if (replyText === MENU_TEXT) {
+      // Não há regra de retomada distinta (ticket de suporte etc.) — o
+      // paciente está vendo o menu inicial oficial, então grava o mesmo
+      // estado que uma saudação normal gravaria (whatsapp_menu_state), para
+      // "1"/"2" serem respondidos como menu na próxima mensagem (ver
+      // MENU_STATE_AWAITING_CHOICE em resolveMetaInboundRouting). Idempotente
+      // mesmo quando resolveMetaInboundRouting já gravou isso sozinho (ramo
+      // de saudação) — só reforça o mesmo valor. Usa persistExpectedInput
+      // (mesma função já usada no resto do bridge) em vez de tocar o store
+      // diretamente, para manter um único caminho de escrita de metadata
+      // transitória.
+      await persistExpectedInput({
+        identity,
+        whatsappSession: recoveredSession,
+        inputId: null,
+        extraMetadataPatch: { whatsapp_menu_state: MENU_STATE_AWAITING_CHOICE }
+      }).catch((e) => {
+        logger.warn('whatsapp_typebot_stale_session_menu_state_failed', { messageId, error: e.message });
+      });
+    }
+
+    const sent = replyCta
+      ? await provider.sendCtaUrlMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:stale-session-recovery`,
+          body: replyCta.body,
+          displayText: replyCta.displayText,
+          url: replyCta.url
+        })
+      : await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:stale-session-recovery`,
+          text: replyText
+        });
+    const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+    await finish({ messageId, status: 'processed', providerMessageIds });
+    logger.info('whatsapp_typebot_stale_session_recovered', {
+      messageId,
+      staleSessionId,
+      recoveryAction: useRoutingReply ? (recoveryRouting.action || 'reply') : 'menu_fallback',
+      responsesSent: providerMessageIds.length
+    });
+    return {
+      duplicate: false,
+      responsesSent: providerMessageIds.length,
+      sessionId: null,
+      sessionIdReused: false,
+      staleSessionRecovered: true
+    };
+  }
 
   async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
@@ -667,31 +794,42 @@ function createTypebotWhatsAppBridge(deps = {}) {
         expectedInputIdBefore: expectedInputId,
         callPath: existingSessionId ? 'continueChat' : 'startChat'
       });
-      const typebot = await callWithRetry(
-        () => callTypebot(path, { message }, { config }),
-        {
-          attempts: config.retryAttempts,
-          baseDelayMs: config.retryBaseDelayMs,
-          maxDelayMs: config.retryMaxDelayMs,
-          sleep,
-          onRetry: async (error, retry) => {
-            const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
-            await logError({
-              integration: 'typebot_runtime',
-              correlationId: messageId,
-              error: detailedError,
-              request: {
-                message_id: messageId,
-                whatsapp_session_id: currentSession?.id || null,
-                phase: 'retry',
-                attempt: retry.attempt,
-                next_attempt: retry.nextAttempt,
-                backoff_ms: retry.delayMs
-              }
-            }).catch(() => {});
+      let typebot;
+      try {
+        typebot = await callWithRetry(
+          () => callTypebot(path, { message }, { config }),
+          {
+            attempts: config.retryAttempts,
+            baseDelayMs: config.retryBaseDelayMs,
+            maxDelayMs: config.retryMaxDelayMs,
+            sleep,
+            onRetry: async (error, retry) => {
+              const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
+              await logError({
+                integration: 'typebot_runtime',
+                correlationId: messageId,
+                error: detailedError,
+                request: {
+                  message_id: messageId,
+                  whatsapp_session_id: currentSession?.id || null,
+                  phase: 'retry',
+                  attempt: retry.attempt,
+                  next_attempt: retry.nextAttempt,
+                  backoff_ms: retry.delayMs
+                }
+              }).catch(() => {});
+            }
           }
+        );
+      } catch (error) {
+        // Só recupera sessão residual no caminho continueChat (existingSessionId
+        // presente) — um startChat que falha com "sessão não encontrada" não faz
+        // sentido e deve seguir para o catch genérico de baixo, como antes.
+        if (existingSessionId && isStaleTypebotSessionError(error)) {
+          return await recoverFromStaleTypebotSession({ error, messageId, identity, currentSession, text });
         }
-      );
+        throw error;
+      }
 
       const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
