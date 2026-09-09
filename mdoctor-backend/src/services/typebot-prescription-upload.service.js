@@ -491,6 +491,23 @@ async function sendPostUploadConfirmation({ session, atendimentoId, correlationI
 // restritas ao atendimentoId JÁ resolvido e validado por
 // resolveValidatedSessionUploadContext/findPendingUploadContext — nunca
 // aceita um pagamento vinculado a outro atendimento.
+//
+// Achado real 09/09/2026: a fonte #1 (whatsapp_sessions.metadata.
+// typebot_payment) é a ÚNICA das três que existe para o fluxo de Checkout
+// Session via WhatsApp (createPaymentLink/completePaymentByToken) — e ela é
+// apagada por whatsapp.routes.js sempre que a mensagem seguinte é lida como
+// "jornada nova" (clearTypebotSession, disparado porque journey_started_at
+// já foi consumido na criação do atendimento), mesmo quando é a MESMA
+// conversa continuando (ex.: a foto da receita pedida logo após o
+// pagamento). Resultado: paciente pagou, o Typebot já resumiu o fluxo, mas
+// a foto enviada minutos depois era rejeitada por "pagamento não
+// confirmado". O atendimento já guarda, de forma durável e nunca tocada
+// por clearTypebotSession (que só mexe em whatsapp_sessions), o mesmo
+// resultado dessa confirmação: dados_clinicos.payment_confirmed = true,
+// gravado por processTriagemWebhook (triagem-webhook.service.js) e por
+// reconcileRejectedPaymentPendingAppointment (acima), sempre a partir de um
+// pagamento Stripe já confirmado — nunca de dado enviado pelo paciente ou
+// pelo Typebot. Quarta fonte, somada às três já existentes.
 async function isPaymentConfirmedForUpload(whatsappSession = {}, atendimentoId = null, deps = {}) {
   if (whatsappSession?.metadata?.typebot_payment?.payment_status === 'paid') return true;
   if (!atendimentoId) return false;
@@ -498,6 +515,7 @@ async function isPaymentConfirmedForUpload(whatsappSession = {}, atendimentoId =
   const findPayment = deps.findPaymentByAppointment || findPaymentByAppointment;
   const atendimento = await getAtend(atendimentoId);
   if (atendimento?.dados_clinicos?.stripe_payment?.payment_intent) return true;
+  if (atendimento?.dados_clinicos?.payment_confirmed === true) return true;
   const payment = await findPayment(atendimentoId);
   return payment?.status === 'paid';
 }
