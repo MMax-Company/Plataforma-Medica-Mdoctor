@@ -41,12 +41,27 @@ Stripe, Memed, painel, upload ou input esperado do Typebot.
 
 ### `mdoctor-backend/src/services/providers/meta.provider.js`
 
-- Novo `sendImageMessage({ to, bsuid, recipientId, imageUrl, caption, correlationId, idempotencyKey })`:
+- `sendImageMessage({ to, bsuid, recipientId, imageUrl, mediaId, caption, correlationId, idempotencyKey })`:
   - valida `imageUrl` como `https://…` — senão lança `META_INVALID_IMAGE_URL`;
-  - monta `{ type: 'image', image: { link, caption? } }` (caption só quando
-    houver, truncado a 1024);
-  - reaproveita `postMessage` (mesmo endpoint/headers/idempotência dos demais).
-- Exportado em `module.exports`.
+  - **sobe a imagem para o endpoint `/media` da Meta e envia por `image.id`**
+    (não por `image.link`). Motivo: imagem por `link` só é entregue depois que
+    a Meta busca/valida a URL — chega **depois** do texto enviado logo em
+    seguida e a ordem no aparelho quebra. Confirmado no teste real 10/09:
+    log `outputKinds=["image","text","buttons"]` e os 3 envios nessa ordem
+    (0,4 s de intervalo, sem `Promise.all`), mas o WhatsApp entregou
+    texto → botão → imagem. Enviando por `id` a mídia já está processada e é
+    entregue na ordem.
+  - `mediaId` direto também é aceito (envia por `id` sem re-upload).
+  - `media_id` cacheado por URL (TTL 20 min, por processo) para não re-subir a
+    mesma imagem em bursts.
+  - se o upload falhar (download, tipo não-imagem, >5 MB, recusa da Meta):
+    `logger.warn('meta_image_upload_fallback_link')` e cai para `image.link` —
+    a imagem ainda é entregue (podendo ficar fora de ordem), sem derrubar nada.
+  - caption só quando houver, truncado a 1024.
+- Exportados `sendImageMessage` e `uploadImageFromUrl`.
+- O laço de envio do bridge **não mudou** — já enviava cada output com `await`
+  em sequência (comprovado nos logs). A correção de ordem é o envio por
+  `media_id`, dentro de `sendImageMessage`.
 
 ### `mdoctor-backend/src/services/typebot-whatsapp.bridge.js`
 
