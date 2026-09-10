@@ -8,6 +8,7 @@ const { hasStoredPreviousPrescription } = require('./clinical-payload-normalizer
 const { completeExternalPrescriptionUpload } = require('./prescription-upload.service');
 const { resolveTokenRecord, ensurePrescriptionUploadSession } = require('./prescription-upload-token.service');
 const metaProvider = require('./providers/meta.provider');
+const logger = require('../config/logger');
 
 const UPLOAD_SUCCESS_REPLY = 'Já enviei a receita';
 
@@ -392,7 +393,21 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
       idempotencyKey: `${correlationId}:${providerMessageIds.length}`
     };
     let sent;
-    if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+    if (output.kind === 'image') {
+      try {
+        sent = await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
+      } catch (error) {
+        logger.warn('typebot_bridge_image_failed', {
+          phase: 'resume_after_upload',
+          correlationId,
+          imageUrl: output.url,
+          code: error?.code || null,
+          error: String(error?.message || error)
+        });
+        sent = null;
+      }
+    }
+    else if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
     else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
     else sent = await provider.sendTextMessage({ ...common, text: output.text });
     if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);

@@ -5,6 +5,7 @@ const { upsertSessionIdentity } = require('../store/whatsapp-sessions.store');
 const { createIntegrationError } = require('../store/integration-logs.store');
 const { recordStripePaymentEvent, deletePaymentEvent } = require('../store/payments.store');
 const metaProvider = require('./providers/meta.provider');
+const logger = require('../config/logger');
 const {
   PAYMENT_AMOUNT_CENTS,
   PAYMENT_AMOUNT_LABEL,
@@ -524,7 +525,23 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
       idempotencyKey: `${correlationId}:${providerMessageIds.length}`
     };
     let sent;
-    if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+    if (output.kind === 'image') {
+      // Passthrough de imagem do Typebot (display-only): não altera pagamento,
+      // Checkout nem valores. Falha na imagem é registrada e ignorada.
+      try {
+        sent = await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
+      } catch (error) {
+        logger.warn('typebot_bridge_image_failed', {
+          phase: 'resume_after_payment',
+          correlationId,
+          imageUrl: output.url,
+          code: error?.code || null,
+          error: String(error?.message || error)
+        });
+        sent = null;
+      }
+    }
+    else if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
     else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
     else if (output.kind === 'cta_url') sent = await provider.sendCtaUrlMessage({ ...common, body: output.body, displayText: output.displayText, url: output.url });
     else sent = await provider.sendTextMessage({ ...common, text: output.text });
