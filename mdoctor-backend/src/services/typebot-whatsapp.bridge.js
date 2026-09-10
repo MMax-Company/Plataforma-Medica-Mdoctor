@@ -127,6 +127,27 @@ function typebotText(message = {}) {
   return richTextToPlainText(message.content?.richText || message.content || []);
 }
 
+// Bloco de imagem do Typebot (`type: 'image'`). O runtime devolve
+// `content.url` (string) para a imagem já resolvida; algumas versões também
+// expõem `content.url.url`. Caption é opcional — só é usado se o Typebot
+// definir `content.caption`/`content.plainText`. Genérico: qualquer bloco de
+// imagem compatível inserido no Typebot passa por aqui, sem código específico
+// para uma logo. Retorna null quando não há URL nenhuma (nada a enviar).
+function imageOutputFromMessage(message = {}) {
+  const content = message.content || {};
+  let url = '';
+  if (typeof content.url === 'string') url = content.url.trim();
+  else if (content.url && typeof content.url === 'object' && typeof content.url.url === 'string') {
+    url = content.url.url.trim();
+  }
+  if (!url) return null;
+  const caption =
+    (typeof content.caption === 'string' && content.caption.trim()) ||
+    (typeof content.plainText === 'string' && content.plainText.trim()) ||
+    '';
+  return { kind: 'image', url, caption: caption || undefined };
+}
+
 // WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
 // mensagem de texto simples — o link só fica clicável se aparecer por
 // extenso. Por isso, qualquer parágrafo do Typebot que contenha um link
@@ -223,6 +244,14 @@ function textInputPrompt(input = {}) {
 function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
+    if (message?.type === 'image') {
+      // Imagem entra na sequência exatamente na posição em que o Typebot a
+      // devolveu (imagem → texto → pergunta preserva a ordem). A entrega
+      // nativa/falha é tratada no laço de envio.
+      const imageOutput = imageOutputFromMessage(message);
+      if (imageOutput) outputs.push(imageOutput);
+      continue;
+    }
     if (message?.type !== 'text') continue;
     const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
     if (richText && richTextContainsLink(richText)) {
@@ -925,7 +954,24 @@ function createTypebotWhatsAppBridge(deps = {}) {
       for (const output of outputs) {
         const common = { to: identity.phone, bsuid: identity.bsuid, correlationId: messageId, idempotencyKey: `${messageId}:${providerMessageIds.length}` };
         let sent;
-        if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+        if (output.kind === 'image') {
+          // Imagem é conteúdo acessório: se a URL for inválida, o host estiver
+          // fora do ar ou a Meta recusar o formato, registra e segue para o
+          // próximo output — nunca derruba nem reinicia a sessão clínica, não
+          // cria sessão nova e não altera o input esperado do Typebot.
+          try {
+            sent = await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
+          } catch (error) {
+            logger.warn('typebot_bridge_image_failed', {
+              messageId,
+              imageUrl: output.url,
+              code: error?.code || null,
+              error: describeError(error)
+            });
+            sent = null;
+          }
+        }
+        else if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
         // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
         // espaço em branco é rejeitado com erro 131008 "Required parameter
@@ -939,10 +985,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
         logger.info('typebot_bridge_output_send_diagnostic', {
           messageId,
           outputKind: output.kind,
-          sendFunction: output.kind === 'buttons' ? 'sendButtonMessage'
-            : output.kind === 'list' ? 'sendListMessage'
-              : output.kind === 'document' ? 'sendCtaUrlMessage'
-                : 'sendTextMessage',
+          sendFunction: output.kind === 'image' ? 'sendImageMessage'
+            : output.kind === 'buttons' ? 'sendButtonMessage'
+              : output.kind === 'list' ? 'sendListMessage'
+                : output.kind === 'document' ? 'sendCtaUrlMessage'
+                  : 'sendTextMessage',
           sentWasNullOrUndefined: sent === null || sent === undefined,
           providerMessageId: sent?.providerMessageId || null
         });

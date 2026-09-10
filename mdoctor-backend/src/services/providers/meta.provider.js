@@ -277,6 +277,31 @@ async function sendDocumentMessage({ to, bsuid, recipientId, documentUrl, fileNa
   );
 }
 
+// Mensagem nativa de imagem (Meta Cloud API `type: image`). Usada pelo bridge
+// Typebot → WhatsApp para blocos de imagem do Typebot. Exige URL HTTPS pública
+// (a Meta busca a imagem pela `link`); nunca converte em link textual.
+async function sendImageMessage({ to, bsuid, recipientId, imageUrl, caption, correlationId, idempotencyKey }) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const link = String(imageUrl || '').trim();
+  if (!/^https:\/\/[^\s]+$/i.test(link)) {
+    const error = new Error('URL de imagem inválida para Meta Cloud API (exige HTTPS pública)');
+    error.code = 'META_INVALID_IMAGE_URL';
+    throw error;
+  }
+  const cap = String(caption || '').trim();
+  return postMessage(
+    {
+      ...recipient,
+      type: 'image',
+      image: {
+        link,
+        ...(cap ? { caption: cap.slice(0, 1024) } : {})
+      }
+    },
+    { correlationId, idempotencyKey }
+  );
+}
+
 function requireTemplatesConfigured() {
   if (isTemplatesConfigured()) return;
   const error = new Error('WABA não configurada para templates (WHATSAPP_ACCESS_TOKEN/WHATSAPP_BUSINESS_ACCOUNT_ID ausentes)');
@@ -516,6 +541,7 @@ module.exports = {
   sendCtaUrlMessage,
   sendListMessage,
   sendDocumentMessage,
+  sendImageMessage,
   downloadMedia,
   exchangeEmbeddedSignupCode,
   syncSmbAppState,
