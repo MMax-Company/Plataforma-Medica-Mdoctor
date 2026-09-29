@@ -191,7 +191,7 @@ const bodyColumns: Array<{
     iconClass: 'bg-[#E8F8EE] text-[#0B7F3C]',
     topBorderClass: 'border-t-4 border-t-[#0BA84F]',
     headBgClass: 'bg-[#E8F8EE]',
-    countBadgeClass: 'border-[#0BA84F]/30 bg-[#0BA84F] text-white',
+    countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isApproved,
   },
   {
@@ -211,7 +211,7 @@ const bodyColumns: Array<{
     iconClass: 'bg-amber-100 text-amber-800',
     topBorderClass: 'border-t-4 border-t-amber-500',
     headBgClass: 'bg-amber-50',
-    countBadgeClass: 'border-amber-500/30 bg-amber-500 text-white',
+    countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isAdministrativePending,
   },
 ];
@@ -581,7 +581,7 @@ export default function AdminDashboardPage() {
                   · cada indicador mostra a própria amostra de atendimentos reais
                 </span>
               </p>
-              <div className="admin-dashboard__time grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+              <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
                 {TIME_METRIC_KEYS.map((key) => {
                   const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
                   const sampleCount = sampleKey
@@ -594,15 +594,17 @@ export default function AdminDashboardPage() {
                   return (
                     <div
                       key={key}
-                      className={metricTileClass('bg-slate-50', 'border-slate-200', false)}
+                      className="admin-dashboard__time-tile"
                       title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                     >
-                      <MetricTileContent
-                        emoji="⏱️"
-                        value={data.tempos[key] ?? '—'}
-                        label={TIME_METRIC_LABELS[key]}
-                        sample={sampleLabel}
-                      />
+                      <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
+                      <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
+                      <span className="admin-dashboard__time-label">{TIME_METRIC_LABELS[key]}</span>
+                      {sampleLabel && (
+                        <span className="admin-dashboard__time-sample" title={sampleLabel}>
+                          {sampleCount} atend.
+                        </span>
+                      )}
                     </div>
                   );
                 })}

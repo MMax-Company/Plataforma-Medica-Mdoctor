@@ -4399,52 +4399,90 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 }
 
-/* Indicadores de tempo: altura da faixa de suporte, com conteúdo em uma linha. */
-.admin-dashboard__time > div {
+/* Onze indicadores preservados em uma fileira; telas estreitas rolam a fileira. */
+.admin-dashboard__time {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(107px, 1fr));
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 10px;
+  scrollbar-width: thin;
+}
+
+.admin-dashboard__time > .admin-dashboard__time-tile {
+  position: relative;
   display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 1;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
-  height: 56px;
-  min-height: 56px;
-  max-height: 56px;
+  justify-content: center;
+  gap: 2px;
+  overflow: hidden;
+  border: 1px solid #b8cdf2;
+  border-radius: 50%;
+  background: linear-gradient(160deg, #f8fbff 0%, #e4eeff 100%);
+  padding: 8px 5px;
+  text-align: center;
+  box-shadow: 0 3px 9px rgba(21, 87, 255, 0.11), inset 0 0 0 4px rgba(255, 255, 255, 0.55);
+}
+
+/* Arco idêntico em todos os círculos: decoração, sem codificar duração. */
+.admin-dashboard__time-tile::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: conic-gradient(from 250deg, #318cff 0deg 56deg, transparent 57deg);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  pointer-events: none;
+}
+
+.admin-dashboard .admin-dashboard__time-tile > span {
+  position: relative;
+  display: block;
+  width: 100%;
   min-width: 0;
-  padding: 0 8px;
-  white-space: nowrap;
-}
-
-.admin-dashboard__time > div > span:first-child {
-  flex: 0 0 auto;
-  align-self: center;
-  font-size: 13px;
-}
-
-.admin-dashboard__time > div > span:nth-child(2) {
-  flex: 0 0 auto;
-  align-self: center;
   margin: 0;
-  font-size: 12px;
+  flex: none;
+  align-self: center;
+}
+
+.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon {
+  font-size: 14px;
   line-height: 1;
 }
 
-.admin-dashboard__time > div > span:nth-child(3) {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 9px;
-  line-height: 1.2;
+.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
+  color: #13233d;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
-.admin-dashboard__time > div > span:nth-child(4) {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 50px;
-  align-self: center;
-  margin: 0;
+.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
+  display: -webkit-box;
+  min-height: 21px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  color: #4d5b75;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
+  overflow: hidden;
+  color: #64748b;
   font-size: 8px;
-  line-height: 1.2;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
