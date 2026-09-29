@@ -4398,3 +4398,53 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     min-width: 0;
   }
 }
+
+/* Indicadores de tempo: altura da faixa de suporte, com conteúdo em uma linha. */
+.admin-dashboard__time > div {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  height: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  min-width: 0;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.admin-dashboard__time > div > span:first-child {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 13px;
+}
+
+.admin-dashboard__time > div > span:nth-child(2) {
+  flex: 0 0 auto;
+  align-self: center;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.admin-dashboard__time > div > span:nth-child(3) {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 9px;
+  line-height: 1.2;
+}
+
+.admin-dashboard__time > div > span:nth-child(4) {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50px;
+  align-self: center;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 8px;
+  line-height: 1.2;
+}
