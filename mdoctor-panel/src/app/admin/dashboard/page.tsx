@@ -592,7 +592,11 @@ export default function AdminDashboardPage() {
                       ? undefined
                       : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
                   return (
-                    <div key={key} className={metricTileClass('bg-slate-50', 'border-slate-200', false)}>
+                    <div
+                      key={key}
+                      className={metricTileClass('bg-slate-50', 'border-slate-200', false)}
+                      title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                    >
                       <MetricTileContent
                         emoji="⏱️"
                         value={data.tempos[key] ?? '—'}
