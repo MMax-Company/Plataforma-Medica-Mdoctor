@@ -4402,7 +4402,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 /* Onze indicadores preservados em uma fileira; telas estreitas rolam a fileira. */
 .admin-dashboard__time {
   display: grid;
-  grid-template-columns: repeat(11, minmax(108px, 1fr));
+  grid-template-columns: repeat(11, minmax(107px, 1fr));
   gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
