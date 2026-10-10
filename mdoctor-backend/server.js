@@ -220,6 +220,10 @@ registerUploadPageRoutes(app);
 app.use('/api/memed',require('./src/routes/memed.routes'));
 app.use('/api/auth',require('./src/auth/auth.routes'));
 app.use('/api/admin',require('./src/routes/admin.routes'));
+// Chat Administrativo de Suporte V1 (ETAPA 2) — router isolado, próprio
+// prefixo, não altera admin.routes.js. Protegido internamente por
+// requireAuth + requireRole + feature flags (ver support-chat.routes.js).
+app.use('/api/admin/support', require('./src/routes/support-chat.routes'));
 app.use('/api/patient-outcomes', require('./src/routes/patient-outcomes.routes'));
 app.use('/api/diagnostics', require('./src/routes/diagnostics.routes'));
 app.use('/api/cep', require('./src/routes/cep.routes'));

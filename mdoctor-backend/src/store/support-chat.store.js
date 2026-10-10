@@ -30,6 +30,21 @@ async function getConversationByAppointmentId(appointmentId) {
   return data || null;
 }
 
+// Fila do Painel Administrativo (ETAPA 2, leitura): conversations ainda não
+// encerradas, ordenadas pela atividade mais recente — usa o índice
+// (status, last_message_at desc) da migração.
+async function listQueue({ limit = 100 } = {}) {
+  const data = await dbQuery('listar fila support_conversations', async (supabase) =>
+    supabase
+      .from(T.SUPPORT_CONVERSATIONS)
+      .select('*')
+      .neq('status', CONVERSATION_STATUS.CLOSED)
+      .order('last_message_at', { ascending: false })
+      .limit(limit)
+  );
+  return data || [];
+}
+
 // Regra determinística (unique(appointment_id) garante a idempotência no
 // banco): se já existe conversation para o appointment, retorna a existente
 // sem alterar seu estado de lock/status; só cria quando realmente não existe.
@@ -393,6 +408,7 @@ async function recordEventSafe({ conversationId, eventType, actor = null, payloa
 module.exports = {
   getConversationById,
   getConversationByAppointmentId,
+  listQueue,
   ensureConversationForAppointment,
   claimConversation,
   releaseConversation,
