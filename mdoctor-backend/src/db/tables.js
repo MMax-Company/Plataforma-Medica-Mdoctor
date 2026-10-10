@@ -34,5 +34,8 @@ module.exports = {
   SYSTEM_SETTINGS: 'system_settings',
   SYSTEM_EVENTS: 'system_events',
   ERROR_LOGS: 'error_logs',
-  PATIENT_OUTCOMES: 'patient_outcomes'
+  PATIENT_OUTCOMES: 'patient_outcomes',
+  SUPPORT_CONVERSATIONS: 'support_conversations',
+  SUPPORT_CHAT_MESSAGES: 'support_chat_messages',
+  SUPPORT_CONVERSATION_EVENTS: 'support_conversation_events'
 };
