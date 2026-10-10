@@ -1,8 +1,8 @@
 // ETAPA 2 (serviço) — testes offline do support-chat.service.js: gravação
-// de inbound atrás das feature flags, idempotência, criação/obtenção
-// determinística da conversation e "falha nunca bloqueia o chamador".
-// Mesma técnica de stub por require.cache de ETAPA 1
-// (scripts/test-support-chat-foundation.js), sem rede/banco real.
+// de inbound atrás da flag de captura, idempotência, criação/obtenção
+// determinística da conversation, independência entre as 3 feature flags e
+// "falha nunca bloqueia o chamador". Mesma técnica de stub por require.cache
+// de ETAPA 1 (scripts/test-support-chat-foundation.js), sem rede/banco real.
 const assert = require('assert');
 const path = require('path');
 const { FakeSupabaseClient } = require('./_fakes/fake-supabase-client');
@@ -37,44 +37,48 @@ stub(resolveFrom('../config/supabase'), {
 
 const service = require(servicePath);
 
-function setFlags({ enabled = false, read = false, send = false } = {}) {
-  process.env.SUPPORT_CHAT_ENABLED = enabled ? 'true' : 'false';
-  process.env.SUPPORT_CHAT_READ_ENABLED = read ? 'true' : 'false';
-  process.env.SUPPORT_CHAT_SEND_ENABLED = send ? 'true' : 'false';
+// As 3 flags são independentes entre si (pedido explícito do usuário,
+// 10/10/2026) — nenhuma delas liga/afeta o comportamento das outras duas.
+function setFlags({ capture = false, agentSend = false, ui = false } = {}) {
+  process.env.SUPPORT_CHAT_CAPTURE_ENABLED = capture ? 'true' : 'false';
+  process.env.SUPPORT_CHAT_AGENT_SEND_ENABLED = agentSend ? 'true' : 'false';
+  process.env.SUPPORT_CHAT_UI_ENABLED = ui ? 'true' : 'false';
 }
 
 const results = {};
 
 async function main() {
-  // 1) Flags desligadas por padrão: recordInboundMessage é um no-op total —
-  //    nenhuma chamada ao "banco" acontece, comportamento idêntico a nunca
-  //    ter sido chamado.
+  // 1) Flag de captura desligada por padrão: recordInboundMessage é um
+  //    no-op total — nenhuma chamada ao "banco" acontece, comportamento
+  //    idêntico a nunca ter sido chamado.
   {
-    setFlags({ enabled: false, read: false });
+    setFlags({ capture: false });
     const before = executeCalls;
     const result = await service.recordInboundMessage({ appointmentId: 'appt-flag-off', body: 'oi' });
     assert.equal(result.recorded, false);
     assert.equal(result.reason, 'disabled');
     assert.equal(executeCalls, before);
-    results.flagsDesligadasNaoTocamNoBanco = 'ok';
+    results.flagDeCapturaDesligadaNaoTocaNoBanco = 'ok';
   }
 
-  // 1b) Só SUPPORT_CHAT_ENABLED ligado (sem READ_ENABLED) ainda é no-op —
-  //     confirma que a captura exige as duas flags, não só a master switch.
+  // 1b) UI_ENABLED e AGENT_SEND_ENABLED ligadas, mas CAPTURE_ENABLED
+  //     desligada: inbound continua bloqueado — prova que as 3 flags são
+  //     independentes, nenhuma "libera" a captura por tabela.
   {
-    setFlags({ enabled: true, read: false });
+    setFlags({ capture: false, agentSend: true, ui: true });
     const before = executeCalls;
     const result = await service.recordInboundMessage({ appointmentId: 'appt-flag-partial', body: 'oi' });
     assert.equal(result.recorded, false);
     assert.equal(result.reason, 'disabled');
     assert.equal(executeCalls, before);
-    results.somenteMasterSwitchAindaBloqueiaInbound = 'ok';
+    assert.equal(service.isUiAvailable(), true);
+    results.flagsSaoIndependentesUiLigadaNaoLiberaCaptura = 'ok';
   }
 
-  // 2) Com as duas flags ligadas: grava, cria a conversation
+  // 2) Com CAPTURE_ENABLED ligada: grava, cria a conversation
   //    deterministicamente (uma por appointment) e não duplica.
   {
-    setFlags({ enabled: true, read: true });
+    setFlags({ capture: true });
     const r1 = await service.recordInboundMessage({
       appointmentId: 'appt-inbound-1',
       patientId: 'pat-1',
@@ -132,11 +136,22 @@ async function main() {
   // 5) appointmentId ausente é tratado sem lançar (entrada inválida nunca
   //    derruba o chamador).
   {
-    setFlags({ enabled: true, read: true });
+    setFlags({ capture: true });
     const result = await service.recordInboundMessage({ body: 'sem appointmentId' });
     assert.equal(result.recorded, false);
     assert.equal(result.reason, 'invalid_input');
     results.appointmentIdAusenteNuncaLanca = 'ok';
+  }
+
+  // 6) getMessagingWindowStatus do serviço é um passthrough puro do store —
+  //    nenhuma chamada ao "banco" para calcular o estado da janela.
+  {
+    setFlags({ capture: true });
+    const before = executeCalls;
+    const status = service.getMessagingWindowStatus({ last_inbound_at: null });
+    assert.equal(status.withinWindow, false);
+    assert.equal(executeCalls, before);
+    results.getMessagingWindowStatusEhPassthroughSemTocarBanco = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));

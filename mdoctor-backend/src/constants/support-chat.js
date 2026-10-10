@@ -4,9 +4,15 @@
 // Tabelas próprias: support_conversations, support_chat_messages,
 // support_conversation_events — nunca support_tickets/support_messages/whatsapp_messages.
 
+// Estado da CONVERSA — independente da posse (locked_by/locked_at/
+// lock_expires_at, ver support-chat.store.js). Reflete de quem é a vez de
+// agir, não quem está com o ticket: duas coisas diferentes por desenho
+// (pedido explícito do usuário, 10/10/2026) — um atendente pode estar com o
+// lock e a conversa ainda estar 'awaiting_patient' porque já respondeu.
 const CONVERSATION_STATUS = {
-  OPEN: 'open',
-  CLAIMED: 'claimed',
+  OPEN: 'open', // criada, ainda sem nenhuma mensagem
+  AWAITING_AGENT: 'awaiting_agent', // última mensagem foi do paciente (inbound)
+  AWAITING_PATIENT: 'awaiting_patient', // última mensagem foi do atendente (outbound)
   CLOSED: 'closed'
 };
 
@@ -15,7 +21,9 @@ const MESSAGE_DIRECTION = {
   OUTBOUND: 'outbound'
 };
 
-// Eventos de auditoria exigidos desde a V1 (support_conversation_events).
+// Eventos de auditoria exigidos desde a V1 (support_conversation_events):
+// claim, release, timeout (lock expirado e retomado por outro ator),
+// mensagens (capturadas ou enviadas), falhas de envio e fechamento.
 const CONVERSATION_EVENT_TYPES = {
   CONVERSATION_CREATED: 'conversation_created',
   CLAIMED: 'claimed',
@@ -34,24 +42,43 @@ const CONVERSATION_EVENT_TYPES = {
 const SUPPORT_CHAT_ROLES = ['admin', 'administrativo'];
 
 // Lease padrão do lock de posse do ticket (heartbeat deve renovar antes de
-// expirar). Progressão de flags (todas nascem desligadas por padrão):
-// desligado -> SUPPORT_CHAT_ENABLED (captura/leitura) -> SUPPORT_CHAT_SEND_ENABLED (envio humano).
+// expirar).
 const DEFAULT_LOCK_LEASE_MS = Number(process.env.SUPPORT_CHAT_LOCK_LEASE_MS || 2 * 60 * 1000);
 
+// Janela de mensagem livre da Meta (WhatsApp Business Platform): texto fora
+// de template só é aceito até 24h depois da ÚLTIMA mensagem do paciente
+// (last_inbound_at da conversation, nunca last_message_at, que mistura as
+// duas direções). Preparado aqui para ser consultado por quem um dia enviar
+// de verdade (ETAPA de envio humano) — nenhum envio real existe ainda nesta
+// etapa. Nenhum template de reengajamento é criado/publicado por este
+// módulo; isUtilityTemplateRequired() só sinaliza a condição.
+const MESSAGING_WINDOW_MS = Number(process.env.SUPPORT_CHAT_MESSAGING_WINDOW_MS || 24 * 60 * 60 * 1000);
+
+// Três flags independentes pedidas explicitamente pelo usuário (10/10/2026),
+// todas desligadas por padrão. Nenhuma delas liga as outras — cada ponto de
+// integração consulta só a flag que o protege:
+//   CAPTURE  -> grava mensagem inbound recebida (ligação futura com o
+//               webhook/bridge do WhatsApp, ainda não feita nesta etapa).
+//   AGENT_SEND -> autoriza o atendente a enviar mensagem real ao paciente
+//               (endpoint de envio humano, ainda não implementado nesta
+//               etapa — reservado para quando existir).
+//   UI       -> expõe as rotas administrativas de leitura/gestão (listar
+//               fila, abrir conversation, claim/release/close) usadas pelo
+//               frontend.
 function isFlagEnabled(name) {
   return String(process.env[name] || '').trim().toLowerCase() === 'true';
 }
 
-function isSupportChatEnabled() {
-  return isFlagEnabled('SUPPORT_CHAT_ENABLED');
+function isSupportChatCaptureEnabled() {
+  return isFlagEnabled('SUPPORT_CHAT_CAPTURE_ENABLED');
 }
 
-function isSupportChatReadEnabled() {
-  return isFlagEnabled('SUPPORT_CHAT_READ_ENABLED');
+function isSupportChatAgentSendEnabled() {
+  return isFlagEnabled('SUPPORT_CHAT_AGENT_SEND_ENABLED');
 }
 
-function isSupportChatSendEnabled() {
-  return isFlagEnabled('SUPPORT_CHAT_SEND_ENABLED');
+function isSupportChatUiEnabled() {
+  return isFlagEnabled('SUPPORT_CHAT_UI_ENABLED');
 }
 
 module.exports = {
@@ -60,7 +87,8 @@ module.exports = {
   CONVERSATION_EVENT_TYPES,
   SUPPORT_CHAT_ROLES,
   DEFAULT_LOCK_LEASE_MS,
-  isSupportChatEnabled,
-  isSupportChatReadEnabled,
-  isSupportChatSendEnabled
+  MESSAGING_WINDOW_MS,
+  isSupportChatCaptureEnabled,
+  isSupportChatAgentSendEnabled,
+  isSupportChatUiEnabled
 };

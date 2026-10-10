@@ -6,7 +6,13 @@
 const T = require('../db/tables');
 const { dbQuery, PersistenceError } = require('../db/persistence');
 const logger = require('../config/logger');
-const { CONVERSATION_STATUS, CONVERSATION_EVENT_TYPES, DEFAULT_LOCK_LEASE_MS } = require('../constants/support-chat');
+const {
+  CONVERSATION_STATUS,
+  MESSAGE_DIRECTION,
+  CONVERSATION_EVENT_TYPES,
+  DEFAULT_LOCK_LEASE_MS,
+  MESSAGING_WINDOW_MS
+} = require('../constants/support-chat');
 
 const UNIQUE_VIOLATION = '23505';
 
@@ -96,13 +102,27 @@ async function ensureConversationForAppointment({ appointmentId, patientId = nul
 // Claim atômico: a autoridade sobre a posse é o UPDATE condicional no
 // servidor (WHERE locked_by is null OR lock_expires_at expirado), não a UI.
 // Postgres resolve a corrida a nível de linha — de duas chamadas concorrentes
-// só uma casa com o WHERE e atualiza a linha.
+// só uma casa com o WHERE e atualiza a linha. O claim NUNCA escreve em
+// `status` — posse (locked_by/locked_at/lock_expires_at) e estado da
+// conversa (open/awaiting_agent/awaiting_patient/closed) são campos
+// independentes por desenho (ver constants/support-chat.js).
 async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LOCK_LEASE_MS }) {
   if (!conversationId || !actorId) {
     const error = new Error('conversationId e actorId são obrigatórios');
     error.statusCode = 400;
     throw error;
   }
+
+  // Leitura prévia só para decidir se o lock que está sendo tomado estava
+  // expirado (para auditar LOCK_EXPIRED) — nunca é a fonte de verdade da
+  // posse. Best-effort: se falhar, o claim segue normalmente, só sem esse
+  // evento extra de auditoria. Extrai os valores em primitivos imediatamente
+  // — nunca guarda a referência ao objeto, porque o UPDATE abaixo (ou, em
+  // teste, o cliente fake que muta linhas em memória) pode alterar o mesmo
+  // objeto antes desta leitura prévia ser usada.
+  const before = await getConversationById(conversationId).catch(() => null);
+  const prevLockedBy = before?.locked_by || null;
+  const prevLockExpiresAt = before?.lock_expires_at || null;
 
   const nowIso = new Date().toISOString();
   const expiresIso = new Date(Date.now() + leaseMs).toISOString();
@@ -114,7 +134,6 @@ async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LO
         locked_by: actorId,
         locked_at: nowIso,
         lock_expires_at: expiresIso,
-        status: CONVERSATION_STATUS.CLAIMED,
         updated_at: nowIso
       })
       .eq('id', conversationId)
@@ -124,6 +143,20 @@ async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LO
   );
 
   if (Array.isArray(rows) && rows.length === 1) {
+    const tookOverExpiredLock = Boolean(
+      prevLockedBy &&
+      prevLockedBy !== actorId &&
+      prevLockExpiresAt &&
+      new Date(prevLockExpiresAt).getTime() < Date.now()
+    );
+    if (tookOverExpiredLock) {
+      await recordEventSafe({
+        conversationId,
+        eventType: CONVERSATION_EVENT_TYPES.LOCK_EXPIRED,
+        actor: prevLockedBy,
+        payload: { expired_lock_expires_at: prevLockExpiresAt, reclaimed_by: actorId }
+      });
+    }
     await recordEventSafe({
       conversationId,
       eventType: CONVERSATION_EVENT_TYPES.CLAIMED,
@@ -144,7 +177,8 @@ async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LO
 }
 
 // Libera o lock apenas se o chamador for o dono atual — nunca libera lock de
-// outro ator.
+// outro ator. Não toca em `status`: o estado da conversa (quem deve agir em
+// seguida) não muda só porque o atendente liberou a posse.
 async function releaseConversation({ conversationId, actorId }) {
   if (!conversationId || !actorId) {
     const error = new Error('conversationId e actorId são obrigatórios');
@@ -160,7 +194,6 @@ async function releaseConversation({ conversationId, actorId }) {
         locked_by: null,
         locked_at: null,
         lock_expires_at: null,
-        status: CONVERSATION_STATUS.OPEN,
         updated_at: nowIso
       })
       .eq('id', conversationId)
@@ -275,20 +308,29 @@ async function findMessageByClientId({ conversationId, clientMessageId }) {
   return data || null;
 }
 
-// Best-effort: atualiza o marcador de atividade da fila. Nunca bloqueia o
-// registro da mensagem (que já aconteceu) se isso falhar — mesma postura de
-// recordEventSafe.
-async function touchLastMessageAt(conversationId, whenIso) {
+// Best-effort: atualiza o marcador de atividade da fila e o ESTADO da
+// conversa (quem deve agir em seguida) após uma mensagem nova. Nunca
+// bloqueia o registro da mensagem (que já aconteceu) se isso falhar — mesma
+// postura de recordEventSafe. `.neq('status', CLOSED)` — uma mensagem
+// (ex.: webhook atrasado) nunca reabre sozinha uma conversa já encerrada.
+async function touchAfterMessage(conversationId, { whenIso, direction }) {
   try {
-    await dbQuery('atualizar last_message_at support_conversation', async (supabase) =>
+    const nextStatus = direction === MESSAGE_DIRECTION.INBOUND
+      ? CONVERSATION_STATUS.AWAITING_AGENT
+      : CONVERSATION_STATUS.AWAITING_PATIENT;
+    const patch = { last_message_at: whenIso, status: nextStatus, updated_at: whenIso };
+    if (direction === MESSAGE_DIRECTION.INBOUND) patch.last_inbound_at = whenIso;
+
+    await dbQuery('atualizar support_conversation após mensagem', async (supabase) =>
       supabase
         .from(T.SUPPORT_CONVERSATIONS)
-        .update({ last_message_at: whenIso, updated_at: whenIso })
+        .update(patch)
         .eq('id', conversationId)
+        .neq('status', CONVERSATION_STATUS.CLOSED)
         .select('*')
     );
   } catch (error) {
-    logger.error('support_chat_last_message_at_update_failed', {
+    logger.error('support_chat_touch_after_message_failed', {
       conversationId: conversationId || null,
       error: error?.message || String(error)
     });
@@ -299,7 +341,9 @@ async function touchLastMessageAt(conversationId, whenIso) {
 // provider entregue duas vezes (retry da Meta, reentrega de webhook) nunca
 // duplica linha — e por (conversation_id, client_message_id) — mesma
 // solicitação de envio humano (duplo clique, retry HTTP) também nunca
-// duplica, mesmo antes de existir provider_message_id.
+// duplica, mesmo antes de existir provider_message_id. Toda inserção nova
+// (nunca as reentregas idempotentes) grava MESSAGE_SENT em
+// support_conversation_events — trilha de auditoria exigida desde a V1.
 async function recordMessage({
   conversationId,
   direction,
@@ -307,6 +351,7 @@ async function recordMessage({
   sender = null,
   providerMessageId = null,
   clientMessageId = null,
+  media = null,
   metadata = {}
 }) {
   if (!conversationId || !direction) {
@@ -335,12 +380,19 @@ async function recordMessage({
           sender,
           provider_message_id: providerMessageId,
           client_message_id: clientMessageId,
+          media,
           metadata
         })
         .select('*')
         .single()
     );
-    await touchLastMessageAt(conversationId, message.created_at);
+    await touchAfterMessage(conversationId, { whenIso: message.created_at, direction });
+    await recordEventSafe({
+      conversationId,
+      eventType: CONVERSATION_EVENT_TYPES.MESSAGE_SENT,
+      actor: sender || direction,
+      payload: { direction, message_id: message.id, provider_message_id: providerMessageId, client_message_id: clientMessageId }
+    });
     return { duplicate: false, message };
   } catch (error) {
     if (isUniqueViolation(error)) {
@@ -353,8 +405,30 @@ async function recordMessage({
         if (existing) return { duplicate: true, message: existing };
       }
     }
+    await recordEventSafe({
+      conversationId,
+      eventType: CONVERSATION_EVENT_TYPES.MESSAGE_FAILED,
+      actor: sender || direction,
+      payload: { direction, provider_message_id: providerMessageId, client_message_id: clientMessageId, error: error?.message || String(error) }
+    });
     throw error;
   }
+}
+
+// Janela de mensagem livre da Meta (24h desde a última mensagem do
+// PACIENTE). Pura função de leitura — não envia nada, não bloqueia nada por
+// si só; quem um dia implementar o envio humano real (fora desta etapa)
+// consulta isto antes de tentar mandar texto livre. Sem last_inbound_at
+// (conversa nunca recebeu mensagem do paciente) é tratado como fora da
+// janela — nunca assume que está dentro por falta de dado.
+function getMessagingWindowStatus(conversation, { now = new Date(), windowMs = MESSAGING_WINDOW_MS } = {}) {
+  const lastInboundAt = conversation?.last_inbound_at ? new Date(conversation.last_inbound_at) : null;
+  if (!lastInboundAt || Number.isNaN(lastInboundAt.getTime())) {
+    return { withinWindow: false, lastInboundAt: null, expiresAt: null, requiresTemplate: true };
+  }
+  const expiresAt = new Date(lastInboundAt.getTime() + windowMs);
+  const withinWindow = now.getTime() < expiresAt.getTime();
+  return { withinWindow, lastInboundAt: lastInboundAt.toISOString(), expiresAt: expiresAt.toISOString(), requiresTemplate: !withinWindow };
 }
 
 async function listMessages(conversationId, { limit = 200 } = {}) {
@@ -419,5 +493,6 @@ module.exports = {
   recordMessage,
   listMessages,
   recordEvent,
-  recordEventSafe
+  recordEventSafe,
+  getMessagingWindowStatus
 };

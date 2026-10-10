@@ -9,28 +9,33 @@ const store = require('../store/support-chat.store');
 const {
   SUPPORT_CHAT_ROLES,
   DEFAULT_LOCK_LEASE_MS,
-  isSupportChatEnabled,
-  isSupportChatReadEnabled,
-  isSupportChatSendEnabled
+  isSupportChatCaptureEnabled,
+  isSupportChatAgentSendEnabled,
+  isSupportChatUiEnabled
 } = require('../constants/support-chat');
 
-// Mapa explícito do comportamento de cada flag nesta etapa — usado pelas
-// rotas para decidir se um pedido deve ou não ser aceito.
+// Três flags independentes (pedido explícito do usuário, 10/10/2026), todas
+// desligadas por padrão. Nenhuma liga as outras — cada ponto de integração
+// consulta só a sua:
+//   captureEnabled -> grava mensagem inbound recebida (recordInboundMessage).
+//   agentSendEnabled -> reservado para o endpoint de envio humano real, que
+//                        não existe ainda nesta etapa.
+//   uiEnabled -> expõe as rotas administrativas (listar fila, abrir
+//                conversation, claim/release/close) usadas pelo frontend.
 function getFeatureState() {
   return {
-    enabled: isSupportChatEnabled(),
-    readEnabled: isSupportChatReadEnabled(),
-    sendEnabled: isSupportChatSendEnabled()
+    captureEnabled: isSupportChatCaptureEnabled(),
+    agentSendEnabled: isSupportChatAgentSendEnabled(),
+    uiEnabled: isSupportChatUiEnabled()
   };
 }
 
-// Leitura/gestão do ticket (listar fila, abrir conversation, claim/release/
-// close) exige o módulo ligado (master switch) E a etapa de captura/leitura
-// ligada — SUPPORT_CHAT_SEND_ENABLED não é consultado aqui porque esta
-// etapa não envia nada ao paciente.
-function isReadAvailable() {
-  const state = getFeatureState();
-  return state.enabled && state.readEnabled;
+function isUiAvailable() {
+  return isSupportChatUiEnabled();
+}
+
+function isCaptureAvailable() {
+  return isSupportChatCaptureEnabled();
 }
 
 async function listQueue() {
@@ -56,18 +61,27 @@ async function close({ conversationId, actorId }) {
   return store.closeConversation({ conversationId, actorId });
 }
 
+// Estado da janela de mensagem livre da Meta (24h desde a última mensagem
+// do PACIENTE) — leitura pura, não envia nada. Usado pela UI para mostrar o
+// prazo/bloquear o campo de texto, e reservado para o futuro endpoint de
+// envio humano real validar no servidor antes de aceitar qualquer envio de
+// texto livre. Não cria nem publica nenhum template Meta.
+function getMessagingWindowStatus(conversation) {
+  return store.getMessagingWindowStatus(conversation);
+}
+
 // Ponto de integração para gravação de inbound (chamado hoje só pelos
 // testes desta etapa — a ligação com o webhook real do WhatsApp/Meta está
 // fora do escopo da ETAPA 2 por instrução explícita do usuário: nenhum
 // arquivo de webhook, provider Meta, bridge do Typebot ou fluxo clínico foi
 // alterado nesta etapa).
 //
-// Com SUPPORT_CHAT_ENABLED e/ou SUPPORT_CHAT_READ_ENABLED desligados (padrão
-// de fábrica), retorna imediatamente sem nenhuma chamada ao banco — garante
-// que o comportamento do caminho que um dia chamar esta função seja idêntico
-// a não tê-la chamado. Uma falha de gravação nunca deve propagar para quem
-// chamou (ela não pode interromper o fluxo existente de WhatsApp) — é
-// sempre capturada aqui e registrada em log estruturado.
+// Com SUPPORT_CHAT_CAPTURE_ENABLED desligada (padrão de fábrica), retorna
+// imediatamente sem nenhuma chamada ao banco — garante que o comportamento
+// do caminho que um dia chamar esta função seja idêntico a não tê-la
+// chamado. Uma falha de gravação nunca deve propagar para quem chamou (ela
+// não pode interromper o fluxo existente de WhatsApp) — é sempre capturada
+// aqui e registrada em log estruturado.
 async function recordInboundMessage({
   appointmentId,
   patientId = null,
@@ -76,7 +90,7 @@ async function recordInboundMessage({
   sender = 'patient',
   metadata = {}
 }) {
-  if (!isReadAvailable()) {
+  if (!isCaptureAvailable()) {
     return { recorded: false, reason: 'disabled' };
   }
 
@@ -109,11 +123,13 @@ async function recordInboundMessage({
 module.exports = {
   SUPPORT_CHAT_ROLES,
   getFeatureState,
-  isReadAvailable,
+  isUiAvailable,
+  isCaptureAvailable,
   listQueue,
   getConversationWithMessages,
   claim,
   release,
   close,
+  getMessagingWindowStatus,
   recordInboundMessage
 };
