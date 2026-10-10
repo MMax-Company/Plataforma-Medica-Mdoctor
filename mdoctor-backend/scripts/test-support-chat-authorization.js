@@ -1,10 +1,10 @@
 // ETAPA 2 (rotas) — testes HTTP reais (express + http, sem supertest) das
 // rotas /api/admin/support/*: prova que médico/anônimo não acessam, que
 // admin/administrativo acessam, que a posse do lock é validada no servidor
-// (não na interface) e que a master switch de feature flag esconde o
-// recurso quando desligada. Stub de Supabase pela mesma técnica de
-// require.cache usada em ETAPA 1/2 — sem rede/banco real (só o servidor
-// HTTP local desta própria rota, em localhost).
+// (não na interface) e que a flag SUPPORT_CHAT_UI_ENABLED esconde o recurso
+// quando desligada. Stub de Supabase pela mesma técnica de require.cache
+// usada em ETAPA 1/2 — sem rede/banco real (só o servidor HTTP local desta
+// própria rota, em localhost).
 const assert = require('assert');
 const path = require('path');
 const http = require('http');
@@ -41,9 +41,8 @@ function token(role, sub = 'user-1') {
   return jwt.sign({ sub, role }, process.env.JWT_SECRET);
 }
 
-function setFlags({ enabled = false, read = false } = {}) {
-  process.env.SUPPORT_CHAT_ENABLED = enabled ? 'true' : 'false';
-  process.env.SUPPORT_CHAT_READ_ENABLED = read ? 'true' : 'false';
+function setFlags({ ui = false } = {}) {
+  process.env.SUPPORT_CHAT_UI_ENABLED = ui ? 'true' : 'false';
 }
 
 async function request(server, method, urlPath, { authToken, body } = {}) {
@@ -79,7 +78,7 @@ async function main() {
 
     // 1) Sem token -> 401, nunca chega no service/flag check.
     {
-      setFlags({ enabled: true, read: true });
+      setFlags({ ui: true });
       const res = await request(server, 'GET', '/api/admin/support/conversations');
       assert.equal(res.status, 401);
       results.semTokenRecebe401 = 'ok';
@@ -102,7 +101,7 @@ async function main() {
     // 4) admin e administrativo autenticados, mas feature flags desligadas
     //    (estado de fábrica) -> 503, recurso efetivamente escondido.
     {
-      setFlags({ enabled: false, read: false });
+      setFlags({ ui: false });
       const resAdmin = await request(server, 'GET', '/api/admin/support/conversations', { authToken: token('admin') });
       const resAdministrativo = await request(server, 'GET', '/api/admin/support/conversations', { authToken: token('administrativo') });
       assert.equal(resAdmin.status, 503);
@@ -114,7 +113,7 @@ async function main() {
     // 5) Com as flags ligadas, admin autenticado consegue listar e abrir a
     //    conversation semeada.
     {
-      setFlags({ enabled: true, read: true });
+      setFlags({ ui: true });
       const list = await request(server, 'GET', '/api/admin/support/conversations', { authToken: token('admin') });
       assert.equal(list.status, 200);
       assert.ok(list.body.conversations.some((c) => c.id === conversation.id));
@@ -149,7 +148,7 @@ async function main() {
     // 7) Voltar a desligar as flags esconde o recurso de novo, mesmo para o
     //    mesmo admin que acabou de usá-lo — confirma reversibilidade.
     {
-      setFlags({ enabled: false, read: false });
+      setFlags({ ui: false });
       const res = await request(server, 'GET', `/api/admin/support/conversations/${conversation.id}`, { authToken: token('admin', 'admin-A') });
       assert.equal(res.status, 503);
       results.desligarFlagsVoltaEscondeORecursoParaMesmoAdmin = 'ok';

@@ -14,11 +14,12 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole(...SUPPORT_CHAT_ROLES));
 
-// Master switch: com SUPPORT_CHAT_ENABLED e/ou SUPPORT_CHAT_READ_ENABLED
-// desligados (padrão), nenhuma rota abaixo expõe dado ou aceita ação —
-// responde 503 de forma explícita, sem tentar ler o banco.
-function requireReadAvailable(req, res, next) {
-  if (!service.isReadAvailable()) {
+// Com SUPPORT_CHAT_UI_ENABLED desligada (padrão), nenhuma rota abaixo expõe
+// dado ou aceita ação — responde 503 de forma explícita, sem tentar ler o
+// banco. Flag independente de SUPPORT_CHAT_CAPTURE_ENABLED (gravação de
+// inbound) e SUPPORT_CHAT_AGENT_SEND_ENABLED (envio humano futuro).
+function requireUiAvailable(req, res, next) {
+  if (!service.isUiAvailable()) {
     return res.status(503).json({
       success: false,
       error: 'Chat administrativo de suporte desativado nesta etapa',
@@ -28,7 +29,7 @@ function requireReadAvailable(req, res, next) {
   return next();
 }
 
-router.get('/conversations', requireReadAvailable, async (req, res) => {
+router.get('/conversations', requireUiAvailable, async (req, res) => {
   const correlationId = req.correlationId || req.requestId || 'unknown';
   try {
     const conversations = await service.listQueue();
@@ -39,7 +40,7 @@ router.get('/conversations', requireReadAvailable, async (req, res) => {
   }
 });
 
-router.get('/conversations/:id', requireReadAvailable, async (req, res) => {
+router.get('/conversations/:id', requireUiAvailable, async (req, res) => {
   const correlationId = req.correlationId || req.requestId || 'unknown';
   try {
     const result = await service.getConversationWithMessages(req.params.id);
@@ -53,7 +54,7 @@ router.get('/conversations/:id', requireReadAvailable, async (req, res) => {
   }
 });
 
-router.post('/conversations/:id/claim', requireReadAvailable, async (req, res) => {
+router.post('/conversations/:id/claim', requireUiAvailable, async (req, res) => {
   const correlationId = req.correlationId || req.requestId || 'unknown';
   const actorId = req.user?.sub || req.user?.username || req.user?.role;
   try {
@@ -68,7 +69,7 @@ router.post('/conversations/:id/claim', requireReadAvailable, async (req, res) =
   }
 });
 
-router.post('/conversations/:id/release', requireReadAvailable, async (req, res) => {
+router.post('/conversations/:id/release', requireUiAvailable, async (req, res) => {
   const correlationId = req.correlationId || req.requestId || 'unknown';
   const actorId = req.user?.sub || req.user?.username || req.user?.role;
   try {
@@ -83,7 +84,7 @@ router.post('/conversations/:id/release', requireReadAvailable, async (req, res)
   }
 });
 
-router.post('/conversations/:id/close', requireReadAvailable, async (req, res) => {
+router.post('/conversations/:id/close', requireUiAvailable, async (req, res) => {
   const correlationId = req.correlationId || req.requestId || 'unknown';
   const actorId = req.user?.sub || req.user?.username || req.user?.role;
   try {

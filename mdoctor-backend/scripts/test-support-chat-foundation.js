@@ -50,6 +50,8 @@ async function main() {
   }
 
   // 2) Claim atômico: backend é a autoridade — primeiro ator reivindica.
+  //    Claim NUNCA escreve em `status` — posse e estado da conversa são
+  //    campos independentes (pedido explícito do usuário, 10/10/2026).
   let conversationId;
   {
     const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-2' });
@@ -57,8 +59,10 @@ async function main() {
     const claim = await store.claimConversation({ conversationId, actorId: 'admin-1', leaseMs: 60000 });
     assert.equal(claim.claimed, true);
     assert.equal(claim.conversation.locked_by, 'admin-1');
-    assert.equal(claim.conversation.status, CONVERSATION_STATUS.CLAIMED);
-    results.claimAtomicoPrimeiroAtorReivindica = 'ok';
+    assert.equal(claim.conversation.status, CONVERSATION_STATUS.OPEN);
+    const events = fakeDb.rows('support_conversation_events').filter((e) => e.conversation_id === conversationId);
+    assert.ok(events.some((e) => e.event_type === CONVERSATION_EVENT_TYPES.CLAIMED && e.actor === 'admin-1'));
+    results.claimAtomicoPrimeiroAtorReivindicaSemAlterarStatus = 'ok';
   }
 
   // 3) Segundo ator não consegue reivindicar enquanto o lock estiver ativo —
@@ -81,8 +85,9 @@ async function main() {
     results.heartbeatSoRenovaLockDoProprioDono = 'ok';
   }
 
-  // 5) Release só funciona para o próprio dono; depois do release o
-  //    ticket volta a 'open' e outro ator consegue reivindicar.
+  // 5) Release só funciona para o próprio dono; libera o lock sem alterar o
+  //    `status` da conversa (que permanece 'open', pois nenhuma mensagem
+  //    foi registrada ainda neste cenário).
   {
     const releaseOther = await store.releaseConversation({ conversationId, actorId: 'admin-2' });
     assert.equal(releaseOther.released, false);
@@ -99,7 +104,9 @@ async function main() {
   }
 
   // 6) Lock expirado permite que outro ator reivindique sem precisar de
-  //    release explícito.
+  //    release explícito — e isso é auditado como LOCK_EXPIRED (trilha
+  //    obrigatória de timeout), atribuído ao dono anterior, além do CLAIMED
+  //    do novo dono.
   {
     const expired = fakeDb.rows('support_conversations').find((r) => r.id === conversationId);
     expired.lock_expires_at = new Date(Date.now() - 1000).toISOString();
@@ -107,7 +114,14 @@ async function main() {
     const claimAfterExpiry = await store.claimConversation({ conversationId, actorId: 'admin-3', leaseMs: 60000 });
     assert.equal(claimAfterExpiry.claimed, true);
     assert.equal(claimAfterExpiry.conversation.locked_by, 'admin-3');
-    results.lockExpiradoPermiteNovoClaim = 'ok';
+
+    const events = fakeDb.rows('support_conversation_events').filter((e) => e.conversation_id === conversationId);
+    const lockExpiredEvent = events.find((e) => e.event_type === CONVERSATION_EVENT_TYPES.LOCK_EXPIRED);
+    assert.ok(lockExpiredEvent, 'esperava evento lock_expired auditado');
+    assert.equal(lockExpiredEvent.actor, 'admin-2');
+    assert.equal(lockExpiredEvent.payload.reclaimed_by, 'admin-3');
+    assert.ok(events.some((e) => e.event_type === CONVERSATION_EVENT_TYPES.CLAIMED && e.actor === 'admin-3'));
+    results.lockExpiradoPermiteNovoClaimEAuditaTimeout = 'ok';
   }
 
   // 7) Encerramento exige posse; depois de encerrado, nenhum claim é aceito.
@@ -126,7 +140,8 @@ async function main() {
   }
 
   // 8) Idempotência de mensagem por provider_message_id — mesma entrega
-  //    (retry da Meta) nunca duplica linha.
+  //    (retry da Meta) nunca duplica linha. Só a primeira grava MESSAGE_SENT
+  //    (reentrega idempotente não duplica o evento de auditoria).
   {
     const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-3' });
     const r1 = await store.recordMessage({
@@ -148,26 +163,43 @@ async function main() {
       fakeDb.rows('support_chat_messages').filter((m) => m.conversation_id === conversation.id && m.provider_message_id === 'wamid-123').length,
       1
     );
+    const sentEvents = fakeDb
+      .rows('support_conversation_events')
+      .filter((e) => e.conversation_id === conversation.id && e.event_type === CONVERSATION_EVENT_TYPES.MESSAGE_SENT);
+    assert.equal(sentEvents.length, 1);
     results.idempotenciaMensagemPorProviderMessageId = 'ok';
   }
 
   // 9) Mensagens sem provider_message_id (ex.: envio humano manual) nunca
-  //    colidem entre si — só a combinação (conversation_id, provider_id) é única.
-  //    Cada inserção também atualiza last_message_at da conversation (índice
-  //    de ordenação da fila por atividade recente).
+  //    colidem entre si — só a combinação (conversation_id, provider_id) é
+  //    única. Cada inserção também atualiza last_message_at (fila por
+  //    atividade recente) e avança o `status` para quem deve agir a seguir:
+  //    inbound -> awaiting_agent (e grava last_inbound_at), outbound ->
+  //    awaiting_patient (last_inbound_at não muda).
   {
     const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-4' });
     assert.equal(conversation.last_message_at, undefined);
+    assert.equal(conversation.status, CONVERSATION_STATUS.OPEN);
+
+    const inbound = await store.recordMessage({ conversationId: conversation.id, direction: 'inbound', body: 'paciente escreveu' });
+    const afterInbound = await store.getConversationById(conversation.id);
+    assert.equal(afterInbound.status, CONVERSATION_STATUS.AWAITING_AGENT);
+    assert.equal(afterInbound.last_inbound_at, inbound.message.created_at);
+
     const m1 = await store.recordMessage({ conversationId: conversation.id, direction: 'outbound', body: 'primeira' });
     const m2 = await store.recordMessage({ conversationId: conversation.id, direction: 'outbound', body: 'segunda' });
     assert.equal(m1.duplicate, false);
     assert.equal(m2.duplicate, false);
     assert.notEqual(m1.message.id, m2.message.id);
     const listed = await store.listMessages(conversation.id);
-    assert.equal(listed.length, 2);
+    assert.equal(listed.length, 3);
     const refreshed = await store.getConversationById(conversation.id);
     assert.equal(refreshed.last_message_at, m2.message.created_at);
-    results.mensagensSemProviderIdNuncaColidemEListaFunciona = 'ok';
+    assert.equal(refreshed.status, CONVERSATION_STATUS.AWAITING_PATIENT);
+    // last_inbound_at não avança com mensagens outbound — continua sendo a
+    // da única mensagem inbound registrada.
+    assert.equal(refreshed.last_inbound_at, inbound.message.created_at);
+    results.statusAlternaEntreAwaitingAgentEAwaitingPatientPorDirection = 'ok';
   }
 
   // 9b) Idempotência de envio humano por client_message_id — duplo clique ou
@@ -197,6 +229,42 @@ async function main() {
     results.idempotenciaEnvioHumanoPorClientMessageId = 'ok';
   }
 
+  // 9c) Campo `media` (preparado para fase futura, não usado na V1) é
+  //     persistido quando informado e permanece null quando omitido — o
+  //     schema está pronto sem exigir outra migration.
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-6' });
+    const withMedia = await store.recordMessage({
+      conversationId: conversation.id,
+      direction: 'inbound',
+      body: '',
+      media: { type: 'image', placeholder: true }
+    });
+    const withoutMedia = await store.recordMessage({ conversationId: conversation.id, direction: 'outbound', body: 'sem mídia' });
+    assert.deepEqual(withMedia.message.media, { type: 'image', placeholder: true });
+    assert.equal(withoutMedia.message.media, null);
+    results.campoMediaPreparadoSemUsoNaV1 = 'ok';
+  }
+
+  // 9d) Mensagem atrasada (ex.: webhook fora de ordem) nunca reabre uma
+  //     conversa já encerrada — touchAfterMessage respeita `.neq('status',
+  //     'closed')`; o insert da mensagem em si acontece (histórico
+  //     completo), só o `status`/`last_message_at` da conversa não regride.
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-7' });
+    const closed = await store.closeConversation({ conversationId: conversation.id, actorId: 'admin-x' });
+    assert.equal(closed.closed, false); // sem posse ainda — closeConversation exige locked_by
+    await store.claimConversation({ conversationId: conversation.id, actorId: 'admin-x', leaseMs: 60000 });
+    const closedForReal = await store.closeConversation({ conversationId: conversation.id, actorId: 'admin-x' });
+    assert.equal(closedForReal.closed, true);
+
+    const strayMessage = await store.recordMessage({ conversationId: conversation.id, direction: 'inbound', body: 'mensagem atrasada' });
+    assert.equal(strayMessage.duplicate, false);
+    const afterStray = await store.getConversationById(conversation.id);
+    assert.equal(afterStray.status, CONVERSATION_STATUS.CLOSED);
+    results.mensagemAtrasadaNuncaReabreConversaEncerrada = 'ok';
+  }
+
   // 10) Falha de auditoria (support_conversation_events) nunca interrompe o
   //     fluxo principal — recordEventSafe engole o erro e loga, sem lançar.
   {
@@ -209,6 +277,40 @@ async function main() {
     });
     assert.equal(result, null);
     results.falhaDeAuditoriaNuncaInterrompeFluxoPrincipal = 'ok';
+  }
+
+  // 11) Janela de mensagem livre da Meta (24h desde a última mensagem do
+  //     PACIENTE) — função pura, sem rede/banco. Dentro, no limite e fora da
+  //     janela, e o caso sem nenhuma mensagem inbound ainda (nunca assume
+  //     "dentro da janela" por falta de dado).
+  {
+    const windowMs = 24 * 60 * 60 * 1000;
+    const base = new Date('2026-01-01T00:00:00.000Z');
+
+    const noInbound = store.getMessagingWindowStatus({ last_inbound_at: null }, { now: base });
+    assert.equal(noInbound.withinWindow, false);
+    assert.equal(noInbound.requiresTemplate, true);
+
+    const within = store.getMessagingWindowStatus(
+      { last_inbound_at: base.toISOString() },
+      { now: new Date(base.getTime() + windowMs - 1000), windowMs }
+    );
+    assert.equal(within.withinWindow, true);
+    assert.equal(within.requiresTemplate, false);
+
+    const exactlyAtBoundary = store.getMessagingWindowStatus(
+      { last_inbound_at: base.toISOString() },
+      { now: new Date(base.getTime() + windowMs), windowMs }
+    );
+    assert.equal(exactlyAtBoundary.withinWindow, false);
+
+    const outside = store.getMessagingWindowStatus(
+      { last_inbound_at: base.toISOString() },
+      { now: new Date(base.getTime() + windowMs + 1000), windowMs }
+    );
+    assert.equal(outside.withinWindow, false);
+    assert.equal(outside.requiresTemplate, true);
+    results.janelaDe24hDentroNoLimiteEForaSemAssumirDadoAusente = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));

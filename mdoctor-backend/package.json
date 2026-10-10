@@ -162,7 +162,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:typebot-payment-link": "node scripts/test-typebot-payment-link.js",
     "test:typebot-whatsapp-image-blocks": "node scripts/test-typebot-whatsapp-image-blocks.js",
-    "test:support-chat-foundation": "node scripts/test-support-chat-foundation.js"
+    "test:support-chat-foundation": "node scripts/test-support-chat-foundation.js",
+    "test:support-chat-service": "node scripts/test-support-chat-service.js",
+    "test:support-chat-authorization": "node scripts/test-support-chat-authorization.js"
   },
   "nodemonConfig": {
     "ignore": [
