@@ -13,15 +13,32 @@ create table if not exists public.support_conversations (
   lock_expires_at timestamptz,
   closed_at timestamptz,
   closed_by text,
+  -- Denormalizado a partir de support_chat_messages (atualizado em
+  -- recordMessage) só para permitir ordenar a fila por atividade recente sem
+  -- full scan/join contra a tabela de mensagens.
+  last_message_at timestamptz,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+-- Fila do Painel Administrativo: status isolado (ex.: contagem de abertos) e
+-- status+atividade combinados (ordenação da fila sem full scan).
 create index if not exists support_conversations_status_idx
   on public.support_conversations(status);
-create index if not exists support_conversations_lock_expires_idx
-  on public.support_conversations(lock_expires_at);
+create index if not exists support_conversations_status_last_message_idx
+  on public.support_conversations(status, last_message_at desc);
+
+-- Varredura de locks expirados (reclaim) e "meus tickets", sem exigir
+-- full scan: composto por status pois a varredura de expiração só importa
+-- para conversations ainda 'claimed'; locked_by é parcial (maioria das
+-- linhas tem locked_by null, não vale indexar).
+create index if not exists support_conversations_claimed_lock_expires_idx
+  on public.support_conversations(status, lock_expires_at)
+  where status = 'claimed';
+create index if not exists support_conversations_locked_by_idx
+  on public.support_conversations(locked_by)
+  where locked_by is not null;
 
 create table if not exists public.support_chat_messages (
   id uuid primary key default gen_random_uuid(),
@@ -30,6 +47,10 @@ create table if not exists public.support_chat_messages (
   sender text,
   body text not null default '',
   provider_message_id text,
+  -- Gerado pelo frontend (ETAPA 4, envio humano) para proteger contra duplo
+  -- clique/retry HTTP/reenvio da mesma solicitação — independente do
+  -- provider_message_id, que só existe depois que a Meta confirma o envio.
+  client_message_id text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default timezone('utc', now())
 );
@@ -42,6 +63,13 @@ create index if not exists support_chat_messages_conversation_idx
 create unique index if not exists support_chat_messages_provider_idempotency_idx
   on public.support_chat_messages(conversation_id, provider_message_id)
   where provider_message_id is not null;
+
+-- Idempotência de envio humano (frontend): mesma solicitação de envio
+-- (duplo clique, retry HTTP) nunca cria uma segunda linha, mesmo antes de
+-- existir provider_message_id.
+create unique index if not exists support_chat_messages_client_idempotency_idx
+  on public.support_chat_messages(conversation_id, client_message_id)
+  where client_message_id is not null;
 
 create table if not exists public.support_conversation_events (
   id uuid primary key default gen_random_uuid(),

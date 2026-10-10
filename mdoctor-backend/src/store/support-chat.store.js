@@ -247,10 +247,53 @@ async function findMessageByProviderId({ conversationId, providerMessageId }) {
   return data || null;
 }
 
+async function findMessageByClientId({ conversationId, clientMessageId }) {
+  if (!conversationId || !clientMessageId) return null;
+  const data = await dbQuery('buscar support_chat_message por client_message_id', async (supabase) =>
+    supabase
+      .from(T.SUPPORT_CHAT_MESSAGES)
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .eq('client_message_id', clientMessageId)
+      .maybeSingle()
+  );
+  return data || null;
+}
+
+// Best-effort: atualiza o marcador de atividade da fila. Nunca bloqueia o
+// registro da mensagem (que já aconteceu) se isso falhar — mesma postura de
+// recordEventSafe.
+async function touchLastMessageAt(conversationId, whenIso) {
+  try {
+    await dbQuery('atualizar last_message_at support_conversation', async (supabase) =>
+      supabase
+        .from(T.SUPPORT_CONVERSATIONS)
+        .update({ last_message_at: whenIso, updated_at: whenIso })
+        .eq('id', conversationId)
+        .select('*')
+    );
+  } catch (error) {
+    logger.error('support_chat_last_message_at_update_failed', {
+      conversationId: conversationId || null,
+      error: error?.message || String(error)
+    });
+  }
+}
+
 // Idempotente por (conversation_id, provider_message_id) — mesma mensagem de
 // provider entregue duas vezes (retry da Meta, reentrega de webhook) nunca
-// duplica linha.
-async function recordMessage({ conversationId, direction, body = '', sender = null, providerMessageId = null, metadata = {} }) {
+// duplica linha — e por (conversation_id, client_message_id) — mesma
+// solicitação de envio humano (duplo clique, retry HTTP) também nunca
+// duplica, mesmo antes de existir provider_message_id.
+async function recordMessage({
+  conversationId,
+  direction,
+  body = '',
+  sender = null,
+  providerMessageId = null,
+  clientMessageId = null,
+  metadata = {}
+}) {
   if (!conversationId || !direction) {
     const error = new Error('conversationId e direction são obrigatórios');
     error.statusCode = 400;
@@ -259,6 +302,10 @@ async function recordMessage({ conversationId, direction, body = '', sender = nu
 
   if (providerMessageId) {
     const existing = await findMessageByProviderId({ conversationId, providerMessageId });
+    if (existing) return { duplicate: true, message: existing };
+  }
+  if (clientMessageId) {
+    const existing = await findMessageByClientId({ conversationId, clientMessageId });
     if (existing) return { duplicate: true, message: existing };
   }
 
@@ -272,16 +319,24 @@ async function recordMessage({ conversationId, direction, body = '', sender = nu
           body,
           sender,
           provider_message_id: providerMessageId,
+          client_message_id: clientMessageId,
           metadata
         })
         .select('*')
         .single()
     );
+    await touchLastMessageAt(conversationId, message.created_at);
     return { duplicate: false, message };
   } catch (error) {
-    if (isUniqueViolation(error) && providerMessageId) {
-      const existing = await findMessageByProviderId({ conversationId, providerMessageId });
-      if (existing) return { duplicate: true, message: existing };
+    if (isUniqueViolation(error)) {
+      if (providerMessageId) {
+        const existing = await findMessageByProviderId({ conversationId, providerMessageId });
+        if (existing) return { duplicate: true, message: existing };
+      }
+      if (clientMessageId) {
+        const existing = await findMessageByClientId({ conversationId, clientMessageId });
+        if (existing) return { duplicate: true, message: existing };
+      }
     }
     throw error;
   }
@@ -344,6 +399,7 @@ module.exports = {
   heartbeatConversation,
   closeConversation,
   findMessageByProviderId,
+  findMessageByClientId,
   recordMessage,
   listMessages,
   recordEvent,

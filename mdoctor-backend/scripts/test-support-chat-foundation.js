@@ -19,7 +19,7 @@ const resolveFrom = (p) => path.join(path.dirname(storePath), p);
 const fakeDb = new FakeSupabaseClient({
   uniqueConstraints: {
     support_conversations: [['appointment_id']],
-    support_chat_messages: [['conversation_id', 'provider_message_id']]
+    support_chat_messages: [['conversation_id', 'provider_message_id'], ['conversation_id', 'client_message_id']]
   }
 });
 
@@ -153,8 +153,11 @@ async function main() {
 
   // 9) Mensagens sem provider_message_id (ex.: envio humano manual) nunca
   //    colidem entre si — só a combinação (conversation_id, provider_id) é única.
+  //    Cada inserção também atualiza last_message_at da conversation (índice
+  //    de ordenação da fila por atividade recente).
   {
     const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-4' });
+    assert.equal(conversation.last_message_at, undefined);
     const m1 = await store.recordMessage({ conversationId: conversation.id, direction: 'outbound', body: 'primeira' });
     const m2 = await store.recordMessage({ conversationId: conversation.id, direction: 'outbound', body: 'segunda' });
     assert.equal(m1.duplicate, false);
@@ -162,7 +165,36 @@ async function main() {
     assert.notEqual(m1.message.id, m2.message.id);
     const listed = await store.listMessages(conversation.id);
     assert.equal(listed.length, 2);
+    const refreshed = await store.getConversationById(conversation.id);
+    assert.equal(refreshed.last_message_at, m2.message.created_at);
     results.mensagensSemProviderIdNuncaColidemEListaFunciona = 'ok';
+  }
+
+  // 9b) Idempotência de envio humano por client_message_id — duplo clique ou
+  //     retry HTTP do frontend (ETAPA 4) nunca duplica, mesmo sem
+  //     provider_message_id ainda (Meta não confirmou o envio).
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-5' });
+    const c1 = await store.recordMessage({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      body: 'resposta humana',
+      clientMessageId: 'client-abc'
+    });
+    const c2 = await store.recordMessage({
+      conversationId: conversation.id,
+      direction: 'outbound',
+      body: 'resposta humana (duplo clique)',
+      clientMessageId: 'client-abc'
+    });
+    assert.equal(c1.duplicate, false);
+    assert.equal(c2.duplicate, true);
+    assert.equal(c1.message.id, c2.message.id);
+    assert.equal(
+      fakeDb.rows('support_chat_messages').filter((m) => m.conversation_id === conversation.id && m.client_message_id === 'client-abc').length,
+      1
+    );
+    results.idempotenciaEnvioHumanoPorClientMessageId = 'ok';
   }
 
   // 10) Falha de auditoria (support_conversation_events) nunca interrompe o
