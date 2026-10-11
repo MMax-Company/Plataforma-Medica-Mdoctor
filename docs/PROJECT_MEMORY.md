@@ -947,7 +947,55 @@ substitui a verificação do código, banco, Git e ambiente atual.
   script acima foi corrigido, por ser o único rodado nesta etapa; outros
   (ex.: `inspect-support-bug-sessions.js`) permanecem sem essa proteção.
 
+- **Auditoria preventiva dos 26 scripts + helper centralizado (commit
+  `9b1a05e`, 11/10/2026):** classificados os 26 scripts de
+  `mdoctor-backend/scripts/` que chamam `initSupabase()` diretamente (dos
+  175 totais — o resto usa fake client via `require.cache`, nunca toca
+  rede). 21 capazes de escrita real, 5 só-leitura. Criado
+  `scripts/_lib/guard-shared-environment.js`: bloqueia por padrão qualquer
+  execução contra `usihurogvphtjedyhyfl` (ou contra `BACKEND_URL`/
+  `PANEL_URL` de staging real) — exige **dupla confirmação** explícita
+  (`ALLOW_SHARED_PROD_STAGING_DB=true` **e**
+  `CONFIRM_SUPABASE_PROJECT_REF=usihurogvphtjedyhyfl`) para liberar.
+  Aplicado (só a chamada do guard, zero mudança de lógica) nos 21 scripts
+  de escrita; os 5 só-leitura ficaram sem guard, por instrução explícita.
+  `_fix-eunice-*`/`_retomar-*` marcados `DANGEROUS / MANUAL USE ONLY` no
+  cabeçalho, não movidos/renomeados.
+- **Segundo incidente real de escrita em `usihurogvphtjedyhyfl` (11/10/2026,
+  causado por mim ao validar o helper acima) — identificado, NÃO limpo,
+  aguardando autorização:** a primeira versão do guard só exigia uma flag
+  booleana; ao "provar que `ALLOW=true` libera" rodando de verdade
+  `staging-e2e-validacao-completa.js` (em vez de só com mock, offline),
+  o script completou triagem real e criou: `appointments`
+  `3a86b4a9-601e-4598-a7a1-2b467e577803` ("E2E Validação
+  1791697866109", `+5511977866109`, hipertensão arterial), `patients`
+  `55d5784e-9cc6-4ca7-88a4-0e9f66291ab8`, `triage_sessions`
+  `18789ce2-746f-469f-a28d-d556411357ef` + 6 `triage_answers`,
+  `medical_eligibility` `509a9985-8525-4ef9-88c7-4987de33ad2a`,
+  `medical_records` `73f5b4f7-2d28-4f72-8ec6-0fde263f85c1`, `n8n_events`
+  `810e051e-1454-4498-a628-49b07ae12812`, `audit_logs`
+  `4421fb6d-b054-4eea-a043-7d9d691f6235`. Zero em
+  `appointment_status_history`/`support_tickets`/`payments`/
+  `medical_decisions`/`whatsapp_sessions`. **Correção estrutural
+  aplicada no mesmo commit**: o guard passou a exigir as duas
+  confirmações (ver acima) e `scripts/test-guard-shared-environment-unit.js`
+  foi reescrito para ser 100% offline (processo nunca encerra de verdade;
+  `process.exit`/`console.error` substituídos em memória) — **regra
+  permanente**: a validação deste helper nunca roda um script real contra
+  infraestrutura real, só mocka a função pura.
+
 Pendente (ETAPA 5+, só após revisão do usuário): frontend de leitura, e só
 depois resposta humana real + a decisão explícita de onde ligar a captura
-de inbound no fluxo real em produção. Pendência aberta: remoção dos 2
-appointments de teste em `usihurogvphtjedyhyfl` (aguardando autorização).
+de inbound no fluxo real em produção.
+
+**Pendências de limpeza abertas em `usihurogvphtjedyhyfl` (aguardando
+autorização explícita, SQL de pré-validação/limpeza/pós-validação já
+preparado nas duas ocasiões, nenhum `DELETE` executado):**
+1. Incidente original (10/10/2026): `appointments`
+   `71c734c5-791e-48e0-937c-6aa24e122edb` e
+   `d6f84caa-6d0c-48e9-91de-afdf98f59e96` + `support_tickets`/
+   `audit_logs`/`appointment_status_history` dependentes.
+2. Segundo incidente (11/10/2026, ver acima): `appointments`
+   `3a86b4a9-601e-4598-a7a1-2b467e577803` + `patients`/`triage_sessions`/
+   `triage_answers`/`medical_eligibility`/`medical_records`/`n8n_events`/
+   `audit_logs` dependentes.
