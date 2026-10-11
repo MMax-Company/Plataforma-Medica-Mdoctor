@@ -823,6 +823,33 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     // Best-effort — não bloqueia a resposta se falhar.
     touchSupportInteraction(ctx.atendimento_id);
 
+    // Chat Administrativo de Suporte V1 (etapa funcional, 10/10/2026):
+    // único ponto de integração do inbound real com o módulo novo
+    // (support-chat.service.js / tabelas support_conversations/
+    // support_chat_messages). Atrás de SUPPORT_CHAT_CAPTURE_ENABLED
+    // (desligada por padrão) — com a flag off, recordInboundMessage
+    // retorna no primeiro if sem tocar o banco, e o fluxo abaixo roda
+    // exatamente como antes. Com a flag on, só GRAVA a mensagem; nunca
+    // decide a resposta ao paciente nem troca o retorno desta função —
+    // handleSupportQueueInput continua sendo a única fonte da resposta.
+    // require() tardio (padrão já usado neste arquivo, ver
+    // typebot-prescription-upload.service) evita qualquer acoplamento no
+    // topo do módulo; o try/catch é defesa extra além do próprio
+    // recordInboundMessage, que já nunca lança — uma falha aqui (de
+    // require, de rede, do banco) nunca pode interromper o suporte via
+    // WhatsApp, só é registrada em log estruturado.
+    try {
+      // eslint-disable-next-line global-require
+      const { recordInboundMessage } = require('./support-chat.service');
+      await recordInboundMessage({
+        appointmentId: ctx?.atendimento_id || null,
+        body: text,
+        providerMessageId: messageId,
+        sender: 'patient'
+      });
+    } catch (e) {
+      logger.warn('support_chat_inbound_integration_failed', { error: e.message });
+    }
     return handleSupportQueueInput({ phone, textNorm });
   }
 
