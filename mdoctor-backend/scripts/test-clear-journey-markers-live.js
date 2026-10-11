@@ -2,6 +2,7 @@
 // telefone de teste dedicado, cria/atualiza a sessão, confirma que só as
 // duas chaves de jornada são removidas e o resto do metadata é preservado.
 require('dotenv').config();
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-clear-journey-markers-live.js' });
 const { initSupabase } = require('../src/config/supabase');
 initSupabase();
 const assert = require('assert');

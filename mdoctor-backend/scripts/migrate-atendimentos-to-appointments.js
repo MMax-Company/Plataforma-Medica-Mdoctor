@@ -4,6 +4,7 @@
  * Uso: LOAD_RAILWAY_VARS=0 node scripts/migrate-atendimentos-to-appointments.js
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'migrate-atendimentos-to-appointments.js' });
 const { initSupabase, getSupabase } = require('../src/config/supabase');
 
 async function main() {

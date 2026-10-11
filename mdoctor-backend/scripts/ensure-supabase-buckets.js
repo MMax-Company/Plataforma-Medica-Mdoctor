@@ -3,6 +3,7 @@
  * Cria buckets oficiais via Storage API (quando SQL migration não rodou por DB URL).
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'ensure-supabase-buckets.js' });
 const { initSupabase, getSupabase } = require('../src/config/supabase');
 
 const BUCKETS = [

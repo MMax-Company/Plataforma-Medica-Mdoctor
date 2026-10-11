@@ -10,6 +10,7 @@
  * de cada cenário.
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-stripe-webhook-resume-idempotency-20260724.js' });
 require('../src/config/supabase').initSupabase();
 const assert = require('assert');
 const { createClient } = require('@supabase/supabase-js');

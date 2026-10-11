@@ -9,6 +9,11 @@ const BACKEND = String(process.env.BACKEND_URL || 'https://mdoctor-backend-stagi
 const PANEL = String(process.env.PANEL_URL || 'https://painel-medico-staging-staging.up.railway.app').replace(/\/$/, '');
 const N8N = String(process.env.N8N_WEBHOOK_URL || 'https://n8n-staging-staging-2dfe.up.railway.app/webhook/typebot-webhook').replace(/\/$/, '');
 const SECRET = process.env.N8N_WEBHOOK_SECRET || process.env.INGRESS_SERVICE_SECRET || '';
+
+require('./_lib/guard-shared-environment').guardSharedEnvironment({
+  context: 'staging-real-validacao-e2e.js',
+  urlsToCheck: [BACKEND, PANEL]
+});
 const MEDICO_USER = process.env.MEDICO_USER || 'drmax.matos';
 const MEDICO_PASS = process.env.MEDICO_PASS || '';
 const RUN_ID = process.env.RUN_ID || '';

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'recover-paid-typebot-numeric-condition.js' });
 
 const { initSupabase } = require('../src/config/supabase');
 const {

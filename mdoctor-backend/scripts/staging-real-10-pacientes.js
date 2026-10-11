@@ -16,6 +16,11 @@ const BACKEND = String(process.env.BACKEND_URL || 'https://mdoctor-backend-stagi
 const SECRET = process.env.N8N_WEBHOOK_SECRET || process.env.INGRESS_SERVICE_SECRET || '';
 const RUN_ID = process.env.RUN_ID || `staging-real-${Date.now()}`;
 
+require('./_lib/guard-shared-environment').guardSharedEnvironment({
+  context: 'staging-real-10-pacientes.js',
+  urlsToCheck: [BACKEND]
+});
+
 const CPFS = [
   '52998224725',
   '39053344705',

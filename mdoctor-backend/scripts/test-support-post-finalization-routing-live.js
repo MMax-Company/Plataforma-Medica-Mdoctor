@@ -5,29 +5,17 @@
 // scripts/inspect-support-bug-sessions.js) e valida os dois caminhos: "1"
 // encerra, "2" inicia nova avaliacao no Typebot.
 //
-// GUARD (10/10/2026): nao existe banco de staging isolado de producao neste
-// projeto — usihurogvphtjedyhyfl e compartilhado pelos dois (achado da
-// ETAPA 3/reconciliacao de migrations, ver docs/PROJECT_MEMORY.md). Este
-// script grava appointments/support_tickets/audit_logs reais; rodar sem
-// querer contra esse projeto ja aconteceu uma vez (10/10/2026, atendimentos
-// 71c734c5.../d6f84caa... limpos manualmente). A partir de agora, conectar
-// nesse project ref especifico exige a confirmacao explicita abaixo —
-// qualquer outro SUPABASE_URL (um staging de verdade, isolado) passa direto.
+// GUARD (10/10/2026, agora via helper centralizado scripts/_lib/guard-
+// shared-environment.js — mesmo efeito, sem duplicar a lógica): nao existe
+// banco de staging isolado de producao neste projeto —
+// usihurogvphtjedyhyfl e compartilhado pelos dois (achado da ETAPA
+// 3/reconciliacao de migrations, ver docs/PROJECT_MEMORY.md). Este script
+// grava appointments/support_tickets/audit_logs reais; rodar sem querer
+// contra esse projeto ja aconteceu uma vez (10/10/2026, atendimentos
+// 71c734c5.../d6f84caa... limpos manualmente, com autorizacao, em
+// 11/10/2026).
 require('dotenv').config();
-const SHARED_PROD_STAGING_PROJECT_REF = 'usihurogvphtjedyhyfl';
-if (
-  String(process.env.SUPABASE_URL || '').includes(SHARED_PROD_STAGING_PROJECT_REF) &&
-  process.env.ALLOW_SHARED_PROD_STAGING_DB !== 'true'
-) {
-  console.error(
-    `BLOQUEADO: SUPABASE_URL aponta para ${SHARED_PROD_STAGING_PROJECT_REF}, o banco compartilhado ` +
-    'staging/produção — não um staging isolado. Este script grava appointments/support_tickets/' +
-    'audit_logs reais nele. Para confirmar que você sabe disso e quer mesmo rodar aqui, defina ' +
-    'ALLOW_SHARED_PROD_STAGING_DB=true explicitamente nesta execução. Prefira apontar SUPABASE_URL ' +
-    'para um projeto de staging isolado antes de rodar este teste.'
-  );
-  process.exit(1);
-}
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-support-post-finalization-routing-live.js' });
 const { initSupabase } = require('../src/config/supabase');
 initSupabase();
 const assert = require('assert');

@@ -10,6 +10,7 @@
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env'), quiet: true });
 const assert = require('assert');
 
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-typebot-upload-context-fix.js' });
 require('../src/config/supabase').initSupabase();
 const { createClient } = require('@supabase/supabase-js');
 const {

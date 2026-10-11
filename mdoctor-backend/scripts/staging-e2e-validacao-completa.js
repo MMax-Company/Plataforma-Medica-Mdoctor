@@ -18,6 +18,11 @@ const PANEL = String(
     'https://painel-medico-staging-staging.up.railway.app'
 ).replace(/\/$/, '');
 
+require('./_lib/guard-shared-environment').guardSharedEnvironment({
+  context: 'staging-e2e-validacao-completa.js',
+  urlsToCheck: [BACKEND, PANEL]
+});
+
 const RAILWAY_PROJECT = 'bed0e3b3-fa4b-4bc2-a7fb-dcabca09cd9b';
 const RAILWAY_ENV = 'd297af6e-c5e2-406a-9798-69a02f0e7394';
 const RAILWAY_SERVICE = '53960eb4-a1be-4d7c-b665-462049e52085';
