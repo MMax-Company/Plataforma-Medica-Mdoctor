@@ -164,7 +164,8 @@
     "test:typebot-whatsapp-image-blocks": "node scripts/test-typebot-whatsapp-image-blocks.js",
     "test:support-chat-foundation": "node scripts/test-support-chat-foundation.js",
     "test:support-chat-service": "node scripts/test-support-chat-service.js",
-    "test:support-chat-authorization": "node scripts/test-support-chat-authorization.js"
+    "test:support-chat-authorization": "node scripts/test-support-chat-authorization.js",
+    "test:support-chat-inbound-integration": "node scripts/test-support-chat-inbound-integration.js"
   },
   "nodemonConfig": {
     "ignore": [
