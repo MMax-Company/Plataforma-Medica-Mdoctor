@@ -903,6 +903,51 @@ substitui a verificação do código, banco, Git e ambiente atual.
   publicação em produção será uma etapa separada, com revisão, autorização
   explícita e plano de rollback.
 
-Pendente (ETAPA 4+, só após revisão do usuário): frontend de leitura, e só
-depois (ETAPA 5) resposta humana real + a decisão explícita de onde ligar
-a captura de inbound no fluxo real.
+- **ETAPA 4 concluída (10/10/2026) — integração do inbound real + achado
+  crítico de ambiente:** `service`/`routes`/`store` do chat já existiam das
+  etapas anteriores, sem alteração aqui. Único ponto novo: dentro de
+  `resolveMetaInboundRouting()` (`whatsapp-support.service.js`), no ramo já
+  existente que trata ticket de suporte ativo
+  (`support_sub_status === waiting/em_atendimento`), chama
+  `support-chat.service.recordInboundMessage()` com `appointmentId` (de
+  `ctx.atendimento_id`), `body` (texto original), `providerMessageId`
+  (`messageId`) e `sender: 'patient'` — `require()` tardio, nunca altera o
+  retorno da função (resposta ao paciente continua vindo só de
+  `handleSupportQueueInput`), try/catch extra além do próprio
+  `recordInboundMessage` (que já nunca lança). Commit `130bcc8`. Testes
+  novos (`test-support-chat-inbound-integration.js`, 5 cenários: parâmetros
+  corretos, falha assíncrona não quebra resposta, falha síncrona não quebra
+  resposta, fora do ramo de suporte nunca chama) + suíte de regressão
+  completa (menu/shortcut, clinical-support-survey) + os 3 suites do chat —
+  todos exit 0, zero mudança de comportamento com as flags no padrão de
+  fábrica. Nenhuma variável de ambiente foi alterada (local ou Railway,
+  staging ou produção) — todas as 3 flags continuam desligadas em todo
+  lugar.
+  **Achado crítico de ambiente, não relacionado ao código:** rodar o script
+  de regressão `test-support-post-finalization-routing-live.js` escreveu
+  2 appointments reais (`71c734c5-791e-48e0-937c-6aa24e122edb`,
+  `d6f84caa-6d0c-48e9-91de-afdf98f59e96`, + `support_tickets`/
+  `audit_logs`/`appointment_status_history` dependentes) em
+  `usihurogvphtjedyhyfl` — o único Supabase configurado em
+  `mdoctor-backend/.env`, compartilhado entre staging e produção (mesmo
+  achado da ETAPA 3). O script sempre pretendeu rodar contra esse banco,
+  sob a suposição antiga de que era um staging isolado. **Corrigido**
+  (mesmo commit, antes do commit da integração): o script agora recusa
+  rodar contra esse project ref específico sem
+  `ALLOW_SHARED_PROD_STAGING_DB=true` explícito — confirmado por execução
+  real (exit 1, sem chamar `initSupabase`, zero escrita). Os 2 appointments
+  de teste e seus dependentes foram **identificados por completo** (IDs
+  exatos acima, patient_id null, sem medical_decisions, whatsapp_sessions
+  dos telefones `5511900001005`/`1006` são fixture pré-existente desde
+  28/07 — não removê-los) mas **não removidos** — aguardando autorização
+  específica do usuário para o `DELETE` em `usihurogvphtjedyhyfl` (banco
+  real/compartilhado, não o staging isolado `lhzsbgsnmpkqqkdxvkue`).
+  **Risco geral identificado:** qualquer script `*-live.js` deste repo que
+  faça `initSupabase()` sem guard equivalente corre o mesmo risco — só o
+  script acima foi corrigido, por ser o único rodado nesta etapa; outros
+  (ex.: `inspect-support-bug-sessions.js`) permanecem sem essa proteção.
+
+Pendente (ETAPA 5+, só após revisão do usuário): frontend de leitura, e só
+depois resposta humana real + a decisão explícita de onde ligar a captura
+de inbound no fluxo real em produção. Pendência aberta: remoção dos 2
+appointments de teste em `usihurogvphtjedyhyfl` (aguardando autorização).
