@@ -165,7 +165,8 @@
     "test:support-chat-foundation": "node scripts/test-support-chat-foundation.js",
     "test:support-chat-service": "node scripts/test-support-chat-service.js",
     "test:support-chat-authorization": "node scripts/test-support-chat-authorization.js",
-    "test:support-chat-inbound-integration": "node scripts/test-support-chat-inbound-integration.js"
+    "test:support-chat-inbound-integration": "node scripts/test-support-chat-inbound-integration.js",
+    "test:guard-shared-environment": "node scripts/test-guard-shared-environment-unit.js"
   },
   "nodemonConfig": {
     "ignore": [

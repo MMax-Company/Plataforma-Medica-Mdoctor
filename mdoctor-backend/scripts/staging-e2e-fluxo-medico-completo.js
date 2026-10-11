@@ -4,6 +4,7 @@
  * Valida persistência Supabase (appointments, triage, prontuário, prescriptions).
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'staging-e2e-fluxo-medico-completo.js' });
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
