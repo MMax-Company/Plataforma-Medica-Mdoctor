@@ -3,6 +3,7 @@
  * Uso: node mdoctor-backend/scripts/supabase-production-persistence-test.js
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'supabase-production-persistence-test.js' });
 
 const { randomUUID } = require('crypto');
 const { initSupabase, pingSupabase } = require('../src/config/supabase');

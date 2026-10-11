@@ -3,6 +3,7 @@
  * Fechamento fase Supabase + conexões críticas (testes 1–7 da ordem).
  */
 require('./load-dotenv');
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'fechamento-fase-supabase-conexoes.js' });
 
 const { initSupabase, pingSupabase } = require('../src/config/supabase');
 const { PersistenceError } = require('../src/db/persistence');

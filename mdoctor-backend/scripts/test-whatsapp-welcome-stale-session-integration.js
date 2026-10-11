@@ -11,6 +11,7 @@ const { createClient } = require('@supabase/supabase-js');
 process.env.TYPEBOT_VIEWER_URL = process.env.TYPEBOT_VIEWER_URL || 'https://typebot.io';
 process.env.TYPEBOT_PUBLIC_ID = process.env.TYPEBOT_PUBLIC_ID || 'doctor-prescreve-8rmljgu';
 
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-whatsapp-welcome-stale-session-integration.js' });
 require('../src/config/supabase').initSupabase();
 const { createTypebotWhatsAppBridge } = require('../src/services/typebot-whatsapp.bridge');
 const { getSessionByPhone, upsertSessionIdentity } = require('../src/store/whatsapp-sessions.store');
