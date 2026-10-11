@@ -1,10 +1,33 @@
-// Teste ponta a ponta CONTRA O BANCO REAL (staging) do roteamento
-// pos-finalizacao de suporte. Usa telefones de teste dedicados, reproduz a
-// precondicao real do bug (sessao presa em typebot_expected_input_id =
-// WELCOME_CHOICE_INPUT_ID, exatamente como encontrado no telefone real
-// *8724 via scripts/inspect-support-bug-sessions.js) e valida os dois
-// caminhos: "1" encerra, "2" inicia nova avaliacao no Typebot.
+// Teste ponta a ponta CONTRA O BANCO REAL do roteamento pos-finalizacao de
+// suporte. Usa telefones de teste dedicados, reproduz a precondicao real do
+// bug (sessao presa em typebot_expected_input_id = WELCOME_CHOICE_INPUT_ID,
+// exatamente como encontrado no telefone real *8724 via
+// scripts/inspect-support-bug-sessions.js) e valida os dois caminhos: "1"
+// encerra, "2" inicia nova avaliacao no Typebot.
+//
+// GUARD (10/10/2026): nao existe banco de staging isolado de producao neste
+// projeto — usihurogvphtjedyhyfl e compartilhado pelos dois (achado da
+// ETAPA 3/reconciliacao de migrations, ver docs/PROJECT_MEMORY.md). Este
+// script grava appointments/support_tickets/audit_logs reais; rodar sem
+// querer contra esse projeto ja aconteceu uma vez (10/10/2026, atendimentos
+// 71c734c5.../d6f84caa... limpos manualmente). A partir de agora, conectar
+// nesse project ref especifico exige a confirmacao explicita abaixo —
+// qualquer outro SUPABASE_URL (um staging de verdade, isolado) passa direto.
 require('dotenv').config();
+const SHARED_PROD_STAGING_PROJECT_REF = 'usihurogvphtjedyhyfl';
+if (
+  String(process.env.SUPABASE_URL || '').includes(SHARED_PROD_STAGING_PROJECT_REF) &&
+  process.env.ALLOW_SHARED_PROD_STAGING_DB !== 'true'
+) {
+  console.error(
+    `BLOQUEADO: SUPABASE_URL aponta para ${SHARED_PROD_STAGING_PROJECT_REF}, o banco compartilhado ` +
+    'staging/produção — não um staging isolado. Este script grava appointments/support_tickets/' +
+    'audit_logs reais nele. Para confirmar que você sabe disso e quer mesmo rodar aqui, defina ' +
+    'ALLOW_SHARED_PROD_STAGING_DB=true explicitamente nesta execução. Prefira apontar SUPABASE_URL ' +
+    'para um projeto de staging isolado antes de rodar este teste.'
+  );
+  process.exit(1);
+}
 const { initSupabase } = require('../src/config/supabase');
 initSupabase();
 const assert = require('assert');
