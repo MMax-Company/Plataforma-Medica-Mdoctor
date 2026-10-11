@@ -966,7 +966,10 @@ substitui a verificação do código, banco, Git e ambiente atual.
   aguardando autorização:** a primeira versão do guard só exigia uma flag
   booleana; ao "provar que `ALLOW=true` libera" rodando de verdade
   `staging-e2e-validacao-completa.js` (em vez de só com mock, offline),
-  o script completou triagem real e criou: `appointments`
+  o script completou triagem real e criou **13 linhas sintéticas** (1
+  appointment + 1 patient + 1 triage_session + 6 triage_answers + 1
+  medical_eligibility + 1 medical_records + 1 n8n_event + 1 audit_log):
+  `appointments`
   `3a86b4a9-601e-4598-a7a1-2b467e577803` ("E2E Validação
   1791697866109", `+5511977866109`, hipertensão arterial), `patients`
   `55d5784e-9cc6-4ca7-88a4-0e9f66291ab8`, `triage_sessions`
