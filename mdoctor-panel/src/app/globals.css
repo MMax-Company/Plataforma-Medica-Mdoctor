@@ -3199,12 +3199,20 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard .panel-header--operational .panel-header__shell {
   width: 100%;
   max-width: none;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 10px;
+  /* Logo e ações ficam do tamanho do próprio conteúdo (auto) — o título
+     centraliza no espaço que sobra entre os dois (1fr), em vez de 3
+     colunas de 1/3 fixas. É isso que dá espaço para "Pendências
+     administrativas" + "Relação de Pacientes" + Conectada + perfil + Sair
+     caberem numa linha só, sem quebrar. */
+  grid-template-columns: auto 1fr auto;
+  column-gap: 14px;
   padding: 9px 12px;
 }
 
-.admin-dashboard .panel-header--operational .panel-header__col--brand,
+.admin-dashboard .panel-header--operational .panel-header__col--brand {
+  justify-content: flex-start;
+}
+
 .admin-dashboard .panel-header--operational .panel-header__col--center {
   justify-content: center;
 }
@@ -3228,10 +3236,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard .panel-header--operational .panel-header__right-group {
-  width: 100%;
+  width: auto;
   min-width: 0;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
 .admin-dashboard .panel-header--operational .panel-header__prontuario {
@@ -3646,27 +3655,69 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard__journey {
   gap: 12px;
+  /* 2 linhas explícitas (ver grid-rows no JSX): linha 1 = financeiro (col
+     1-2) + topo do chat (col 3); linha 2 = Aprovados/Rejeitados (col 1-2) +
+     chat continuando (col 3). O card do chat ocupa as 2 linhas
+     (row-span) — por isso fica mais alto que as colunas 1/2, sem precisar
+     de nenhuma altura fixa em pixel. align-items fica no padrão (stretch)
+     de propósito, para o card do chat esticar e preencher as 2 linhas;
+     colunas 1/2 continuam com altura própria explícita (ver
+     .admin-dashboard-journey-card abaixo), que já não é afetada por
+     stretch porque define sua própria altura. */
 }
 
-.admin-dashboard__journey > section {
+.admin-dashboard__journey > section,
+.admin-dashboard__journey .admin-dashboard-chat-card {
   border-color: #e2e8f0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
 }
 
-.admin-dashboard__journey > section > div:first-child {
-  min-height: 40px;
-  padding: 7px 12px;
+/* Colunas 1 e 2 (Pacientes Aprovados / Rejeitados) — altura TOTAL fixa e
+   rigorosamente idêntica entre si, independente da quantidade de itens em
+   cada uma. Não é max-height baseado em conteúdo: é um valor comum. */
+.admin-dashboard__journey > section.admin-dashboard-journey-card {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
 }
 
-.admin-dashboard__journey > section > div:last-child {
-  max-height: none;
-  min-height: 96px;
+/* Coluna 3 (chat) — preenche as 2 linhas do grid (ver grid-row: span 2 no
+   JSX) via stretch, por isso fica mais alta que as colunas 1/2 sem precisar
+   de altura fixa em pixel. O wrapper <div> intermediário (célula do grid)
+   também precisa esticar para a altura chegar até a section de dentro. */
+.admin-dashboard__journey > div:has(.admin-dashboard-chat-card) {
+  display: flex;
+  min-height: 0;
+}
+
+.admin-dashboard__journey .admin-dashboard-chat-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-dashboard-chat-card__history {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-.admin-dashboard__journey > section > div:last-child > div {
+.admin-dashboard__journey > section.admin-dashboard-journey-card > div:first-child {
+  min-height: 40px;
+  padding: 7px 12px;
+  flex-shrink: 0;
+}
+
+.admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child > div {
   display: grid;
   grid-template-columns: 28px 64px 84px minmax(0, 1fr) auto;
   align-items: center;
@@ -3745,7 +3796,10 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     flex-direction: column;
     gap: 6px;
     padding: 8px 16px 10px;
-    overflow: hidden;
+    /* A coluna 3 (chat) tem altura própria maior que as colunas 1/2 — se não
+       couber no viewport, a página rola em vez de cortar o rodapé do chat. */
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .admin-dashboard .admin-dashboard__content {
@@ -3902,11 +3956,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     min-height: 210px;
   }
 
-  .admin-dashboard__journey > section {
+  .admin-dashboard__journey > section.admin-dashboard-journey-card {
     min-height: 0;
   }
 
-  .admin-dashboard__journey > section > div:last-child {
+  .admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child {
     flex: 1;
     min-height: 0;
     overflow-y: auto;

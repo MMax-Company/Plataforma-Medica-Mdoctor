@@ -3,17 +3,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle, Eye } from 'lucide-react';
-import { authHeaders, logout, requireSession } from '@/services/auth.service';
-import { getApiBase } from '@/services/api';
+import { logout, requireSession } from '@/services/auth.service';
 import {
   fetchAdminDashboard,
   fetchAdminAtendimentos,
+  fetchSupportConversations,
   resolveAdminNote,
   type AdminAtendimento,
   type AdminDashboard,
+  type SupportConversation,
 } from '@/services/admin.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
-import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
+import { PendenciasDrawer } from '@/components/admin/PendenciasDrawer';
+import { SupportChatColumn } from '@/components/admin/SupportChatColumn';
 import { avatarInitials } from '@/lib/patient-display';
 
 // Seção 2 — Cards Quantitativos: mesmos 6 indicadores já existentes hoje no
@@ -172,6 +174,11 @@ function formatCondicao(condicao?: string): string {
     .toUpperCase();
 }
 
+// 'pending' continua existindo como valor de BodyColumnKey — PatientRow
+// ainda é usado com column="pending" dentro do drawer de Pendências
+// Administrativas (ver PendenciasDrawer), só não faz mais parte do grid de
+// 3 colunas (bodyColumns abaixo tem só approved/rejected agora; a coluna 3
+// passou a ser SupportChatColumn).
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
 
 const bodyColumns: Array<{
@@ -203,16 +210,6 @@ const bodyColumns: Array<{
     headBgClass: 'bg-slate-100',
     countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isRejected,
-  },
-  {
-    key: 'pending',
-    title: 'PENDÊNCIAS ADMINISTRATIVAS',
-    icon: AlertTriangle,
-    iconClass: 'bg-amber-100 text-amber-800',
-    topBorderClass: 'border-t-4 border-t-amber-500',
-    headBgClass: 'bg-amber-50',
-    countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
-    match: isAdministrativePending,
   },
 ];
 
@@ -400,10 +397,11 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<AdminDashboard | null>(null);
   const [atendimentos, setAtendimentos] = useState<AdminAtendimento[]>([]);
-  const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
+  const [supportConversations, setSupportConversations] = useState<SupportConversation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolvingNoteId, setResolvingNoteId] = useState<string | null>(null);
+  const [isPendingDrawerOpen, setPendingDrawerOpen] = useState(false);
 
   async function refreshAtendimentos() {
     try {
@@ -435,30 +433,24 @@ export default function AdminDashboardPage() {
     }
   }
 
-  async function fetchSupportQueue() {
+  // Fila do Chat Administrativo de Suporte V1 — substitui o antigo polling
+  // de /api/atendimentos/support-queue (ticket WhatsApp + wa.me externo,
+  // eliminado desta página; MedicalSupportBand e o Painel Médico continuam
+  // usando esse fluxo antigo, intocados). Best-effort: com
+  // SUPPORT_CHAT_UI_ENABLED desligada, a API responde 503 e a fila
+  // simplesmente fica vazia, sem erro visível.
+  async function fetchSupportConversationsForPage() {
     try {
-      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
-      const json = await res.json();
-      if (!res.ok) return;
-      const rows = Array.isArray(json) ? json : json.atendimentos || json.data || [];
-      setSupportPatients(
-        rows.map((item: any) => ({
-          id: item.id,
-          paciente_nome: item.paciente_nome,
-          paciente_telefone: item.paciente_telefone,
-          criado_em: item.criado_em,
-          status: item.status,
-          support_sub_status: item?.dados_clinicos?.support_sub_status,
-        })),
-      );
+      const res = await fetchSupportConversations();
+      setSupportConversations(res.success ? res.conversations : []);
     } catch {
-      setSupportPatients([]);
+      setSupportConversations([]);
     }
   }
 
   useEffect(() => {
     requireSession()
-      .then(() => Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportQueue()]))
+      .then(() => Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportConversationsForPage()]))
       .then(([dashboard, list]) => {
         setData(dashboard);
         setAtendimentos(list.atendimentos || []);
@@ -473,13 +465,14 @@ export default function AdminDashboardPage() {
 
   // Lista dinâmica: mesma cadência de atualização automática do Painel
   // Médico (fila/page.tsx) — pacientes sobem/descem de coluna conforme o
-  // status muda, sem precisar recarregar a página.
+  // status muda, sem precisar recarregar a página. Mesmo timer único de
+  // sempre — só ganhou mais uma chamada, não um segundo polling paralelo.
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void refreshAtendimentos();
         void refreshDashboard();
-        void fetchSupportQueue();
+        void fetchSupportConversationsForPage();
       }
     }, 30000);
     return () => window.clearInterval(timer);
@@ -490,13 +483,17 @@ export default function AdminDashboardPage() {
     // colunas administrativas enquanto aguardam resposta — reaparecem quando
     // o médico resolve ou devolve ao suporte.
     const visiveis = atendimentos.filter((a) => a.dados_clinicos?.queue_type !== 'medical_support');
-    return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
+    const base = bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
         acc[column.key] = visiveis.filter(column.match);
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
     );
+    // Pendências administrativas: não faz mais parte do grid de 3 colunas,
+    // mas continua sendo calculada aqui — agora alimenta o drawer.
+    base.pending = visiveis.filter(isAdministrativePending);
+    return base;
   }, [atendimentos]);
 
   async function handleLogout() {
@@ -521,6 +518,9 @@ export default function AdminDashboardPage() {
         recordButtonLabel="Relação de Pacientes"
         recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/pacientes')}
+        secondaryButtonLabel="Pendências administrativas"
+        secondaryButtonIcon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+        onOpenSecondary={() => setPendingDrawerOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -552,28 +552,10 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            {/* Indicador financeiro — receita real (atendimentos com pagamento
-                 confirmado × valor único da consulta), sem valor fabricado por
-                 atendimento: o produto tem preço fixo, não há campo a preencher. */}
-            <section>
-              <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
-                </div>
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
-                </div>
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
-                </div>
-              </div>
-            </section>
-
-            {/* Faixa de Suporte Administrativo — tamanho compacto, mesma escala
-                 do restante do painel (ver MedicalSupportBand size default). */}
-            <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
-
-            {/* Indicadores de Tempo Médio — ver comentário da seção 4 acima. */}
+            {/* Indicadores de Tempo Médio — linha superior, largura cheia
+                 (ver comentário da seção 4 acima). Movido para ANTES do
+                 financeiro/corpo principal por pedido explícito de
+                 reposicionamento — nenhum cálculo ou estilo mudou. */}
             <section>
               <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
                 Indicadores de tempo médio
@@ -611,16 +593,43 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            {/* Corpo Principal — mesma lógica de agrupamento de sempre, com
-                 escala/tipografia compacta alinhada à Relação de Pacientes. */}
-            <div className="admin-dashboard__journey grid grid-cols-3 gap-2">
-              {bodyColumns.map((column) => {
+            {/* Corpo Principal — grid único de 2 linhas × 3 colunas:
+                 linha 1 = cards financeiros (colunas 1+2) + cabeçalho verde
+                 do chat (coluna 3, via o próprio topo do SupportChatColumn);
+                 linha 2 = Aprovados (col 1) + Rejeitados (col 2) + chat
+                 continuando (col 3, mesmo card — SupportChatColumn ocupa as
+                 2 linhas em grid-row: span 2). É essa diferença de 1 linha
+                 inteira que faz a coluna 3 ficar mais alta que 1/2, não um
+                 valor fixo arbitrário. Nenhum tamanho/largura/fonte/cor dos
+                 cards financeiros ou das colunas 1/2 mudou — só a posição. */}
+            <div className="admin-dashboard__journey grid grid-cols-3 grid-rows-[auto_auto] gap-2">
+              <div className="col-start-1 col-end-3 row-start-1 row-end-2">
+                <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
+                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                    <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
+                  </div>
+                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                    <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
+                  </div>
+                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                    <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-start-3 col-end-4 row-start-1 row-end-3">
+                <SupportChatColumn conversations={supportConversations} />
+              </div>
+
+              {bodyColumns.map((column, index) => {
                 const Icon = column.icon;
                 const items = grouped[column.key];
                 return (
                   <section
                     key={column.key}
-                    className={`flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${column.topBorderClass}`}
+                    className={`admin-dashboard-journey-card row-start-2 row-end-3 flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${
+                      index === 0 ? 'col-start-1 col-end-2' : 'col-start-2 col-end-3'
+                    } ${column.topBorderClass}`}
                   >
                     <div
                       className={`flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-2.5 py-1.5 ${column.headBgClass}`}
@@ -636,7 +645,7 @@ export default function AdminDashboardPage() {
                       <span className={`dp-col-count ${column.countBadgeClass}`}>{items.length}</span>
                     </div>
 
-                    <div className="max-h-[440px] min-h-[120px] overflow-y-auto">
+                    <div className="overflow-y-auto">
                       {items.length ? (
                         items.map((item) => (
                           <PatientRow
@@ -661,6 +670,27 @@ export default function AdminDashboardPage() {
           </>
         )}
       </div>
+
+      <PendenciasDrawer
+        isOpen={isPendingDrawerOpen}
+        onClose={() => setPendingDrawerOpen(false)}
+        count={grouped.pending.length}
+      >
+        {grouped.pending.length ? (
+          grouped.pending.map((item) => (
+            <PatientRow
+              key={item.id}
+              column="pending"
+              item={item}
+              onVerJornada={() => router.push(`/admin/paciente/${item.id}`)}
+              onResolveNote={handleResolveNote}
+              resolvingNoteId={resolvingNoteId}
+            />
+          ))
+        ) : (
+          <p className="dp-text-subtle p-4 text-center text-[11px] font-semibold">Sem pendências administrativas</p>
+        )}
+      </PendenciasDrawer>
     </main>
   );
 }
