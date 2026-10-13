@@ -991,14 +991,21 @@ Pendente (ETAPA 5+, só após revisão do usuário): frontend de leitura, e só
 depois resposta humana real + a decisão explícita de onde ligar a captura
 de inbound no fluxo real em produção.
 
-**Pendências de limpeza abertas em `usihurogvphtjedyhyfl` (aguardando
-autorização explícita, SQL de pré-validação/limpeza/pós-validação já
-preparado nas duas ocasiões, nenhum `DELETE` executado):**
+**Limpeza dos dois incidentes em `usihurogvphtjedyhyfl` — RESOLVIDA
+(13/10/2026):** o usuário executou os dois `DELETE`s (por ID exato, só
+nas tabelas identificadas) direto no SQL Editor do Supabase — nenhum
+`DELETE` foi rodado por mim nos dois casos, só identificação/pré-validação/
+pós-validação, todas de leitura. Pós-validação confirmada por mim (leitura
+própria, 12 contagens, todas `0`):
 1. Incidente original (10/10/2026): `appointments`
    `71c734c5-791e-48e0-937c-6aa24e122edb` e
    `d6f84caa-6d0c-48e9-91de-afdf98f59e96` + `support_tickets`/
-   `audit_logs`/`appointment_status_history` dependentes.
-2. Segundo incidente (11/10/2026, ver acima): `appointments`
+   `audit_logs`/`appointment_status_history` dependentes — **removidos,
+   contagem 0 confirmada**.
+2. Segundo incidente (11/10/2026): `appointments`
    `3a86b4a9-601e-4598-a7a1-2b467e577803` + `patients`/`triage_sessions`/
-   `triage_answers`/`medical_eligibility`/`medical_records`/`n8n_events`/
-   `audit_logs` dependentes.
+   `triage_answers` (6)/`medical_eligibility`/`medical_records`/
+   `n8n_events`/`audit_logs` dependentes — **removidos, contagem 0
+   confirmada**.
+Nenhum outro registro (`whatsapp_sessions`, outros `patients`/
+`appointments`) foi afetado pela limpeza, nos dois casos.
