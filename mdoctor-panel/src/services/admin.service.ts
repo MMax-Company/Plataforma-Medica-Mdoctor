@@ -188,3 +188,47 @@ export async function forwardToDoctor(
     { headers: authHeaders() },
   );
 }
+
+// Chat Administrativo de Suporte V1 — consome só as 2 rotas já validadas em
+// staging (GET /conversations, GET /conversations/:id). Sem envio real nesta
+// etapa (SUPPORT_CHAT_AGENT_SEND_ENABLED continua desligado; não existe rota
+// de POST de mensagem no backend ainda).
+export type SupportConversation = {
+  id: string;
+  appointment_id: string;
+  patient_id: string | null;
+  status: 'open' | 'awaiting_agent' | 'awaiting_patient' | 'closed';
+  locked_by: string | null;
+  locked_at: string | null;
+  lock_expires_at: string | null;
+  last_message_at: string | null;
+  last_inbound_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SupportChatMessage = {
+  id: string;
+  conversation_id: string;
+  direction: 'inbound' | 'outbound';
+  sender: string | null;
+  body: string;
+  provider_message_id: string | null;
+  client_message_id: string | null;
+  created_at: string;
+};
+
+export async function fetchSupportConversations(): Promise<{
+  success: boolean;
+  conversations: SupportConversation[];
+}> {
+  return apiClient.get('/api/admin/support/conversations', { headers: authHeaders() });
+}
+
+export async function fetchSupportConversationDetail(id: string): Promise<{
+  success: boolean;
+  conversation: SupportConversation;
+  messages: SupportChatMessage[];
+}> {
+  return apiClient.get(`/api/admin/support/conversations/${id}`, { headers: authHeaders() });
+}

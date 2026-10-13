@@ -68,6 +68,13 @@ interface MedicalPanelHeaderProps {
   titleAlign?: 'center' | 'left';
   recordButtonLabel?: string;
   recordButtonIcon?: ReactNode;
+  /** Segundo botão de ação opcional, ao lado do botão principal acima —
+   * ex.: "Pendências administrativas" no Painel Administrativo. Sem valor
+   * (padrão), nada é renderizado — nenhuma outra tela que usa este cabeçalho
+   * é afetada. */
+  secondaryButtonLabel?: string;
+  secondaryButtonIcon?: ReactNode;
+  onOpenSecondary?: () => void;
 }
 
 export function MedicalPanelHeader({
@@ -79,6 +86,9 @@ export function MedicalPanelHeader({
   titleAlign = 'center',
   recordButtonLabel = 'PRONTUÁRIO',
   recordButtonIcon = <ClipboardList className="h-4 w-4" aria-hidden="true" />,
+  secondaryButtonLabel,
+  secondaryButtonIcon,
+  onOpenSecondary,
 }: Readonly<MedicalPanelHeaderProps>) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const memedStatus = useMemedStatus();
@@ -133,6 +143,17 @@ export function MedicalPanelHeader({
         {/* Direita — PRONTUÁRIO isolado | gap | bloco ops (Memed · Perfil · SAIR) */}
         <div className="panel-header__col panel-header__col--ops">
           <div className="panel-header__right-group">
+
+            {onOpenSecondary && secondaryButtonLabel ? (
+              <button
+                type="button"
+                onClick={onOpenSecondary}
+                className="panel-header__prontuario dp-btn dp-btn-outline-soft shrink-0"
+              >
+                {secondaryButtonIcon}
+                {secondaryButtonLabel}
+              </button>
+            ) : null}
 
             {onOpenMedicalRecord ? (
               <button
