@@ -1,8 +1,27 @@
 // Teste offline do scanner de segredos do CI (scripts/check-ci-secrets.js).
 // Chama só as funções puras exportadas (scanAddedLine/isRealEnvFile/etc.),
 // nunca o `git diff` real — sem rede, sem repositório, sem side effect.
+//
+// IMPORTANTE: os valores de teste abaixo são montados por concatenação
+// (frag(...)) em vez de escritos como um literal contíguo. Isso não afrouxa
+// nenhum padrão — é só para que o PRÓPRIO texto-fonte deste arquivo (ao ser
+// adicionado ao repositório) não contenha, ele mesmo, uma substring que bata
+// nos padrões que este teste está verificando. Sem isso, este arquivo de
+// teste dispararia o scanner real sobre si mesmo.
 const assert = require('assert');
 const { scanAddedLine, isRealEnvFile, isTestFilePath } = require('./check-ci-secrets');
+
+function frag(...parts) {
+  return parts.join('');
+}
+
+// O próprio NOME da variável de ambiente também precisa ser montado por
+// partes: "JWT_SECRET" seguido de " = " na mesma linha-fonte é exatamente o
+// que o padrão "JWT secret assignment" procura, então deixar esse token
+// inteiro ao lado de "=" em qualquer fixture abaixo faria este arquivo
+// disparar o scanner sobre si mesmo, independente de frag() nos outros
+// pedaços da linha.
+const JWT_SECRET_TOKEN = frag('JWT_SEC', 'RET');
 
 const results = {};
 
@@ -10,7 +29,15 @@ const results = {};
 // começando com `test_`, dentro de um arquivo reconhecido como teste.
 {
   const filePath = 'mdoctor-backend/scripts/test-support-chat-authorization.js';
-  const line = "process.env.JWT_SECRET = process.env.JWT_SECRET || 'test_secret_support_chat_authz';";
+  const line = frag(
+    'process.env.',
+    JWT_SECRET_TOKEN,
+    ' = process.env.',
+    JWT_SECRET_TOKEN,
+    " || '",
+    'test_secret_support_chat_authz',
+    "';"
+  );
   assert.deepEqual(scanAddedLine(filePath, line), []);
 }
 results.falsoPositivoConhecidoNaoEhMaisSinalizado = 'ok';
@@ -19,7 +46,7 @@ results.falsoPositivoConhecidoNaoEhMaisSinalizado = 'ok';
 // bloqueando — a isenção nunca vale para valores que não comecem com `test_`.
 {
   const filePath = 'mdoctor-backend/scripts/test-support-chat-authorization.js';
-  const line = "process.env.JWT_SECRET = 'segredo-real-hardcoded';";
+  const line = frag('process.env.', JWT_SECRET_TOKEN, " = '", 'segredo-real-hardcoded', "';");
   assert.deepEqual(scanAddedLine(filePath, line), ['JWT secret assignment']);
 }
 results.segredoRealHardcodedContinuaFalhandoMesmoEmArquivoDeTeste = 'ok';
@@ -29,7 +56,7 @@ results.segredoRealHardcodedContinuaFalhandoMesmoEmArquivoDeTeste = 'ok';
 // arquivo, nunca um allowlist genérico para JWT_SECRET.
 {
   const filePath = 'mdoctor-backend/src/config/jwt.js';
-  const line = "JWT_SECRET = 'test_qualquer_coisa';";
+  const line = frag(JWT_SECRET_TOKEN, ' = ', "'", 'test_qualquer_coisa', "';");
   assert.deepEqual(scanAddedLine(filePath, line), ['JWT secret assignment']);
 }
 results.valorSinteticoForaDeArquivoDeTesteContinuaFalhando = 'ok';
@@ -39,21 +66,33 @@ results.valorSinteticoForaDeArquivoDeTesteContinuaFalhando = 'ok';
 // "JWT secret assignment", nunca genérica).
 {
   const filePath = 'mdoctor-backend/scripts/test-qualquer-coisa.js';
-  assert.deepEqual(scanAddedLine(filePath, 'const k = "sk_live_abcDEF123456";'), ['Stripe secret key']);
-  assert.deepEqual(scanAddedLine(filePath, 'const w = "whsec_abcDEF123456";'), ['Stripe webhook secret']);
-  assert.deepEqual(
-    scanAddedLine(filePath, 'const t = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123";'),
-    ['JWT token']
+
+  const stripeKeyLine = frag('const k = "', 'sk_live_', 'abcDEF123456', '";');
+  assert.deepEqual(scanAddedLine(filePath, stripeKeyLine), ['Stripe secret key']);
+
+  const stripeWebhookLine = frag('const w = "', 'whsec_', 'abcDEF123456', '";');
+  assert.deepEqual(scanAddedLine(filePath, stripeWebhookLine), ['Stripe webhook secret']);
+
+  const jwtTokenLine = frag(
+    'const t = "',
+    'eyJhbGciOiJ',
+    'IUzI1NiJ9',
+    '.',
+    'eyJzdWIiOiIxIn0',
+    '.',
+    'abc123',
+    '";'
   );
-  assert.deepEqual(
-    scanAddedLine(filePath, "SUPABASE_SERVICE_ROLE_KEY = 'qualquer-coisa';"),
-    ['Supabase service key assignment']
-  );
-  assert.deepEqual(
-    scanAddedLine(filePath, "MEMED_SECRET_KEY = 'qualquer-coisa';"),
-    ['Memed secret assignment']
-  );
-  assert.deepEqual(scanAddedLine(filePath, 'MEDICO_PASS = admin123'), ['Default medical password']);
+  assert.deepEqual(scanAddedLine(filePath, jwtTokenLine), ['JWT token']);
+
+  const supabaseLine = frag('SUPABASE_SERVICE_ROLE_KEY', ' = ', "'", 'qualquer-coisa', "';");
+  assert.deepEqual(scanAddedLine(filePath, supabaseLine), ['Supabase service key assignment']);
+
+  const memedLine = frag('MEMED_SECRET_KEY', ' = ', "'", 'qualquer-coisa', "';");
+  assert.deepEqual(scanAddedLine(filePath, memedLine), ['Memed secret assignment']);
+
+  const defaultPasswordLine = frag('MEDICO_PASS', ' = ', 'admin123');
+  assert.deepEqual(scanAddedLine(filePath, defaultPasswordLine), ['Default medical password']);
 }
 results.demaisPadroesDeSegredoContinuamIntactos = 'ok';
 
