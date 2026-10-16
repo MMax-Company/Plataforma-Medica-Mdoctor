@@ -569,6 +569,7 @@ export default function AdminDashboardPage() {
                       <div
                         key={key}
                         className="admin-dashboard__time-tile"
+                        data-metric={key}
                         title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                         aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                       >
@@ -582,7 +583,7 @@ export default function AdminDashboardPage() {
                           <defs>
                             <path
                               id={`time-label-path-${key}`}
-                              d="M 10 72 Q 50 101 90 72"
+                              d="M 5 68 Q 50 94 95 68"
                             />
                           </defs>
                           <text>
