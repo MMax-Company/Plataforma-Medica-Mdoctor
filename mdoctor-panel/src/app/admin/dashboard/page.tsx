@@ -601,7 +601,7 @@ export default function AdminDashboardPage() {
                 </div>
               </section>
 
-              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-4 lg:row-end-5">
+              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-3 lg:row-end-4">
                 <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
                   <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
                     <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
@@ -625,7 +625,7 @@ export default function AdminDashboardPage() {
                 return (
                   <section
                     key={column.key}
-                    className={`admin-dashboard-journey-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] lg:row-start-3 lg:row-end-4 ${
+                    className={`admin-dashboard-journey-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] lg:row-start-4 lg:row-end-5 ${
                       index === 0 ? 'lg:col-start-1 lg:col-end-2' : 'lg:col-start-2 lg:col-end-3'
                     } ${column.topBorderClass}`}
                   >
