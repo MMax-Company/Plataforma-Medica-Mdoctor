@@ -3796,10 +3796,10 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     flex-direction: column;
     gap: 6px;
     padding: 8px 16px 10px;
-    /* A coluna 3 (chat) tem altura própria maior que as colunas 1/2 — se não
-       couber no viewport, a página rola em vez de cortar o rodapé do chat. */
-    overflow-y: auto;
-    overflow-x: hidden;
+    /* Desktop em tela fixa: a página externa não rola. O espaço restante é
+       absorvido pelo grid inferior e somente as áreas internas das colunas
+       usam rolagem vertical. */
+    overflow: hidden;
   }
 
   .admin-dashboard .admin-dashboard__content {
@@ -3953,11 +3953,19 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
   .admin-dashboard__journey {
     flex: 1;
-    min-height: 210px;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .admin-dashboard__journey > section.admin-dashboard-journey-card {
+    height: auto;
     min-height: 0;
+    align-self: stretch;
+  }
+
+  .admin-dashboard__journey > div:has(.admin-dashboard-chat-card) {
+    min-height: 0;
+    overflow: hidden;
   }
 
   .admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child {
