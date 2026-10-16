@@ -3593,7 +3593,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__summary > button:focus-visible,
-.admin-dashboard__journey button:focus-visible {
+.admin-dashboard__main-grid button:focus-visible {
   outline: 3px solid rgba(21, 87, 255, 0.22);
   outline-offset: 2px;
 }
@@ -3653,7 +3653,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   border-color: #efd7b6;
 }
 
-.admin-dashboard__journey {
+.admin-dashboard__main-grid {
   gap: 12px;
   /* 2 linhas explícitas (ver grid-rows no JSX): linha 1 = financeiro (col
      1-2) + topo do chat (col 3); linha 2 = Aprovados/Rejeitados (col 1-2) +
@@ -3666,8 +3666,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
      stretch porque define sua própria altura. */
 }
 
-.admin-dashboard__journey > section,
-.admin-dashboard__journey .admin-dashboard-chat-card {
+.admin-dashboard__main-grid > section,
+.admin-dashboard__main-grid .admin-dashboard-chat-card {
   border-color: #e2e8f0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
@@ -3677,7 +3677,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 /* Colunas 1 e 2 (Pacientes Aprovados / Rejeitados) — altura TOTAL fixa e
    rigorosamente idêntica entre si, independente da quantidade de itens em
    cada uma. Não é max-height baseado em conteúdo: é um valor comum. */
-.admin-dashboard__journey > section.admin-dashboard-journey-card {
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card {
   display: flex;
   flex-direction: column;
   height: 480px;
@@ -3687,12 +3687,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
    JSX) via stretch, por isso fica mais alta que as colunas 1/2 sem precisar
    de altura fixa em pixel. O wrapper <div> intermediário (célula do grid)
    também precisa esticar para a altura chegar até a section de dentro. */
-.admin-dashboard__journey > div:has(.admin-dashboard-chat-card) {
+.admin-dashboard__main-grid > div:has(.admin-dashboard-chat-card) {
   display: flex;
   min-height: 0;
 }
 
-.admin-dashboard__journey .admin-dashboard-chat-card {
+.admin-dashboard__main-grid .admin-dashboard-chat-card {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -3703,13 +3703,13 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-.admin-dashboard__journey > section.admin-dashboard-journey-card > div:first-child {
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:first-child {
   min-height: 40px;
   padding: 7px 12px;
   flex-shrink: 0;
 }
 
-.admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child {
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
@@ -3717,7 +3717,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-.admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child > div {
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child > div {
   display: grid;
   grid-template-columns: 28px 64px 84px minmax(0, 1fr) auto;
   align-items: center;
@@ -3728,19 +3728,19 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   transition: background-color 150ms ease;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(2) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(2) {
   min-width: 0;
   font-size: 11.5px;
   font-weight: 700;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(3) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(3) {
   width: auto;
   min-width: 0;
   font-size: 9.5px;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(4) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(4) {
   width: auto;
   min-width: 0;
   font-size: 10px;
@@ -3748,16 +3748,16 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   color: #475569;
 }
 
-.admin-dashboard__journey > section > div:first-child h2 {
+.admin-dashboard__main-grid > section > div:first-child h2 {
   font-weight: 700;
   letter-spacing: 0.025em;
 }
 
-.admin-dashboard__journey > section > div:last-child > div:hover {
+.admin-dashboard__main-grid > section > div:last-child > div:hover {
   background: rgba(248, 250, 252, 0.82);
 }
 
-.admin-dashboard__journey [aria-label='Ver jornada do atendimento'] {
+.admin-dashboard__main-grid [aria-label='Ver jornada do atendimento'] {
   height: 26px;
   width: 26px;
   border-width: 1px;
@@ -3769,13 +3769,13 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   justify-self: end;
 }
 
-.admin-dashboard__journey [aria-label='Ver jornada do atendimento']:hover {
+.admin-dashboard__main-grid [aria-label='Ver jornada do atendimento']:hover {
   border-color: #86efac;
   background: #f0fdf4;
   transform: translateY(-1px);
 }
 
-.admin-dashboard__journey .dp-col-count {
+.admin-dashboard__main-grid .dp-col-count {
   height: 24px;
   min-width: 24px;
   border-radius: 7px;
@@ -3783,6 +3783,23 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 @media (min-width: 1024px) {
+  .admin-dashboard__time-zone {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .admin-dashboard__support-cell {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 18px;
+  }
+
+  .admin-dashboard__support-cell > .admin-dashboard-chat-card {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .admin-dashboard {
     height: 100vh;
     min-height: 0;
@@ -3948,24 +3965,24 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     line-height: 1.1;
   }
 
-  .admin-dashboard__journey {
-    flex: 1;
+  .admin-dashboard__main-grid {
+    flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
   }
 
-  .admin-dashboard__journey > section.admin-dashboard-journey-card {
+  .admin-dashboard__main-grid > section.admin-dashboard-journey-card {
     height: auto;
     min-height: 0;
     align-self: stretch;
   }
 
-  .admin-dashboard__journey > div:has(.admin-dashboard-chat-card) {
+  .admin-dashboard__main-grid > div:has(.admin-dashboard-chat-card) {
     min-height: 0;
     overflow: hidden;
   }
 
-  .admin-dashboard__journey > section.admin-dashboard-journey-card > div:last-child {
+  .admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -3985,7 +4002,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .admin-dashboard__journey {
+  .admin-dashboard__main-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -4387,7 +4404,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__summary,
   .admin-dashboard__finance,
   .admin-dashboard__time,
-  .admin-dashboard__journey {
+  .admin-dashboard__main-grid {
     width: 100%;
     min-width: 0;
   }
@@ -4452,8 +4469,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     overflow-wrap: anywhere;
   }
 
-  .admin-dashboard__journey > section,
-  .admin-dashboard__journey > section > div:last-child {
+  .admin-dashboard__main-grid > section,
+  .admin-dashboard__main-grid > section > div:last-child {
     min-width: 0;
   }
 }
@@ -4549,9 +4566,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 @media (min-width: 1024px) {
   .admin-dashboard__time {
     grid-template-columns: repeat(11, minmax(0, 1fr));
-    gap: 4px;
-    overflow-x: hidden !important;
-    overflow-y: hidden;
+    gap: 3px;
+    overflow: hidden !important;
     padding: 1px 0 2px;
     scrollbar-width: none;
   }
@@ -4561,24 +4577,24 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard__time > .admin-dashboard__time-tile {
-    width: 88%;
+    width: 84%;
     min-width: 0;
     justify-self: center;
-    padding: 5px 3px;
+    padding: 4px 2px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon,
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 10.5px;
+    font-size: 9px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-    min-height: 16px;
-    font-size: 7px;
-    line-height: 1.08;
+    min-height: 14px;
+    font-size: 6.2px;
+    line-height: 1.06;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
-    font-size: 6.5px;
+    font-size: 5.8px;
   }
 }
