@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, Paperclip, Send, Users } from 'lucide-react';
+import { ChevronDown, MessageCircle, Paperclip, Send, Users } from 'lucide-react';
 import {
   fetchAdminAtendimento,
   fetchSupportConversationDetail,
@@ -61,6 +61,8 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
   );
   const [patientInfo, setPatientInfo] = useState<AdminAtendimento | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [isQueueMenuOpen, setQueueMenuOpen] = useState(false);
+  const queueMenuRef = useRef<HTMLDivElement>(null);
 
   // Seleciona automaticamente a primeira conversa da fila quando nada está
   // selecionado ainda, ou quando a conversa selecionada saiu da fila (ex.:
@@ -77,14 +79,33 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversations]);
 
+  // Carrega o detalhe da conversa aberta. Depende também de `conversations`
+  // (não só de `selectedId`) para que o detalhe acompanhe o mesmo polling da
+  // fila — sem isso, uma conversa aberta ficava com o histórico parado até o
+  // usuário trocar de conversa manualmente. A troca real de conversa (ver
+  // prevSelectedIdRef) limpa detail/patientInfo IMEDIATAMENTE antes de
+  // buscar os novos dados, para nunca mostrar mensagem nova com
+  // identificação do paciente anterior; já uma atualização de polling na
+  // MESMA conversa é silenciosa — não limpa nem mostra "Carregando...".
+  const prevSelectedIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
       setPatientInfo(null);
+      prevSelectedIdRef.current = null;
       return;
     }
+
+    const isNewSelection = prevSelectedIdRef.current !== selectedId;
+    prevSelectedIdRef.current = selectedId;
+
+    if (isNewSelection) {
+      setDetail(null);
+      setPatientInfo(null);
+      setLoadingDetail(true);
+    }
+
     let cancelled = false;
-    setLoadingDetail(true);
     fetchSupportConversationDetail(selectedId)
       .then((res) => {
         if (cancelled || !res.success) return;
@@ -96,7 +117,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
         setPatientInfo(res.atendimento);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && isNewSelection) {
           setDetail(null);
           setPatientInfo(null);
         }
@@ -107,11 +128,29 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
     return () => {
       cancelled = true;
     };
-  }, [selectedId]);
+  }, [selectedId, conversations]);
+
+  // Fecha o menu "ver todas as conversas" ao clicar fora dele.
+  useEffect(() => {
+    if (!isQueueMenuOpen) return;
+    function onClickOutside(e: MouseEvent) {
+      if (queueMenuRef.current && !queueMenuRef.current.contains(e.target as Node)) {
+        setQueueMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [isQueueMenuOpen]);
 
   const awaiting = conversations.filter((c) => c.status === 'awaiting_agent');
   const badgeSource = conversations.slice(0, MAX_BADGES);
-  const extraBadges = Math.max(0, conversations.length - MAX_BADGES);
+  const extraConversations = conversations.slice(MAX_BADGES);
+  const extraBadges = extraConversations.length;
+
+  function selectConversation(id: string) {
+    setSelectedId(id);
+    setQueueMenuOpen(false);
+  }
 
   return (
     <section className="admin-dashboard-chat-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#BEE3C8] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
@@ -132,12 +171,12 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1" title={`${extraBadges} conversa(s) adicionais`}>
+          <div className="relative flex shrink-0 items-center gap-1" ref={queueMenuRef}>
             {badgeSource.map((c, index) => (
               <button
                 key={c.id}
                 type="button"
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => selectConversation(c.id)}
                 className={`flex h-5 w-5 items-center justify-center rounded-[5px] text-[10px] font-black text-white transition-colors ${
                   c.id === selectedId ? 'bg-[#B91C2B] ring-2 ring-[#B91C2B]/30' : 'bg-[#DC2A3B] hover:bg-[#B91C2B]'
                 }`}
@@ -147,9 +186,37 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
               </button>
             ))}
             {extraBadges > 0 && (
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-[5px] bg-[#0B7F3C] px-1 text-[9px] font-black text-white">
+              <button
+                type="button"
+                onClick={() => setQueueMenuOpen((open) => !open)}
+                title="Ver todas as conversas na fila"
+                aria-label={`Ver mais ${extraBadges} conversa(s) na fila`}
+                aria-expanded={isQueueMenuOpen}
+                className="flex h-5 min-w-5 items-center justify-center gap-0.5 rounded-[5px] bg-[#0B7F3C] px-1 text-[9px] font-black text-white hover:bg-[#09632F]"
+              >
                 +{extraBadges}
-              </span>
+                <ChevronDown className="h-2.5 w-2.5" aria-hidden="true" />
+              </button>
+            )}
+
+            {isQueueMenuOpen && extraConversations.length > 0 && (
+              <div className="absolute right-0 top-full z-10 mt-1 max-h-56 w-52 overflow-y-auto rounded-[10px] border border-[#BEE3C8] bg-white py-1 shadow-[0_8px_20px_rgba(15,23,42,0.12)]">
+                <p className="px-2.5 pb-1 text-[9px] font-black uppercase tracking-wide text-[#5B6475]">
+                  Demais conversas na fila
+                </p>
+                {extraConversations.map((c, index) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => selectConversation(c.id)}
+                    className={`block w-full px-2.5 py-1.5 text-left text-[10.5px] font-semibold hover:bg-[#EAF8EF] ${
+                      c.id === selectedId ? 'bg-[#EAF8EF] text-[#0B7F3C]' : 'text-[#1A2333]'
+                    }`}
+                  >
+                    {MAX_BADGES + index + 1}. Conversa {c.id.slice(0, 8)} · {fmtDateTime(c.last_message_at)}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>
