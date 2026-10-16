@@ -197,7 +197,7 @@ const bodyColumns: Array<{
     icon: CheckCircle2,
     iconClass: 'bg-[#E8F8EE] text-[#0B7F3C]',
     topBorderClass: 'border-t-4 border-t-[#0BA84F]',
-    headBgClass: 'bg-[#E8F8EE]',
+    headBgClass: 'bg-[#FDEBEC]',
     countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isApproved,
   },
@@ -207,7 +207,7 @@ const bodyColumns: Array<{
     icon: XCircle,
     iconClass: 'bg-slate-100 text-[#5B6475]',
     topBorderClass: 'border-t-4 border-t-[#B91C2B]',
-    headBgClass: 'bg-slate-100',
+    headBgClass: 'bg-[#FDEBEC]',
     countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isRejected,
   },
@@ -603,13 +603,13 @@ export default function AdminDashboardPage() {
 
               <div className="lg:col-start-1 lg:col-end-3 lg:row-start-3 lg:row-end-4">
                 <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
-                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
                     <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
                   </div>
-                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
                     <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
                   </div>
-                  <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
                     <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
                   </div>
                 </div>
