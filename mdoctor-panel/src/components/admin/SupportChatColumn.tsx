@@ -266,7 +266,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
             </button>
           </div>
 
-          <div className="admin-dashboard-chat-card__history min-h-0 flex-1 overflow-y-auto px-3 py-2">
+          <div className="admin-dashboard-chat-card__history min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-14">
             {detail.messages.length === 0 ? (
               <p className="p-2 text-center text-[10.5px] text-[#94A3B8]">Nenhuma mensagem ainda.</p>
             ) : (
