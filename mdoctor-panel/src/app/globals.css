@@ -3869,10 +3869,10 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
   .admin-dashboard__finance > div {
     min-height: 34px;
-    border-color: #b8e2cf;
-    background: linear-gradient(180deg, #e5f8ef 0%, #d9f2e7 100%);
+    border-color: #f3d98a;
+    background: linear-gradient(180deg, #fff9dc 0%, #fff2bf 100%);
     box-shadow:
-      0 3px 9px rgba(5, 150, 105, 0.1),
+      0 3px 9px rgba(202, 138, 4, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.74);
   }
 
@@ -4579,10 +4579,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard__time-heading-note {
   margin-left: 4px;
   color: #a4afbf;
-  font-size: 7.2px;
+  font-size: 6.8px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+  white-space: nowrap;
 }
 
 @media (min-width: 1024px) {
