@@ -570,6 +570,7 @@ export default function AdminDashboardPage() {
                         key={key}
                         className="admin-dashboard__time-tile"
                         title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                       >
                         <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
                         <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
