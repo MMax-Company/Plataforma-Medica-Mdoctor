@@ -4611,9 +4611,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 24px;
+    max-width: 88%;
+    overflow: hidden;
+    font-size: clamp(15px, 1.35vw, 21px);
     font-weight: 900;
     line-height: 1;
+    text-overflow: clip;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc {
