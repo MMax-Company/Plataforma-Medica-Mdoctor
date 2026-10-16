@@ -3659,7 +3659,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard__main-grid {
   column-gap: 12px;
-  row-gap: 8px;
+  row-gap: 4px;
   /* 2 linhas explícitas (ver grid-rows no JSX): linha 1 = financeiro (col
      1-2) + topo do chat (col 3); linha 2 = Aprovados/Rejeitados (col 1-2) +
      chat continuando (col 3). O card do chat ocupa as 2 linhas
@@ -4567,9 +4567,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__time-heading {
-  margin: 0 0 1px;
+  margin: 0;
   color: #4f5f78;
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 900;
   line-height: 1.08;
   letter-spacing: 0.055em;
@@ -4578,8 +4578,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard__time-heading-note {
   margin-left: 4px;
-  color: #9aa8bc;
-  font-size: 8px;
+  color: #a4afbf;
+  font-size: 7.2px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
@@ -4588,9 +4588,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 @media (min-width: 1024px) {
   .admin-dashboard__time {
     grid-template-columns: repeat(8, minmax(0, 1fr));
-    gap: 7px;
+    gap: 4px;
     overflow: hidden !important;
-    padding: 1px 0 2px;
+    padding: 0;
     scrollbar-width: none;
   }
 
@@ -4599,27 +4599,38 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard__time > .admin-dashboard__time-tile {
-    width: 94%;
+    width: 98%;
     min-width: 0;
     justify-self: center;
-    padding: 12px 4px 18px;
+    padding: 12px 4px 17px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon {
-    margin-bottom: 4px;
-    font-size: 15.5px;
+    margin-bottom: 5px;
+    font-size: 18px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 19px;
+    max-width: 88%;
+    overflow: hidden;
+    font-size: clamp(15px, 1.35vw, 21px);
+    font-weight: 900;
     line-height: 1;
+    text-overflow: clip;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc {
-    transform: translateY(-1.5px);
+    transform: translateY(-2px);
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0;
+  }
+
+  .admin-dashboard .admin-dashboard__time-tile[data-metric='espera_medica'] > .admin-dashboard__time-label-arc text,
+  .admin-dashboard .admin-dashboard__time-tile[data-metric='suporte_administrativo'] > .admin-dashboard__time-label-arc text {
     font-size: 7px;
   }
 }
