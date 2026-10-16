@@ -3052,8 +3052,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard .panel-header--operational {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
-  height: 76px;
-  min-height: 76px;
+  height: 72px;
+  min-height: 72px;
+}
+
+.admin-dashboard .panel-header--operational + .panel-gold-band {
+  height: 4px;
 }
 
 /* Login mobile — OPPO A6x / Chrome Android. Desktop remains unchanged. */
@@ -3792,7 +3796,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     display: flex;
     min-height: 0;
     overflow: hidden;
-    padding-top: 18px;
+    padding-top: 0;
   }
 
   .admin-dashboard__support-cell > .admin-dashboard-chat-card {
@@ -4566,9 +4570,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 @media (min-width: 1024px) {
   .admin-dashboard__time {
     grid-template-columns: repeat(11, minmax(0, 1fr));
-    gap: 3px;
+    gap: 1px;
     overflow: hidden !important;
-    padding: 1px 0 2px;
+    padding: 0;
     scrollbar-width: none;
   }
 
@@ -4577,24 +4581,24 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard__time > .admin-dashboard__time-tile {
-    width: 84%;
+    width: 96%;
     min-width: 0;
     justify-self: center;
-    padding: 4px 2px;
+    padding: 3px 1px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon,
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 9px;
+    font-size: 8.5px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-    min-height: 14px;
-    font-size: 6.2px;
-    line-height: 1.06;
+    min-height: 13px;
+    font-size: 5.8px;
+    line-height: 1.04;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
-    font-size: 5.8px;
+    font-size: 5.4px;
   }
 }
