@@ -3324,6 +3324,10 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 /* Relação de Pacientes — usa a mesma composição do Painel Administrativo. */
 @media (min-width: 1024px) {
+  .admin-dashboard__time {
+    overflow-x: hidden;
+  }
+
   .admin-patients__content {
     padding: 10px 18px 16px;
   }
@@ -3794,17 +3798,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 16px 10px;
-    /* Desktop em tela fixa: a página externa não rola. O espaço restante é
-       absorvido pelo grid inferior e somente as áreas internas das colunas
-       usam rolagem vertical. */
+    gap: 4px;
+    padding: 6px 14px 8px;
     overflow: hidden;
   }
 
   .admin-dashboard .admin-dashboard__content {
-    gap: 4px;
-    padding: 6px 16px 8px;
+    gap: 3px;
+    padding: 5px 14px 7px;
   }
 
   .admin-dashboard__content > * + * {
@@ -3831,12 +3832,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__finance > div,
   .admin-dashboard__time > div {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr);
     grid-template-rows: auto auto;
     align-content: center;
     align-items: center;
-    column-gap: 6px;
-    padding: 5px 8px;
+    column-gap: 5px;
+    padding: 4px 7px;
   }
 
   .admin-dashboard__summary > button {
@@ -3858,7 +3859,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard__time > div {
-    min-height: 38px;
+    min-height: 31px;
     border-color: #b8cdf2;
     background: linear-gradient(180deg, #e4eeff 0%, #d8e6ff 100%);
     box-shadow:
@@ -3891,7 +3892,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:first-child {
     grid-row: 1 / 3;
     align-self: center;
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .admin-dashboard__summary > button > span:nth-child(2),
@@ -3899,7 +3900,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:nth-child(2) {
     align-self: end;
     margin-top: 0;
-    font-size: 12.5px;
+    font-size: 10.5px;
     line-height: 1;
   }
 
@@ -3907,9 +3908,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__finance > div > span:last-child,
   .admin-dashboard__time > div > span:last-child {
     align-self: start;
-    margin-top: 2px;
-    font-size: 8px;
-    line-height: 1.12;
+    margin-top: 1px;
+    font-size: 7px;
+    line-height: 1.08;
   }
 
   .admin-dashboard .panel-support-band {
