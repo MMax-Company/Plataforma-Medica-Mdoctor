@@ -226,27 +226,21 @@ const TIME_METRIC_KEYS = [
   'triagem',
   'espera_medica',
   'avaliacao',
-  'geracao_receita',
   'emissao_receita',
-  'receita_pronta_entrega',
-  'envio_receita_anterior',
-  'jornada_completa',
   'suporte_administrativo',
   'suporte_medico',
+  'jornada_completa',
 ] as const;
 
 const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
-  pagamento_fila: 'Pagamento → fila',
-  triagem: 'Triagem clínica',
-  espera_medica: 'Espera médica',
-  avaliacao: 'Avaliação médica',
-  geracao_receita: 'Geração da receita',
-  emissao_receita: 'Emissão da receita',
-  receita_pronta_entrega: 'Receita pronta → entrega',
-  envio_receita_anterior: 'Envio da receita anterior',
-  jornada_completa: 'Jornada completa',
-  suporte_administrativo: 'Suporte administrativo',
-  suporte_medico: 'Suporte médico',
+  pagamento_fila: 'Fila Pagamento',
+  triagem: 'Triagem Clínica',
+  espera_medica: 'Espera Atendimento Médico',
+  avaliacao: 'Atendimento Médico',
+  emissao_receita: 'Emissão da Receita',
+  suporte_administrativo: 'Suporte Administrativo',
+  suporte_medico: 'Suporte Médico',
+  jornada_completa: 'Jornada Completa',
 };
 
 // Amostra própria de cada indicador (nº de atendimentos reais que entraram no
@@ -257,10 +251,7 @@ const TIME_METRIC_SAMPLE_KEYS: Partial<Record<(typeof TIME_METRIC_KEYS)[number],
   triagem: 'triagem',
   espera_medica: 'espera_medica',
   avaliacao: 'avaliacao',
-  geracao_receita: 'geracao_receita',
   emissao_receita: 'emissao_receita',
-  receita_pronta_entrega: 'receita_pronta_entrega',
-  envio_receita_anterior: 'envio_receita_anterior',
   jornada_completa: 'jornada_completa',
 };
 
@@ -579,15 +570,31 @@ export default function AdminDashboardPage() {
                         key={key}
                         className="admin-dashboard__time-tile"
                         title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                       >
                         <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
                         <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
-                        <span className="admin-dashboard__time-label">{TIME_METRIC_LABELS[key]}</span>
-                        {sampleLabel && (
-                          <span className="admin-dashboard__time-sample" title={sampleLabel}>
-                            {sampleCount} atend.
-                          </span>
-                        )}
+                        <svg
+                          className="admin-dashboard__time-label-arc"
+                          viewBox="0 0 100 100"
+                          aria-hidden="true"
+                        >
+                          <defs>
+                            <path
+                              id={`time-label-path-${key}`}
+                              d="M 10 72 Q 50 101 90 72"
+                            />
+                          </defs>
+                          <text>
+                            <textPath
+                              href={`#time-label-path-${key}`}
+                              startOffset="50%"
+                              textAnchor="middle"
+                            >
+                              {TIME_METRIC_LABELS[key]}
+                            </textPath>
+                          </text>
+                        </svg>
                       </div>
                     );
                   })}
