@@ -606,7 +606,7 @@ export default function AdminDashboardPage() {
                  row-end explícito se aplica — os blocos empilham em ordem
                  natural numa coluna só (grid-cols-1 por padrão). O
                  posicionamento de desktop aprovado só entra a partir de lg:. */}
-            <div className="admin-dashboard__journey grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto]">
+            <div className="admin-dashboard__journey grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_minmax(0,1fr)]">
               <div className="lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
                 <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
                   <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
