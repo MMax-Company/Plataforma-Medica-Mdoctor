@@ -4569,21 +4569,21 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard__time-heading {
   margin: 0;
   color: #4f5f78;
-  font-size: 10px;
+  font-size: clamp(7px, 0.75vw, 10px);
   font-weight: 900;
   line-height: 1.08;
   letter-spacing: 0.055em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .admin-dashboard__time-heading-note {
   margin-left: 4px;
   color: #a4afbf;
-  font-size: 6.8px;
+  font-size: clamp(5.5px, 0.52vw, 6.8px);
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
-  white-space: nowrap;
 }
 
 @media (min-width: 1024px) {
