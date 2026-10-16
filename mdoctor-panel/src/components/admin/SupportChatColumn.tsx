@@ -266,7 +266,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
             </button>
           </div>
 
-          <div className="admin-dashboard-chat-card__history min-h-0 flex-1 overflow-y-auto px-3 pt-2 pb-14">
+          <div className="admin-dashboard-chat-card__history min-h-0 flex-1 overflow-y-auto px-3 py-2">
             {detail.messages.length === 0 ? (
               <p className="p-2 text-center text-[10.5px] text-[#94A3B8]">Nenhuma mensagem ainda.</p>
             ) : (
@@ -294,7 +294,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
 
       {/* Rodapé — visível, porém desabilitado: não existe rota de envio real
           no backend nesta etapa (sem envio real, por decisão explícita). */}
-      <div className="sticky bottom-0 z-20 flex shrink-0 items-center gap-1.5 border-t border-[#EDF2F7] bg-white px-2.5 py-2 shadow-[0_-4px_10px_rgba(15,23,42,0.04)]">
+      <div className="flex shrink-0 items-center gap-1.5 border-t border-[#EDF2F7] bg-white px-2.5 py-2">
         <button
           type="button"
           disabled
