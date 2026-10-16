@@ -4549,28 +4549,36 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 @media (min-width: 1024px) {
   .admin-dashboard__time {
     grid-template-columns: repeat(11, minmax(0, 1fr));
-    gap: 5px;
-    overflow-x: hidden;
-    padding: 2px 0 4px;
+    gap: 4px;
+    overflow-x: hidden !important;
+    overflow-y: hidden;
+    padding: 1px 0 2px;
+    scrollbar-width: none;
+  }
+
+  .admin-dashboard__time::-webkit-scrollbar {
+    display: none;
   }
 
   .admin-dashboard__time > .admin-dashboard__time-tile {
+    width: 88%;
     min-width: 0;
-    padding: 6px 4px;
+    justify-self: center;
+    padding: 5px 3px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon,
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 11.5px;
+    font-size: 10.5px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-    min-height: 18px;
-    font-size: 7.5px;
-    line-height: 1.1;
+    min-height: 16px;
+    font-size: 7px;
+    line-height: 1.08;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
-    font-size: 7px;
+    font-size: 6.5px;
   }
 }
