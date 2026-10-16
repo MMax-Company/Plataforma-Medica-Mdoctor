@@ -549,9 +549,9 @@ export default function AdminDashboardPage() {
                  - somente o conteúdo interno das três colunas rola. */}
             <div className="admin-dashboard__main-grid grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
               <section className="admin-dashboard__time-zone lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
-                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+                <p className="admin-dashboard__time-heading">
                   Indicadores de tempo médio
-                  <span className="ml-1 font-semibold normal-case tracking-normal text-[#94A3B8]">
+                  <span className="admin-dashboard__time-heading-note">
                     · cada indicador mostra a própria amostra de atendimentos reais
                   </span>
                 </p>
