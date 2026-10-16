@@ -524,31 +524,30 @@ export default function AdminDashboardPage() {
 
         {data && (
           <>
-            {/* Cards Quantitativos */}
-            <section>
-              <div className="admin-dashboard__summary grid grid-cols-6 gap-1.5">
-                {CARDS.map((card) => {
-                  const count = data.cards[card.key] ?? 0;
-                  return (
-                    <button
-                      key={card.key}
-                      type="button"
-                      onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
-                      className={metricTileClass(card.bg, card.border, true)}
-                    >
-                      <MetricTileContent emoji={card.emoji} value={count} label={card.label} />
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
             {/* Composição desktop baseada no mock aprovado:
-                 - colunas 1+2: indicadores compactos -> financeiro -> pacientes;
-                 - coluna 3: suporte começa ao lado dos indicadores e segue até a base;
-                 - somente o conteúdo interno das três colunas rola. */}
-            <div className="admin-dashboard__main-grid grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
-              <section className="admin-dashboard__time-zone lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
+                 - colunas 1+2: cards quantitativos -> indicadores -> financeiro -> pacientes;
+                 - coluna 3: suporte começa logo abaixo da faixa dourada, ao lado dos cards quantitativos;
+                 - suporte segue até a base; somente o conteúdo interno das três colunas rola. */}
+            <div className="admin-dashboard__main-grid grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto_auto_minmax(0,1fr)]">
+              <section className="lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
+                <div className="admin-dashboard__summary grid grid-cols-6 gap-1.5">
+                  {CARDS.map((card) => {
+                    const count = data.cards[card.key] ?? 0;
+                    return (
+                      <button
+                        key={card.key}
+                        type="button"
+                        onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
+                        className={metricTileClass(card.bg, card.border, true)}
+                      >
+                        <MetricTileContent emoji={card.emoji} value={count} label={card.label} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="admin-dashboard__time-zone lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:row-end-3">
                 <p className="admin-dashboard__time-heading">
                   Indicadores de tempo médio
                   <span className="admin-dashboard__time-heading-note">
@@ -602,7 +601,7 @@ export default function AdminDashboardPage() {
                 </div>
               </section>
 
-              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:row-end-3">
+              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-4 lg:row-end-5">
                 <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
                   <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
                     <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
@@ -616,7 +615,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-4">
+              <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-5">
                 <SupportChatColumn conversations={supportConversations} />
               </div>
 
