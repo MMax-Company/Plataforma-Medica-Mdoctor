@@ -552,62 +552,49 @@ export default function AdminDashboardPage() {
               </div>
             </section>
 
-            {/* Indicadores de Tempo Médio — linha superior, largura cheia
-                 (ver comentário da seção 4 acima). Movido para ANTES do
-                 financeiro/corpo principal por pedido explícito de
-                 reposicionamento — nenhum cálculo ou estilo mudou. */}
-            <section>
-              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
-                Indicadores de tempo médio
-                <span className="ml-1 font-semibold normal-case tracking-normal text-[#94A3B8]">
-                  · cada indicador mostra a própria amostra de atendimentos reais
-                </span>
-              </p>
-              <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
-                {TIME_METRIC_KEYS.map((key) => {
-                  const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
-                  const sampleCount = sampleKey
-                    ? data.tempos.amostra_por_indicador?.[sampleKey]
-                    : undefined;
-                  const sampleLabel =
-                    sampleCount === undefined
-                      ? undefined
-                      : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
-                  return (
-                    <div
-                      key={key}
-                      className="admin-dashboard__time-tile"
-                      title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
-                    >
-                      <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
-                      <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
-                      <span className="admin-dashboard__time-label">{TIME_METRIC_LABELS[key]}</span>
-                      {sampleLabel && (
-                        <span className="admin-dashboard__time-sample" title={sampleLabel}>
-                          {sampleCount} atend.
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+            {/* Composição desktop baseada no mock aprovado:
+                 - colunas 1+2: indicadores compactos -> financeiro -> pacientes;
+                 - coluna 3: suporte começa ao lado dos indicadores e segue até a base;
+                 - somente o conteúdo interno das três colunas rola. */}
+            <div className="admin-dashboard__main-grid grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto_minmax(0,1fr)]">
+              <section className="admin-dashboard__time-zone lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
+                  Indicadores de tempo médio
+                  <span className="ml-1 font-semibold normal-case tracking-normal text-[#94A3B8]">
+                    · cada indicador mostra a própria amostra de atendimentos reais
+                  </span>
+                </p>
+                <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
+                  {TIME_METRIC_KEYS.map((key) => {
+                    const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
+                    const sampleCount = sampleKey
+                      ? data.tempos.amostra_por_indicador?.[sampleKey]
+                      : undefined;
+                    const sampleLabel =
+                      sampleCount === undefined
+                        ? undefined
+                        : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
+                    return (
+                      <div
+                        key={key}
+                        className="admin-dashboard__time-tile"
+                        title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                      >
+                        <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
+                        <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
+                        <span className="admin-dashboard__time-label">{TIME_METRIC_LABELS[key]}</span>
+                        {sampleLabel && (
+                          <span className="admin-dashboard__time-sample" title={sampleLabel}>
+                            {sampleCount} atend.
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
 
-            {/* Corpo Principal — grid único de 2 linhas × 3 colunas:
-                 linha 1 = cards financeiros (colunas 1+2) + cabeçalho verde
-                 do chat (coluna 3, via o próprio topo do SupportChatColumn);
-                 linha 2 = Aprovados (col 1) + Rejeitados (col 2) + chat
-                 continuando (col 3, mesmo card — SupportChatColumn ocupa as
-                 2 linhas em grid-row: span 2). É essa diferença de 1 linha
-                 inteira que faz a coluna 3 ficar mais alta que 1/2, não um
-                 valor fixo arbitrário. Nenhum tamanho/largura/fonte/cor dos
-                 cards financeiros ou das colunas 1/2 mudou — só a posição.
-                 Abaixo de 1024px (lg:), nenhum col-start/col-end/row-start/
-                 row-end explícito se aplica — os blocos empilham em ordem
-                 natural numa coluna só (grid-cols-1 por padrão). O
-                 posicionamento de desktop aprovado só entra a partir de lg:. */}
-            <div className="admin-dashboard__journey grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_minmax(0,1fr)]">
-              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
+              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:row-end-3">
                 <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
                   <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
                     <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
@@ -621,7 +608,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              <div className="lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-3">
+              <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-4">
                 <SupportChatColumn conversations={supportConversations} />
               </div>
 
@@ -631,7 +618,7 @@ export default function AdminDashboardPage() {
                 return (
                   <section
                     key={column.key}
-                    className={`admin-dashboard-journey-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] lg:row-start-2 lg:row-end-3 ${
+                    className={`admin-dashboard-journey-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] lg:row-start-3 lg:row-end-4 ${
                       index === 0 ? 'lg:col-start-1 lg:col-end-2' : 'lg:col-start-2 lg:col-end-3'
                     } ${column.topBorderClass}`}
                   >
