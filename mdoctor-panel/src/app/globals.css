@@ -3658,7 +3658,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__main-grid {
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 8px;
   /* 2 linhas explícitas (ver grid-rows no JSX): linha 1 = financeiro (col
      1-2) + topo do chat (col 3); linha 2 = Aprovados/Rejeitados (col 1-2) +
      chat continuando (col 3). O card do chat ocupa as 2 linhas
@@ -4556,13 +4557,32 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
   fill: #13233d;
-  font-size: 6.1px;
+  font-size: 6.8px;
   font-weight: 800;
-  letter-spacing: 0.08px;
+  letter-spacing: 0.04px;
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
   display: none;
+}
+
+.admin-dashboard__time-heading {
+  margin: 0 0 1px;
+  color: #4f5f78;
+  font-size: 9.5px;
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.admin-dashboard__time-heading-note {
+  margin-left: 4px;
+  color: #9aa8bc;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 @media (min-width: 1024px) {
@@ -4586,16 +4606,20 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon {
-    margin-bottom: 5px;
-    font-size: 14px;
+    margin-bottom: 4px;
+    font-size: 15.5px;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    font-size: 18px;
+    font-size: 19px;
     line-height: 1;
   }
 
+  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc {
+    transform: translateY(-1.5px);
+  }
+
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
-    font-size: 6.3px;
+    font-size: 7px;
   }
 }
