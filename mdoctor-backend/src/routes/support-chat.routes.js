@@ -1,9 +1,11 @@
-// Chat Administrativo de Suporte V1 — ETAPA 2 (rotas).
-// Montado isoladamente em /api/admin/support (ver server.js) — não altera
-// admin.routes.js nem nenhuma rota clínica/WhatsApp existente. Toda rota
-// exige requireAuth + requireRole(...SUPPORT_CHAT_ROLES); sem isso, médico
-// ou qualquer papel não-administrativo recebe 403, e requisição sem token
-// recebe 401 — nunca chega ao service.
+// Chat Administrativo de Suporte V1 — ETAPA 2 (rotas) + envio humano
+// (ETAPA 2 — envio). Montado isoladamente em /api/admin/support (ver
+// server.js) — não altera admin.routes.js nem nenhuma rota clínica/WhatsApp
+// existente. Toda rota exige requireAuth + requireRole(...SUPPORT_CHAT_ROLES);
+// sem isso, médico ou qualquer papel não-administrativo recebe 403, e
+// requisição sem token recebe 401 — nunca chega ao service. A rota de envio
+// (POST /conversations/:id/messages) exige adicionalmente
+// SUPPORT_CHAT_AGENT_SEND_ENABLED=true (503 explícito enquanto desligada).
 const express = require('express');
 const { requireAuth, requireRole } = require('../auth/auth.middleware');
 const logger = require('../config/logger');
@@ -81,6 +83,76 @@ router.post('/conversations/:id/release', requireUiAvailable, async (req, res) =
   } catch (error) {
     logger.error('support_chat_release_failed', { correlationId, error: error.message });
     return res.status(error.statusCode || 500).json({ success: false, correlationId, error: error.message });
+  }
+});
+
+// Com SUPPORT_CHAT_AGENT_SEND_ENABLED desligada (padrão), a rota de envio
+// humano responde 503 explícito sem validar lock/janela/provider — flag
+// independente de SUPPORT_CHAT_UI_ENABLED (acima) e SUPPORT_CHAT_CAPTURE_ENABLED.
+function requireAgentSendAvailable(req, res, next) {
+  if (!service.isAgentSendAvailable()) {
+    return res.status(503).json({
+      success: false,
+      error: 'Envio humano do chat administrativo desativado nesta etapa',
+      code: 'SUPPORT_CHAT_AGENT_SEND_DISABLED'
+    });
+  }
+  return next();
+}
+
+router.post('/conversations/:id/messages', requireUiAvailable, requireAgentSendAvailable, async (req, res) => {
+  const correlationId = req.correlationId || req.requestId || 'unknown';
+  const actorId = req.user?.sub || req.user?.username || req.user?.role;
+  const { text, clientMessageId } = req.body || {};
+
+  if (!text || !String(text).trim()) {
+    return res.status(400).json({ success: false, correlationId, error: 'Campo "text" é obrigatório' });
+  }
+  if (!clientMessageId || !String(clientMessageId).trim()) {
+    return res.status(400).json({ success: false, correlationId, error: 'Campo "clientMessageId" é obrigatório' });
+  }
+
+  try {
+    const result = await service.sendHumanMessage({
+      conversationId: req.params.id,
+      actorId,
+      text,
+      clientMessageId
+    });
+
+    if (!result.sent) {
+      const statusByReason = {
+        not_found: 404,
+        closed: 409,
+        not_locked: 409,
+        lock_expired: 409,
+        window_expired: 409,
+        missing_patient_phone: 422
+      };
+      return res.status(statusByReason[result.reason] || 409).json({
+        success: false,
+        correlationId,
+        reason: result.reason,
+        windowStatus: result.windowStatus || null,
+        conversation: result.conversation || null
+      });
+    }
+
+    return res.json({
+      success: true,
+      correlationId,
+      duplicate: Boolean(result.duplicate),
+      message: result.message,
+      conversation: result.conversation
+    });
+  } catch (error) {
+    logger.error('support_chat_send_message_failed', { correlationId, error: error.message, code: error.code });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      correlationId,
+      error: error.message,
+      code: error.code || null
+    });
   }
 });
 

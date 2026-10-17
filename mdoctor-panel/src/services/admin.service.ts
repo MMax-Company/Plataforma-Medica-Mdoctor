@@ -186,10 +186,12 @@ export async function forwardToDoctor(
   );
 }
 
-// Chat Administrativo de Suporte V1 — consome só as 2 rotas já validadas em
-// staging (GET /conversations, GET /conversations/:id). Sem envio real nesta
-// etapa (SUPPORT_CHAT_AGENT_SEND_ENABLED continua desligado; não existe rota
-// de POST de mensagem no backend ainda).
+// Chat Administrativo de Suporte V1 — leitura (GET /conversations,
+// GET /conversations/:id), posse (claim/release) e envio humano real
+// (POST /conversations/:id/messages). O envio só é aceito pelo backend com
+// SUPPORT_CHAT_AGENT_SEND_ENABLED=true e com o lock da conversation sob posse
+// de quem está enviando — por isso claim/release são chamados aqui, nunca
+// deduzidos no cliente.
 export type SupportConversation = {
   id: string;
   appointment_id: string;
@@ -215,6 +217,13 @@ export type SupportChatMessage = {
   created_at: string;
 };
 
+export type SupportMessagingWindowStatus = {
+  withinWindow: boolean;
+  lastInboundAt: string | null;
+  expiresAt: string | null;
+  requiresTemplate: boolean;
+};
+
 export async function fetchSupportConversations(): Promise<{
   success: boolean;
   conversations: SupportConversation[];
@@ -226,6 +235,42 @@ export async function fetchSupportConversationDetail(id: string): Promise<{
   success: boolean;
   conversation: SupportConversation;
   messages: SupportChatMessage[];
+  windowStatus: SupportMessagingWindowStatus;
 }> {
   return apiClient.get(`/api/admin/support/conversations/${id}`, { headers: authHeaders() });
+}
+
+export async function claimSupportConversation(
+  id: string,
+): Promise<{ success: boolean; conversation: SupportConversation }> {
+  return apiClient.post(`/api/admin/support/conversations/${id}/claim`, {}, { headers: authHeaders() });
+}
+
+export async function releaseSupportConversation(
+  id: string,
+): Promise<{ success: boolean; conversation: SupportConversation }> {
+  return apiClient.post(`/api/admin/support/conversations/${id}/release`, {}, { headers: authHeaders() });
+}
+
+export async function closeSupportConversation(
+  id: string,
+): Promise<{ success: boolean; conversation: SupportConversation }> {
+  return apiClient.post(`/api/admin/support/conversations/${id}/close`, {}, { headers: authHeaders() });
+}
+
+export async function sendSupportChatMessage(
+  id: string,
+  text: string,
+  clientMessageId: string,
+): Promise<{
+  success: boolean;
+  duplicate: boolean;
+  message: SupportChatMessage;
+  conversation: SupportConversation;
+}> {
+  return apiClient.post(
+    `/api/admin/support/conversations/${id}/messages`,
+    { text, clientMessageId },
+    { headers: authHeaders() },
+  );
 }
