@@ -11,15 +11,50 @@ const {
   upsertSessionIdentity
 } = require('../store/whatsapp-sessions.store');
 const { validateTypebotInput } = require('./typebot-personal-data.validation');
-const { resolveMetaInboundRouting, handleTypebotSupportChoice } = require('./whatsapp-support.service');
+const {
+  resolveMetaInboundRouting,
+  handleTypebotSupportChoice,
+  MENU_TEXT,
+  MENU_CTA,
+  MENU_STATE_AWAITING_CHOICE
+} = require('./whatsapp-support.service');
 const { lookupCep } = require('../routes/cep.routes');
 
-// CEP lookup (enriquecimento interno): quando o paciente informa o CEP no
-// bloco blk_0oydu2f7, o bridge consulta a ViaCEP para enriquecer os dados
-// da sessão. O resultado é armazenado internamente e NÃO interfere no cursor
-// do Typebot nem dispara nenhum continueChat extra. A ordem real publicada é:
-//   endereço (q78qjnk6ticwkeifl7xe2rju) → CEP (blk_0oydu2f7) → receita anterior
+// Autopreenchimento de endereço por CEP (restaurado 2026-08-29, reverte a
+// remoção do 6caca2b): o bloco Webhook/Set variable nativo do Typebot não
+// enxerga variável definida no mesmo turno em que roda, então a consulta ao
+// CEP é feita aqui e o resultado chega ao Typebot como o próprio texto de
+// resposta do paciente à pergunta de endereço que já existe e funciona
+// (q78qjnk6ticwkeifl7xe2rju), nunca por variável do Typebot.
+//
+// A ordem real publicada em produção é (confirmado por tráfego real + print,
+// 2026-08-29):
+//   CEP (blk_0oydu2f7) → blk_endereco_manual_msg → endereço (q78qjnk6...)
+//     → receita anterior
+// A aresta blk_0oydu2f7 -> blk_endereco_manual_msg é incondicional; toda a
+// cadeia nativa "localizado" (blk_cep_encontrado_cond, blk_endereco_localizado_msg,
+// blk_endereco_numero_complemento, ...) está órfã desde o 18a975b. Este bridge
+// contorna tudo isso por fora: no turno do CEP, se a ViaCEP encontra o
+// endereço, substitui a mensagem "não localizamos" pela confirmação e guarda
+// o próximo input esperado como um marcador interno; no turno seguinte
+// (número/complemento) monta o endereço completo e o entrega ao input real.
 const CEP_INPUT_ID = 'blk_0oydu2f7';
+const ENDERECO_INPUT_ID = 'q78qjnk6ticwkeifl7xe2rju';
+const CEP_NUMERO_COMPLEMENTO_SENTINEL = 'blk_endereco_numero_complemento';
+
+function buildEnderecoFromCepLookup(lookup, numeroComplemento) {
+  // Formato reconhecido por validateStructuredAddress (rua, número, bairro,
+  // cidade, estado — exatamente 5 segmentos por vírgula, mapeados por
+  // posição). O CEP não entra aqui: já é exibido separadamente no resumo
+  // ({{cep}}) e um 6º segmento quebraria o parser. O paciente costuma
+  // responder "número e complemento" com uma vírgula própria (ex.: "500,
+  // apto 12") — vírgulas internas viram espaço para não criar um 6º segmento
+  // e derrubar silenciosamente o complemento.
+  const numero = String(numeroComplemento || '').trim().replace(/,/g, ' ').replace(/\s+/g, ' ');
+  return [lookup.logradouro, numero, lookup.bairro, lookup.cidade, lookup.estado]
+    .filter(Boolean)
+    .join(', ');
+}
 const ALERT_SIGNS_INPUT_ID = 's5VQGsVF4hQgziQsXVdwPDW';
 const ALERT_SIGN_PRESENTATION = Object.freeze({
   'Dor/desconforto no peito': { title: 'Precordialgia', description: 'Dor, pressão, aperto ou desconforto no peito' },
@@ -90,6 +125,27 @@ function typebotText(message = {}) {
   if (typeof message.content === 'string') return message.content.trim();
   if (typeof message.content?.plainText === 'string') return message.content.plainText.trim();
   return richTextToPlainText(message.content?.richText || message.content || []);
+}
+
+// Bloco de imagem do Typebot (`type: 'image'`). O runtime devolve
+// `content.url` (string) para a imagem já resolvida; algumas versões também
+// expõem `content.url.url`. Caption é opcional — só é usado se o Typebot
+// definir `content.caption`/`content.plainText`. Genérico: qualquer bloco de
+// imagem compatível inserido no Typebot passa por aqui, sem código específico
+// para uma logo. Retorna null quando não há URL nenhuma (nada a enviar).
+function imageOutputFromMessage(message = {}) {
+  const content = message.content || {};
+  let url = '';
+  if (typeof content.url === 'string') url = content.url.trim();
+  else if (content.url && typeof content.url === 'object' && typeof content.url.url === 'string') {
+    url = content.url.url.trim();
+  }
+  if (!url) return null;
+  const caption =
+    (typeof content.caption === 'string' && content.caption.trim()) ||
+    (typeof content.plainText === 'string' && content.plainText.trim()) ||
+    '';
+  return { kind: 'image', url, caption: caption || undefined };
 }
 
 // WhatsApp não tem como exibir um rótulo curto escondendo uma URL longa numa
@@ -188,6 +244,14 @@ function textInputPrompt(input = {}) {
 function convertTypebotResponse(response = {}) {
   const outputs = [];
   for (const message of response.messages || []) {
+    if (message?.type === 'image') {
+      // Imagem entra na sequência exatamente na posição em que o Typebot a
+      // devolveu (imagem → texto → pergunta preserva a ordem). A entrega
+      // nativa/falha é tratada no laço de envio.
+      const imageOutput = imageOutputFromMessage(message);
+      if (imageOutput) outputs.push(imageOutput);
+      continue;
+    }
     if (message?.type !== 'text') continue;
     const richText = Array.isArray(message.content?.richText) ? message.content.richText : null;
     if (richText && richTextContainsLink(richText)) {
@@ -300,6 +364,21 @@ function isRetryableTypebotError(error) {
   return /fetch failed|network|socket|timeout/i.test(describeError(error));
 }
 
+// Sessão Typebot residual (achado 09/09/2026): o backend ainda aponta pra um
+// typebot_session_id que o runtime do Typebot já não reconhece mais (TTL
+// interno do Typebot, reinício do serviço, etc. — não precisa ser o mesmo
+// motivo do nosso TYPEBOT_INACTIVITY_TIMEOUT_MS local). Nesse caso o Typebot
+// responde HTTP 404 com a mensagem "Session not found" em vez de continuar a
+// conversa. Isso NÃO é uma falha transitória (não adianta re-tentar o mesmo
+// continueChat) nem um erro fatal — é só um sinal de que o estado local está
+// desatualizado. Ver recoverFromStaleTypebotSession, usado só quando esta
+// função retorna true E a chamada era um continueChat (existingSessionId).
+function isStaleTypebotSessionError(error) {
+  if (!error) return false;
+  if (/session not found/i.test(String(error.message || ''))) return true;
+  return error.code === 'TYPEBOT_RUNTIME_ERROR' && Number(error.status) === 404;
+}
+
 function wait(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
@@ -377,6 +456,7 @@ function createTypebotWhatsAppBridge(deps = {}) {
   const callTypebot = deps.callTypebot || fetchTypebot;
   const sleep = deps.sleep || wait;
   const now = deps.now || (() => new Date());
+  const consultarCep = deps.lookupCep || lookupCep;
   // typebot_last_activity_at é gravado em TODA chamada (startChat e
   // continueChat) — é a base do TTL de inatividade (60min,
   // TYPEBOT_INACTIVITY_TIMEOUT_MS em whatsapp-support.service.js).
@@ -453,6 +533,112 @@ function createTypebotWhatsAppBridge(deps = {}) {
   // resposta seguinte do paciente contra um input antigo e ficava travado
   // repetindo a pergunta errada indefinidamente. currentSession (recarregada
   // do banco no início de processInbound) é agora a única fonte de verdade.
+
+  // Recuperação de sessão Typebot residual (achado 09/09/2026, "Session not
+  // found" no continueChat — ver isStaleTypebotSessionError). Chamada no
+  // máximo uma vez por mensagem, sempre a partir do catch em volta da
+  // chamada continueChat, nunca em loop: limpa SOMENTE o estado transitório
+  // do Typebot desta sessão (clearTypebotSession — typebot_session_id,
+  // typebot_expected_input_id e demais metadata do Typebot; nunca toca
+  // paciente/atendimento/pagamento/receita/consentimento/histórico) e
+  // reavalia o telefone com a MESMA regra de roteamento já usada para toda
+  // mensagem nova (resolveMetaInboundRouting) — se essa regra já sabe o que
+  // responder (ticket de suporte aberto, retomada etc.), usamos a resposta
+  // dela; caso contrário caímos no menu inicial oficial (1/2), do mesmo jeito
+  // que uma saudação normal faria. Nunca chama o Typebot de novo aqui (nem
+  // continueChat com o sessionId inválido, nem um startChat automático) —
+  // evita repetir o erro e evita criar sessão Typebot sem o paciente pedir.
+  async function recoverFromStaleTypebotSession({ error, messageId, identity, currentSession, text }) {
+    const staleSessionId = currentSession?.typebot_session_id || null;
+    logger.warn('whatsapp_typebot_stale_session_detected', {
+      messageId,
+      staleSessionId,
+      error: error.message
+    });
+    await logError({
+      integration: 'typebot_runtime',
+      correlationId: messageId,
+      error,
+      request: {
+        message_id: messageId,
+        whatsapp_session_id: currentSession?.id || null,
+        phase: 'stale_session_recovery'
+      }
+    }).catch(() => {});
+
+    let recoveredSession = currentSession;
+    if (currentSession?.id) {
+      try {
+        recoveredSession = (await resetTypebotSession({ sessionId: currentSession.id })) || currentSession;
+      } catch (e) {
+        logger.warn('whatsapp_typebot_stale_session_clear_failed', { messageId, error: e.message });
+      }
+    }
+
+    let recoveryRouting = null;
+    try {
+      recoveryRouting = await routeInbound({ phone: identity?.phone, text, session: recoveredSession, messageId });
+    } catch (e) {
+      logger.warn('whatsapp_typebot_stale_session_reroute_failed', { messageId, error: e.message });
+    }
+
+    const useRoutingReply = recoveryRouting?.handled && recoveryRouting.action === 'reply' && recoveryRouting.reply;
+    const replyText = useRoutingReply ? recoveryRouting.reply : MENU_TEXT;
+    const replyCta = useRoutingReply ? recoveryRouting.cta : MENU_CTA;
+    if (replyText === MENU_TEXT) {
+      // Não há regra de retomada distinta (ticket de suporte etc.) — o
+      // paciente está vendo o menu inicial oficial, então grava o mesmo
+      // estado que uma saudação normal gravaria (whatsapp_menu_state), para
+      // "1"/"2" serem respondidos como menu na próxima mensagem (ver
+      // MENU_STATE_AWAITING_CHOICE em resolveMetaInboundRouting). Idempotente
+      // mesmo quando resolveMetaInboundRouting já gravou isso sozinho (ramo
+      // de saudação) — só reforça o mesmo valor. Usa persistExpectedInput
+      // (mesma função já usada no resto do bridge) em vez de tocar o store
+      // diretamente, para manter um único caminho de escrita de metadata
+      // transitória.
+      await persistExpectedInput({
+        identity,
+        whatsappSession: recoveredSession,
+        inputId: null,
+        extraMetadataPatch: { whatsapp_menu_state: MENU_STATE_AWAITING_CHOICE }
+      }).catch((e) => {
+        logger.warn('whatsapp_typebot_stale_session_menu_state_failed', { messageId, error: e.message });
+      });
+    }
+
+    const sent = replyCta
+      ? await provider.sendCtaUrlMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:stale-session-recovery`,
+          body: replyCta.body,
+          displayText: replyCta.displayText,
+          url: replyCta.url
+        })
+      : await provider.sendTextMessage({
+          to: identity.phone,
+          bsuid: identity.bsuid,
+          correlationId: messageId,
+          idempotencyKey: `${messageId}:stale-session-recovery`,
+          text: replyText
+        });
+    const providerMessageIds = sent?.providerMessageId ? [sent.providerMessageId] : [];
+    await finish({ messageId, status: 'processed', providerMessageIds });
+    logger.info('whatsapp_typebot_stale_session_recovered', {
+      messageId,
+      staleSessionId,
+      recoveryAction: useRoutingReply ? (recoveryRouting.action || 'reply') : 'menu_fallback',
+      responsesSent: providerMessageIds.length
+    });
+    return {
+      duplicate: false,
+      responsesSent: providerMessageIds.length,
+      sessionId: null,
+      sessionIdReused: false,
+      staleSessionRecovered: true
+    };
+  }
 
   async function processInbound({ messageId, text, identity, whatsappSession }, identityKey) {
     const claimed = await claim({ messageId, whatsappSessionId: whatsappSession?.id });
@@ -547,12 +733,33 @@ function createTypebotWhatsAppBridge(deps = {}) {
       const existingSessionId = routing?.action === 'typebot_clean'
         ? null
         : (currentSession?.typebot_session_id || null);
-      const expectedInputId = currentSession?.metadata?.typebot_expected_input_id || null;
+      let expectedInputId = currentSession?.metadata?.typebot_expected_input_id || null;
       const uploadContextBeforeChat = uploadContextFromSession(
         currentSession,
         await findUploadContext(identity?.phone)
       );
       let inboundText = String(text || '');
+
+      // Segundo turno do autopreenchimento por CEP: o input esperado guardado
+      // na sessão é o marcador interno (o cursor real do Typebot já está em
+      // ENDERECO_INPUT_ID, que nunca soube do CEP localizado). Troca o input
+      // esperado para o real e substitui o texto (número/complemento) pelo
+      // endereço completo montado a partir de metadata.cep_lookup — daqui em
+      // diante o fluxo segue 100% inalterado (mesma validação, mesmo
+      // continueChat que já existiam).
+      if (expectedInputId === CEP_NUMERO_COMPLEMENTO_SENTINEL) {
+        const cepLookup = currentSession?.metadata?.cep_lookup || null;
+        if (cepLookup?.encontrado) {
+          inboundText = buildEnderecoFromCepLookup(cepLookup, text);
+        }
+        expectedInputId = ENDERECO_INPUT_ID;
+        await persistExpectedInput({
+          identity,
+          whatsappSession: currentSession,
+          inputId: ENDERECO_INPUT_ID,
+          extraMetadataPatch: { cep_lookup: null }
+        });
+      }
 
       const atUploadChoiceStage = isUploadChoiceInput(expectedInputId);
       if (uploadContextBeforeChat && atUploadChoiceStage) {
@@ -583,22 +790,18 @@ function createTypebotWhatsAppBridge(deps = {}) {
         };
       }
 
-      // Enriquecimento interno por CEP: quando o paciente informa o CEP,
-      // armazena os dados da ViaCEP na sessão para uso posterior (ex.: webhook
-      // de criação do atendimento). Não altera o cursor do Typebot nem
-      // intercepta a resposta — o Typebot avança normalmente para receita.
+      // Primeiro turno do autopreenchimento por CEP: consulta o endereço
+      // assim que o CEP (já normalizado/validado acima) chega. Se localizado,
+      // a chamada ao Typebot mais abaixo continua acontecendo normalmente (o
+      // cursor real do Typebot avança pelo caminho "não localizado" que já
+      // funciona hoje e pousa em ENDERECO_INPUT_ID) — só a mensagem mostrada
+      // ao paciente e o próximo input esperado guardado na sessão são
+      // substituídos logo após essa chamada. No não localizado / erro /
+      // timeout: nada muda, o caminho manual segue exatamente igual.
+      let cepLocalizado = null;
       if (expectedInputId === CEP_INPUT_ID && validation.isPersonal && validation.field === 'cep') {
-        lookupCep(validation.value).then((result) => {
-          if (result?.encontrado) {
-            upsertSessionIdentity({
-              phone: identity?.phone,
-              bsuid: identity?.bsuid,
-              parentBsuid: identity?.parentBsuid,
-              username: identity?.username,
-              metadataPatch: { cep_lookup: result }
-            }).catch(() => {});
-          }
-        }).catch(() => {});
+        cepLocalizado = await consultarCep(validation.value).catch(() => null);
+        if (!cepLocalizado?.encontrado) cepLocalizado = null;
       }
 
       const path = existingSessionId
@@ -620,31 +823,42 @@ function createTypebotWhatsAppBridge(deps = {}) {
         expectedInputIdBefore: expectedInputId,
         callPath: existingSessionId ? 'continueChat' : 'startChat'
       });
-      const typebot = await callWithRetry(
-        () => callTypebot(path, { message }, { config }),
-        {
-          attempts: config.retryAttempts,
-          baseDelayMs: config.retryBaseDelayMs,
-          maxDelayMs: config.retryMaxDelayMs,
-          sleep,
-          onRetry: async (error, retry) => {
-            const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
-            await logError({
-              integration: 'typebot_runtime',
-              correlationId: messageId,
-              error: detailedError,
-              request: {
-                message_id: messageId,
-                whatsapp_session_id: currentSession?.id || null,
-                phase: 'retry',
-                attempt: retry.attempt,
-                next_attempt: retry.nextAttempt,
-                backoff_ms: retry.delayMs
-              }
-            }).catch(() => {});
+      let typebot;
+      try {
+        typebot = await callWithRetry(
+          () => callTypebot(path, { message }, { config }),
+          {
+            attempts: config.retryAttempts,
+            baseDelayMs: config.retryBaseDelayMs,
+            maxDelayMs: config.retryMaxDelayMs,
+            sleep,
+            onRetry: async (error, retry) => {
+              const detailedError = Object.assign(new Error(describeError(error)), { code: error.code });
+              await logError({
+                integration: 'typebot_runtime',
+                correlationId: messageId,
+                error: detailedError,
+                request: {
+                  message_id: messageId,
+                  whatsapp_session_id: currentSession?.id || null,
+                  phase: 'retry',
+                  attempt: retry.attempt,
+                  next_attempt: retry.nextAttempt,
+                  backoff_ms: retry.delayMs
+                }
+              }).catch(() => {});
+            }
           }
+        );
+      } catch (error) {
+        // Só recupera sessão residual no caminho continueChat (existingSessionId
+        // presente) — um startChat que falha com "sessão não encontrada" não faz
+        // sentido e deve seguir para o catch genérico de baixo, como antes.
+        if (existingSessionId && isStaleTypebotSessionError(error)) {
+          return await recoverFromStaleTypebotSession({ error, messageId, identity, currentSession, text });
         }
-      );
+        throw error;
+      }
 
       const sessionId = existingSessionId || typebot.sessionId;
       if (!sessionId) throw new Error('Typebot não retornou sessionId');
@@ -718,10 +932,46 @@ function createTypebotWhatsAppBridge(deps = {}) {
         await persistUploadContext({ identity, uploadContext, whatsappSession: currentSession });
       }
 
+      // CEP localizado (primeiro turno): o Typebot já seguiu pelo caminho "não
+      // localizado" por baixo dos panos e pousou em ENDERECO_INPUT_ID.
+      // Substitui a mensagem "não foi possível localizar" pela confirmação do
+      // endereço encontrado, guarda os campos em metadata.cep_lookup e aponta
+      // o próximo input esperado para o marcador interno — consumido no início
+      // desta função no próximo turno (número/complemento).
+      if (cepLocalizado) {
+        outputs = [{
+          kind: 'text',
+          text: `Localizamos o seguinte endereço:\n\n${cepLocalizado.logradouro}, ${cepLocalizado.bairro}, ${cepLocalizado.cidade} – ${cepLocalizado.estado}\n\nInforme o número e, se houver, o complemento do endereço.`
+        }];
+        await persistExpectedInput({
+          identity,
+          whatsappSession: currentSession,
+          inputId: CEP_NUMERO_COMPLEMENTO_SENTINEL,
+          extraMetadataPatch: { cep_lookup: cepLocalizado }
+        });
+      }
+
       for (const output of outputs) {
         const common = { to: identity.phone, bsuid: identity.bsuid, correlationId: messageId, idempotencyKey: `${messageId}:${providerMessageIds.length}` };
         let sent;
-        if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+        if (output.kind === 'image') {
+          // Imagem é conteúdo acessório: se a URL for inválida, o host estiver
+          // fora do ar ou a Meta recusar o formato, registra e segue para o
+          // próximo output — nunca derruba nem reinicia a sessão clínica, não
+          // cria sessão nova e não altera o input esperado do Typebot.
+          try {
+            sent = await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
+          } catch (error) {
+            logger.warn('typebot_bridge_image_failed', {
+              messageId,
+              imageUrl: output.url,
+              code: error?.code || null,
+              error: describeError(error)
+            });
+            sent = null;
+          }
+        }
+        else if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
         else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
         // A Meta exige `body.text` não-vazio em toda mensagem cta_url (um
         // espaço em branco é rejeitado com erro 131008 "Required parameter
@@ -735,10 +985,11 @@ function createTypebotWhatsAppBridge(deps = {}) {
         logger.info('typebot_bridge_output_send_diagnostic', {
           messageId,
           outputKind: output.kind,
-          sendFunction: output.kind === 'buttons' ? 'sendButtonMessage'
-            : output.kind === 'list' ? 'sendListMessage'
-              : output.kind === 'document' ? 'sendCtaUrlMessage'
-                : 'sendTextMessage',
+          sendFunction: output.kind === 'image' ? 'sendImageMessage'
+            : output.kind === 'buttons' ? 'sendButtonMessage'
+              : output.kind === 'list' ? 'sendListMessage'
+                : output.kind === 'document' ? 'sendCtaUrlMessage'
+                  : 'sendTextMessage',
           sentWasNullOrUndefined: sent === null || sent === undefined,
           providerMessageId: sent?.providerMessageId || null
         });

@@ -219,6 +219,21 @@ stub(resolveFromServices('../store/whatsapp-sessions.store'), {
     const updated = { ...existing, typebot_session_id: null, metadata };
     whatsappSessionsByPhone[key] = updated;
     return updated;
+  },
+  // Mesmo comportamento do store real: remove só journey_started_at/
+  // welcome_clicked_at (consumidos na criação do atendimento) — chamado por
+  // processTriagemWebhook logo após criar o atendimento (ver
+  // triagem-webhook.service.js:406-414), best-effort.
+  async clearJourneyMarkers(phone) {
+    const key = normalizeTestPhone(phone);
+    const existing = whatsappSessionsByPhone[key];
+    if (!existing) return null;
+    const metadata = { ...(existing.metadata || {}) };
+    delete metadata.journey_started_at;
+    delete metadata.welcome_clicked_at;
+    const updated = { ...existing, metadata };
+    whatsappSessionsByPhone[key] = updated;
+    return updated;
   }
 });
 
@@ -249,8 +264,32 @@ stub(resolveFromServices('./clinical-persistence.service'), {
 });
 stub(resolveFromServices('./prescription-upload-token.service'), {
   isExternalUploadEnabled: () => false,
+  // Reproduz o efeito colateral real (createPrescriptionUploadSession grava
+  // dados_clinicos.prescription_upload_session no atendimento — ver
+  // prescription-upload-token.service.js) além de devolver {token,
+  // uploadUrl}: sem isso, findPendingUploadContext nunca resolveria o
+  // atendimento pela busca por telefone (só pelo cache da sessão), o que
+  // esconderia qualquer regressão nesse caminho de fallback.
   async ensurePrescriptionUploadSession({ atendimentoId }) {
-    return { token: `tok-${atendimentoId}`, uploadUrl: `https://staging.example/upload-receita/tok-${atendimentoId}`, atendimentoId };
+    const token = `tok-${atendimentoId}`;
+    const uploadUrl = `https://staging.example/upload-receita/${token}`;
+    const idx = atendimentos.findIndex((a) => a.id === atendimentoId);
+    if (idx !== -1) {
+      atendimentos[idx] = {
+        ...atendimentos[idx],
+        dados_clinicos: {
+          ...(atendimentos[idx].dados_clinicos || {}),
+          prescription_upload_session: {
+            token,
+            upload_url: uploadUrl,
+            status: 'pending',
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString()
+          }
+        }
+      };
+    }
+    return { token, uploadUrl, atendimentoId };
   },
   async resolveTokenRecord() {
     return null;
@@ -445,6 +484,72 @@ async function main() {
     results.webhookAntesDoAtendimentoENovoContextoDeUploadGravado = 'ok';
   }
 
+  // 3b) Reprodução do incidente real de 09/09/2026 (fix desta rodada): fluxo
+  //     de Checkout Session via WhatsApp (createPaymentLink/
+  //     completePaymentByToken) — quem confirma o pagamento aqui é SEMPRE
+  //     whatsapp_sessions.metadata.typebot_payment (resolveConfirmedPayment
+  //     FromSession), nunca o payload do Typebot nem dados_clinicos.
+  //     stripe_payment (isso é exclusivo do bloco nativo). O atendimento
+  //     nasce com dados_clinicos.payment_confirmed=true (fonte #4). Em
+  //     seguida, simula exatamente o que whatsapp.routes.js faz na primeira
+  //     mensagem após o atendimento nascer (reset de "jornada nova"):
+  //     clearTypebotSession apaga typebot_payment da sessão — e mesmo assim
+  //     isPaymentConfirmedForUpload (chamada com as dependências REAIS do
+  //     módulo, não mocks manuais) continua aceitando a mídia, porque agora
+  //     lê a fonte durável no atendimento, nunca a sessão. Confirma também
+  //     que não há criação duplicada de atendimento nem vínculo à mídia
+  //     errada: só um atendimento existe para este telefone, e
+  //     findPendingUploadContext resolve exatamente ele.
+  {
+    resetState();
+    const phone = '5511966666666';
+    whatsappSessionsByPhone[phone] = {
+      id: 'sess-checkout-real',
+      phone,
+      typebot_session_id: 'typebot-sessao-pagamento-real',
+      metadata: {
+        typebot_payment: {
+          payment_status: 'paid',
+          status: 'completed',
+          checkout_session_id: 'cs_test_real',
+          paid_at: new Date().toISOString(),
+          stripe_event_id: 'evt_checkout_real',
+          amount_cents: 4990
+        }
+      }
+    };
+    const body = buildBody({ phone, email: 'fernanda@example.com' });
+    delete body.typebot_context.payment_status; // nunca autorreportado pelo payload neste fluxo real
+
+    const res = await processTriagemWebhook({
+      body,
+      correlationId: 'c-checkout-real',
+      idempotencyKey: 'idem-checkout-real',
+      requestId: 'req-checkout-real'
+    });
+    const created = atendimentos.find((a) => a.id === res.body.atendimentoId);
+    assert.ok(created, 'atendimento foi criado a partir do pagamento por sessão (Checkout WhatsApp)');
+    assert.equal(created.status, STATUS.AWAITING_PRESCRIPTION_UPLOAD);
+    assert.equal(created.dados_clinicos.payment_confirmed, true, 'payment_confirmed gravado a partir de sessionPayment');
+    assert.equal(created.dados_clinicos.payment_sync_source, 'whatsapp_session');
+    assert.equal(created.dados_clinicos.stripe_payment, undefined, 'este fluxo nunca grava dados_clinicos.stripe_payment (exclusivo do bloco nativo)');
+    assert.equal(atendimentos.length, 1, 'nenhuma criação duplicada de atendimento para este telefone');
+
+    // Reproduz o reset de "jornada nova" de whatsapp.routes.js na mensagem
+    // seguinte (a foto da receita) — apaga typebot_payment da sessão.
+    const { clearTypebotSession } = require(resolveFromServices('../store/whatsapp-sessions.store'));
+    await clearTypebotSession({ sessionId: 'sess-checkout-real' });
+    const sessionAfterReset = whatsappSessionsByPhone[phone];
+    assert.equal(sessionAfterReset.metadata.typebot_payment, undefined, 'typebot_payment foi apagado, reproduzindo o achado real');
+
+    const uploadContext = await findPendingUploadContext(phone, { whatsappSession: sessionAfterReset });
+    assert.equal(uploadContext.atendimentoId, created.id, 'mídia seria vinculada ao atendimento certo, não a nenhum outro');
+
+    const confirmedAfterReset = await isPaymentConfirmedForUpload(sessionAfterReset, uploadContext.atendimentoId);
+    assert.equal(confirmedAfterReset, true, 'mesmo com typebot_payment apagado, o atendimento durável ainda confirma o pagamento');
+    results.reproducaoIncidenteRealRaceStripeWebhookXMidiaCorrigida = 'ok';
+  }
+
   // 4) Contexto de sessão apontando para atendimento ANTIGO já rejeitado é
   //    substituído — findPendingUploadContext ignora o cache e encontra o
   //    atendimento atual (aberto, mesmo telefone) pela busca por telefone.
@@ -527,6 +632,42 @@ async function main() {
     });
     assert.equal(confirmed, true);
     results.uploadAceitoQuandoStripePaymentPresenteNoAtendimento = 'ok';
+  }
+
+  // 5c) Achado real 09/09/2026 (race Stripe webhook x recebimento de mídia):
+  //     upload aceito quando dados_clinicos.payment_confirmed=true no
+  //     atendimento atual, mesmo com a sessão SEM typebot_payment (apagada
+  //     pelo reset de "jornada nova" — ver clearTypebotSession) e SEM as
+  //     outras duas fontes (payments/stripe_payment). Fonte #4, durável,
+  //     nunca tocada por clearTypebotSession.
+  {
+    const confirmed = await isPaymentConfirmedForUpload({ metadata: {} }, 'at-payment-confirmed-flag', {
+      getAtendimento: async (id) => {
+        assert.equal(id, 'at-payment-confirmed-flag');
+        return { dados_clinicos: { payment_confirmed: true } };
+      },
+      findPaymentByAppointment: async () => null
+    });
+    assert.equal(confirmed, true, 'dados_clinicos.payment_confirmed=true deve confirmar o upload mesmo sem as outras 3 fontes');
+    results.uploadAceitoQuandoPaymentConfirmedFlagPresenteNoAtendimento = 'ok';
+  }
+
+  // 5d) A fonte #4 continua estritamente restrita ao atendimentoId JÁ
+  //     resolvido — payment_confirmed=true em outro atendimento não vaza
+  //     para este (mesma garantia que a fonte #1/#2/#3 já tinham).
+  {
+    const confirmed = await isPaymentConfirmedForUpload({ metadata: {} }, 'at-sem-payment-confirmed', {
+      getAtendimento: async (id) => {
+        assert.equal(id, 'at-sem-payment-confirmed');
+        return { dados_clinicos: { payment_confirmed: false } };
+      },
+      findPaymentByAppointment: async (id) => {
+        assert.equal(id, 'at-sem-payment-confirmed');
+        return null;
+      }
+    });
+    assert.equal(confirmed, false, 'payment_confirmed=false (ou de outro atendimento) não pode confirmar o upload');
+    results.fontePaymentConfirmedRestritaAoAtendimentoAtual = 'ok';
   }
 
   // 6) Upload REJEITADO quando o pagamento pertence a outro atendimento —

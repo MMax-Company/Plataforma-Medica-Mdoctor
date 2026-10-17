@@ -3052,8 +3052,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard .panel-header--operational {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
-  height: 76px;
-  min-height: 76px;
+  height: 72px;
+  min-height: 72px;
+}
+
+.admin-dashboard .panel-header--operational + .panel-gold-band {
+  height: 4px;
 }
 
 /* Login mobile — OPPO A6x / Chrome Android. Desktop remains unchanged. */
@@ -3199,12 +3203,20 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard .panel-header--operational .panel-header__shell {
   width: 100%;
   max-width: none;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  column-gap: 10px;
+  /* Logo e ações ficam do tamanho do próprio conteúdo (auto) — o título
+     centraliza no espaço que sobra entre os dois (1fr), em vez de 3
+     colunas de 1/3 fixas. É isso que dá espaço para "Pendências
+     administrativas" + "Relação de Pacientes" + Conectada + perfil + Sair
+     caberem numa linha só, sem quebrar. */
+  grid-template-columns: auto 1fr auto;
+  column-gap: 14px;
   padding: 9px 12px;
 }
 
-.admin-dashboard .panel-header--operational .panel-header__col--brand,
+.admin-dashboard .panel-header--operational .panel-header__col--brand {
+  justify-content: flex-start;
+}
+
 .admin-dashboard .panel-header--operational .panel-header__col--center {
   justify-content: center;
 }
@@ -3228,10 +3240,11 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard .panel-header--operational .panel-header__right-group {
-  width: 100%;
+  width: auto;
   min-width: 0;
   gap: 8px;
-  justify-content: flex-start;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
 }
 
 .admin-dashboard .panel-header--operational .panel-header__prontuario {
@@ -3584,7 +3597,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard__summary > button:focus-visible,
-.admin-dashboard__journey button:focus-visible {
+.admin-dashboard__main-grid button:focus-visible {
   outline: 3px solid rgba(21, 87, 255, 0.22);
   outline-offset: 2px;
 }
@@ -3644,29 +3657,72 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   border-color: #efd7b6;
 }
 
-.admin-dashboard__journey {
-  gap: 12px;
+.admin-dashboard__main-grid {
+  column-gap: 12px;
+  row-gap: 4px;
+  /* 2 linhas explícitas (ver grid-rows no JSX): linha 1 = financeiro (col
+     1-2) + topo do chat (col 3); linha 2 = Aprovados/Rejeitados (col 1-2) +
+     chat continuando (col 3). O card do chat ocupa as 2 linhas
+     (row-span) — por isso fica mais alto que as colunas 1/2, sem precisar
+     de nenhuma altura fixa em pixel. align-items fica no padrão (stretch)
+     de propósito, para o card do chat esticar e preencher as 2 linhas;
+     colunas 1/2 continuam com altura própria explícita (ver
+     .admin-dashboard-journey-card abaixo), que já não é afetada por
+     stretch porque define sua própria altura. */
 }
 
-.admin-dashboard__journey > section {
+.admin-dashboard__main-grid > section,
+.admin-dashboard__main-grid .admin-dashboard-chat-card {
   border-color: #e2e8f0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
 }
 
-.admin-dashboard__journey > section > div:first-child {
-  min-height: 40px;
-  padding: 7px 12px;
+/* Colunas 1 e 2 (Pacientes Aprovados / Rejeitados) — altura TOTAL fixa e
+   rigorosamente idêntica entre si, independente da quantidade de itens em
+   cada uma. Não é max-height baseado em conteúdo: é um valor comum. */
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
 }
 
-.admin-dashboard__journey > section > div:last-child {
-  max-height: none;
-  min-height: 96px;
+/* Coluna 3 (chat) — preenche as 2 linhas do grid (ver grid-row: span 2 no
+   JSX) via stretch, por isso fica mais alta que as colunas 1/2 sem precisar
+   de altura fixa em pixel. O wrapper <div> intermediário (célula do grid)
+   também precisa esticar para a altura chegar até a section de dentro. */
+.admin-dashboard__main-grid > div:has(.admin-dashboard-chat-card) {
+  display: flex;
+  min-height: 0;
+}
+
+.admin-dashboard__main-grid .admin-dashboard-chat-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.admin-dashboard-chat-card__history {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-.admin-dashboard__journey > section > div:last-child > div {
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:first-child {
+  min-height: 40px;
+  padding: 7px 12px;
+  flex-shrink: 0;
+}
+
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child > div {
   display: grid;
   grid-template-columns: 28px 64px 84px minmax(0, 1fr) auto;
   align-items: center;
@@ -3677,19 +3733,19 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   transition: background-color 150ms ease;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(2) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(2) {
   min-width: 0;
   font-size: 11.5px;
   font-weight: 700;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(3) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(3) {
   width: auto;
   min-width: 0;
   font-size: 9.5px;
 }
 
-.admin-dashboard__journey > section > div:last-child > div > span:nth-child(4) {
+.admin-dashboard__main-grid > section > div:last-child > div > span:nth-child(4) {
   width: auto;
   min-width: 0;
   font-size: 10px;
@@ -3697,16 +3753,16 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   color: #475569;
 }
 
-.admin-dashboard__journey > section > div:first-child h2 {
+.admin-dashboard__main-grid > section > div:first-child h2 {
   font-weight: 700;
   letter-spacing: 0.025em;
 }
 
-.admin-dashboard__journey > section > div:last-child > div:hover {
+.admin-dashboard__main-grid > section > div:last-child > div:hover {
   background: rgba(248, 250, 252, 0.82);
 }
 
-.admin-dashboard__journey [aria-label='Ver jornada do atendimento'] {
+.admin-dashboard__main-grid [aria-label='Ver jornada do atendimento'] {
   height: 26px;
   width: 26px;
   border-width: 1px;
@@ -3718,13 +3774,13 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   justify-self: end;
 }
 
-.admin-dashboard__journey [aria-label='Ver jornada do atendimento']:hover {
+.admin-dashboard__main-grid [aria-label='Ver jornada do atendimento']:hover {
   border-color: #86efac;
   background: #f0fdf4;
   transform: translateY(-1px);
 }
 
-.admin-dashboard__journey .dp-col-count {
+.admin-dashboard__main-grid .dp-col-count {
   height: 24px;
   min-width: 24px;
   border-radius: 7px;
@@ -3732,6 +3788,30 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 @media (min-width: 1024px) {
+  .admin-dashboard__time-zone {
+    min-width: 0;
+    overflow: hidden;
+    /* A section tem border-radius (herdado de ".admin-dashboard__main-grid >
+       section") + este overflow:hidden, mas não tinha padding — o
+       cabeçalho "INDICADORES DE TEMPO MÉDIO" começava flush no canto
+       superior esquerdo e a curva do border-radius cortava a primeira
+       letra ("I"). Padding suficiente pra limpar a curva, sem mexer na
+       posição/ordem do bloco no grid. */
+    padding: 10px 14px 6px;
+  }
+
+  .admin-dashboard__support-cell {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 0;
+  }
+
+  .admin-dashboard__support-cell > .admin-dashboard-chat-card {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .admin-dashboard {
     height: 100vh;
     min-height: 0;
@@ -3743,14 +3823,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     flex: 1;
     min-height: 0;
     flex-direction: column;
-    gap: 6px;
-    padding: 8px 16px 10px;
+    gap: 4px;
+    padding: 6px 14px 8px;
     overflow: hidden;
   }
 
   .admin-dashboard .admin-dashboard__content {
-    gap: 4px;
-    padding: 6px 16px 8px;
+    gap: 3px;
+    padding: 5px 14px 7px;
   }
 
   .admin-dashboard__content > * + * {
@@ -3777,12 +3857,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__finance > div,
   .admin-dashboard__time > div {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr);
     grid-template-rows: auto auto;
     align-content: center;
     align-items: center;
-    column-gap: 6px;
-    padding: 5px 8px;
+    column-gap: 5px;
+    padding: 4px 7px;
   }
 
   .admin-dashboard__summary > button {
@@ -3796,15 +3876,15 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
   .admin-dashboard__finance > div {
     min-height: 34px;
-    border-color: #b8e2cf;
-    background: linear-gradient(180deg, #e5f8ef 0%, #d9f2e7 100%);
+    border-color: #f3d98a;
+    background: linear-gradient(180deg, #fff9dc 0%, #fff2bf 100%);
     box-shadow:
-      0 3px 9px rgba(5, 150, 105, 0.1),
+      0 3px 9px rgba(202, 138, 4, 0.1),
       inset 0 1px 0 rgba(255, 255, 255, 0.74);
   }
 
   .admin-dashboard__time > div {
-    min-height: 38px;
+    min-height: 31px;
     border-color: #b8cdf2;
     background: linear-gradient(180deg, #e4eeff 0%, #d8e6ff 100%);
     box-shadow:
@@ -3837,7 +3917,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:first-child {
     grid-row: 1 / 3;
     align-self: center;
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .admin-dashboard__summary > button > span:nth-child(2),
@@ -3845,7 +3925,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time > div > span:nth-child(2) {
     align-self: end;
     margin-top: 0;
-    font-size: 12.5px;
+    font-size: 10.5px;
     line-height: 1;
   }
 
@@ -3853,9 +3933,9 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__finance > div > span:last-child,
   .admin-dashboard__time > div > span:last-child {
     align-self: start;
-    margin-top: 2px;
-    font-size: 8px;
-    line-height: 1.12;
+    margin-top: 1px;
+    font-size: 7px;
+    line-height: 1.08;
   }
 
   .admin-dashboard .panel-support-band {
@@ -3897,16 +3977,24 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     line-height: 1.1;
   }
 
-  .admin-dashboard__journey {
-    flex: 1;
-    min-height: 210px;
-  }
-
-  .admin-dashboard__journey > section {
+  .admin-dashboard__main-grid {
+    flex: 1 1 auto;
     min-height: 0;
+    overflow: hidden;
   }
 
-  .admin-dashboard__journey > section > div:last-child {
+  .admin-dashboard__main-grid > section.admin-dashboard-journey-card {
+    height: auto;
+    min-height: 0;
+    align-self: stretch;
+  }
+
+  .admin-dashboard__main-grid > div:has(.admin-dashboard-chat-card) {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .admin-dashboard__main-grid > section.admin-dashboard-journey-card > div:last-child {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -3926,7 +4014,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .admin-dashboard__journey {
+  .admin-dashboard__main-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -4328,7 +4416,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__summary,
   .admin-dashboard__finance,
   .admin-dashboard__time,
-  .admin-dashboard__journey {
+  .admin-dashboard__main-grid {
     width: 100%;
     min-width: 0;
   }
@@ -4393,16 +4481,16 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     overflow-wrap: anywhere;
   }
 
-  .admin-dashboard__journey > section,
-  .admin-dashboard__journey > section > div:last-child {
+  .admin-dashboard__main-grid > section,
+  .admin-dashboard__main-grid > section > div:last-child {
     min-width: 0;
   }
 }
 
-/* Onze indicadores preservados em uma fileira; telas estreitas rolam a fileira. */
+/* Oito indicadores principais em uma fileira; telas estreitas rolam a fileira. */
 .admin-dashboard__time {
   display: grid;
-  grid-template-columns: repeat(11, minmax(107px, 1fr));
+  grid-template-columns: repeat(8, minmax(118px, 1fr));
   gap: 6px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -4466,23 +4554,86 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-  display: -webkit-box;
-  min-height: 21px;
-  overflow: hidden;
-  color: #4d5b75;
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 1.15;
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: 14%;
+  width: auto;
+  color: #13233d;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
   white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  overflow-wrap: normal;
+  word-break: normal;
+  pointer-events: none;
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
-  overflow: hidden;
-  color: #64748b;
-  font-size: 8px;
-  line-height: 1.1;
-  text-overflow: ellipsis;
+  display: none;
+}
+
+.admin-dashboard__time-heading {
+  margin: 0;
+  color: #4f5f78;
+  font-size: clamp(7px, 0.75vw, 10px);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
   white-space: nowrap;
+}
+
+.admin-dashboard__time-heading-note {
+  margin-left: 4px;
+  color: #a4afbf;
+  font-size: clamp(5.5px, 0.52vw, 6.8px);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+@media (min-width: 1024px) {
+  .admin-dashboard__time {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 4px;
+    overflow: hidden !important;
+    padding: 0;
+    scrollbar-width: none;
+  }
+
+  .admin-dashboard__time::-webkit-scrollbar {
+    display: none;
+  }
+
+  .admin-dashboard__time > .admin-dashboard__time-tile {
+    width: 98%;
+    min-width: 0;
+    justify-self: center;
+    padding: 12px 4px 17px;
+  }
+
+  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon {
+    margin-bottom: 5px;
+    font-size: 18px;
+  }
+
+  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
+    max-width: 88%;
+    overflow: hidden;
+    font-size: clamp(15px, 1.35vw, 21px);
+    font-weight: 900;
+    line-height: 1;
+    text-overflow: clip;
+  }
+
+  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
+    left: 12%;
+    right: 12%;
+    bottom: 13%;
+    font-size: clamp(7px, 0.62vw, 9px);
+    font-weight: 900;
+    line-height: 1.02;
+  }
 }

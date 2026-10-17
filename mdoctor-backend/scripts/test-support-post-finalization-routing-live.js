@@ -1,10 +1,21 @@
-// Teste ponta a ponta CONTRA O BANCO REAL (staging) do roteamento
-// pos-finalizacao de suporte. Usa telefones de teste dedicados, reproduz a
-// precondicao real do bug (sessao presa em typebot_expected_input_id =
-// WELCOME_CHOICE_INPUT_ID, exatamente como encontrado no telefone real
-// *8724 via scripts/inspect-support-bug-sessions.js) e valida os dois
-// caminhos: "1" encerra, "2" inicia nova avaliacao no Typebot.
+// Teste ponta a ponta CONTRA O BANCO REAL do roteamento pos-finalizacao de
+// suporte. Usa telefones de teste dedicados, reproduz a precondicao real do
+// bug (sessao presa em typebot_expected_input_id = WELCOME_CHOICE_INPUT_ID,
+// exatamente como encontrado no telefone real *8724 via
+// scripts/inspect-support-bug-sessions.js) e valida os dois caminhos: "1"
+// encerra, "2" inicia nova avaliacao no Typebot.
+//
+// GUARD (10/10/2026, agora via helper centralizado scripts/_lib/guard-
+// shared-environment.js — mesmo efeito, sem duplicar a lógica): nao existe
+// banco de staging isolado de producao neste projeto —
+// usihurogvphtjedyhyfl e compartilhado pelos dois (achado da ETAPA
+// 3/reconciliacao de migrations, ver docs/PROJECT_MEMORY.md). Este script
+// grava appointments/support_tickets/audit_logs reais; rodar sem querer
+// contra esse projeto ja aconteceu uma vez (10/10/2026, atendimentos
+// 71c734c5.../d6f84caa... limpos manualmente, com autorizacao, em
+// 11/10/2026).
 require('dotenv').config();
+require('./_lib/guard-shared-environment').guardSharedEnvironment({ context: 'test-support-post-finalization-routing-live.js' });
 const { initSupabase } = require('../src/config/supabase');
 initSupabase();
 const assert = require('assert');

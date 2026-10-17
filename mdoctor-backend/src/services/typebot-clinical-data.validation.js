@@ -185,7 +185,7 @@ function parseBrazilianAddress(value) {
   for (const city of MULTI_WORD_CITIES) {
     if (!withoutState.endsWith(city)) continue;
     const prefix = withoutState.slice(0, withoutState.length - city.length).trim();
-    const prefixTokens = prefix.split(/\s+/).filter(Boolean);
+    const prefixTokens = prefix.split(/\s+/).filter(Boolean).map((token) => token.replace(/[.,]+$/, ''));
     const numeroIndex = prefixTokens.findIndex((token) => /^\d+[A-Za-z0-9-]*$/.test(token));
     if (numeroIndex <= 0) return null;
     return {

@@ -3,17 +3,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users as UsersIcon, CheckCircle2, XCircle, AlertTriangle, Eye } from 'lucide-react';
-import { authHeaders, logout, requireSession } from '@/services/auth.service';
-import { getApiBase } from '@/services/api';
+import { logout, requireSession } from '@/services/auth.service';
 import {
   fetchAdminDashboard,
   fetchAdminAtendimentos,
+  fetchSupportConversations,
   resolveAdminNote,
   type AdminAtendimento,
   type AdminDashboard,
+  type SupportConversation,
 } from '@/services/admin.service';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
-import { MedicalSupportBand, type SupportQueueItem } from '@/components/medical/MedicalSupportBand';
+import { PendenciasDrawer } from '@/components/admin/PendenciasDrawer';
+import { SupportChatColumn } from '@/components/admin/SupportChatColumn';
 import { avatarInitials } from '@/lib/patient-display';
 
 // Seção 2 — Cards Quantitativos: mesmos 6 indicadores já existentes hoje no
@@ -172,6 +174,11 @@ function formatCondicao(condicao?: string): string {
     .toUpperCase();
 }
 
+// 'pending' continua existindo como valor de BodyColumnKey — PatientRow
+// ainda é usado com column="pending" dentro do drawer de Pendências
+// Administrativas (ver PendenciasDrawer), só não faz mais parte do grid de
+// 3 colunas (bodyColumns abaixo tem só approved/rejected agora; a coluna 3
+// passou a ser SupportChatColumn).
 type BodyColumnKey = 'approved' | 'rejected' | 'pending';
 
 const bodyColumns: Array<{
@@ -190,7 +197,7 @@ const bodyColumns: Array<{
     icon: CheckCircle2,
     iconClass: 'bg-[#E8F8EE] text-[#0B7F3C]',
     topBorderClass: 'border-t-4 border-t-[#0BA84F]',
-    headBgClass: 'bg-[#E8F8EE]',
+    headBgClass: 'bg-[#FDEBEC]',
     countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isApproved,
   },
@@ -200,19 +207,9 @@ const bodyColumns: Array<{
     icon: XCircle,
     iconClass: 'bg-slate-100 text-[#5B6475]',
     topBorderClass: 'border-t-4 border-t-[#B91C2B]',
-    headBgClass: 'bg-slate-100',
+    headBgClass: 'bg-[#FDEBEC]',
     countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
     match: isRejected,
-  },
-  {
-    key: 'pending',
-    title: 'PENDÊNCIAS ADMINISTRATIVAS',
-    icon: AlertTriangle,
-    iconClass: 'bg-amber-100 text-amber-800',
-    topBorderClass: 'border-t-4 border-t-amber-500',
-    headBgClass: 'bg-amber-50',
-    countBadgeClass: 'border-[#B91C2B]/30 bg-[#B91C2B] text-white',
-    match: isAdministrativePending,
   },
 ];
 
@@ -229,27 +226,21 @@ const TIME_METRIC_KEYS = [
   'triagem',
   'espera_medica',
   'avaliacao',
-  'geracao_receita',
   'emissao_receita',
-  'receita_pronta_entrega',
-  'envio_receita_anterior',
-  'jornada_completa',
   'suporte_administrativo',
   'suporte_medico',
+  'jornada_completa',
 ] as const;
 
 const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
-  pagamento_fila: 'Pagamento → fila',
-  triagem: 'Triagem clínica',
-  espera_medica: 'Espera médica',
-  avaliacao: 'Avaliação médica',
-  geracao_receita: 'Geração da receita',
-  emissao_receita: 'Emissão da receita',
-  receita_pronta_entrega: 'Receita pronta → entrega',
-  envio_receita_anterior: 'Envio da receita anterior',
-  jornada_completa: 'Jornada completa',
-  suporte_administrativo: 'Suporte administrativo',
-  suporte_medico: 'Suporte médico',
+  pagamento_fila: 'Fila Pagamento',
+  triagem: 'Triagem Clínica',
+  espera_medica: 'Espera Atendimento Médico',
+  avaliacao: 'Atendimento Médico',
+  emissao_receita: 'Emissão da Receita',
+  suporte_administrativo: 'Suporte Administrativo',
+  suporte_medico: 'Suporte Médico',
+  jornada_completa: 'Jornada Completa',
 };
 
 // Amostra própria de cada indicador (nº de atendimentos reais que entraram no
@@ -260,10 +251,7 @@ const TIME_METRIC_SAMPLE_KEYS: Partial<Record<(typeof TIME_METRIC_KEYS)[number],
   triagem: 'triagem',
   espera_medica: 'espera_medica',
   avaliacao: 'avaliacao',
-  geracao_receita: 'geracao_receita',
   emissao_receita: 'emissao_receita',
-  receita_pronta_entrega: 'receita_pronta_entrega',
-  envio_receita_anterior: 'envio_receita_anterior',
   jornada_completa: 'jornada_completa',
 };
 
@@ -400,10 +388,11 @@ export default function AdminDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<AdminDashboard | null>(null);
   const [atendimentos, setAtendimentos] = useState<AdminAtendimento[]>([]);
-  const [supportPatients, setSupportPatients] = useState<SupportQueueItem[]>([]);
+  const [supportConversations, setSupportConversations] = useState<SupportConversation[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [resolvingNoteId, setResolvingNoteId] = useState<string | null>(null);
+  const [isPendingDrawerOpen, setPendingDrawerOpen] = useState(false);
 
   async function refreshAtendimentos() {
     try {
@@ -435,30 +424,31 @@ export default function AdminDashboardPage() {
     }
   }
 
-  async function fetchSupportQueue() {
+  // Fila do Chat Administrativo de Suporte V1 — substitui o antigo polling
+  // de /api/atendimentos/support-queue (ticket WhatsApp + wa.me externo,
+  // eliminado desta página; MedicalSupportBand e o Painel Médico continuam
+  // usando esse fluxo antigo, intocados). Best-effort: com
+  // SUPPORT_CHAT_UI_ENABLED desligada, a API responde 503 e a fila
+  // simplesmente fica vazia, sem erro visível.
+  async function fetchSupportConversationsForPage() {
     try {
-      const res = await fetch(`${getApiBase()}/api/atendimentos/support-queue`, { headers: authHeaders() });
-      const json = await res.json();
-      if (!res.ok) return;
-      const rows = Array.isArray(json) ? json : json.atendimentos || json.data || [];
-      setSupportPatients(
-        rows.map((item: any) => ({
-          id: item.id,
-          paciente_nome: item.paciente_nome,
-          paciente_telefone: item.paciente_telefone,
-          criado_em: item.criado_em,
-          status: item.status,
-          support_sub_status: item?.dados_clinicos?.support_sub_status,
-        })),
-      );
+      const res = await fetchSupportConversations();
+      if (res.success) setSupportConversations(res.conversations);
+      // res.success === false (ex.: SUPPORT_CHAT_UI_ENABLED desligada) é um
+      // estado estável, não uma falha transitória — mantém a fila anterior,
+      // igual aos outros ciclos (ver comentário abaixo).
     } catch {
-      setSupportPatients([]);
+      /* mantém a fila anterior — uma falha transitória (rede, timeout) no
+         polling de 30s nunca pode zerar a seleção do atendente e, com isso,
+         liberar o lock de uma conversation que ele ainda está respondendo
+         (ver efeito de claim em SupportChatColumn). Próximo ciclo tenta de
+         novo. */
     }
   }
 
   useEffect(() => {
     requireSession()
-      .then(() => Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportQueue()]))
+      .then(() => Promise.all([fetchAdminDashboard(), fetchAdminAtendimentos(), fetchSupportConversationsForPage()]))
       .then(([dashboard, list]) => {
         setData(dashboard);
         setAtendimentos(list.atendimentos || []);
@@ -473,13 +463,14 @@ export default function AdminDashboardPage() {
 
   // Lista dinâmica: mesma cadência de atualização automática do Painel
   // Médico (fila/page.tsx) — pacientes sobem/descem de coluna conforme o
-  // status muda, sem precisar recarregar a página.
+  // status muda, sem precisar recarregar a página. Mesmo timer único de
+  // sempre — só ganhou mais uma chamada, não um segundo polling paralelo.
   useEffect(() => {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') {
         void refreshAtendimentos();
         void refreshDashboard();
-        void fetchSupportQueue();
+        void fetchSupportConversationsForPage();
       }
     }, 30000);
     return () => window.clearInterval(timer);
@@ -490,13 +481,17 @@ export default function AdminDashboardPage() {
     // colunas administrativas enquanto aguardam resposta — reaparecem quando
     // o médico resolve ou devolve ao suporte.
     const visiveis = atendimentos.filter((a) => a.dados_clinicos?.queue_type !== 'medical_support');
-    return bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
+    const base = bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
         acc[column.key] = visiveis.filter(column.match);
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
     );
+    // Pendências administrativas: não faz mais parte do grid de 3 colunas,
+    // mas continua sendo calculada aqui — agora alimenta o drawer.
+    base.pending = visiveis.filter(isAdministrativePending);
+    return base;
   }, [atendimentos]);
 
   async function handleLogout() {
@@ -521,6 +516,9 @@ export default function AdminDashboardPage() {
         recordButtonLabel="Relação de Pacientes"
         recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/pacientes')}
+        secondaryButtonLabel="Pendências administrativas"
+        secondaryButtonIcon={<AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+        onOpenSecondary={() => setPendingDrawerOpen(true)}
         onLogout={handleLogout}
       />
 
@@ -533,94 +531,92 @@ export default function AdminDashboardPage() {
 
         {data && (
           <>
-            {/* Cards Quantitativos */}
-            <section>
-              <div className="admin-dashboard__summary grid grid-cols-6 gap-1.5">
-                {CARDS.map((card) => {
-                  const count = data.cards[card.key] ?? 0;
-                  return (
-                    <button
-                      key={card.key}
-                      type="button"
-                      onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
-                      className={metricTileClass(card.bg, card.border, true)}
-                    >
-                      <MetricTileContent emoji={card.emoji} value={count} label={card.label} />
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Indicador financeiro — receita real (atendimentos com pagamento
-                 confirmado × valor único da consulta), sem valor fabricado por
-                 atendimento: o produto tem preço fixo, não há campo a preencher. */}
-            <section>
-              <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
+            {/* Composição desktop baseada no mock aprovado:
+                 - colunas 1+2: cards quantitativos -> indicadores -> financeiro -> pacientes;
+                 - coluna 3: suporte começa logo abaixo da faixa dourada, ao lado dos cards quantitativos;
+                 - suporte segue até a base; somente o conteúdo interno das três colunas rola. */}
+            <div className="admin-dashboard__main-grid grid grid-cols-1 gap-2 lg:grid-cols-3 lg:grid-rows-[auto_auto_auto_minmax(0,1fr)]">
+              <section className="lg:col-start-1 lg:col-end-3 lg:row-start-1 lg:row-end-2">
+                <div className="admin-dashboard__summary grid grid-cols-6 gap-1.5">
+                  {CARDS.map((card) => {
+                    const count = data.cards[card.key] ?? 0;
+                    return (
+                      <button
+                        key={card.key}
+                        type="button"
+                        onClick={() => router.push(`/admin/pacientes?filter=${card.filter}`)}
+                        className={metricTileClass(card.bg, card.border, true)}
+                      >
+                        <MetricTileContent emoji={card.emoji} value={count} label={card.label} />
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
-                </div>
-                <div className={metricTileClass('bg-emerald-50', 'border-emerald-200', false)}>
-                  <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
-                </div>
-              </div>
-            </section>
+              </section>
 
-            {/* Faixa de Suporte Administrativo — tamanho compacto, mesma escala
-                 do restante do painel (ver MedicalSupportBand size default). */}
-            <MedicalSupportBand patients={supportPatients} onQueueRefresh={fetchSupportQueue} />
-
-            {/* Indicadores de Tempo Médio — ver comentário da seção 4 acima. */}
-            <section>
-              <p className="mb-1 text-[10px] font-black uppercase tracking-[0.06em] text-[#5B6475]">
-                Indicadores de tempo médio
-                <span className="ml-1 font-semibold normal-case tracking-normal text-[#94A3B8]">
-                  · cada indicador mostra a própria amostra de atendimentos reais
-                </span>
-              </p>
-              <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
-                {TIME_METRIC_KEYS.map((key) => {
-                  const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
-                  const sampleCount = sampleKey
-                    ? data.tempos.amostra_por_indicador?.[sampleKey]
-                    : undefined;
-                  const sampleLabel =
-                    sampleCount === undefined
-                      ? undefined
-                      : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
-                  return (
-                    <div
-                      key={key}
-                      className="admin-dashboard__time-tile"
-                      title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
-                    >
-                      <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
-                      <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
-                      <span className="admin-dashboard__time-label">{TIME_METRIC_LABELS[key]}</span>
-                      {sampleLabel && (
-                        <span className="admin-dashboard__time-sample" title={sampleLabel}>
-                          {sampleCount} atend.
+              <section className="admin-dashboard__time-zone lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:row-end-3">
+                <p className="admin-dashboard__time-heading">
+                  Indicadores de tempo médio
+                  <span className="admin-dashboard__time-heading-note">
+                    · cada indicador mostra a própria amostra de atendimentos reais
+                  </span>
+                </p>
+                <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
+                  {TIME_METRIC_KEYS.map((key) => {
+                    const sampleKey = TIME_METRIC_SAMPLE_KEYS[key];
+                    const sampleCount = sampleKey
+                      ? data.tempos.amostra_por_indicador?.[sampleKey]
+                      : undefined;
+                    const sampleLabel =
+                      sampleCount === undefined
+                        ? undefined
+                        : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
+                    return (
+                      <div
+                        key={key}
+                        className="admin-dashboard__time-tile"
+                        data-metric={key}
+                        title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                      >
+                        <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
+                        <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
+                        <span className="admin-dashboard__time-label">
+                          {TIME_METRIC_LABELS[key]}
                         </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
 
-            {/* Corpo Principal — mesma lógica de agrupamento de sempre, com
-                 escala/tipografia compacta alinhada à Relação de Pacientes. */}
-            <div className="admin-dashboard__journey grid grid-cols-3 gap-2">
-              {bodyColumns.map((column) => {
+              <div className="lg:col-start-1 lg:col-end-3 lg:row-start-3 lg:row-end-4">
+                <div className="admin-dashboard__finance grid grid-cols-3 gap-1.5">
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
+                    <MetricTileContent emoji="💵" value={data.financeiro.receita_total_label} label="Receita confirmada" />
+                  </div>
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
+                    <MetricTileContent emoji="🧾" value={data.financeiro.atendimentos_pagos} label="Atendimentos pagos" />
+                  </div>
+                  <div className={metricTileClass('bg-amber-50', 'border-amber-200', false)}>
+                    <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-5">
+                <SupportChatColumn conversations={supportConversations} />
+              </div>
+
+              {bodyColumns.map((column, index) => {
                 const Icon = column.icon;
                 const items = grouped[column.key];
                 return (
                   <section
                     key={column.key}
-                    className={`flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] ${column.topBorderClass}`}
+                    className={`admin-dashboard-journey-card flex min-w-0 flex-col overflow-hidden rounded-[12px] border border-[#E4ECF7] bg-[#F7FAFF] shadow-[0_2px_8px_rgba(15,23,42,0.04)] lg:row-start-4 lg:row-end-5 ${
+                      index === 0 ? 'lg:col-start-1 lg:col-end-2' : 'lg:col-start-2 lg:col-end-3'
+                    } ${column.topBorderClass}`}
                   >
                     <div
                       className={`flex shrink-0 items-center justify-between border-b border-[#E4ECF7] px-2.5 py-1.5 ${column.headBgClass}`}
@@ -636,7 +632,7 @@ export default function AdminDashboardPage() {
                       <span className={`dp-col-count ${column.countBadgeClass}`}>{items.length}</span>
                     </div>
 
-                    <div className="max-h-[440px] min-h-[120px] overflow-y-auto">
+                    <div className="overflow-y-auto">
                       {items.length ? (
                         items.map((item) => (
                           <PatientRow
@@ -661,6 +657,27 @@ export default function AdminDashboardPage() {
           </>
         )}
       </div>
+
+      <PendenciasDrawer
+        isOpen={isPendingDrawerOpen}
+        onClose={() => setPendingDrawerOpen(false)}
+        count={grouped.pending.length}
+      >
+        {grouped.pending.length ? (
+          grouped.pending.map((item) => (
+            <PatientRow
+              key={item.id}
+              column="pending"
+              item={item}
+              onVerJornada={() => router.push(`/admin/paciente/${item.id}`)}
+              onResolveNote={handleResolveNote}
+              resolvingNoteId={resolvingNoteId}
+            />
+          ))
+        ) : (
+          <p className="dp-text-subtle p-4 text-center text-[11px] font-semibold">Sem pendências administrativas</p>
+        )}
+      </PendenciasDrawer>
     </main>
   );
 }

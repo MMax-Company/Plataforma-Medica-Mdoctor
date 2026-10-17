@@ -221,6 +221,9 @@ async function main() {
         metadata: { typebot_expected_input_id: expectedInputId }
       }),
       persistExpectedInput: async ({ inputId }) => { expectedInputId = inputId; },
+      // Este loop testa só a validação genérica de cada input — mantém o CEP
+      // no caminho "não localizado" (autofill coberto por teste próprio).
+      lookupCep: async () => ({ logradouro: '', bairro: '', cidade: '', estado: '', cep: '', encontrado: false }),
       createIntegrationError: async () => {},
       now: () => fixedNow,
       callTypebot: async (path, body) => {

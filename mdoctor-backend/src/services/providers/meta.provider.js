@@ -1,5 +1,18 @@
+const logger = require('../../config/logger');
+
 const DEFAULT_TIMEOUT_MS = 12000;
 const DEFAULT_API_VERSION = 'v25.0';
+
+// Limite da Meta para imagem por link/upload (5 MB). Cache de media_id por URL:
+// a Meta baixa/processa a imagem ao subir, então enviar por `id` (já
+// processada) é entregue quase de imediato — sem isso, uma imagem por `link`
+// só é entregue depois que a Meta busca e valida a URL, chegando DEPOIS de um
+// texto enviado logo em seguida (a ordem no aparelho quebra). media_id vale
+// 30 dias na Meta; aqui guardamos por 20 min só para não re-subir a mesma
+// imagem em bursts/mesma conversa. Cache é por processo (some no restart).
+const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+const MEDIA_ID_CACHE_TTL_MS = 20 * 60 * 1000;
+const mediaIdCacheByUrl = new Map();
 
 function getConfig() {
   return {
@@ -150,6 +163,51 @@ async function sendTextMessage({ to, bsuid, recipientId, text, correlationId, id
   );
 }
 
+// Envio de template (categoria Utility/Marketing) — entrega TAMBÉM fora da
+// janela de atendimento de 24h, ao contrário de sendTextMessage (Meta 131047).
+// bodyParameters preenche {{1}}, {{2}}, ... do corpo do template, em ordem.
+async function sendTemplateMessage({
+  to,
+  bsuid,
+  recipientId,
+  name,
+  languageCode = 'pt_BR',
+  bodyParameters = [],
+  correlationId,
+  idempotencyKey
+}) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const templateName = String(name || '').trim();
+  const language = String(languageCode || '').trim();
+  if (!templateName || !language || !Array.isArray(bodyParameters)) {
+    const error = new Error('Envio de template Meta requer name, languageCode e bodyParameters em array');
+    error.code = 'INVALID_TEMPLATE_PAYLOAD';
+    throw error;
+  }
+
+  return postMessage(
+    {
+      ...recipient,
+      type: 'template',
+      template: {
+        name: templateName,
+        language: { code: language },
+        ...(bodyParameters.length > 0
+          ? {
+              components: [
+                {
+                  type: 'body',
+                  parameters: bodyParameters.map((value) => ({ type: 'text', text: String(value) }))
+                }
+              ]
+            }
+          : {})
+      }
+    },
+    { correlationId, idempotencyKey }
+  );
+}
+
 async function sendButtonMessage({ to, bsuid, recipientId, body, buttons, correlationId, idempotencyKey }) {
   const recipient = resolveRecipient({ to, bsuid, recipientId });
   return postMessage({
@@ -230,6 +288,106 @@ async function sendDocumentMessage({ to, bsuid, recipientId, documentUrl, fileNa
     },
     { correlationId, idempotencyKey }
   );
+}
+
+// Sobe uma imagem HTTPS pública para o endpoint de mídia da Meta e devolve o
+// media_id. Assim o envio (`image.id`) é entregue já processado, na ordem — o
+// caminho por `link` deixa a Meta buscar a URL só na entrega e a imagem chega
+// depois do texto seguinte. Cacheado por URL (TTL curto). Lança em qualquer
+// falha (URL inválida, download, tipo não-imagem, tamanho, recusa da Meta) —
+// o chamador decide o fallback.
+async function uploadImageFromUrl(imageUrl) {
+  const url = String(imageUrl || '').trim();
+  if (!/^https:\/\/[^\s]+$/i.test(url)) {
+    const error = new Error('URL de imagem inválida para Meta Cloud API (exige HTTPS pública)');
+    error.code = 'META_INVALID_IMAGE_URL';
+    throw error;
+  }
+
+  const cached = mediaIdCacheByUrl.get(url);
+  if (cached && (Date.now() - cached.ts) < MEDIA_ID_CACHE_TTL_MS) return cached.id;
+
+  const config = getConfig();
+  const download = await fetch(url);
+  if (!download.ok) {
+    const error = new Error(`Falha ao baixar imagem do Typebot (${download.status})`);
+    error.code = 'META_IMAGE_DOWNLOAD_FAILED';
+    throw error;
+  }
+  const mime = String(download.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    || 'image/jpeg';
+  if (!mime.startsWith('image/')) {
+    const error = new Error(`Conteúdo não é imagem (content-type: ${mime})`);
+    error.code = 'META_IMAGE_NOT_IMAGE';
+    throw error;
+  }
+  const bytes = Buffer.from(await download.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > IMAGE_MAX_BYTES) {
+    const error = new Error(`Imagem fora do limite de tamanho (${bytes.length} bytes)`);
+    error.code = 'META_IMAGE_SIZE';
+    throw error;
+  }
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mime);
+  form.append('file', new Blob([bytes], { type: mime }), 'typebot-image');
+
+  const uploadResponse = await fetch(
+    `https://graph.facebook.com/${config.apiVersion}/${config.phoneNumberId}/media`,
+    { method: 'POST', headers: { Authorization: `Bearer ${config.accessToken}` }, body: form }
+  );
+  const uploadData = await uploadResponse.json().catch(() => ({}));
+  if (!uploadResponse.ok || !uploadData?.id) {
+    const error = new Error(uploadData?.error?.message || `Falha no upload de mídia Meta (${uploadResponse.status})`);
+    error.code = uploadData?.error?.code || 'META_IMAGE_UPLOAD_FAILED';
+    throw error;
+  }
+
+  mediaIdCacheByUrl.set(url, { id: uploadData.id, ts: Date.now() });
+  return uploadData.id;
+}
+
+async function sendImageMessage({ to, bsuid, recipientId, imageUrl, mediaId, caption, correlationId, idempotencyKey }) {
+  const recipient = resolveRecipient({ to, bsuid, recipientId });
+  const cap = String(caption || '').trim();
+  const captionField = cap ? { caption: cap.slice(0, 1024) } : {};
+
+  const directId = String(mediaId || '').trim();
+  if (directId) {
+    return postMessage(
+      { ...recipient, type: 'image', image: { id: directId, ...captionField } },
+      { correlationId, idempotencyKey }
+    );
+  }
+
+  const url = String(imageUrl || '').trim();
+  if (!/^https:\/\/[^\s]+$/i.test(url)) {
+    const error = new Error('URL de imagem inválida para Meta Cloud API (exige HTTPS pública)');
+    error.code = 'META_INVALID_IMAGE_URL';
+    throw error;
+  }
+
+  // Preferencial: subir e enviar por media_id (entrega na ordem). Só se o
+  // upload falhar, cai para `link` — a imagem ainda é entregue, podendo
+  // chegar fora de ordem; o incidente fica no log.
+  try {
+    const id = await uploadImageFromUrl(url);
+    return await postMessage(
+      { ...recipient, type: 'image', image: { id, ...captionField } },
+      { correlationId, idempotencyKey }
+    );
+  } catch (uploadError) {
+    logger.warn('meta_image_upload_fallback_link', {
+      imageUrl: url,
+      code: uploadError?.code || null,
+      error: String(uploadError?.message || uploadError)
+    });
+    return postMessage(
+      { ...recipient, type: 'image', image: { link: url, ...captionField } },
+      { correlationId, idempotencyKey }
+    );
+  }
 }
 
 function requireTemplatesConfigured() {
@@ -466,10 +624,13 @@ module.exports = {
   createMessageTemplate,
   deleteMessageTemplate,
   sendTextMessage,
+  sendTemplateMessage,
   sendButtonMessage,
   sendCtaUrlMessage,
   sendListMessage,
   sendDocumentMessage,
+  sendImageMessage,
+  uploadImageFromUrl,
   downloadMedia,
   exchangeEmbeddedSignupCode,
   syncSmbAppState,
