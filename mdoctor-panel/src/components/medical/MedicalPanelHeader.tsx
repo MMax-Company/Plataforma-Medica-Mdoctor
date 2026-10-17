@@ -7,27 +7,30 @@ import { getMemedConfig } from '@/services/memed.service';
 
 const LOGO_SRC = '/doctor-prescreve-logo-transparent.png';
 
-type MemedStatus = 'connecting' | 'connected' | 'error';
+type MemedStatus = 'checking' | 'configured' | 'unavailable';
 
 const MEMED_STATUS_CONFIG: Record<MemedStatus, { color: string; label: string }> = {
-  connected:  { color: '#0BA84F', label: 'Conectada' },
-  connecting: { color: '#F59E0B', label: 'Conectando...' },
-  error:      { color: '#EF4444', label: 'Desconectada' },
+  configured:  { color: '#0BA84F', label: 'Configurada' },
+  checking:    { color: '#F59E0B', label: 'Verificando...' },
+  unavailable: { color: '#EF4444', label: 'Indisponível' },
 };
 
 /**
- * Verifica conectividade real com o backend Memed.
- * isMemedRuntimeReady() reflete o SDK widget (só ativo durante consultas) — não serve
- * como indicador geral. getMemedConfig() testa se o backend responde corretamente.
+ * O endpoint /api/memed/config confirma configuração/runtime do backend, mas
+ * não autentica o prescritor na API da Memed. Por isso o cabeçalho informa
+ * "Configurada" (estado que realmente conseguimos comprovar aqui), e não
+ * "Conectada", que sugeriria uma sessão/autenticação externa ativa.
  */
 function useMemedStatus(): MemedStatus {
-  const [status, setStatus] = useState<MemedStatus>('connecting');
+  const [status, setStatus] = useState<MemedStatus>('checking');
 
   useEffect(() => {
     let cancelled = false;
     getMemedConfig()
-      .then(() => { if (!cancelled) setStatus('connected'); })
-      .catch(() => { if (!cancelled) setStatus('error'); });
+      .then((config) => {
+        if (!cancelled) setStatus(config.enabled ? 'configured' : 'unavailable');
+      })
+      .catch(() => { if (!cancelled) setStatus('unavailable'); });
     return () => { cancelled = true; };
   }, []);
 
