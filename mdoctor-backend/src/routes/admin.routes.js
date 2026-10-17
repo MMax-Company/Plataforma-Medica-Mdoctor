@@ -20,6 +20,9 @@ const { PAYMENT_AMOUNT_CENTS, PAYMENT_AMOUNT_LABEL } = require('../services/type
 const { createAuditLog } = require('../store/audit.store');
 const { QUEUE_TYPE_MEDICAL_SUPPORT, isSupportQueue } = require('../constants/whatsapp-queue');
 const { notifyAdminAlert } = require('../services/admin-alert.service');
+const supportChatStore = require('../store/support-chat.store');
+const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { createPaymentLinkForSession } = require('../services/typebot-payment-link.service');
 
 const router = express.Router();
 
@@ -115,9 +118,17 @@ function isAdministrativePending(atendimento) {
   );
 }
 
-// Indicador financeiro: usa o valor registrado no atendimento pelo webhook.
-// O fallback para o preço vigente cobre registros sem snapshot de valor, mas
-// cobranças históricas preservam o preço efetivamente pago quando disponível.
+// Indicador financeiro: usa exclusivamente o valor registrado no atendimento
+// pelo webhook (snapshot real da cobrança). Auditoria de 17/10 encontrou 2
+// atendimentos reais (não-teste) com payment_status CONFIRMADO sem esse
+// snapshot — e o valor real deles na tabela `payments` (R$ 69,90, achado por
+// telefone+horário) diverge do preço vigente (R$ 49,90): o preço já mudou no
+// histórico, então assumir o valor atual como se fosse o valor pago teria
+// subestimado/distorcido a receita sem evidência. Por isso NÃO HÁ fallback
+// para PAYMENT_AMOUNT_CENTS aqui — um atendimento pago sem snapshot entra na
+// contagem de "atendimentos pagos" mas fica fora da receita somada, e é
+// contado separadamente em `atendimentos_sem_valor_registrado` para o painel
+// sinalizar a lacuna em vez de escondê-la atrás de um número inventado.
 const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 function paidAmountCents(atendimento) {
@@ -127,14 +138,20 @@ function paidAmountCents(atendimento) {
     clinical.stripe_payment?.amount_cents ??
     clinical.typebot_payment?.amount_cents
   );
-  return Number.isInteger(recorded) && recorded > 0 ? recorded : PAYMENT_AMOUNT_CENTS;
+  return Number.isInteger(recorded) && recorded > 0 ? recorded : null;
 }
 
 function computeFinanceiro(atendimentos) {
   const pagos = atendimentos.filter(isPaid);
-  const receitaTotalCentavos = pagos.reduce((total, atendimento) => total + paidAmountCents(atendimento), 0);
+  const comValorRegistrado = pagos.filter((a) => paidAmountCents(a) !== null);
+  const semValorRegistrado = pagos.length - comValorRegistrado.length;
+  const receitaTotalCentavos = comValorRegistrado.reduce(
+    (total, atendimento) => total + paidAmountCents(atendimento),
+    0,
+  );
   return {
     atendimentos_pagos: pagos.length,
+    atendimentos_sem_valor_registrado: semValorRegistrado,
     valor_unitario_centavos: PAYMENT_AMOUNT_CENTS,
     valor_unitario_label: PAYMENT_AMOUNT_LABEL,
     receita_total_centavos: receitaTotalCentavos,
@@ -241,6 +258,38 @@ async function findEtapasStatusHistory(atendimentoId) {
   };
 }
 
+// Indicador "Suporte Administrativo": tempo da ABERTURA da conversation
+// (support_conversations.created_at — gravado assim que o ticket de suporte
+// é aberto, ver ensureConversation em whatsapp-support.service.js) até a
+// PRIMEIRA mensagem do atendente (support_chat_messages, direction
+// 'outbound', menor created_at) — mesma semântica de "tempo de espera" dos
+// demais indicadores (ex.: espera_medica), não tempo até o encerramento
+// completo do atendimento. Conversation sem nenhuma resposta ainda fica de
+// fora da amostra — não inventa um fim para quem ainda não foi atendido.
+// Fonte de dados totalmente separada de `atendimentos` (support_conversations/
+// support_chat_messages, tabelas do Chat Administrativo de Suporte V1) — por
+// isso é uma função à parte, não reaproveita o loop de computeTempos.
+// Nunca lança: qualquer falha ao consultar o Supabase (ex.: tabela ainda não
+// migrada) devolve amostra 0 / null, nunca derruba o resto do dashboard.
+async function computeSuporteAdministrativoTempo() {
+  try {
+    const conversations = await supportChatStore.listAllConversations();
+    const values = [];
+    for (const conversation of conversations) {
+      // eslint-disable-next-line no-await-in-loop
+      const messages = await supportChatStore.listMessages(conversation.id);
+      const firstOutbound = messages.find((m) => m.direction === 'outbound');
+      if (!firstOutbound || !conversation.created_at) continue;
+      const v = minutesBetween(conversation.created_at, firstOutbound.created_at);
+      if (v !== null) values.push(v);
+    }
+    return { label: formatMinutes(average(values)), amostra: values.length };
+  } catch (error) {
+    logger.warn('admin_dashboard_suporte_administrativo_tempo_failed', { error: error.message });
+    return { label: null, amostra: 0 };
+  }
+}
+
 async function computeTempos(atendimentos) {
   // Tickets de Suporte Geral via WhatsApp (isSupportQueue) nunca passam pelo
   // pipeline triagem → fila médica → avaliação → emissão — não são
@@ -265,6 +314,14 @@ async function computeTempos(atendimentos) {
   // Etapas adicionais reconstruídas de appointment_status_history + timestamps
   // já gravados (auditoria 07/09/2026) — sem estimativa.
   const pagamentoFilaValues = [];
+  // Indicador "Suporte Médico": tempo do ENCAMINHAMENTO ao médico
+  // (medical_support_requested_at, gravado em POST .../forward-to-doctor)
+  // até a ORIENTAÇÃO MÉDICA registrada (medical_support_resolved_at,
+  // gravado em POST .../medical-support/resolve) — início e fim já
+  // existentes no fluxo real, nenhum marco novo inventado. Só entra na
+  // amostra quem já tem os dois timestamps (ciclo completo); um caso ainda
+  // aguardando resposta do médico fica de fora, não gera um fim fabricado.
+  const suporteMedicoValues = [];
 
   for (const { atendimento: a, eventos, etapas } of comEventosMedicos) {
     const c = a.dados_clinicos || {};
@@ -302,6 +359,11 @@ async function computeTempos(atendimentos) {
       if (jornadaCompleta !== null) jornadaCompletaValues.push(jornadaCompleta);
     }
 
+    if (c.medical_support_requested_at && c.medical_support_resolved_at) {
+      const suporteMedico = minutesBetween(c.medical_support_requested_at, c.medical_support_resolved_at);
+      if (suporteMedico !== null) suporteMedicoValues.push(suporteMedico);
+    }
+
     // Pagamento confirmado → entrada na fila médica.
     const pagoEm = c.stripe_paid_at || c.stripe_payment?.confirmed_at || null;
     if (pagoEm && etapas.filaEm) {
@@ -309,6 +371,10 @@ async function computeTempos(atendimentos) {
       if (v !== null) pagamentoFilaValues.push(v);
     }
   }
+
+  // Fonte de dados separada (support_conversations/support_chat_messages) —
+  // roda em paralelo ao loop acima, nunca bloqueado por ele.
+  const suporteAdministrativo = await computeSuporteAdministrativoTempo();
 
   return {
     // Amostra do cabeçalho: só atendimentos com jornada completa (marcadores
@@ -324,6 +390,8 @@ async function computeTempos(atendimentos) {
       avaliacao: avaliacaoValues.length,
       emissao_receita: emissaoReceitaValues.length,
       jornada_completa: jornadaCompletaValues.length,
+      suporte_administrativo: suporteAdministrativo.amostra,
+      suporte_medico: suporteMedicoValues.length,
     },
     pagamento_fila: formatMinutes(average(pagamentoFilaValues)),
     triagem: formatMinutes(average(triagemValues)),
@@ -331,8 +399,8 @@ async function computeTempos(atendimentos) {
     avaliacao: formatMinutes(average(avaliacaoValues)),
     emissao_receita: formatMinutes(average(emissaoReceitaValues)),
     jornada_completa: formatMinutes(average(jornadaCompletaValues)),
-    suporte_administrativo: null,
-    suporte_medico: null,
+    suporte_administrativo: suporteAdministrativo.label,
+    suporte_medico: formatMinutes(average(suporteMedicoValues)),
   };
 }
 
@@ -691,6 +759,53 @@ router.post(
 );
 
 // ─── OPERATIONAL: Resend payment link ────────────────────────────────────────
+// Achado da auditoria de 17/10: o botão só reenviava o link bruto salvo em
+// dados_clinicos.stripe_checkout_url, sem checar se a Checkout Session da
+// Stripe ainda estava "open" — um link expirado (Stripe expira em ~24h por
+// padrão) chegava morto pro paciente. Agora reusa a MESMA lógica já usada
+// pelo fluxo WhatsApp quando o próprio paciente pede "abrir pagamento"
+// (createPaymentLinkForSession, typebot-payment-link.service.js): reaproveita
+// a sessão se ainda estiver aberta, cria uma NOVA Checkout Session só quando a
+// anterior expirou/faltou (criar uma session não cobra nada — só o checkout
+// concluído cobra, então nunca duplica cobrança), e nunca reenvia nada quando
+// o atendimento já está pago.
+async function tryRegeneratePaymentLink(atendimento, deps = {}) {
+  const getSession = deps.getSessionByPhone || getSessionByPhone;
+  const createLink = deps.createPaymentLinkForSession || createPaymentLinkForSession;
+  const phone = atendimento?.paciente_telefone;
+  if (!phone || !process.env.STRIPE_SECRET_KEY) {
+    return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+  }
+  try {
+    const session = await getSession(phone);
+    if (!session) {
+      return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+    }
+    const result = await createLink({
+      identity: {
+        phone: session.phone,
+        bsuid: session.bsuid,
+        parentBsuid: session.parentBsuid,
+        username: session.username,
+      },
+      typebotSessionId:
+        atendimento.dados_clinicos?.typebot_session_id ||
+        session.metadata?.typebot_payment?.typebot_session_id ||
+        '',
+      existingSession: session,
+    });
+    if (result.alreadyPaid) {
+      return { regenerated: false, cannotVerify: false, link: null, alreadyPaid: true };
+    }
+    return { regenerated: true, cannotVerify: false, link: result.checkoutRedirectUrl, alreadyPaid: false };
+  } catch (error) {
+    logger.warn('admin_resend_payment_regenerate_failed', {
+      appointmentId: atendimento.id,
+      error: error?.message || String(error),
+    });
+    return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+  }
+}
 
 router.post(
   '/atendimentos/:id/resend-payment',
@@ -703,13 +818,41 @@ router.post(
         return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
       }
 
+      const phone = atendimento.paciente_telefone;
+
+      // Já pago: nunca reenviar um pedido de pagamento para quem já pagou.
+      if (isPaid(atendimento)) {
+        return res.json({
+          success: true,
+          link: null,
+          sent: false,
+          alreadyPaid: true,
+          regenerated: false,
+          phone: phone || null,
+          pagamento_status: atendimento.pagamento_status,
+        });
+      }
+
+      const regen = await tryRegeneratePaymentLink(atendimento);
+      if (regen.alreadyPaid) {
+        return res.json({
+          success: true,
+          link: null,
+          sent: false,
+          alreadyPaid: true,
+          regenerated: false,
+          phone: phone || null,
+          pagamento_status: atendimento.pagamento_status,
+        });
+      }
+
       const paymentLink =
+        regen.link ||
         atendimento.dados_clinicos?.stripe_checkout_url ||
         atendimento.dados_clinicos?.payment_url ||
         atendimento.dados_clinicos?.pagamento_link ||
         null;
 
-      const phone = atendimento.paciente_telefone;
       let sent = false;
 
       if (paymentLink && phone) {
@@ -740,6 +883,9 @@ router.post(
         success: true,
         link: paymentLink,
         sent,
+        alreadyPaid: false,
+        regenerated: regen.regenerated,
+        cannotVerify: regen.cannotVerify,
         phone: phone || null,
         pagamento_status: atendimento.pagamento_status,
       });
@@ -969,3 +1115,5 @@ module.exports = router;
 module.exports.computeTempos = computeTempos;
 module.exports.isTestAtendimento = isTestAtendimento;
 module.exports.isAdministrativePending = isAdministrativePending;
+module.exports.computeFinanceiro = computeFinanceiro;
+module.exports.tryRegeneratePaymentLink = tryRegeneratePaymentLink;
