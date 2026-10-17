@@ -246,6 +246,20 @@ export default function AdminPacientePage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  // A Jornada também acompanha alterações operacionais feitas em outras telas
+  // ou pelo backend. Erro transitório não apaga o estado já carregado.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchAdminAtendimento(id)
+        .then((r) => setAtendimento(r.atendimento))
+        .catch(() => {
+          /* mantém o atendimento atual; o próximo ciclo tenta novamente */
+        });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [id]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
