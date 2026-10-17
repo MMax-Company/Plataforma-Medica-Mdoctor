@@ -8,6 +8,7 @@ import {
   closeSupportConversation,
   fetchAdminAtendimento,
   fetchSupportConversationDetail,
+  heartbeatSupportConversation,
   releaseSupportConversation,
   sendSupportChatMessage,
   type AdminAtendimento,
@@ -15,6 +16,11 @@ import {
   type SupportConversation,
   type SupportMessagingWindowStatus,
 } from '@/services/admin.service';
+
+// Bem abaixo do lease do lock (DEFAULT_LOCK_LEASE_MS = 2 min no backend) —
+// garante várias tentativas de renovação dentro da janela mesmo se uma
+// chamada individual falhar por uma instabilidade de rede pontual.
+const HEARTBEAT_INTERVAL_MS = 45000;
 import { ApiError } from '@/services/api';
 import { avatarInitials } from '@/lib/patient-display';
 
@@ -87,6 +93,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
     conversation: SupportConversation;
     messages: SupportChatMessage[];
     windowStatus: SupportMessagingWindowStatus | null;
+    agentSendEnabled: boolean;
   } | null>(null);
   const [patientInfo, setPatientInfo] = useState<AdminAtendimento | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -98,6 +105,15 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
   const [sendError, setSendError] = useState<string | null>(null);
   const ownedConversationIdRef = useRef<string | null>(null);
   const currentSelectedIdRef = useRef<string | null>(null);
+  // client_message_id do rascunho atual — gerado uma vez por intenção de
+  // envio e MANTIDO entre tentativas de "Tentar novamente" do mesmo texto.
+  // Se gerasse um ID novo a cada clique, um timeout/falha de rede ambíguo
+  // (o backend pode ter enviado e persistido mesmo sem a resposta chegar)
+  // faria o reenvio burlar a idempotência do servidor e mandar a mesma
+  // mensagem duas vezes ao paciente. Só vira null (novo ID na próxima
+  // tentativa) depois de um envio confirmado ou quando o atendente edita o
+  // texto — nesse caso é, de fato, um conteúdo novo.
+  const draftClientMessageIdRef = useRef<string | null>(null);
   useEffect(() => {
     currentSelectedIdRef.current = selectedId;
   }, [selectedId]);
@@ -144,13 +160,19 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
       setLockOwnership('checking');
       setMessageText('');
       setSendError(null);
+      draftClientMessageIdRef.current = null;
     }
 
     let cancelled = false;
     fetchSupportConversationDetail(selectedId)
       .then((res) => {
         if (cancelled || !res.success) return;
-        setDetail({ conversation: res.conversation, messages: res.messages, windowStatus: res.windowStatus });
+        setDetail({
+          conversation: res.conversation,
+          messages: res.messages,
+          windowStatus: res.windowStatus,
+          agentSendEnabled: res.agentSendEnabled,
+        });
         return fetchAdminAtendimento(res.conversation.appointment_id);
       })
       .then((res) => {
@@ -216,28 +238,58 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  // Renovação periódica do lock (heartbeat) enquanto esta conversa está
+  // owned — sem isso, o lease padrão de 2 minutos expiraria silenciosamente
+  // no meio de um atendimento mais longo: o composer continuaria mostrando
+  // "owned" mas todo envio seria rejeitado como lock_expired. Qualquer falha
+  // de heartbeat tira o estado local de 'owned' (nunca finge posse que pode
+  // já ter sido perdida) e expõe o botão "Reivindicar".
+  useEffect(() => {
+    if (!selectedId || lockOwnership !== 'owned') return;
+    const id = selectedId;
+    const interval = setInterval(() => {
+      heartbeatSupportConversation(id).catch(() => {
+        if (currentSelectedIdRef.current !== id) return;
+        if (ownedConversationIdRef.current === id) ownedConversationIdRef.current = null;
+        setLockOwnership('other');
+      });
+    }, HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [selectedId, lockOwnership]);
+
+  function handleMessageTextChange(value: string) {
+    setMessageText(value);
+    draftClientMessageIdRef.current = null;
+  }
+
   async function handleSendMessage() {
     const text = messageText.trim();
     if (!text || !selectedId || sending) return;
 
     setSending(true);
     setSendError(null);
-    const clientMessageId =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `client-${Date.now()}-${Math.random()}`;
+    if (!draftClientMessageIdRef.current) {
+      draftClientMessageIdRef.current =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `client-${Date.now()}-${Math.random()}`;
+    }
+    const clientMessageId = draftClientMessageIdRef.current;
 
     try {
       const res = await sendSupportChatMessage(selectedId, text, clientMessageId);
+      draftClientMessageIdRef.current = null;
       setMessageText('');
       setDetail((prev) => {
         if (!prev || prev.conversation.id !== selectedId) return prev;
         const alreadyPresent = prev.messages.some((m) => m.id === res.message.id);
         return {
+          ...prev,
           conversation: res.conversation,
           messages: alreadyPresent ? prev.messages : [...prev.messages, res.message],
-          windowStatus: prev.windowStatus,
         };
       });
     } catch (error) {
+      // Mantém draftClientMessageIdRef intacto — o próximo clique em
+      // "Tentar novamente" reusa o MESMO client_message_id de propósito.
       setSendError(sendErrorMessage(error));
     } finally {
       setSending(false);
@@ -520,22 +572,25 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
       {(() => {
         const isClosed = detail?.conversation.status === 'closed';
         const windowOpen = detail?.windowStatus?.withinWindow ?? false;
-        const canType = Boolean(detail) && lockOwnership === 'owned' && !isClosed && windowOpen && !sending;
+        const sendEnabled = detail?.agentSendEnabled ?? false;
+        const canType = Boolean(detail) && sendEnabled && lockOwnership === 'owned' && !isClosed && windowOpen && !sending;
         const placeholder = !detail
           ? 'Selecione uma conversa'
-          : isClosed
-            ? 'Atendimento encerrado'
-            : lockOwnership === 'checking'
-              ? 'Verificando disponibilidade...'
-              : lockOwnership === 'other'
-                ? 'Conversa sendo atendida por outro atendente'
-                : lockOwnership === 'released'
-                  ? 'Você liberou esta conversa — reivindique para responder'
-                  : !windowOpen
-                    ? 'Janela de 24h encerrada — texto livre bloqueado'
-                    : sending
-                      ? 'Enviando...'
-                      : 'Digite sua mensagem...';
+          : !sendEnabled
+            ? 'Envio ainda não habilitado nesta etapa'
+            : isClosed
+              ? 'Atendimento encerrado'
+              : lockOwnership === 'checking'
+                ? 'Verificando disponibilidade...'
+                : lockOwnership === 'other'
+                  ? 'Conversa sendo atendida por outro atendente'
+                  : lockOwnership === 'released'
+                    ? 'Você liberou esta conversa — reivindique para responder'
+                    : !windowOpen
+                      ? 'Janela de 24h encerrada — texto livre bloqueado'
+                      : sending
+                        ? 'Enviando...'
+                        : 'Digite sua mensagem...';
         return (
           <div className="flex shrink-0 flex-col gap-1 border-t border-[#EDF2F7] bg-white px-2.5 py-2">
             {sendError && (
@@ -564,7 +619,7 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
               <input
                 type="text"
                 value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
+                onChange={(e) => handleMessageTextChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();

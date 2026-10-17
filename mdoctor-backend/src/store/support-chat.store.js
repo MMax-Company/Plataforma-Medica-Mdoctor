@@ -415,6 +415,89 @@ async function recordMessage({
   }
 }
 
+// Reserva atômica de client_message_id ANTES de chamar o provider externo
+// (ver sendHumanMessage no service): o índice único de
+// (conversation_id, client_message_id) vira um lock de concorrência real —
+// de duas chamadas simultâneas com o MESMO client_message_id novo, só uma
+// consegue inserir; a outra recebe 23505, relê a linha vencedora e nunca
+// chega a chamar a Meta. Sem isso, as duas passariam pelo
+// findMessageByClientId (nenhuma ainda inserida) e enviariam a mesma
+// mensagem duas vezes ao paciente antes do unique constraint entrar em jogo.
+async function reserveOutboundMessage({ conversationId, body, sender, clientMessageId }) {
+  if (!conversationId || !clientMessageId) {
+    const error = new Error('conversationId e clientMessageId são obrigatórios');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  try {
+    const message = await dbQuery('reservar support_chat_message outbound', async (supabase) =>
+      supabase
+        .from(T.SUPPORT_CHAT_MESSAGES)
+        .insert({
+          conversation_id: conversationId,
+          direction: MESSAGE_DIRECTION.OUTBOUND,
+          body,
+          sender,
+          provider_message_id: null,
+          client_message_id: clientMessageId,
+          media: null,
+          metadata: {}
+        })
+        .select('*')
+        .single()
+    );
+    return { duplicate: false, message };
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const existing = await findMessageByClientId({ conversationId, clientMessageId });
+      if (existing) return { duplicate: true, message: existing };
+    }
+    throw error;
+  }
+}
+
+// Confirma a reserva depois que o provider aceitou o envio: só agora grava
+// provider_message_id, atualiza last_message_at/status (touchAfterMessage) e
+// registra o evento MESSAGE_SENT — nenhum desses efeitos acontece no momento
+// da reserva, exatamente para não marcar "enviado" antes de ter certeza.
+async function finalizeOutboundMessage({ messageId, conversationId, providerMessageId }) {
+  const message = await dbQuery('confirmar support_chat_message outbound', async (supabase) =>
+    supabase
+      .from(T.SUPPORT_CHAT_MESSAGES)
+      .update({ provider_message_id: providerMessageId })
+      .eq('id', messageId)
+      .select('*')
+      .single()
+  );
+  await touchAfterMessage(conversationId, { whenIso: message.created_at, direction: MESSAGE_DIRECTION.OUTBOUND });
+  await recordEventSafe({
+    conversationId,
+    eventType: CONVERSATION_EVENT_TYPES.MESSAGE_SENT,
+    actor: message.sender,
+    payload: {
+      direction: MESSAGE_DIRECTION.OUTBOUND,
+      message_id: message.id,
+      provider_message_id: providerMessageId,
+      client_message_id: message.client_message_id
+    }
+  });
+  return message;
+}
+
+// Remove a reserva quando o provider falha de verdade: como a mensagem NUNCA
+// chegou ao paciente, a linha não representa histórico real — mantê-la
+// pareceria, para o atendente, com um envio bem-sucedido (sem
+// provider_message_id o item some no card de distinção visual). O evento
+// MESSAGE_FAILED (gravado por quem chama) continua sendo o registro de
+// auditoria da tentativa.
+async function deleteReservedMessage(messageId) {
+  if (!messageId) return;
+  await dbQuery('remover reserva support_chat_message não confirmada', async (supabase) =>
+    supabase.from(T.SUPPORT_CHAT_MESSAGES).delete().eq('id', messageId)
+  );
+}
+
 // Janela de mensagem livre da Meta (24h desde a última mensagem do
 // PACIENTE). Pura função de leitura — não envia nada, não bloqueia nada por
 // si só; quem um dia implementar o envio humano real (fora desta etapa)
@@ -491,6 +574,9 @@ module.exports = {
   findMessageByProviderId,
   findMessageByClientId,
   recordMessage,
+  reserveOutboundMessage,
+  finalizeOutboundMessage,
+  deleteReservedMessage,
   listMessages,
   recordEvent,
   recordEventSafe,
