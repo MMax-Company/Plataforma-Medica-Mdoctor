@@ -1000,9 +1000,19 @@ substitui a verificação do código, banco, Git e ambiente atual.
   permanente**: a validação deste helper nunca roda um script real contra
   infraestrutura real, só mocka a função pura.
 
-Pendente (ETAPA 5+, só após revisão do usuário): frontend de leitura, e só
-depois resposta humana real + a decisão explícita de onde ligar a captura
-de inbound no fluxo real em produção.
+**Estado atual do Chat Administrativo de Suporte (17/10/2026):** frontend
+de leitura e atendimento humano já implementados e homologados em staging.
+O painel possui fila, histórico, claim/lock com heartbeat, release/close,
+status da conversa, janela de 24h, composer, retry e idempotência. O backend
+possui rotas administrativas, captura inbound integrada ao ramo de suporte e
+envio humano via `metaProvider.sendTextMessage()`, protegido por
+`SUPPORT_CHAT_AGENT_SEND_ENABLED`. A ETAPA 2 foi concluída e implantada em
+staging no commit `46fab711bba2b79a3e0ea6d040fe2a5a7dee5e0b`; ETAPAS 3 e
+4 não identificaram bloqueador de código. A promoção para produção está na
+ETAPA 6, via PR #84, ainda sem deploy de produção. O primeiro envio humano real
+continua proibido até autorização explícita e deve permanecer com
+`SUPPORT_CHAT_AGENT_SEND_ENABLED=false` durante a preparação/validação inicial
+de produção.
 
 **Limpeza dos dois incidentes em `usihurogvphtjedyhyfl` — RESOLVIDA
 (13/10/2026):** o usuário executou os dois `DELETE`s (por ID exato, só
