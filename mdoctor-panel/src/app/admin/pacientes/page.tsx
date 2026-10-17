@@ -27,7 +27,8 @@ function statusLabel(s: string) {
   if (['waiting', 'queue', 'fila', 'triaged'].includes(v)) return 'Aguardando';
   if (v === 'awaiting_prescription_upload') return 'Aguardando receita';
   if (['em_atendimento', 'under_review', 'approved'].includes(v)) return 'Em atendimento';
-  if (['receita_emitida', 'memed_processing', 'awaiting_validation', 'receita_em_edicao'].includes(v)) return 'Receita emitida';
+  if (v === 'receita_em_edicao') return 'Receita em edição';
+  if (['receita_emitida', 'memed_processing', 'awaiting_validation'].includes(v)) return 'Receita emitida';
   if (['ready', 'validated', 'aprovado'].includes(v)) return 'Receita pronta';
   if (['delivered', 'finished'].includes(v)) return 'Entregue';
   if (['rejected', 'recusado', 'cancelado'].includes(v)) return 'Recusado';
