@@ -34,6 +34,25 @@ stub(resolveFrom('../config/supabase'), {
   getSupabase: () => fakeDb
 });
 
+const servicePath = path.join(__dirname, '..', 'src', 'services', 'support-chat.service.js');
+const resolveFromService = (p) => path.join(path.dirname(servicePath), p);
+
+// Envio humano (rota POST /conversations/:id/messages): stubs mínimos para a
+// rota conseguir ser exercitada via HTTP sem rede real — mesma garantia de
+// test-support-chat-send.js, aqui só para o teste de wiring HTTP (flag
+// 503 por padrão + caminho feliz ponta a ponta pela rota).
+const atendimentosFixture = { 'appt-authz-send': { id: 'appt-authz-send', paciente_telefone: '5511999990099' } };
+stub(resolveFromService('../store/atendimentos.store'), {
+  getAtendimento: async (id) => atendimentosFixture[id] || null
+});
+const metaProviderCalls = [];
+stub(resolveFromService('./providers/meta.provider'), {
+  sendTextMessage: async ({ to, text }) => {
+    metaProviderCalls.push({ to, text });
+    return { provider: 'meta', providerMessageId: `wamid-authz-${metaProviderCalls.length}`, providerStatus: 'sent', raw: {} };
+  }
+});
+
 const supportChatRoutes = require('../src/routes/support-chat.routes');
 const store = require(storePath);
 
@@ -41,8 +60,9 @@ function token(role, sub = 'user-1') {
   return jwt.sign({ sub, role }, process.env.JWT_SECRET);
 }
 
-function setFlags({ ui = false } = {}) {
+function setFlags({ ui = false, agentSend = false } = {}) {
   process.env.SUPPORT_CHAT_UI_ENABLED = ui ? 'true' : 'false';
+  process.env.SUPPORT_CHAT_AGENT_SEND_ENABLED = agentSend ? 'true' : 'false';
 }
 
 async function request(server, method, urlPath, { authToken, body } = {}) {
@@ -152,6 +172,44 @@ async function main() {
       const res = await request(server, 'GET', `/api/admin/support/conversations/${conversation.id}`, { authToken: token('admin', 'admin-A') });
       assert.equal(res.status, 503);
       results.desligarFlagsVoltaEscondeORecursoParaMesmoAdmin = 'ok';
+    }
+
+    // 8) Envio humano com SUPPORT_CHAT_AGENT_SEND_ENABLED desligada (padrão
+    //    de fábrica, mesmo com SUPPORT_CHAT_UI_ENABLED ligada) -> 503
+    //    explícito, nunca chega a validar lock/janela nem chama o provider.
+    {
+      setFlags({ ui: true, agentSend: false });
+      const before = metaProviderCalls.length;
+      const res = await request(server, 'POST', `/api/admin/support/conversations/${conversation.id}/messages`, {
+        authToken: token('admin', 'admin-A'),
+        body: { text: 'oi', clientMessageId: 'authz-send-flag-off' }
+      });
+      assert.equal(res.status, 503);
+      assert.equal(res.body.code, 'SUPPORT_CHAT_AGENT_SEND_DISABLED');
+      assert.equal(metaProviderCalls.length, before);
+      results.envioHumanoComFlagDesligadaRetorna503SemChamarProvider = 'ok';
+    }
+
+    // 9) Caminho feliz ponta a ponta pela rota HTTP: com as duas flags
+    //    ligadas, lock do próprio ator e dentro da janela de 24h, o envio é
+    //    aceito e a mensagem persistida reflete na resposta HTTP.
+    {
+      setFlags({ ui: true, agentSend: true });
+      const seed = await store.ensureConversationForAppointment({ appointmentId: 'appt-authz-send', patientId: 'pat-authz-send' });
+      await store.claimConversation({ conversationId: seed.conversation.id, actorId: 'admin-A' });
+      await store.recordMessage({ conversationId: seed.conversation.id, direction: 'inbound', body: 'oi', sender: 'patient' });
+
+      const before = metaProviderCalls.length;
+      const res = await request(server, 'POST', `/api/admin/support/conversations/${seed.conversation.id}/messages`, {
+        authToken: token('admin', 'admin-A'),
+        body: { text: 'Olá! Recebemos sua mensagem.', clientMessageId: 'authz-send-ok-1' }
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.success, true);
+      assert.equal(res.body.duplicate, false);
+      assert.equal(res.body.message.direction, 'outbound');
+      assert.equal(metaProviderCalls.length, before + 1);
+      results.envioHumanoComFlagsLigadasLockEJanelaOkFuncionaPontaAPontaViaHttp = 'ok';
     }
 
     console.log(JSON.stringify(results, null, 2));

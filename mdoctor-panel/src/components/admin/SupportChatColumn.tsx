@@ -4,13 +4,39 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, MessageCircle, Paperclip, Send, Users } from 'lucide-react';
 import {
+  claimSupportConversation,
+  closeSupportConversation,
   fetchAdminAtendimento,
   fetchSupportConversationDetail,
+  releaseSupportConversation,
+  sendSupportChatMessage,
   type AdminAtendimento,
   type SupportChatMessage,
   type SupportConversation,
+  type SupportMessagingWindowStatus,
 } from '@/services/admin.service';
+import { ApiError } from '@/services/api';
 import { avatarInitials } from '@/lib/patient-display';
+
+type LockOwnership = 'checking' | 'owned' | 'other' | 'released' | null;
+
+const STATUS_BADGES: Record<SupportConversation['status'], { label: string; className: string }> = {
+  open: { label: 'Aberta', className: 'bg-[#EEF2FF] text-[#3730A3]' },
+  awaiting_agent: { label: 'Aguardando atendimento', className: 'bg-[#FEF2F2] text-[#B91C2B]' },
+  awaiting_patient: { label: 'Aguardando paciente', className: 'bg-[#EAF8EF] text-[#0B7F3C]' },
+  closed: { label: 'Encerrada', className: 'bg-[#F1F5F9] text-[#5B6475]' },
+};
+
+function sendErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 503) return 'Envio ainda não habilitado nesta etapa.';
+    if (error.status === 404) return 'Conversa não encontrada.';
+    if (error.status === 422) return 'Paciente sem telefone cadastrado para envio.';
+    if (error.status === 502) return 'Falha ao enviar pelo WhatsApp. Tente novamente.';
+    if (error.status === 409) return 'Não foi possível enviar agora (posse ou janela de 24h). Reabra a conversa e tente de novo.';
+  }
+  return 'Falha ao enviar a mensagem.';
+}
 
 const MAX_BADGES = 5;
 
@@ -47,22 +73,34 @@ interface SupportChatColumnProps {
 // Coluna 3 do Painel Administrativo — "SUPORTE ADMINISTRATIVO". Cabeçalho e
 // corpo próprios, NÃO reaproveitam o comportamento de MedicalSupportBand
 // (que abre WhatsApp externo via wa.me) — esse componente permanece
-// intocado. Consome só as 2 rotas já validadas em staging:
-// GET /api/admin/support/conversations (via props, polling já é feito pela
-// página) e GET /api/admin/support/conversations/:id (aqui, sob demanda, ao
-// selecionar uma conversa). Campo de envio aparece, mas fica sempre
-// desabilitado nesta etapa — não existe rota de envio no backend ainda
-// (SUPPORT_CHAT_AGENT_SEND_ENABLED continua desligado).
+// intocado. Consome GET /api/admin/support/conversations (via props,
+// polling já é feito pela página), GET /api/admin/support/conversations/:id
+// (aqui, sob demanda, ao selecionar uma conversa), claim/release (posse do
+// lock antes de habilitar o composer) e POST .../messages (envio humano
+// real). Toda validação de posse/janela de 24h/flag é feita no servidor —
+// este componente só reflete o resultado (sucesso/erro) no composer, nunca
+// decide localmente se o envio é permitido.
 export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnProps>) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<{ conversation: SupportConversation; messages: SupportChatMessage[] } | null>(
-    null,
-  );
+  const [detail, setDetail] = useState<{
+    conversation: SupportConversation;
+    messages: SupportChatMessage[];
+    windowStatus: SupportMessagingWindowStatus | null;
+  } | null>(null);
   const [patientInfo, setPatientInfo] = useState<AdminAtendimento | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [isQueueMenuOpen, setQueueMenuOpen] = useState(false);
   const queueMenuRef = useRef<HTMLDivElement>(null);
+  const [lockOwnership, setLockOwnership] = useState<LockOwnership>(null);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const ownedConversationIdRef = useRef<string | null>(null);
+  const currentSelectedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    currentSelectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   // Seleciona automaticamente a primeira conversa da fila quando nada está
   // selecionado ainda, ou quando a conversa selecionada saiu da fila (ex.:
@@ -103,13 +141,16 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
       setDetail(null);
       setPatientInfo(null);
       setLoadingDetail(true);
+      setLockOwnership('checking');
+      setMessageText('');
+      setSendError(null);
     }
 
     let cancelled = false;
     fetchSupportConversationDetail(selectedId)
       .then((res) => {
         if (cancelled || !res.success) return;
-        setDetail({ conversation: res.conversation, messages: res.messages });
+        setDetail({ conversation: res.conversation, messages: res.messages, windowStatus: res.windowStatus });
         return fetchAdminAtendimento(res.conversation.appointment_id);
       })
       .then((res) => {
@@ -129,6 +170,140 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
       cancelled = true;
     };
   }, [selectedId, conversations]);
+
+  // Posse (claim) do lock antes de permitir envio — nunca deduzida no
+  // cliente: toda tentativa de claim/release passa pelo servidor
+  // (validateClaim no store). Reivindica só na troca de conversa
+  // selecionada (não a cada atualização de polling), e libera a conversa
+  // anterior se este agente era o dono antes de trocar/desmontar — nunca
+  // libera lock de outro agente.
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    const claimedId = selectedId;
+
+    claimSupportConversation(claimedId)
+      .then((res) => {
+        if (!res.success) return;
+        if (cancelled) {
+          // Seleção já mudou antes do claim responder — este efeito não vai
+          // rodar seu próprio cleanup de novo, então libera aqui mesmo para
+          // nunca deixar um lock preso até o lease (2 min) expirar sozinho.
+          releaseSupportConversation(claimedId).catch(() => {});
+          return;
+        }
+        ownedConversationIdRef.current = claimedId;
+        setLockOwnership('owned');
+        setDetail((prev) => (prev && prev.conversation.id === claimedId ? { ...prev, conversation: res.conversation } : prev));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLockOwnership('other');
+        if (error instanceof ApiError && error.status !== 409) {
+          setSendError('Não foi possível verificar a posse desta conversa.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (ownedConversationIdRef.current === claimedId) {
+        ownedConversationIdRef.current = null;
+        releaseSupportConversation(claimedId).catch(() => {
+          // best-effort — o lock expira sozinho (lease) mesmo se a liberação falhar
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  async function handleSendMessage() {
+    const text = messageText.trim();
+    if (!text || !selectedId || sending) return;
+
+    setSending(true);
+    setSendError(null);
+    const clientMessageId =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `client-${Date.now()}-${Math.random()}`;
+
+    try {
+      const res = await sendSupportChatMessage(selectedId, text, clientMessageId);
+      setMessageText('');
+      setDetail((prev) => {
+        if (!prev || prev.conversation.id !== selectedId) return prev;
+        const alreadyPresent = prev.messages.some((m) => m.id === res.message.id);
+        return {
+          conversation: res.conversation,
+          messages: alreadyPresent ? prev.messages : [...prev.messages, res.message],
+          windowStatus: prev.windowStatus,
+        };
+      });
+    } catch (error) {
+      setSendError(sendErrorMessage(error));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // Reivindicação manual (botão "Reivindicar"): usada quando este agente
+  // liberou a conversa de propósito ou quando ela ficou livre depois de
+  // outro agente ter liberado/perdido o lock. Compara currentSelectedIdRef
+  // após o await (não a variável `selectedId` do closure) para nunca deixar
+  // um lock preso numa conversa que o atendente já trocou enquanto o claim
+  // ainda estava em voo.
+  async function handleReclaim() {
+    if (!selectedId) return;
+    const id = selectedId;
+    setLockOwnership('checking');
+    setSendError(null);
+    try {
+      const res = await claimSupportConversation(id);
+      if (!res.success) return;
+      if (currentSelectedIdRef.current !== id) {
+        releaseSupportConversation(id).catch(() => {});
+        return;
+      }
+      ownedConversationIdRef.current = id;
+      setLockOwnership('owned');
+      setDetail((prev) => (prev && prev.conversation.id === id ? { ...prev, conversation: res.conversation } : prev));
+    } catch {
+      setLockOwnership('other');
+    }
+  }
+
+  // Liberação manual (botão "Liberar"): deixa a conversa livre para outro
+  // atendente de propósito, sem esperar o agente trocar de conversa/sair da
+  // página. Nunca reivindica de novo sozinho — só o clique em "Reivindicar"
+  // (ou abrir outra conversa e voltar) retoma a posse.
+  async function handleRelease() {
+    if (!selectedId || lockOwnership !== 'owned') return;
+    const id = selectedId;
+    try {
+      const res = await releaseSupportConversation(id);
+      if (ownedConversationIdRef.current === id) ownedConversationIdRef.current = null;
+      setLockOwnership('released');
+      setDetail((prev) => (prev && prev.conversation.id === id ? { ...prev, conversation: res.conversation } : prev));
+    } catch {
+      setSendError('Não foi possível liberar a conversa agora.');
+    }
+  }
+
+  // Encerramento (botão "Encerrar atendimento"): exige a mesma posse que o
+  // envio (closeConversation valida locked_by no servidor). Depois de
+  // encerrada, a conversa sai da fila ativa (listQueue exclui status
+  // closed) — o próximo polling da página já reflete isso sozinho.
+  async function handleClose() {
+    if (!selectedId || lockOwnership !== 'owned') return;
+    if (typeof window !== 'undefined' && !window.confirm('Encerrar este atendimento administrativo?')) return;
+    const id = selectedId;
+    try {
+      const res = await closeSupportConversation(id);
+      ownedConversationIdRef.current = null;
+      setLockOwnership(null);
+      setDetail((prev) => (prev && prev.conversation.id === id ? { ...prev, conversation: res.conversation } : prev));
+    } catch {
+      setSendError('Não foi possível encerrar o atendimento agora.');
+    }
+  }
 
   // Fecha o menu "ver todas as conversas" ao clicar fora dele.
   useEffect(() => {
@@ -266,6 +441,49 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
             </button>
           </div>
 
+          {/* Estado da conversa (aberta/aguardando atendimento/aguardando
+              paciente/encerrada) + ações de posse — distinção exigida
+              explicitamente para a ETAPA 2 ser funcional, não só leitura. */}
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[#EDF2F7] px-3 py-1.5">
+            <span
+              className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${STATUS_BADGES[detail.conversation.status].className}`}
+            >
+              {STATUS_BADGES[detail.conversation.status].label}
+            </span>
+            {detail.conversation.status !== 'closed' && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                {lockOwnership === 'owned' ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleRelease}
+                      className="rounded-[7px] border border-[#CBD5E1] px-2 py-1 text-[10px] font-bold text-[#5B6475] hover:bg-[#F8FAFC]"
+                    >
+                      Liberar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClose}
+                      className="rounded-[7px] border border-[#DC2A3B] px-2 py-1 text-[10px] font-bold text-[#DC2A3B] hover:bg-[#FEF2F2]"
+                    >
+                      Encerrar atendimento
+                    </button>
+                  </>
+                ) : (
+                  (lockOwnership === 'other' || lockOwnership === 'released') && (
+                    <button
+                      type="button"
+                      onClick={handleReclaim}
+                      className="rounded-[7px] border border-[#0B7F3C] px-2 py-1 text-[10px] font-bold text-[#0B7F3C] hover:bg-[#EAF8EF]"
+                    >
+                      Reivindicar
+                    </button>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="admin-dashboard-chat-card__history min-h-0 flex-1 overflow-y-auto px-3 py-2">
             {detail.messages.length === 0 ? (
               <p className="p-2 text-center text-[10.5px] text-[#94A3B8]">Nenhuma mensagem ainda.</p>
@@ -292,33 +510,85 @@ export function SupportChatColumn({ conversations }: Readonly<SupportChatColumnP
         </>
       )}
 
-      {/* Rodapé — visível, porém desabilitado: não existe rota de envio real
-          no backend nesta etapa (sem envio real, por decisão explícita). */}
-      <div className="flex shrink-0 items-center gap-1.5 border-t border-[#EDF2F7] bg-white px-2.5 py-2">
-        <button
-          type="button"
-          disabled
-          title="Envio desabilitado nesta etapa"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#94A3B8] disabled:cursor-not-allowed"
-        >
-          <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <input
-          type="text"
-          disabled
-          placeholder="Envio desabilitado nesta etapa"
-          title="Envio desabilitado nesta etapa"
-          className="h-8 min-w-0 flex-1 rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[11px] text-[#5B6475] placeholder:text-[#94A3B8] disabled:cursor-not-allowed"
-        />
-        <button
-          type="button"
-          disabled
-          title="Envio desabilitado nesta etapa"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#CBD5E1] text-white disabled:cursor-not-allowed"
-        >
-          <Send className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      </div>
+      {/* Rodapé — composer real. Habilitado só quando há conversa selecionada,
+          este agente é o dono atual do lock (claim já confirmado pelo
+          servidor), a conversa não está encerrada e a janela de 24h da Meta
+          ainda está aberta; anexo (paperclip) permanece fora de escopo desta
+          etapa. Erro de envio fica visível e o texto digitado é preservado —
+          reenviar é só clicar em "Enviar" de novo (novo client_message_id,
+          nunca duplica a tentativa anterior que falhou). */}
+      {(() => {
+        const isClosed = detail?.conversation.status === 'closed';
+        const windowOpen = detail?.windowStatus?.withinWindow ?? false;
+        const canType = Boolean(detail) && lockOwnership === 'owned' && !isClosed && windowOpen && !sending;
+        const placeholder = !detail
+          ? 'Selecione uma conversa'
+          : isClosed
+            ? 'Atendimento encerrado'
+            : lockOwnership === 'checking'
+              ? 'Verificando disponibilidade...'
+              : lockOwnership === 'other'
+                ? 'Conversa sendo atendida por outro atendente'
+                : lockOwnership === 'released'
+                  ? 'Você liberou esta conversa — reivindique para responder'
+                  : !windowOpen
+                    ? 'Janela de 24h encerrada — texto livre bloqueado'
+                    : sending
+                      ? 'Enviando...'
+                      : 'Digite sua mensagem...';
+        return (
+          <div className="flex shrink-0 flex-col gap-1 border-t border-[#EDF2F7] bg-white px-2.5 py-2">
+            {sendError && (
+              <div className="flex items-center justify-between gap-2 px-1">
+                <p className="text-[9.5px] font-semibold text-[#DC2A3B]">{sendError}</p>
+                {canType && messageText.trim() && (
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    className="shrink-0 text-[9.5px] font-black text-[#0B7F3C] underline"
+                  >
+                    Tentar novamente
+                  </button>
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled
+                title="Anexo não disponível nesta etapa"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#94A3B8] disabled:cursor-not-allowed"
+              >
+                <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+              <input
+                type="text"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                disabled={!canType}
+                placeholder={placeholder}
+                title={placeholder}
+                className="h-8 min-w-0 flex-1 rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 text-[11px] text-[#1A2333] placeholder:text-[#94A3B8] disabled:cursor-not-allowed disabled:text-[#5B6475]"
+              />
+              <button
+                type="button"
+                disabled={!canType || !messageText.trim()}
+                onClick={handleSendMessage}
+                title={canType ? 'Enviar' : placeholder}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0B7F3C] text-white disabled:cursor-not-allowed disabled:bg-[#CBD5E1]"
+              >
+                <Send className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </section>
   );
 }
