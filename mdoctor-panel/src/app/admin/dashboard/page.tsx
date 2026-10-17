@@ -607,6 +607,15 @@ export default function AdminDashboardPage() {
                     <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
                   </div>
                 </div>
+                {Boolean(data.financeiro.atendimentos_sem_valor_registrado) && (
+                  <p className="admin-dashboard__time-heading-note" style={{ marginTop: '4px' }}>
+                    ⚠️ {data.financeiro.atendimentos_sem_valor_registrado} atendimento
+                    {data.financeiro.atendimentos_sem_valor_registrado === 1 ? '' : 's'} pago
+                    {data.financeiro.atendimentos_sem_valor_registrado === 1 ? '' : 's'} sem valor histórico
+                    registrado — fora da receita confirmada acima (ver auditoria em payments/Stripe antes de
+                    qualquer backfill)
+                  </p>
+                )}
               </div>
 
               <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-5">

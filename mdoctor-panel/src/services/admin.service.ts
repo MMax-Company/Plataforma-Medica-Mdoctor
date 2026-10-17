@@ -89,6 +89,7 @@ export type AdminDashboard = {
   };
   financeiro: {
     atendimentos_pagos: number;
+    atendimentos_sem_valor_registrado: number;
     valor_unitario_centavos: number;
     valor_unitario_label: string;
     receita_total_centavos: number;

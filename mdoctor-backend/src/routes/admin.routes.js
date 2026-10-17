@@ -116,9 +116,17 @@ function isAdministrativePending(atendimento) {
   );
 }
 
-// Indicador financeiro: usa o valor registrado no atendimento pelo webhook.
-// O fallback para o preço vigente cobre registros sem snapshot de valor, mas
-// cobranças históricas preservam o preço efetivamente pago quando disponível.
+// Indicador financeiro: usa exclusivamente o valor registrado no atendimento
+// pelo webhook (snapshot real da cobrança). Auditoria de 17/10 encontrou 2
+// atendimentos reais (não-teste) com payment_status CONFIRMADO sem esse
+// snapshot — e o valor real deles na tabela `payments` (R$ 69,90, achado por
+// telefone+horário) diverge do preço vigente (R$ 49,90): o preço já mudou no
+// histórico, então assumir o valor atual como se fosse o valor pago teria
+// subestimado/distorcido a receita sem evidência. Por isso NÃO HÁ fallback
+// para PAYMENT_AMOUNT_CENTS aqui — um atendimento pago sem snapshot entra na
+// contagem de "atendimentos pagos" mas fica fora da receita somada, e é
+// contado separadamente em `atendimentos_sem_valor_registrado` para o painel
+// sinalizar a lacuna em vez de escondê-la atrás de um número inventado.
 const BRL_FORMATTER = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 function paidAmountCents(atendimento) {
@@ -128,14 +136,20 @@ function paidAmountCents(atendimento) {
     clinical.stripe_payment?.amount_cents ??
     clinical.typebot_payment?.amount_cents
   );
-  return Number.isInteger(recorded) && recorded > 0 ? recorded : PAYMENT_AMOUNT_CENTS;
+  return Number.isInteger(recorded) && recorded > 0 ? recorded : null;
 }
 
 function computeFinanceiro(atendimentos) {
   const pagos = atendimentos.filter(isPaid);
-  const receitaTotalCentavos = pagos.reduce((total, atendimento) => total + paidAmountCents(atendimento), 0);
+  const comValorRegistrado = pagos.filter((a) => paidAmountCents(a) !== null);
+  const semValorRegistrado = pagos.length - comValorRegistrado.length;
+  const receitaTotalCentavos = comValorRegistrado.reduce(
+    (total, atendimento) => total + paidAmountCents(atendimento),
+    0,
+  );
   return {
     atendimentos_pagos: pagos.length,
+    atendimentos_sem_valor_registrado: semValorRegistrado,
     valor_unitario_centavos: PAYMENT_AMOUNT_CENTS,
     valor_unitario_label: PAYMENT_AMOUNT_LABEL,
     receita_total_centavos: receitaTotalCentavos,
@@ -1021,3 +1035,4 @@ module.exports = router;
 module.exports.computeTempos = computeTempos;
 module.exports.isTestAtendimento = isTestAtendimento;
 module.exports.isAdministrativePending = isAdministrativePending;
+module.exports.computeFinanceiro = computeFinanceiro;
