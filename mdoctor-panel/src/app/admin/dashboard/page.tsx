@@ -574,38 +574,9 @@ export default function AdminDashboardPage() {
                       >
                         <span className="admin-dashboard__time-icon" aria-hidden="true">⏱️</span>
                         <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
-                        <svg
-                          className="admin-dashboard__time-label-arc"
-                          viewBox="0 0 100 100"
-                          aria-hidden="true"
-                        >
-                          <defs>
-                            <path
-                              id={`time-label-path-${key}`}
-                              d="M 5 68 Q 50 94 95 68"
-                            />
-                          </defs>
-                          <text>
-                            {/* textLength + lengthAdjust fixam o MESMO comprimento
-                                visual para os 8 rótulos, independente do número de
-                                caracteres — sem isso, "Espera Atendimento Médico"
-                                (25 caracteres) ocupava quase o dobro do arco de
-                                "Triagem Clínica" (15), deixando os círculos
-                                visualmente desalinhados/assimétricos entre si. Não
-                                abrevia nada — o texto completo continua, só
-                                compacta/expande glifos e espaçamento para caber no
-                                mesmo comprimento. */}
-                            <textPath
-                              href={`#time-label-path-${key}`}
-                              startOffset="50%"
-                              textAnchor="middle"
-                              textLength="82"
-                              lengthAdjust="spacingAndGlyphs"
-                            >
-                              {TIME_METRIC_LABELS[key]}
-                            </textPath>
-                          </text>
-                        </svg>
+                        <span className="admin-dashboard__time-label">
+                          {TIME_METRIC_LABELS[key]}
+                        </span>
                       </div>
                     );
                   })}

@@ -4553,20 +4553,21 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   white-space: nowrap;
 }
 
-.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc {
+.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
-  fill: #13233d;
-  font-size: 6.8px;
+  left: 14%;
+  right: 14%;
+  bottom: 14%;
+  width: auto;
+  color: #13233d;
+  font-size: 8px;
   font-weight: 800;
-  letter-spacing: 0.04px;
+  line-height: 1.05;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+  pointer-events: none;
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-sample {
@@ -4627,19 +4628,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     text-overflow: clip;
   }
 
-  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc {
-    transform: translateY(-2px);
-  }
-
-  /* Um só font-size para os 8 — antes havia uma exceção manual (7px) só
-     para espera_medica/suporte_administrativo, porque sem textLength no
-     <textPath> (ver page.tsx) o rótulo mais longo ("Espera Atendimento
-     Médico") não cabia no mesmo espaço dos outros. Com textLength fixo,
-     todos os 8 ocupam o mesmo comprimento de arco — a exceção por métrica
-     deixou de ser necessária. */
-  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
-    font-size: 8px;
+  .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
+    left: 12%;
+    right: 12%;
+    bottom: 13%;
+    font-size: clamp(7px, 0.62vw, 9px);
     font-weight: 900;
-    letter-spacing: 0;
+    line-height: 1.02;
   }
 }
