@@ -57,6 +57,15 @@ function isInFlow(a: AdminAtendimento) {
   return ['em_atendimento', 'under_review', 'approved', 'receita_em_edicao', 'receita_emitida', 'memed_processing', 'awaiting_validation'].includes(v);
 }
 
+function isAdministrativePending(a: AdminAtendimento) {
+  const notes = a.dados_clinicos?.observacoes_admin || [];
+  return (
+    notes.some((n) => !n.resolvido) ||
+    (a.status || '').toLowerCase() === 'awaiting_prescription_upload' ||
+    (isWaiting(a) && !isPaid(a))
+  );
+}
+
 function isReady(a: AdminAtendimento) {
   const v = (a.status || '').toLowerCase();
   return ['ready', 'validated', 'aprovado'].includes(v);
@@ -69,12 +78,7 @@ function applyFilter(items: AdminAtendimento[], filter: string): AdminAtendiment
   if (filter === 'pronto_avaliacao') return items.filter((a) => isWaiting(a) && isPaid(a));
   if (filter === 'em_atendimento') return items.filter(isInFlow);
   if (filter === 'receitas_prontas') return items.filter(isReady);
-  if (filter === 'pendencias_admin') {
-    return items.filter((a) => {
-      const notes = a.dados_clinicos?.observacoes_admin || [];
-      return notes.some((n) => !n.resolvido);
-    });
-  }
+  if (filter === 'pendencias_admin') return items.filter(isAdministrativePending);
   return items;
 }
 
