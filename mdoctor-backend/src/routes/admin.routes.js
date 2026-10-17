@@ -652,14 +652,14 @@ router.post(
         return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
       }
 
-      const typebotUrl =
-        process.env.TYPEBOT_PUBLIC_URL ||
-        'https://typebot.io/doctor-prescreve-8rmljgu';
+      const viewerUrl = String(process.env.TYPEBOT_VIEWER_URL || '').replace(/\/$/, '');
+      const publicId = String(process.env.TYPEBOT_PUBLIC_ID || '').trim();
+      const typebotUrl = viewerUrl && publicId ? `${viewerUrl}/${encodeURIComponent(publicId)}` : null;
 
       const phone = atendimento.paciente_telefone;
       let sent = false;
 
-      if (phone) {
+      if (typebotUrl && phone) {
         try {
           const text = [
             `Olá, ${atendimento.paciente_nome.split(' ')[0]}!`,
