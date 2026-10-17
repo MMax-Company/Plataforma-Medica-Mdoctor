@@ -1,6 +1,6 @@
 # Memória Compartilhada — Doctor Prescreve
 
-**Última atualização:** 22/09/2026
+**Última atualização:** 16/10/2026
 **Responsável funcional:** Dr. Max Vinicius Ferreira Matos  
 **Finalidade:** fonte canônica compartilhada entre Claude Code, Codex e futuros
 agentes. Deve ser lida antes de qualquer trabalho no projeto.
@@ -138,6 +138,12 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   chamar `notifyAdminAlert` diretamente.
 - `scripts/test-journey-markers.js` cobre os novos indicadores e o guard
   anti-contaminação (5 cenários).
+
+### Pendências visuais do Painel Administrativo — 16/10/2026
+
+- O cabeçalho **“INDICADORES DE TEMPO MÉDIO · cada indicador mostra a própria amostra de atendimentos reais”** está **cortado no lado esquerdo** na visualização atual de staging. Esta pendência permanece aberta e não deve ser considerada resolvida sem nova validação visual do usuário.
+- Os **textos internos/curvos dos círculos dos indicadores de tempo** estão **desalinhados e assimétricos** entre os cards. A correção futura deve preservar os nomes completos dos indicadores e atuar somente no alinhamento/posicionamento visual, sem alterar métricas, cálculos ou funções.
+- Esses dois itens são pendências específicas de layout e devem ser lembrados antes de qualquer nova homologação visual do Painel Administrativo.
 
 ## 7. Estado operacional registrado em 01/08/2026
 
