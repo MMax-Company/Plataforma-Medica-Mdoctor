@@ -38,6 +38,8 @@ export type AdminAtendimento = {
     entrega_receita?: { channel?: string; status?: string; sent_at?: string };
     motivo_rejeicao?: { code?: string; label?: string; detail?: string | null; rejected_at?: string } | null;
     support_sub_status?: string | null;
+    support_closed_at?: string | null;
+    support_closed_by?: string | null;
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
