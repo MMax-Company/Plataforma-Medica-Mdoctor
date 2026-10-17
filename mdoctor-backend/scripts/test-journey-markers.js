@@ -185,14 +185,12 @@ async function testComputeTemposComJornada() {
   results.computeTemposLeJornadaCorretamente = 'ok';
 
   // Etapas reconstruídas de appointment_status_history (+ stripe_paid_at).
+  // geracao_receita/receita_pronta_entrega/envio_receita_anterior foram
+  // desativados (não retornados mais por computeTempos) — pagamento_fila
+  // continua usando a mesma consulta a appointment_status_history e segue
+  // testado normalmente.
   assert.equal(tempos.pagamento_fila, '2 min', 'stripe_paid_at 10:13 -> waiting 10:15');
-  assert.equal(tempos.envio_receita_anterior, '3 min', 'awaiting_prescription_upload 10:12 -> waiting 10:15');
-  assert.equal(tempos.geracao_receita, '3 min', 'receita_em_edicao 10:21 -> receita_emitida 10:24');
-  assert.equal(tempos.receita_pronta_entrega, '11 min', 'ready 10:24:10 -> PRIMEIRO delivered 10:35 (ignora o 10:41 repetido)');
   assert.equal(tempos.amostra_por_indicador.pagamento_fila, 1);
-  assert.equal(tempos.amostra_por_indicador.envio_receita_anterior, 1);
-  assert.equal(tempos.amostra_por_indicador.geracao_receita, 1);
-  assert.equal(tempos.amostra_por_indicador.receita_pronta_entrega, 1);
   results.computeTemposEtapasStatusHistory = 'ok';
 
   assert.equal(admin.isAdministrativePending({ status: 'awaiting_prescription_upload', dados_clinicos: {} }), true);
