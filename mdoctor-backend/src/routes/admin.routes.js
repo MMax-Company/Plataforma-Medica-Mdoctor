@@ -21,6 +21,8 @@ const { createAuditLog } = require('../store/audit.store');
 const { QUEUE_TYPE_MEDICAL_SUPPORT, isSupportQueue } = require('../constants/whatsapp-queue');
 const { notifyAdminAlert } = require('../services/admin-alert.service');
 const supportChatStore = require('../store/support-chat.store');
+const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
+const { createPaymentLinkForSession } = require('../services/typebot-payment-link.service');
 
 const router = express.Router();
 
@@ -757,6 +759,53 @@ router.post(
 );
 
 // ─── OPERATIONAL: Resend payment link ────────────────────────────────────────
+// Achado da auditoria de 17/10: o botão só reenviava o link bruto salvo em
+// dados_clinicos.stripe_checkout_url, sem checar se a Checkout Session da
+// Stripe ainda estava "open" — um link expirado (Stripe expira em ~24h por
+// padrão) chegava morto pro paciente. Agora reusa a MESMA lógica já usada
+// pelo fluxo WhatsApp quando o próprio paciente pede "abrir pagamento"
+// (createPaymentLinkForSession, typebot-payment-link.service.js): reaproveita
+// a sessão se ainda estiver aberta, cria uma NOVA Checkout Session só quando a
+// anterior expirou/faltou (criar uma session não cobra nada — só o checkout
+// concluído cobra, então nunca duplica cobrança), e nunca reenvia nada quando
+// o atendimento já está pago.
+async function tryRegeneratePaymentLink(atendimento, deps = {}) {
+  const getSession = deps.getSessionByPhone || getSessionByPhone;
+  const createLink = deps.createPaymentLinkForSession || createPaymentLinkForSession;
+  const phone = atendimento?.paciente_telefone;
+  if (!phone || !process.env.STRIPE_SECRET_KEY) {
+    return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+  }
+  try {
+    const session = await getSession(phone);
+    if (!session) {
+      return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+    }
+    const result = await createLink({
+      identity: {
+        phone: session.phone,
+        bsuid: session.bsuid,
+        parentBsuid: session.parentBsuid,
+        username: session.username,
+      },
+      typebotSessionId:
+        atendimento.dados_clinicos?.typebot_session_id ||
+        session.metadata?.typebot_payment?.typebot_session_id ||
+        '',
+      existingSession: session,
+    });
+    if (result.alreadyPaid) {
+      return { regenerated: false, cannotVerify: false, link: null, alreadyPaid: true };
+    }
+    return { regenerated: true, cannotVerify: false, link: result.checkoutRedirectUrl, alreadyPaid: false };
+  } catch (error) {
+    logger.warn('admin_resend_payment_regenerate_failed', {
+      appointmentId: atendimento.id,
+      error: error?.message || String(error),
+    });
+    return { regenerated: false, cannotVerify: true, link: null, alreadyPaid: false };
+  }
+}
 
 router.post(
   '/atendimentos/:id/resend-payment',
@@ -769,13 +818,41 @@ router.post(
         return res.status(404).json({ success: false, error: 'Atendimento não encontrado' });
       }
 
+      const phone = atendimento.paciente_telefone;
+
+      // Já pago: nunca reenviar um pedido de pagamento para quem já pagou.
+      if (isPaid(atendimento)) {
+        return res.json({
+          success: true,
+          link: null,
+          sent: false,
+          alreadyPaid: true,
+          regenerated: false,
+          phone: phone || null,
+          pagamento_status: atendimento.pagamento_status,
+        });
+      }
+
+      const regen = await tryRegeneratePaymentLink(atendimento);
+      if (regen.alreadyPaid) {
+        return res.json({
+          success: true,
+          link: null,
+          sent: false,
+          alreadyPaid: true,
+          regenerated: false,
+          phone: phone || null,
+          pagamento_status: atendimento.pagamento_status,
+        });
+      }
+
       const paymentLink =
+        regen.link ||
         atendimento.dados_clinicos?.stripe_checkout_url ||
         atendimento.dados_clinicos?.payment_url ||
         atendimento.dados_clinicos?.pagamento_link ||
         null;
 
-      const phone = atendimento.paciente_telefone;
       let sent = false;
 
       if (paymentLink && phone) {
@@ -806,6 +883,9 @@ router.post(
         success: true,
         link: paymentLink,
         sent,
+        alreadyPaid: false,
+        regenerated: regen.regenerated,
+        cannotVerify: regen.cannotVerify,
         phone: phone || null,
         pagamento_status: atendimento.pagamento_status,
       });
@@ -1036,3 +1116,4 @@ module.exports.computeTempos = computeTempos;
 module.exports.isTestAtendimento = isTestAtendimento;
 module.exports.isAdministrativePending = isAdministrativePending;
 module.exports.computeFinanceiro = computeFinanceiro;
+module.exports.tryRegeneratePaymentLink = tryRegeneratePaymentLink;

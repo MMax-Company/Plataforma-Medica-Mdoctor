@@ -319,8 +319,14 @@ export default function AdminPacientePage() {
     setActionLoading('payment');
     try {
       const r = await resendPaymentLink(id);
-      if (r.sent && r.link) {
-        showToast('Link de pagamento enviado por WhatsApp.');
+      if (r.alreadyPaid) {
+        showToast('Este atendimento já está pago — nenhum link foi reenviado.');
+      } else if (r.sent && r.link) {
+        showToast(
+          r.regenerated
+            ? 'Link de pagamento (renovado) enviado por WhatsApp.'
+            : 'Link de pagamento enviado por WhatsApp.',
+        );
       } else if (r.link) {
         setCopyLabel(r.link);
         navigator.clipboard?.writeText(r.link).catch(() => undefined);

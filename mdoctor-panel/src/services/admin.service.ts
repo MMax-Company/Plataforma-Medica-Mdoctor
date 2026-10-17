@@ -169,6 +169,9 @@ export async function resendPaymentLink(id: string): Promise<{
   success: boolean;
   link: string | null;
   sent: boolean;
+  alreadyPaid?: boolean;
+  regenerated?: boolean;
+  cannotVerify?: boolean;
   phone: string | null;
   pagamento_status: string;
 }> {
