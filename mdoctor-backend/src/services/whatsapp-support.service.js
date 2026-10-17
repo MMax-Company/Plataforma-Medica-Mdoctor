@@ -60,6 +60,10 @@ const SUPPORT_SUB = {
   EM_ATENDIMENTO: 'em_atendimento',
   AWAITING_DECISION: 'awaiting_patient_decision',
   CLOSED_PATIENT: 'closed_by_patient',
+  // Encerrado pelo atendente via "Encerrar atendimento" no Chat
+  // Administrativo de Suporte (support_conversations), não pelo paciente via
+  // WhatsApp — ver closeSupportEntryByAppointmentId.
+  CLOSED_ADMIN: 'closed_by_admin',
   CONVERTED: 'converted_to_renewal',
   INACTIVE: 'closed_inactive'
 };
@@ -218,6 +222,58 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
     atendimento: updated,
     reply: SUPPORT_CLOSED_TEXT
   };
+}
+
+// Sincroniza o ticket legado de suporte (appointments/support_tickets) com o
+// encerramento feito pelo atendente no Chat Administrativo de Suporte V1
+// (support_conversations, "Encerrar atendimento"). Sem isso, a conversation
+// nova ficava fechada mas o ticket legado continuava aberto —
+// findOpenSupportByPhone()/getPatientSupportContext() ainda encontravam o
+// atendimento, então a PRÓXIMA mensagem do paciente era roteada de volta
+// para o ticket já encerrado (gravada em support_chat_messages, mas
+// touchAfterMessage nunca reabre uma conversation closed — ela ficava
+// gravada porém invisível para o administrador, achado de revisão
+// 17/10/2026). Com o ticket legado também fechado aqui, a próxima mensagem
+// do paciente cai no fluxo normal (menu/Typebot) em vez de ser capturada
+// pelo ticket antigo — e se o paciente pedir suporte de novo,
+// createWhatsAppSupportEntry() cria um atendimento/conversation NOVOS
+// (appointment_id diferente), em vez de tentar reabrir os antigos.
+//
+// Idempotente e nunca lança: se o atendimento não existir, não for de
+// suporte, ou já não estiver mais "aberto" (supportIsOpen), é um no-op —
+// nunca sobrescreve um estado mais recente (ex.: paciente já encerrou
+// sozinho, ou o ticket já expirou por inatividade) nem lança quando chamado
+// a partir de um fluxo que não pode ser interrompido por isso.
+async function closeSupportEntryByAppointmentId({ appointmentId, actorId = null }) {
+  if (!appointmentId) return { closed: false, reason: 'missing_appointment_id' };
+
+  const atendimento = await getAtendimento(appointmentId);
+  if (!atendimento) return { closed: false, reason: 'not_found' };
+  if (!isSupportQueue(atendimento)) return { closed: false, reason: 'not_support_queue' };
+  if (!supportIsOpen(atendimento)) return { closed: false, reason: 'already_closed' };
+
+  const updated = await updateAtendimentoStatus(atendimento.id, STATUS.REJECTED, {
+    motivo: 'Encerrado pelo atendente via Chat Administrativo de Suporte',
+    dados_clinicos: {
+      ...(atendimento.dados_clinicos || {}),
+      support_sub_status: SUPPORT_SUB.CLOSED_ADMIN,
+      support_closed_at: new Date().toISOString(),
+      support_closed_by: actorId || 'admin'
+    }
+  });
+
+  await createAuditLog({
+    entity_type: 'whatsapp_support',
+    entity_id: atendimento.id,
+    action: 'support_queue_closed',
+    actor: actorId || 'panel',
+    payload: {
+      source: 'support_chat_panel',
+      phone: atendimento.paciente_telefone ? normalizePhone(atendimento.paciente_telefone).replace(/\d(?=\d{4})/g, '*') : null
+    }
+  });
+
+  return { closed: true, atendimento: updated };
 }
 
 async function listWhatsAppSupportQueue() {
@@ -1075,6 +1131,7 @@ module.exports = {
   findOpenSupportByPhone,
   createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry,
+  closeSupportEntryByAppointmentId,
   listWhatsAppSupportQueue,
   supportIsOpen,
   startSupportAttendance,

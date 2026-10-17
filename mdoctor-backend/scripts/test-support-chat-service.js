@@ -35,7 +35,23 @@ stub(resolveFrom('../config/supabase'), {
   getSupabase: () => fakeDb
 });
 
+// whatsapp-support.service stubado — isola o teste de close() da
+// sincronização do ticket legado (coberta de verdade em
+// test-support-chat-inbound-integration.js, com o módulo real). Aqui só
+// confirma que close() CHAMA a sincronização com os parâmetros certos e
+// nunca deixa uma falha nela derrubar o fechamento da conversation.
+const resolveFromService = (p) => path.join(path.dirname(servicePath), p);
+let closeLegacyCalls = [];
+let closeLegacyBehavior = async (args) => {
+  closeLegacyCalls.push(args);
+  return { closed: true };
+};
+stub(resolveFromService('./whatsapp-support.service'), {
+  closeSupportEntryByAppointmentId: async (args) => closeLegacyBehavior(args)
+});
+
 const service = require(servicePath);
+const store = require(storePath);
 
 // As 3 flags são independentes entre si (pedido explícito do usuário,
 // 10/10/2026) — nenhuma delas liga/afeta o comportamento das outras duas.
@@ -152,6 +168,56 @@ async function main() {
     assert.equal(status.withinWindow, false);
     assert.equal(executeCalls, before);
     results.getMessagingWindowStatusEhPassthroughSemTocarBanco = 'ok';
+  }
+
+  // 7) close() chama a sincronização do ticket legado com o appointmentId
+  //    e o actorId certos, só quando o fechamento da conversation realmente
+  //    aconteceu (nunca numa tentativa sem posse, que closeConversation já
+  //    rejeita sozinho).
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-close-1', patientId: 'pat-close-1' });
+    await store.claimConversation({ conversationId: conversation.id, actorId: 'admin-close-1' });
+
+    closeLegacyCalls = [];
+    const result = await service.close({ conversationId: conversation.id, actorId: 'admin-close-1' });
+    assert.equal(result.closed, true);
+    assert.equal(closeLegacyCalls.length, 1);
+    assert.equal(closeLegacyCalls[0].appointmentId, 'appt-close-1');
+    assert.equal(closeLegacyCalls[0].actorId, 'admin-close-1');
+    results.closeChamaSincronizacaoDoTicketLegadoComParametrosCertos = 'ok';
+  }
+
+  // 8) Tentativa de close() sem posse (closeConversation rejeita) NUNCA
+  //    chama a sincronização do legado — nada foi de fato encerrado.
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-close-2', patientId: 'pat-close-2' });
+    await store.claimConversation({ conversationId: conversation.id, actorId: 'admin-close-dono' });
+
+    closeLegacyCalls = [];
+    const result = await service.close({ conversationId: conversation.id, actorId: 'admin-close-intruso' });
+    assert.equal(result.closed, false);
+    assert.equal(closeLegacyCalls.length, 0);
+    results.closeSemPosseNuncaChamaSincronizacaoDoLegado = 'ok';
+  }
+
+  // 9) Falha na sincronização do legado nunca desfaz nem impede o
+  //    fechamento da conversation já confirmado — só fica registrada em log.
+  {
+    const { conversation } = await store.ensureConversationForAppointment({ appointmentId: 'appt-close-3', patientId: 'pat-close-3' });
+    await store.claimConversation({ conversationId: conversation.id, actorId: 'admin-close-3' });
+
+    closeLegacyBehavior = async () => {
+      throw new Error('falha simulada ao sincronizar o ticket legado');
+    };
+    const result = await service.close({ conversationId: conversation.id, actorId: 'admin-close-3' });
+    assert.equal(result.closed, true, 'conversation deve continuar fechada mesmo com falha na sincronização do legado');
+    const afterClose = await store.getConversationById(conversation.id);
+    assert.equal(afterClose.status, 'closed');
+    results.falhaNaSincronizacaoDoLegadoNuncaDesfazOFechamentoDaConversation = 'ok';
+    closeLegacyBehavior = async (args) => {
+      closeLegacyCalls.push(args);
+      return { closed: true };
+    };
   }
 
   console.log(JSON.stringify(results, null, 2));

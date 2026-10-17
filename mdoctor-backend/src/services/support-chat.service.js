@@ -1,10 +1,16 @@
 // Chat Administrativo de Suporte V1 — ETAPA 2 (serviço).
 // Isolado do fluxo clínico: só orquestra o store novo
 // (support-chat.store.js) e nunca escreve em appointments, support_tickets,
-// support_messages ou whatsapp_messages. Única exceção, restrita a
-// sendHumanMessage: leitura (nunca escrita) de atendimentos.store.getAtendimento
-// só para resolver o telefone do paciente a partir do appointment_id já
-// gravado na conversation — necessário para endereçar o envio real via Meta.
+// support_messages ou whatsapp_messages — com duas exceções, ambas restritas
+// e nunca bloqueantes:
+//   sendHumanMessage: leitura (nunca escrita) de
+//     atendimentos.store.getAtendimento, só para resolver o telefone do
+//     paciente a partir do appointment_id já gravado na conversation.
+//   close: escrita no ticket legado via
+//     whatsapp-support.service.closeSupportEntryByAppointmentId, para
+//     sincronizar o encerramento feito aqui com findOpenSupportByPhone()/
+//     getPatientSupportContext() (ver comentário da própria função) — nunca
+//     lança, nunca impede o fechamento da conversation se falhar.
 const logger = require('../config/logger');
 const store = require('../store/support-chat.store');
 const atendimentosStore = require('../store/atendimentos.store');
@@ -83,8 +89,31 @@ async function release({ conversationId, actorId }) {
   return store.releaseConversation({ conversationId, actorId });
 }
 
+// Encerra a conversation E sincroniza o ticket legado do WhatsApp
+// (appointments/support_tickets) associado ao mesmo appointment_id — sem
+// isso, o ticket legado continuava "aberto" para
+// findOpenSupportByPhone()/getPatientSupportContext(), e a próxima mensagem
+// do paciente era roteada de volta para o atendimento já encerrado em vez de
+// cair no menu normal (achado de revisão, 17/10/2026). A sincronização do
+// legado é best-effort: se falhar (ou o store estiver indisponível), o
+// encerramento da conversation já aconteceu e NUNCA é desfeito por causa
+// disso — só fica registrado em log.
 async function close({ conversationId, actorId }) {
-  return store.closeConversation({ conversationId, actorId });
+  const result = await store.closeConversation({ conversationId, actorId });
+  if (result.closed && result.conversation?.appointment_id) {
+    try {
+      // eslint-disable-next-line global-require
+      const { closeSupportEntryByAppointmentId } = require('./whatsapp-support.service');
+      await closeSupportEntryByAppointmentId({ appointmentId: result.conversation.appointment_id, actorId });
+    } catch (error) {
+      logger.error('support_chat_legacy_ticket_close_sync_failed', {
+        conversationId,
+        appointmentId: result.conversation.appointment_id,
+        error: error?.message || String(error)
+      });
+    }
+  }
+  return result;
 }
 
 // Estado da janela de mensagem livre da Meta (24h desde a última mensagem
