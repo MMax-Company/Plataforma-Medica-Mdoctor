@@ -100,12 +100,17 @@ async function ensureConversationForAppointment({ appointmentId, patientId = nul
 }
 
 // Claim atômico: a autoridade sobre a posse é o UPDATE condicional no
-// servidor (WHERE locked_by is null OR lock_expires_at expirado), não a UI.
-// Postgres resolve a corrida a nível de linha — de duas chamadas concorrentes
-// só uma casa com o WHERE e atualiza a linha. O claim NUNCA escreve em
-// `status` — posse (locked_by/locked_at/lock_expires_at) e estado da
-// conversa (open/awaiting_agent/awaiting_patient/closed) são campos
-// independentes por desenho (ver constants/support-chat.js).
+// servidor (WHERE locked_by is null OR lock_expires_at expirado OU já é o
+// próprio ator), não a UI. Postgres resolve a corrida a nível de linha — de
+// duas chamadas concorrentes só uma casa com o WHERE e atualiza a linha.
+// A 3ª condição (locked_by = actorId) torna o claim do PRÓPRIO dono sempre
+// idempotente — renova o lease em vez de falhar com locked_by_other — para
+// um reload de página ou reconexão (beforeunload não é confiável) nunca
+// deixar o próprio atendente trancado para fora da conversation que ele
+// mesmo está respondendo. O claim NUNCA escreve em `status` — posse
+// (locked_by/locked_at/lock_expires_at) e estado da conversa
+// (open/awaiting_agent/awaiting_patient/closed) são campos independentes
+// por desenho (ver constants/support-chat.js).
 async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LOCK_LEASE_MS }) {
   if (!conversationId || !actorId) {
     const error = new Error('conversationId e actorId são obrigatórios');
@@ -138,7 +143,7 @@ async function claimConversation({ conversationId, actorId, leaseMs = DEFAULT_LO
       })
       .eq('id', conversationId)
       .neq('status', CONVERSATION_STATUS.CLOSED)
-      .or(`locked_by.is.null,lock_expires_at.lt.${nowIso}`)
+      .or(`locked_by.is.null,lock_expires_at.lt.${nowIso},locked_by.eq.${actorId}`)
       .select('*')
   );
 

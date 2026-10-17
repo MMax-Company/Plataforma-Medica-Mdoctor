@@ -49,14 +49,20 @@ stub(resolveFrom('../store/whatsapp-sessions.store'), {
   }
 });
 
-// support-chat.service stubado — controla o que recordInboundMessage faz,
-// sem tocar em store/constants reais (já cobertos nos outros testes).
+// support-chat.service stubado — controla o que recordInboundMessage e
+// ensureConversation fazem, sem tocar em store/constants reais (já cobertos
+// nos outros testes).
 let recordInboundCalls = [];
 let recordInboundBehavior = async () => ({ recorded: true, duplicate: false, conversationId: 'conv-mock' });
+let ensureConversationCalls = [];
 stub(resolveFrom('./support-chat.service'), {
   recordInboundMessage: async (args) => {
     recordInboundCalls.push(args);
     return recordInboundBehavior(args);
+  },
+  ensureConversation: async (args) => {
+    ensureConversationCalls.push(args);
+    return { recorded: true, created: true, conversationId: 'conv-mock' };
   }
 });
 
@@ -165,7 +171,9 @@ async function main() {
 
   // 5) Fora do ramo de suporte (sem ticket ativo), recordInboundMessage
   //    nunca é chamado — a integração é restrita ao ramo existente, não
-  //    captura toda mensagem do WhatsApp.
+  //    captura toda mensagem do WhatsApp. A mesma mensagem ("2", sem ticket
+  //    prévio) ABRE um novo ticket de suporte — ver cenário 6 a seguir para
+  //    a asserção de que isso chama ensureConversation.
   {
     atendimentos = [];
     sessionsByPhone.set('5511977770099', { id: 'sess-sem-suporte', typebot_session_id: null, metadata: {} });
@@ -174,6 +182,42 @@ async function main() {
     assert.equal(result.action, 'reply');
     assert.equal(recordInboundCalls.length, 0, 'fora do ramo de suporte ativo, recordInboundMessage não deve ser chamado');
     results.foraDoRamoDeSuporteNuncaChamaRecordInboundMessage = 'ok';
+  }
+
+  // 6) Abertura de um ticket de suporte NOVO (createWhatsAppSupportEntry,
+  //    disparada pelo cenário 5 acima, mensagem "2" sem ticket ativo) chama
+  //    ensureConversation com o appointmentId do ticket recém-criado — sem
+  //    isso, a conversation só nasceria na 2ª mensagem do paciente e ficaria
+  //    invisível para o administrador até lá (achado de revisão, 17/10/2026).
+  {
+    assert.equal(ensureConversationCalls.length, 1, 'abrir um ticket de suporte novo deveria chamar ensureConversation exatamente uma vez');
+    assert.equal(ensureConversationCalls[0].appointmentId, 'atd-mock');
+    results.aberturaDeTicketNovoChamaEnsureConversationComAppointmentIdCorreto = 'ok';
+  }
+
+  // 7) Falha (síncrona ou assíncrona) em ensureConversation nunca propaga —
+  //    a resposta ao paciente que está abrindo o ticket continua a mesma.
+  {
+    atendimentos = [];
+    sessionsByPhone.set('5511977770088', { id: 'sess-sem-suporte-2', typebot_session_id: null, metadata: {} });
+    const originalModule = require.cache[require.resolve(resolveFrom('./support-chat.service'))];
+    stub(resolveFrom('./support-chat.service'), {
+      recordInboundMessage: async (args) => {
+        recordInboundCalls.push(args);
+        return recordInboundBehavior(args);
+      },
+      ensureConversation: async () => {
+        throw new Error('falha simulada ao garantir a conversation na abertura do ticket');
+      }
+    });
+    try {
+      const result = await support.resolveMetaInboundRouting({ phone: '5511977770088', text: '2', messageId: 'wamid-real-006' });
+      assert.equal(result.action, 'reply');
+      assert.ok(result.reply, 'abertura do ticket deve continuar respondendo normalmente mesmo com falha em ensureConversation');
+      results.falhaEmEnsureConversationNuncaQuebraAAberturaDoTicket = 'ok';
+    } finally {
+      require.cache[require.resolve(resolveFrom('./support-chat.service'))] = originalModule;
+    }
   }
 
   console.log(JSON.stringify(results, null, 2));

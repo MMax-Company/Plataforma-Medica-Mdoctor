@@ -147,6 +147,7 @@ router.post('/conversations/:id/messages', requireUiAvailable, requireAgentSendA
         not_locked: 409,
         lock_expired: 409,
         window_expired: 409,
+        send_in_progress: 409,
         missing_patient_phone: 422
       };
       return res.status(statusByReason[result.reason] || 409).json({

@@ -321,6 +321,51 @@ async function main() {
     results.duasChamadasConcorrentesComMesmoClientMessageIdSoChamamProviderUmaVez = 'ok';
   }
 
+  // 12) Corrida com FALHA real do provider: a chamada vencedora reserva,
+  //     chama a Meta, falha, apaga a reserva. A PERDEDORA nunca pode
+  //     reportar sent:true otimisticamente — precisa esperar o desfecho real
+  //     e propagar o mesmo erro 502, nunca fingir sucesso para uma mensagem
+  //     que nunca chegou ao paciente.
+  {
+    const seedRaceFail = await store.ensureConversationForAppointment({ appointmentId: 'appt-send-race-fail', patientId: 'pat-race-fail' });
+    atendimentosFixture['appt-send-race-fail'] = { id: 'appt-send-race-fail', paciente_telefone: '5511999990003' };
+    const raceFailConversationId = seedRaceFail.conversation.id;
+    await store.claimConversation({ conversationId: raceFailConversationId, actorId: 'agente-A' });
+    await store.recordMessage({ conversationId: raceFailConversationId, direction: 'inbound', body: 'oi', sender: 'patient' });
+
+    metaProviderState.mode = 'fail';
+    const before = metaProviderState.calls.length;
+    const results2 = await Promise.allSettled([
+      service.sendHumanMessage({
+        conversationId: raceFailConversationId,
+        actorId: 'agente-A',
+        text: 'Mensagem concorrente que vai falhar',
+        clientMessageId: 'client-msg-corrida-falha-1',
+        reservationWaitMs: 500,
+        reservationPollMs: 10
+      }),
+      service.sendHumanMessage({
+        conversationId: raceFailConversationId,
+        actorId: 'agente-A',
+        text: 'Mensagem concorrente que vai falhar',
+        clientMessageId: 'client-msg-corrida-falha-1',
+        reservationWaitMs: 500,
+        reservationPollMs: 10
+      })
+    ]);
+    metaProviderState.mode = 'success';
+
+    assert.equal(metaProviderState.calls.length, before + 1, 'provider deveria ser chamado só 1 vez entre as 2 chamadas concorrentes');
+    assert.ok(results2.every((r) => r.status === 'rejected'), 'as duas chamadas (vencedora e perdedora) devem propagar erro quando o provider falha');
+    assert.ok(results2.every((r) => r.reason.statusCode === 502));
+    assert.equal(
+      fakeDb.rows('support_chat_messages').filter((m) => m.client_message_id === 'client-msg-corrida-falha-1').length,
+      0,
+      'nenhuma linha deveria sobrar para uma mensagem que nunca foi entregue'
+    );
+    results.corridaComFalhaNuncaReportaSucessoOtimistaParaAPerdedora = 'ok';
+  }
+
   console.log(JSON.stringify(results, null, 2));
 }
 

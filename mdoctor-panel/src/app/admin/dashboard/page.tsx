@@ -433,9 +433,16 @@ export default function AdminDashboardPage() {
   async function fetchSupportConversationsForPage() {
     try {
       const res = await fetchSupportConversations();
-      setSupportConversations(res.success ? res.conversations : []);
+      if (res.success) setSupportConversations(res.conversations);
+      // res.success === false (ex.: SUPPORT_CHAT_UI_ENABLED desligada) é um
+      // estado estável, não uma falha transitória — mantém a fila anterior,
+      // igual aos outros ciclos (ver comentário abaixo).
     } catch {
-      setSupportConversations([]);
+      /* mantém a fila anterior — uma falha transitória (rede, timeout) no
+         polling de 30s nunca pode zerar a seleção do atendente e, com isso,
+         liberar o lock de uma conversation que ele ainda está respondendo
+         (ver efeito de claim em SupportChatColumn). Próximo ciclo tenta de
+         novo. */
     }
   }
 

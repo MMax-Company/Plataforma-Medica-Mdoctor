@@ -1000,9 +1000,31 @@ substitui a verificação do código, banco, Git e ambiente atual.
   permanente**: a validação deste helper nunca roda um script real contra
   infraestrutura real, só mocka a função pura.
 
-Pendente (ETAPA 5+, só após revisão do usuário): frontend de leitura, e só
-depois resposta humana real + a decisão explícita de onde ligar a captura
-de inbound no fluxo real em produção.
+**Atualização (17/10/2026) — estágio real do Chat Administrativo de
+Suporte, substitui o "Pendente" acima:**
+- **Frontend**: concluído e em staging. `SupportChatColumn` (painel
+  admin) substituiu a leitura-only original — fila, histórico, claim/
+  release/reivindicar, encerrar atendimento, badge de status (aberta/
+  aguardando atendimento/aguardando paciente/encerrada), bloqueio visível
+  quando outro atendente está com o lock ou a janela de 24h fechou.
+- **Resposta humana real**: endpoint `POST /conversations/:id/messages`
+  implementado, reutiliza exclusivamente `metaProvider.sendTextMessage`,
+  idempotência atômica por `client_message_id` (reserva antes de chamar o
+  provider, corrida concorrente tratada sem duplo envio), heartbeat do
+  lock (`POST /conversations/:id/heartbeat`, renovação a cada 45s no
+  frontend). `SUPPORT_CHAT_AGENT_SEND_ENABLED` continua **false** em
+  staging — só liga para um teste controlado com autorização explícita.
+- **Captura de inbound real**: ligada e ativa em staging
+  (`SUPPORT_CHAT_CAPTURE_ENABLED=true`) via
+  `whatsapp-support.service.js` — tanto na abertura do ticket
+  (`createWhatsAppSupportEntry` → `ensureConversation`, corrigido
+  17/10/2026 para a conversation existir desde a abertura, não só na 2ª
+  mensagem) quanto em toda mensagem subsequente do paciente com ticket
+  ativo (`resolveMetaInboundRouting` → `recordInboundMessage`).
+- **Produção**: ainda não recebeu as tabelas novas nem o deploy desta
+  funcionalidade — promoção controlada (`staging` → `main`, migrations,
+  deploy manual do backend/painel) em andamento nesta mesma data, com
+  `SUPPORT_CHAT_AGENT_SEND_ENABLED=false` até validação final.
 
 **Limpeza dos dois incidentes em `usihurogvphtjedyhyfl` — RESOLVIDA
 (13/10/2026):** o usuário executou os dois `DELETE`s (por ID exato, só

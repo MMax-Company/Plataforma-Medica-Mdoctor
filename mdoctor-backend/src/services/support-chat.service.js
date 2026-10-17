@@ -96,11 +96,10 @@ function getMessagingWindowStatus(conversation) {
   return store.getMessagingWindowStatus(conversation);
 }
 
-// Ponto de integração para gravação de inbound (chamado hoje só pelos
-// testes desta etapa — a ligação com o webhook real do WhatsApp/Meta está
-// fora do escopo da ETAPA 2 por instrução explícita do usuário: nenhum
-// arquivo de webhook, provider Meta, bridge do Typebot ou fluxo clínico foi
-// alterado nesta etapa).
+// Ponto de integração para gravação de inbound — chamado pelo bridge real
+// do WhatsApp (whatsapp-support.service.js, dentro do ramo que já trata a
+// mensagem como suporte em andamento) a cada mensagem recebida de um
+// paciente com ticket de suporte aberto.
 //
 // Com SUPPORT_CHAT_CAPTURE_ENABLED desligada (padrão de fábrica), retorna
 // imediatamente sem nenhuma chamada ao banco — garante que o comportamento
@@ -146,6 +145,68 @@ async function recordInboundMessage({
   }
 }
 
+// Garante a existência da conversation assim que o ticket de suporte é
+// ABERTO (createWhatsAppSupportEntry), não só quando chega uma segunda
+// mensagem de texto do paciente. Sem isso, um paciente que acabou de entrar
+// na fila (menu "2", opção pós-entrega, conversão de rejeição, endpoint
+// direto) ficava invisível para o administrador até enviar uma mensagem
+// adicional — a própria abertura do ticket nunca passava por
+// recordInboundMessage. Mesma postura defensiva: nunca lança, nunca
+// interrompe o fluxo de WhatsApp que chamou, respeita a mesma flag de
+// captura.
+async function ensureConversation({ appointmentId, patientId = null }) {
+  if (!isCaptureAvailable()) {
+    return { recorded: false, reason: 'disabled' };
+  }
+  if (!appointmentId) {
+    return { recorded: false, reason: 'invalid_input' };
+  }
+  try {
+    const { conversation, created } = await store.ensureConversationForAppointment({ appointmentId, patientId });
+    return { recorded: true, created, conversationId: conversation.id };
+  } catch (error) {
+    logger.error('support_chat_ensure_conversation_failed', {
+      appointmentId,
+      error: error?.message || String(error)
+    });
+    return { recorded: false, reason: 'error', error: error?.message || String(error) };
+  }
+}
+
+// Espera a reserva CONCORRENTE (perdida por outra chamada com o mesmo
+// client_message_id) chegar a um desfecho definitivo antes de responder —
+// nunca devolve sent:true otimisticamente enquanto a chamada vencedora
+// ainda está em voo com a Meta. Três desfechos possíveis:
+//   'sent'    -> a linha ganhou provider_message_id (vencedora confirmou).
+//   'failed'  -> a linha sumiu (vencedora apagou a reserva após falha real
+//                do provider — ver deleteReservedMessage).
+//   'pending' -> esgotou maxWaitMs sem desfecho (vencedora ainda em voo,
+//                ex.: Meta lenta); nunca inventa sucesso nem falha aqui.
+async function waitForReservationOutcome({
+  conversationId,
+  clientMessageId,
+  initialMessage,
+  maxWaitMs = 13000,
+  pollIntervalMs = 250
+}) {
+  const deadline = Date.now() + maxWaitMs;
+  let current = initialMessage;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    if (current?.provider_message_id) {
+      return { outcome: 'sent', message: current };
+    }
+    if (Date.now() >= deadline) {
+      return { outcome: 'pending', message: current };
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+    current = await store.findMessageByClientId({ conversationId, clientMessageId });
+    if (!current) {
+      return { outcome: 'failed' };
+    }
+  }
+}
+
 async function resolvePatientPhone(conversation) {
   if (!conversation?.appointment_id) return null;
   const atendimento = await atendimentosStore.getAtendimento(conversation.appointment_id);
@@ -174,7 +235,14 @@ async function resolvePatientPhone(conversation) {
 // linha fica em support_chat_messages representando uma mensagem que nunca
 // chegou ao paciente — e NUNCA toca em last_message_at/status da
 // conversation; só registra o evento MESSAGE_FAILED para auditoria.
-async function sendHumanMessage({ conversationId, actorId, text, clientMessageId }) {
+async function sendHumanMessage({
+  conversationId,
+  actorId,
+  text,
+  clientMessageId,
+  reservationWaitMs,
+  reservationPollMs
+}) {
   if (!conversationId || !actorId) {
     const error = new Error('conversationId e actorId são obrigatórios');
     error.statusCode = 400;
@@ -232,8 +300,29 @@ async function sendHumanMessage({ conversationId, actorId, text, clientMessageId
   if (reservation.duplicate) {
     // Perdeu a corrida de reserva para outra chamada concorrente com o
     // mesmo client_message_id — a vencedora já cuida (ou já cuidou) do
-    // envio; esta chamada nunca chama o provider.
-    return { sent: true, duplicate: true, message: reservation.message, conversation };
+    // envio; esta chamada nunca chama o provider. Mas nunca devolve
+    // sent:true otimisticamente: espera o desfecho real da vencedora antes
+    // de responder, para não reportar sucesso enquanto a Meta ainda está em
+    // voo (ou quando a vencedora acaba de falhar e apagou a reserva).
+    const outcome = await waitForReservationOutcome({
+      conversationId,
+      clientMessageId,
+      initialMessage: reservation.message,
+      ...(reservationWaitMs !== undefined ? { maxWaitMs: reservationWaitMs } : {}),
+      ...(reservationPollMs !== undefined ? { pollIntervalMs: reservationPollMs } : {})
+    });
+    if (outcome.outcome === 'sent') {
+      return { sent: true, duplicate: true, message: outcome.message, conversation };
+    }
+    if (outcome.outcome === 'failed') {
+      const sendError = new Error('Falha ao enviar mensagem via Meta WhatsApp Cloud API (tentativa concorrente)');
+      sendError.statusCode = 502;
+      sendError.code = 'PROVIDER_ERROR';
+      throw sendError;
+    }
+    // 'pending': a vencedora ainda não terminou — nunca finge sucesso nem
+    // falha; o chamador pode tentar de novo com o mesmo client_message_id.
+    return { sent: false, reason: 'send_in_progress', conversation };
   }
 
   let providerResult;
@@ -285,5 +374,6 @@ module.exports = {
   heartbeat,
   getMessagingWindowStatus,
   recordInboundMessage,
+  ensureConversation,
   sendHumanMessage
 };

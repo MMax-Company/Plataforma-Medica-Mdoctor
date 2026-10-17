@@ -161,6 +161,21 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
   // principal (ver admin-alert.service.js).
   notifyAdminAlert({ type: 'support_queue', id: atendimento.id });
 
+  // Chat Administrativo de Suporte V1: garante a conversation já na
+  // ABERTURA do ticket (não só na 2ª mensagem do paciente) — sem isso, o
+  // atendimento ficava invisível no painel administrativo até o paciente
+  // mandar uma mensagem de texto adicional. Atrás de
+  // SUPPORT_CHAT_CAPTURE_ENABLED, nunca lança, nunca bloqueia a resposta ao
+  // paciente (mesma postura defensiva do ponto de integração de inbound,
+  // logo abaixo neste arquivo).
+  try {
+    // eslint-disable-next-line global-require
+    const { ensureConversation } = require('./support-chat.service');
+    await ensureConversation({ appointmentId: atendimento.id });
+  } catch (e) {
+    logger.warn('support_chat_ensure_conversation_integration_failed', { error: e.message });
+  }
+
   return {
     duplicate: false,
     atendimento,

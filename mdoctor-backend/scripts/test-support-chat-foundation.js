@@ -65,6 +65,25 @@ async function main() {
     results.claimAtomicoPrimeiroAtorReivindicaSemAlterarStatus = 'ok';
   }
 
+  // 2b) O PRÓPRIO dono consegue reivindicar de novo (idempotente) enquanto
+  //     o lock ainda está válido — renova o lease em vez de ser rejeitado
+  //     como locked_by_other. Necessário para reload de página/reconexão
+  //     (beforeunload não é confiável) nunca trancar o atendente para fora
+  //     da própria conversation que ele está respondendo (achado de revisão,
+  //     17/10/2026).
+  {
+    const before = await store.getConversationById(conversationId);
+    const beforeExpiresAt = before.lock_expires_at; // extrai o primitivo — o update abaixo muta o mesmo objeto em memória no fake client
+    const selfReclaim = await store.claimConversation({ conversationId, actorId: 'admin-1', leaseMs: 90000 });
+    assert.equal(selfReclaim.claimed, true);
+    assert.equal(selfReclaim.conversation.locked_by, 'admin-1');
+    assert.ok(
+      new Date(selfReclaim.conversation.lock_expires_at).getTime() > new Date(beforeExpiresAt).getTime(),
+      'reclaim do próprio dono deveria renovar (estender) o lease'
+    );
+    results.proprioDonoReivindicaDeNovoComLockAindaValidoRenovaOLease = 'ok';
+  }
+
   // 3) Segundo ator não consegue reivindicar enquanto o lock estiver ativo —
   //    posse validada no servidor, não na interface.
   {
