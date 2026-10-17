@@ -236,6 +236,7 @@ export async function fetchSupportConversationDetail(id: string): Promise<{
   conversation: SupportConversation;
   messages: SupportChatMessage[];
   windowStatus: SupportMessagingWindowStatus;
+  agentSendEnabled: boolean;
 }> {
   return apiClient.get(`/api/admin/support/conversations/${id}`, { headers: authHeaders() });
 }
@@ -244,6 +245,12 @@ export async function claimSupportConversation(
   id: string,
 ): Promise<{ success: boolean; conversation: SupportConversation }> {
   return apiClient.post(`/api/admin/support/conversations/${id}/claim`, {}, { headers: authHeaders() });
+}
+
+export async function heartbeatSupportConversation(
+  id: string,
+): Promise<{ success: boolean; conversation: SupportConversation }> {
+  return apiClient.post(`/api/admin/support/conversations/${id}/heartbeat`, {}, { headers: authHeaders() });
 }
 
 export async function releaseSupportConversation(

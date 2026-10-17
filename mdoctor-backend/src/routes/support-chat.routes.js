@@ -86,6 +86,26 @@ router.post('/conversations/:id/release', requireUiAvailable, async (req, res) =
   }
 });
 
+// Renovação do lock (heartbeat): mesma validação de posse do claim/release
+// (só o dono atual renova). Chamada periodicamente pelo frontend enquanto a
+// conversation está com o lock sob posse, para o lease de 2 minutos
+// (DEFAULT_LOCK_LEASE_MS) nunca expirar silenciosamente durante um
+// atendimento mais longo.
+router.post('/conversations/:id/heartbeat', requireUiAvailable, async (req, res) => {
+  const correlationId = req.correlationId || req.requestId || 'unknown';
+  const actorId = req.user?.sub || req.user?.username || req.user?.role;
+  try {
+    const result = await service.heartbeat({ conversationId: req.params.id, actorId });
+    if (!result.renewed) {
+      return res.status(409).json({ success: false, correlationId, conversation: result.conversation });
+    }
+    return res.json({ success: true, correlationId, conversation: result.conversation });
+  } catch (error) {
+    logger.error('support_chat_heartbeat_failed', { correlationId, error: error.message });
+    return res.status(error.statusCode || 500).json({ success: false, correlationId, error: error.message });
+  }
+});
+
 // Com SUPPORT_CHAT_AGENT_SEND_ENABLED desligada (padrão), a rota de envio
 // humano responde 503 explícito sem validar lock/janela/provider — flag
 // independente de SUPPORT_CHAT_UI_ENABLED (acima) e SUPPORT_CHAT_CAPTURE_ENABLED.

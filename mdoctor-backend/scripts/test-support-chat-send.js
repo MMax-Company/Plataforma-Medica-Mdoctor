@@ -277,6 +277,50 @@ async function main() {
     results.telefoneAusenteNuncaChamaProvider = 'ok';
   }
 
+  // 11) Corrida real: duas chamadas CONCORRENTES com o MESMO client_message_id
+  //     novo (ex.: duplo clique/retry sobreposto) — a reserva atômica
+  //     (unique index em conversation_id+client_message_id, aplicada ANTES
+  //     de chamar o provider) garante que só UMA delas chega a chamar a
+  //     Meta; a perdedora nunca envia, só devolve o resultado da vencedora.
+  {
+    // Conversation dedicada (appointment novo) para isolar a contagem de
+    // chamadas ao provider desta corrida das demais chamadas do teste.
+    const seedRace = await store.ensureConversationForAppointment({ appointmentId: 'appt-send-race', patientId: 'pat-race' });
+    atendimentosFixture['appt-send-race'] = { id: 'appt-send-race', paciente_telefone: '5511999990002' };
+    const raceConversationId = seedRace.conversation.id;
+    await store.claimConversation({ conversationId: raceConversationId, actorId: 'agente-A' });
+    await store.recordMessage({ conversationId: raceConversationId, direction: 'inbound', body: 'oi', sender: 'patient' });
+
+    const before = metaProviderState.calls.length;
+    const [r1, r2] = await Promise.all([
+      service.sendHumanMessage({
+        conversationId: raceConversationId,
+        actorId: 'agente-A',
+        text: 'Mensagem concorrente',
+        clientMessageId: 'client-msg-corrida-1'
+      }),
+      service.sendHumanMessage({
+        conversationId: raceConversationId,
+        actorId: 'agente-A',
+        text: 'Mensagem concorrente',
+        clientMessageId: 'client-msg-corrida-1'
+      })
+    ]);
+    assert.equal(metaProviderState.calls.length, before + 1, 'provider deveria ser chamado só 1 vez entre as 2 chamadas concorrentes');
+    assert.equal(r1.sent, true);
+    assert.equal(r2.sent, true);
+    const winners = [r1, r2].filter((r) => !r.duplicate);
+    const losers = [r1, r2].filter((r) => r.duplicate);
+    assert.equal(winners.length, 1);
+    assert.equal(losers.length, 1);
+    assert.equal(losers[0].message.id, winners[0].message.id);
+    assert.equal(
+      fakeDb.rows('support_chat_messages').filter((m) => m.client_message_id === 'client-msg-corrida-1').length,
+      1
+    );
+    results.duasChamadasConcorrentesComMesmoClientMessageIdSoChamamProviderUmaVez = 'ok';
+  }
+
   console.log(JSON.stringify(results, null, 2));
 }
 

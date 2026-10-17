@@ -52,20 +52,31 @@ async function listQueue() {
   return store.listQueue();
 }
 
-// Inclui windowStatus junto do detalhe (não só no envio): a UI precisa saber
-// ANTES de tentar enviar se a janela de 24h da Meta já fechou, para
-// desabilitar o composer com uma mensagem clara em vez de deixar o
-// atendente digitar e só descobrir o bloqueio depois de uma tentativa falha.
+// Inclui windowStatus e agentSendEnabled junto do detalhe (não só no envio):
+// a UI precisa saber ANTES de tentar enviar se a janela de 24h da Meta já
+// fechou OU se o envio humano ainda está desligado nesta etapa
+// (SUPPORT_CHAT_AGENT_SEND_ENABLED), para desabilitar o composer com uma
+// mensagem clara em vez de deixar o atendente digitar e só descobrir o
+// bloqueio depois de uma tentativa que a rota rejeitaria com 503.
 async function getConversationWithMessages(conversationId) {
   const conversation = await store.getConversationById(conversationId);
   if (!conversation) return null;
   const messages = await store.listMessages(conversationId);
   const windowStatus = store.getMessagingWindowStatus(conversation);
-  return { conversation, messages, windowStatus };
+  return { conversation, messages, windowStatus, agentSendEnabled: isAgentSendAvailable() };
 }
 
 async function claim({ conversationId, actorId, leaseMs = DEFAULT_LOCK_LEASE_MS }) {
   return store.claimConversation({ conversationId, actorId, leaseMs });
+}
+
+// Renovação do lock (heartbeat): o lease padrão é de 2 minutos
+// (DEFAULT_LOCK_LEASE_MS) — sem renovação periódica, qualquer atendimento
+// mais longo que isso perderia a posse silenciosamente no meio da digitação.
+// Chamado pelo frontend em intervalo bem menor que o lease enquanto a
+// conversation está com lockOwnership 'owned'.
+async function heartbeat({ conversationId, actorId, leaseMs = DEFAULT_LOCK_LEASE_MS }) {
+  return store.heartbeatConversation({ conversationId, actorId, leaseMs });
 }
 
 async function release({ conversationId, actorId }) {
@@ -154,12 +165,15 @@ async function resolvePatientPhone(conversation) {
 //   4) actorId é o dono atual do lock e o lock não expirou;
 //   5) dentro da janela de 24h da Meta (texto livre fora da janela é
 //      rejeitado aqui, nunca chega a tentar a chamada ao provider);
-//   6) telefone do paciente resolvido a partir do appointment.
-// Falha do provider NUNCA cria linha em support_chat_messages (não existe
-// mensagem para persistir) e NUNCA toca em last_message_at/status da
-// conversation — só registra o evento MESSAGE_FAILED para auditoria,
-// preservando o histórico e o estado exatamente como estavam antes da
-// tentativa.
+//   6) telefone do paciente resolvido a partir do appointment;
+//   7) RESERVA o client_message_id (insere a linha antes de chamar o
+//      provider) — de duas chamadas concorrentes com o mesmo
+//      client_message_id novo, só uma consegue reservar; a outra nunca
+//      chega a chamar a Meta (ver reserveOutboundMessage no store).
+// Falha do provider some com a reserva (deleteReservedMessage) — nenhuma
+// linha fica em support_chat_messages representando uma mensagem que nunca
+// chegou ao paciente — e NUNCA toca em last_message_at/status da
+// conversation; só registra o evento MESSAGE_FAILED para auditoria.
 async function sendHumanMessage({ conversationId, actorId, text, clientMessageId }) {
   if (!conversationId || !actorId) {
     const error = new Error('conversationId e actorId são obrigatórios');
@@ -209,6 +223,19 @@ async function sendHumanMessage({ conversationId, actorId, text, clientMessageId
     return { sent: false, reason: 'missing_patient_phone', conversation };
   }
 
+  const reservation = await store.reserveOutboundMessage({
+    conversationId,
+    body: trimmedText,
+    sender: actorId,
+    clientMessageId
+  });
+  if (reservation.duplicate) {
+    // Perdeu a corrida de reserva para outra chamada concorrente com o
+    // mesmo client_message_id — a vencedora já cuida (ou já cuidou) do
+    // envio; esta chamada nunca chama o provider.
+    return { sent: true, duplicate: true, message: reservation.message, conversation };
+  }
+
   let providerResult;
   try {
     providerResult = await metaProvider.sendTextMessage({
@@ -218,6 +245,7 @@ async function sendHumanMessage({ conversationId, actorId, text, clientMessageId
       idempotencyKey: clientMessageId
     });
   } catch (error) {
+    await store.deleteReservedMessage(reservation.message.id);
     await store.recordEventSafe({
       conversationId,
       eventType: CONVERSATION_EVENT_TYPES.MESSAGE_FAILED,
@@ -234,16 +262,13 @@ async function sendHumanMessage({ conversationId, actorId, text, clientMessageId
     throw sendError;
   }
 
-  const { duplicate, message } = await store.recordMessage({
+  const message = await store.finalizeOutboundMessage({
+    messageId: reservation.message.id,
     conversationId,
-    direction: MESSAGE_DIRECTION.OUTBOUND,
-    body: trimmedText,
-    sender: actorId,
-    providerMessageId: providerResult.providerMessageId,
-    clientMessageId
+    providerMessageId: providerResult.providerMessageId
   });
 
-  return { sent: true, duplicate, message, conversation };
+  return { sent: true, duplicate: false, message, conversation };
 }
 
 module.exports = {
@@ -257,6 +282,7 @@ module.exports = {
   claim,
   release,
   close,
+  heartbeat,
   getMessagingWindowStatus,
   recordInboundMessage,
   sendHumanMessage

@@ -165,6 +165,24 @@ async function main() {
       results.posseDoLockValidadaNoServidorViaHttp = 'ok';
     }
 
+    // 6b) Heartbeat (renovação de lock): só o dono atual consegue renovar;
+    //     outro agente ou quem não tem o lock recebe 409.
+    {
+      const claimA = await request(server, 'POST', `/api/admin/support/conversations/${conversation.id}/claim`, { authToken: token('admin', 'admin-A') });
+      assert.equal(claimA.status, 200);
+
+      const heartbeatOther = await request(server, 'POST', `/api/admin/support/conversations/${conversation.id}/heartbeat`, { authToken: token('administrativo', 'admin-B') });
+      assert.equal(heartbeatOther.status, 409);
+
+      const heartbeatOwner = await request(server, 'POST', `/api/admin/support/conversations/${conversation.id}/heartbeat`, { authToken: token('admin', 'admin-A') });
+      assert.equal(heartbeatOwner.status, 200);
+      assert.equal(heartbeatOwner.body.conversation.locked_by, 'admin-A');
+
+      const releaseBack = await request(server, 'POST', `/api/admin/support/conversations/${conversation.id}/release`, { authToken: token('admin', 'admin-A') });
+      assert.equal(releaseBack.status, 200);
+      results.heartbeatSoRenovaLockDoDonoAtualViaHttp = 'ok';
+    }
+
     // 7) Voltar a desligar as flags esconde o recurso de novo, mesmo para o
     //    mesmo admin que acabou de usá-lo — confirma reversibilidade.
     {

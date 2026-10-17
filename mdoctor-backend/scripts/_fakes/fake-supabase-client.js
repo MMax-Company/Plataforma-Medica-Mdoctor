@@ -55,6 +55,11 @@ class FakeQueryBuilder {
     return this;
   }
 
+  delete() {
+    this.op = 'delete';
+    return this;
+  }
+
   select() {
     if (!this.op) this.op = 'select';
     return this;
@@ -167,6 +172,14 @@ class FakeSupabaseClient {
       rowsRef.push(row);
       if (builder.singleMode === 'single') return { data: row, error: null };
       return { data: [row], error: null };
+    }
+
+    if (op === 'delete') {
+      let matched = rowsRef.filter((row) => matchesFilters(row, builder.filters));
+      if (builder.orClause) matched = matched.filter((row) => matchesOrClause(row, builder.orClause));
+      const matchedIds = new Set(matched.map((row) => row.id));
+      this.tables[table] = rowsRef.filter((row) => !matchedIds.has(row.id));
+      return { data: matched, error: null };
     }
 
     if (op === 'update') {
