@@ -219,8 +219,11 @@ const bodyColumns: Array<{
 // criado_em da entrada na fila, medical_decisions da transição
 // "em_atendimento", clinical_audit.approvedAt/rejectedAt,
 // entrega_receita.sent_at e jornada.primeiro_oi_em). "Suporte
-// administrativo"/"Suporte médico" não têm evento distinto — recebem "—" em
-// vez de um número fabricado (o backend retorna null nesses casos).
+// administrativo" (support_conversations.created_at até a 1ª mensagem
+// outbound) e "Suporte médico" (medical_support_requested_at até
+// medical_support_resolved_at) seguem o mesmo princípio — sem amostra
+// suficiente (ninguém respondeu/resolveu ainda), o backend devolve null e a
+// UI mostra "—" em vez de um número fabricado.
 const TIME_METRIC_KEYS = [
   'pagamento_fila',
   'triagem',
@@ -243,9 +246,9 @@ const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
   jornada_completa: 'Jornada Completa',
 };
 
-// Amostra própria de cada indicador (nº de atendimentos reais que entraram no
-// cálculo). "Suporte adm/médico" não têm evento no modelo de dados — sem
-// amostra. Evita o "amostra: 0" genérico enganoso no cabeçalho.
+// Amostra própria de cada indicador (nº de atendimentos/conversations reais
+// que entraram no cálculo) — evita o "amostra: 0" genérico enganoso no
+// cabeçalho.
 const TIME_METRIC_SAMPLE_KEYS: Partial<Record<(typeof TIME_METRIC_KEYS)[number], string>> = {
   pagamento_fila: 'pagamento_fila',
   triagem: 'triagem',
@@ -253,6 +256,8 @@ const TIME_METRIC_SAMPLE_KEYS: Partial<Record<(typeof TIME_METRIC_KEYS)[number],
   avaliacao: 'avaliacao',
   emissao_receita: 'emissao_receita',
   jornada_completa: 'jornada_completa',
+  suporte_administrativo: 'suporte_administrativo',
+  suporte_medico: 'suporte_medico',
 };
 
 function metricTileClass(bg: string, border: string, interactive: boolean) {
@@ -602,6 +607,15 @@ export default function AdminDashboardPage() {
                     <MetricTileContent emoji="🏷️" value={data.financeiro.valor_unitario_label} label="Valor por consulta" />
                   </div>
                 </div>
+                {Boolean(data.financeiro.atendimentos_sem_valor_registrado) && (
+                  <p className="admin-dashboard__time-heading-note" style={{ marginTop: '4px' }}>
+                    ⚠️ {data.financeiro.atendimentos_sem_valor_registrado} atendimento
+                    {data.financeiro.atendimentos_sem_valor_registrado === 1 ? '' : 's'} pago
+                    {data.financeiro.atendimentos_sem_valor_registrado === 1 ? '' : 's'} sem valor histórico
+                    registrado — fora da receita confirmada acima (ver auditoria em payments/Stripe antes de
+                    qualquer backfill)
+                  </p>
+                )}
               </div>
 
               <div className="admin-dashboard__support-cell lg:col-start-3 lg:col-end-4 lg:row-start-1 lg:row-end-5">
