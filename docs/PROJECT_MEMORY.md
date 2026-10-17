@@ -108,14 +108,27 @@ somente jornadas completas com os marcadores exigidos e receita entregue.
   `whatsapp_sessions` (marcadores congelados/ausentes, sessão criada depois
   do atendimento, ou telefone sem sessão). Triagem e Jornada Completa só
   passam a ter amostra com atendimentos novos.
-- Novos indicadores de etapa no bloco de tempos, reconstruídos de
-  `appointment_status_history` (nova leitura `listStatusHistory`, sempre
+- Indicadores de etapa no bloco de tempos, reconstruídos de
+  `appointment_status_history` (leitura `listStatusHistory`, sempre
   `MIN(created_at)` por status — a tabela tem `delivered` repetido) +
-  `clinical_data.stripe_paid_at`, sem estimativa: **pagamento → fila**
+  `clinical_data.stripe_paid_at`, sem estimativa. Construídos originalmente
+  em 07/09/2026 como 4 indicadores: **pagamento → fila**
   (`stripe_paid_at → waiting`), **envio da receita anterior**
   (`awaiting_prescription_upload → waiting`), **geração da receita**
-  (`receita_em_edicao → receita_emitida`), **receita pronta → entrega**
-  (`ready → delivered`). Amostra real hoje: 4-5 atendimentos por indicador.
+  (`receita_em_edicao → receita_emitida`) e **receita pronta → entrega**
+  (`ready → delivered`).
+- **Atualização 17/10/2026 (PR #80) — contrato atual:** só **pagamento →
+  fila** continua ativo, calculado e retornado por `computeTempos()`.
+  **Envio da receita anterior**, **geração da receita** e **receita pronta
+  → entrega** foram DESATIVADOS — deixaram de ser calculados e não aparecem
+  mais na resposta de `GET /api/admin/dashboard` (nem no nível raiz de
+  `tempos`, nem em `amostra_por_indicador`), porque o painel já não os
+  exibe (reduzido a 8 indicadores). `scripts/test-journey-markers.js`
+  também não cobre mais esses 3 — só `pagamento_fila` segue testado nesse
+  bloco. A consulta a `appointment_status_history`
+  (`listStatusHistory`/`findEtapasStatusHistory`) continua existindo e
+  rodando normalmente, porque ainda é a base de `pagamento_fila`. Nenhum
+  dado histórico foi apagado — a mudança é só na resposta da API.
 - Painel: cada indicador de tempo mostra a própria amostra (fim do
   "amostra: 0" genérico); cards, financeiro e indicadores entram no refresh
   automático de 30s do dashboard (`refreshDashboard`), antes só a lista de
