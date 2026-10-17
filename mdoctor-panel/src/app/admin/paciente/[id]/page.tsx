@@ -318,10 +318,12 @@ export default function AdminPacientePage() {
       const r = await resendTypebotLink(id);
       if (r.sent) {
         showToast('Link do Typebot enviado por WhatsApp.');
-      } else {
+      } else if (r.link) {
         setCopyLabel(r.link);
         navigator.clipboard?.writeText(r.link).catch(() => undefined);
-        showToast('WhatsApp não configurado — link copiado para área de transferência.');
+        showToast('Envio por WhatsApp indisponível — link copiado para área de transferência.');
+      } else {
+        showToast('Link do Typebot não disponível. Verifique a configuração do Typebot.');
       }
     } catch {
       showToast('Erro ao reenviar link.');
