@@ -20,6 +20,7 @@ const { PAYMENT_AMOUNT_CENTS, PAYMENT_AMOUNT_LABEL } = require('../services/type
 const { createAuditLog } = require('../store/audit.store');
 const { QUEUE_TYPE_MEDICAL_SUPPORT, isSupportQueue } = require('../constants/whatsapp-queue');
 const { notifyAdminAlert } = require('../services/admin-alert.service');
+const supportChatStore = require('../store/support-chat.store');
 
 const router = express.Router();
 
@@ -241,6 +242,38 @@ async function findEtapasStatusHistory(atendimentoId) {
   };
 }
 
+// Indicador "Suporte Administrativo": tempo da ABERTURA da conversation
+// (support_conversations.created_at — gravado assim que o ticket de suporte
+// é aberto, ver ensureConversation em whatsapp-support.service.js) até a
+// PRIMEIRA mensagem do atendente (support_chat_messages, direction
+// 'outbound', menor created_at) — mesma semântica de "tempo de espera" dos
+// demais indicadores (ex.: espera_medica), não tempo até o encerramento
+// completo do atendimento. Conversation sem nenhuma resposta ainda fica de
+// fora da amostra — não inventa um fim para quem ainda não foi atendido.
+// Fonte de dados totalmente separada de `atendimentos` (support_conversations/
+// support_chat_messages, tabelas do Chat Administrativo de Suporte V1) — por
+// isso é uma função à parte, não reaproveita o loop de computeTempos.
+// Nunca lança: qualquer falha ao consultar o Supabase (ex.: tabela ainda não
+// migrada) devolve amostra 0 / null, nunca derruba o resto do dashboard.
+async function computeSuporteAdministrativoTempo() {
+  try {
+    const conversations = await supportChatStore.listAllConversations();
+    const values = [];
+    for (const conversation of conversations) {
+      // eslint-disable-next-line no-await-in-loop
+      const messages = await supportChatStore.listMessages(conversation.id);
+      const firstOutbound = messages.find((m) => m.direction === 'outbound');
+      if (!firstOutbound || !conversation.created_at) continue;
+      const v = minutesBetween(conversation.created_at, firstOutbound.created_at);
+      if (v !== null) values.push(v);
+    }
+    return { label: formatMinutes(average(values)), amostra: values.length };
+  } catch (error) {
+    logger.warn('admin_dashboard_suporte_administrativo_tempo_failed', { error: error.message });
+    return { label: null, amostra: 0 };
+  }
+}
+
 async function computeTempos(atendimentos) {
   // Tickets de Suporte Geral via WhatsApp (isSupportQueue) nunca passam pelo
   // pipeline triagem → fila médica → avaliação → emissão — não são
@@ -265,6 +298,14 @@ async function computeTempos(atendimentos) {
   // Etapas adicionais reconstruídas de appointment_status_history + timestamps
   // já gravados (auditoria 07/09/2026) — sem estimativa.
   const pagamentoFilaValues = [];
+  // Indicador "Suporte Médico": tempo do ENCAMINHAMENTO ao médico
+  // (medical_support_requested_at, gravado em POST .../forward-to-doctor)
+  // até a ORIENTAÇÃO MÉDICA registrada (medical_support_resolved_at,
+  // gravado em POST .../medical-support/resolve) — início e fim já
+  // existentes no fluxo real, nenhum marco novo inventado. Só entra na
+  // amostra quem já tem os dois timestamps (ciclo completo); um caso ainda
+  // aguardando resposta do médico fica de fora, não gera um fim fabricado.
+  const suporteMedicoValues = [];
 
   for (const { atendimento: a, eventos, etapas } of comEventosMedicos) {
     const c = a.dados_clinicos || {};
@@ -302,6 +343,11 @@ async function computeTempos(atendimentos) {
       if (jornadaCompleta !== null) jornadaCompletaValues.push(jornadaCompleta);
     }
 
+    if (c.medical_support_requested_at && c.medical_support_resolved_at) {
+      const suporteMedico = minutesBetween(c.medical_support_requested_at, c.medical_support_resolved_at);
+      if (suporteMedico !== null) suporteMedicoValues.push(suporteMedico);
+    }
+
     // Pagamento confirmado → entrada na fila médica.
     const pagoEm = c.stripe_paid_at || c.stripe_payment?.confirmed_at || null;
     if (pagoEm && etapas.filaEm) {
@@ -309,6 +355,10 @@ async function computeTempos(atendimentos) {
       if (v !== null) pagamentoFilaValues.push(v);
     }
   }
+
+  // Fonte de dados separada (support_conversations/support_chat_messages) —
+  // roda em paralelo ao loop acima, nunca bloqueado por ele.
+  const suporteAdministrativo = await computeSuporteAdministrativoTempo();
 
   return {
     // Amostra do cabeçalho: só atendimentos com jornada completa (marcadores
@@ -324,6 +374,8 @@ async function computeTempos(atendimentos) {
       avaliacao: avaliacaoValues.length,
       emissao_receita: emissaoReceitaValues.length,
       jornada_completa: jornadaCompletaValues.length,
+      suporte_administrativo: suporteAdministrativo.amostra,
+      suporte_medico: suporteMedicoValues.length,
     },
     pagamento_fila: formatMinutes(average(pagamentoFilaValues)),
     triagem: formatMinutes(average(triagemValues)),
@@ -331,8 +383,8 @@ async function computeTempos(atendimentos) {
     avaliacao: formatMinutes(average(avaliacaoValues)),
     emissao_receita: formatMinutes(average(emissaoReceitaValues)),
     jornada_completa: formatMinutes(average(jornadaCompletaValues)),
-    suporte_administrativo: null,
-    suporte_medico: null,
+    suporte_administrativo: suporteAdministrativo.label,
+    suporte_medico: formatMinutes(average(suporteMedicoValues)),
   };
 }
 

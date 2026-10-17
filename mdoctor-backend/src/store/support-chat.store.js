@@ -51,6 +51,17 @@ async function listQueue({ limit = 100 } = {}) {
   return data || [];
 }
 
+// Para o indicador de tempo "Suporte Administrativo" (admin.routes.js,
+// computeTempos): diferente de listQueue (só fila ATIVA, usada pela UI), a
+// métrica precisa de TODAS as conversations, inclusive já encerradas —
+// senão o indicador ficaria enviesado só pelas ainda abertas.
+async function listAllConversations({ limit = 500 } = {}) {
+  const data = await dbQuery('listar todas support_conversations (métricas)', async (supabase) =>
+    supabase.from(T.SUPPORT_CONVERSATIONS).select('*').limit(limit)
+  );
+  return data || [];
+}
+
 // Regra determinística (unique(appointment_id) garante a idempotência no
 // banco): se já existe conversation para o appointment, retorna a existente
 // sem alterar seu estado de lock/status; só cria quando realmente não existe.
@@ -571,6 +582,7 @@ module.exports = {
   getConversationById,
   getConversationByAppointmentId,
   listQueue,
+  listAllConversations,
   ensureConversationForAppointment,
   claimConversation,
   releaseConversation,

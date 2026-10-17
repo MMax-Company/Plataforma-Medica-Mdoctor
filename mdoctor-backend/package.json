@@ -164,6 +164,7 @@
     "test:support-chat-service": "node scripts/test-support-chat-service.js",
     "test:support-chat-authorization": "node scripts/test-support-chat-authorization.js",
     "test:support-chat-inbound-integration": "node scripts/test-support-chat-inbound-integration.js",
+    "test:admin-dashboard-suporte-tempos": "node scripts/test-admin-dashboard-suporte-tempos.js",
     "test:support-chat-send": "node scripts/test-support-chat-send.js",
     "test:guard-shared-environment": "node scripts/test-guard-shared-environment-unit.js"
   },
