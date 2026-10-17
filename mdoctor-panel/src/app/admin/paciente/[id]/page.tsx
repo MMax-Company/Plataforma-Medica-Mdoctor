@@ -19,6 +19,29 @@ import {
 import { Button, Card, FieldRow, StatusPill } from '@/components/ui/DesignSystem';
 import { MedicalPanelHeader } from '@/components/medical/MedicalPanelHeader';
 
+// Ticket de Suporte Geral via WhatsApp (whatsapp-support.service.js): nunca
+// passou por triagem, pagamento ou avaliação médica — createWhatsAppSupportEntry
+// grava pagamento_status "CONFIRMADO" só como bypass técnico das validações
+// clínicas, não porque o paciente pagou algo. Achado da auditoria de 17/10:
+// "Ver dados" abria a Jornada Clínica normal pra esses tickets e mostrava
+// "Pagamento confirmado"/etapas clínicas que nunca ocorreram.
+function isSupportTicket(atendimento: AdminAtendimento): boolean {
+  return (
+    atendimento.condicao === 'suporte_whatsapp' ||
+    atendimento.dados_clinicos?.queue_type === 'support'
+  );
+}
+
+const SUPPORT_SUB_STATUS_LABELS: Record<string, string> = {
+  waiting: 'Aguardando atendimento',
+  em_atendimento: 'Em atendimento',
+  awaiting_patient_decision: 'Aguardando decisão do paciente',
+  closed_by_patient: 'Encerrado pelo paciente',
+  closed_by_admin: 'Encerrado pelo atendente',
+  converted_to_renewal: 'Convertido em renovação de receita',
+  closed_inactive: 'Encerrado por inatividade',
+};
+
 function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
   const status = String(atendimento.status || '').trim().toLowerCase();
   const delivered =
@@ -26,11 +49,7 @@ function canForwardToMedicalSupport(atendimento: AdminAtendimento): boolean {
     status === 'finished' ||
     atendimento.dados_clinicos?.entrega_receita?.status === 'sent';
 
-  return (
-    delivered &&
-    atendimento.condicao !== 'suporte_whatsapp' &&
-    atendimento.dados_clinicos?.queue_type !== 'support'
-  );
+  return delivered && !isSupportTicket(atendimento);
 }
 
 // ─── Journey derivation ───────────────────────────────────────────────────────
@@ -319,8 +338,14 @@ export default function AdminPacientePage() {
     setActionLoading('payment');
     try {
       const r = await resendPaymentLink(id);
-      if (r.sent && r.link) {
-        showToast('Link de pagamento enviado por WhatsApp.');
+      if (r.alreadyPaid) {
+        showToast('Este atendimento já está pago — nenhum link foi reenviado.');
+      } else if (r.sent && r.link) {
+        showToast(
+          r.regenerated
+            ? 'Link de pagamento (renovado) enviado por WhatsApp.'
+            : 'Link de pagamento enviado por WhatsApp.',
+        );
       } else if (r.link) {
         setCopyLabel(r.link);
         navigator.clipboard?.writeText(r.link).catch(() => undefined);
@@ -373,7 +398,7 @@ export default function AdminPacientePage() {
       <MedicalPanelHeader
         operational
         title={a?.paciente_nome || 'Paciente'}
-        subtitle="Jornada do atendimento"
+        subtitle={a && isSupportTicket(a) ? 'Ticket de Suporte Geral' : 'Jornada do atendimento'}
         recordButtonLabel="Relação de Pacientes"
         recordButtonIcon={<UsersIcon className="h-4 w-4" aria-hidden="true" />}
         onOpenMedicalRecord={() => router.push('/admin/pacientes')}
@@ -422,48 +447,87 @@ export default function AdminPacientePage() {
                       <StatusPill tone={statusTone(a.status)}>{statusLabel(a.status)}</StatusPill>
                     }
                   />
-                  <FieldRow
-                    label="Pagamento"
-                    value={
-                      <StatusPill
-                        tone={a.pagamento_status === 'CONFIRMADO' ? 'success' : 'gold'}
-                      >
-                        {a.pagamento_status === 'CONFIRMADO' ? 'Confirmado' : a.pagamento_status || 'Pendente'}
-                      </StatusPill>
-                    }
-                  />
-                  <FieldRow
-                    label="Elegibilidade"
-                    value={
-                      a.elegibilidade?.eligible === false ? (
-                        <StatusPill tone="danger">Inelegível</StatusPill>
-                      ) : a.elegibilidade?.eligible === true ? (
-                        <StatusPill tone="success">Elegível</StatusPill>
-                      ) : (
-                        '—'
-                      )
-                    }
-                  />
-                  <FieldRow
-                    label="Receita anterior"
-                    value={
-                      hasPreviousPrescriptionFile(a) ? (
-                        <StatusPill tone="success">Recebida</StatusPill>
-                      ) : (
-                        <StatusPill tone="gold">Pendente</StatusPill>
-                      )
-                    }
-                  />
+                  {isSupportTicket(a) ? (
+                    <FieldRow
+                      label="Ticket de suporte"
+                      value={
+                        <StatusPill tone={a.dados_clinicos?.support_sub_status?.startsWith('closed') ? 'secondary' : 'gold'}>
+                          {SUPPORT_SUB_STATUS_LABELS[a.dados_clinicos?.support_sub_status || ''] ||
+                            a.dados_clinicos?.support_sub_status ||
+                            'Aguardando atendimento'}
+                        </StatusPill>
+                      }
+                    />
+                  ) : (
+                    <>
+                      <FieldRow
+                        label="Pagamento"
+                        value={
+                          <StatusPill
+                            tone={a.pagamento_status === 'CONFIRMADO' ? 'success' : 'gold'}
+                          >
+                            {a.pagamento_status === 'CONFIRMADO' ? 'Confirmado' : a.pagamento_status || 'Pendente'}
+                          </StatusPill>
+                        }
+                      />
+                      <FieldRow
+                        label="Elegibilidade"
+                        value={
+                          a.elegibilidade?.eligible === false ? (
+                            <StatusPill tone="danger">Inelegível</StatusPill>
+                          ) : a.elegibilidade?.eligible === true ? (
+                            <StatusPill tone="success">Elegível</StatusPill>
+                          ) : (
+                            '—'
+                          )
+                        }
+                      />
+                      <FieldRow
+                        label="Receita anterior"
+                        value={
+                          hasPreviousPrescriptionFile(a) ? (
+                            <StatusPill tone="success">Recebida</StatusPill>
+                          ) : (
+                            <StatusPill tone="gold">Pendente</StatusPill>
+                          )
+                        }
+                      />
+                    </>
+                  )}
                   <FieldRow label="Entrada" value={fmt(a.criado_em)} />
                   <FieldRow label="Última atualização" value={fmt(a.atualizado_em)} />
-                  {medicoResponsavel(a) && (
+                  {isSupportTicket(a) && a.dados_clinicos?.support_closed_at && (
+                    <FieldRow label="Encerrado em" value={fmt(a.dados_clinicos.support_closed_at)} />
+                  )}
+                  {!isSupportTicket(a) && medicoResponsavel(a) && (
                     <FieldRow label="Médico responsável" value={medicoResponsavel(a)!} />
                   )}
                 </dl>
               </Card>
             </div>
 
-            {/* Journey timeline */}
+            {/* Suporte Geral via WhatsApp: nunca passa por triagem, pagamento
+                ou avaliação médica — mostrar a Jornada Clínica aqui seria
+                apresentar etapas que nunca ocorreram (achado da auditoria de
+                17/10). O histórico real da conversa fica no Chat
+                Administrativo de Suporte, na tela inicial do painel. */}
+            {isSupportTicket(a) ? (
+              <Card className="admin-patient-journey__timeline overflow-hidden p-5">
+                <p className="mb-2 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
+                  Ticket de Suporte Geral
+                </p>
+                <p className="text-sm text-[#5B6475]">
+                  Este atendimento é um ticket de <strong>Suporte Geral via WhatsApp</strong> — não
+                  passa pela jornada clínica (triagem, pagamento, avaliação médica, emissão de
+                  receita). O status de pagamento acima é apenas um valor técnico interno, não uma
+                  cobrança real.
+                </p>
+                <p className="mt-2 text-sm text-[#5B6475]">
+                  Para ver o histórico completo da conversa, abra o{' '}
+                  <strong>Chat Administrativo de Suporte</strong> na tela inicial do painel.
+                </p>
+              </Card>
+            ) : (
             <Card className="admin-patient-journey__timeline overflow-hidden p-5">
               <p className="mb-5 text-xs font-black uppercase tracking-[0.08em] text-[#5B6475]">
                 Jornada do paciente
@@ -526,6 +590,7 @@ export default function AdminPacientePage() {
                 ))}
               </div>
             </Card>
+            )}
 
             <div className="admin-patient-journey__lower">
               {/* Actions */}
@@ -534,20 +599,24 @@ export default function AdminPacientePage() {
                 Ações administrativas
               </p>
               <div className="flex flex-wrap gap-3">
-                <Button
-                  onClick={handleResendTypebot}
-                  disabled={actionLoading === 'typebot'}
-                  tone="secondary"
-                >
-                  {actionLoading === 'typebot' ? 'Enviando...' : '🔗 Reenviar link Typebot'}
-                </Button>
-                <Button
-                  onClick={handleResendPayment}
-                  disabled={actionLoading === 'payment'}
-                  tone="secondary"
-                >
-                  {actionLoading === 'payment' ? 'Enviando...' : '💳 Reenviar link de pagamento'}
-                </Button>
+                {!isSupportTicket(a) && (
+                  <>
+                    <Button
+                      onClick={handleResendTypebot}
+                      disabled={actionLoading === 'typebot'}
+                      tone="secondary"
+                    >
+                      {actionLoading === 'typebot' ? 'Enviando...' : '🔗 Reenviar link Typebot'}
+                    </Button>
+                    <Button
+                      onClick={handleResendPayment}
+                      disabled={actionLoading === 'payment'}
+                      tone="secondary"
+                    >
+                      {actionLoading === 'payment' ? 'Enviando...' : '💳 Reenviar link de pagamento'}
+                    </Button>
+                  </>
+                )}
                 {a.paciente_telefone && (
                   <a
                     href={`https://wa.me/${a.paciente_telefone.replace(/\D/g, '')}`}
