@@ -156,7 +156,7 @@ export async function resolveAdminNote(
 
 export async function resendTypebotLink(
   id: string,
-): Promise<{ success: boolean; link: string; sent: boolean; phone: string | null }> {
+): Promise<{ success: boolean; link: string | null; sent: boolean; phone: string | null }> {
   return apiClient.post(
     `/api/admin/atendimentos/${id}/resend-typebot`,
     {},
