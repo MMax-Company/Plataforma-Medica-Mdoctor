@@ -125,6 +125,20 @@ function PacientesContent() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  // Mantém a Relação de Pacientes alinhada ao dashboard operacional sem
+  // exigir recarregar a página. Falha transitória preserva a lista atual.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchAdminAtendimentos()
+        .then((r) => setAtendimentos(r.atendimentos || []))
+        .catch(() => {
+          /* mantém a lista anterior; o próximo ciclo tenta novamente */
+        });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const filtered = useMemo(() => {
     let list = applyFilter(atendimentos, filter);
     if (search.trim()) {
