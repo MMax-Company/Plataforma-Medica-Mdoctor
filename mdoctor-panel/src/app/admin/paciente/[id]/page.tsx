@@ -188,7 +188,8 @@ function statusLabel(s: string) {
   if (['waiting', 'queue', 'fila', 'triaged'].includes(v)) return 'Aguardando';
   if (v === 'awaiting_prescription_upload') return 'Aguardando receita';
   if (['em_atendimento', 'under_review', 'approved'].includes(v)) return 'Em atendimento';
-  if (['receita_emitida', 'memed_processing', 'awaiting_validation', 'receita_em_edicao'].includes(v)) return 'Receita emitida';
+  if (v === 'receita_em_edicao') return 'Receita em edição';
+  if (['receita_emitida', 'memed_processing', 'awaiting_validation'].includes(v)) return 'Receita emitida';
   if (['ready', 'validated', 'aprovado'].includes(v)) return 'Receita pronta';
   if (['delivered', 'finished'].includes(v)) return 'Entregue';
   if (['rejected', 'recusado', 'cancelado'].includes(v)) return 'Recusado';
@@ -264,6 +265,20 @@ export default function AdminPacientePage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  // A Jornada também acompanha alterações operacionais feitas em outras telas
+  // ou pelo backend. Erro transitório não apaga o estado já carregado.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchAdminAtendimento(id)
+        .then((r) => setAtendimento(r.atendimento))
+        .catch(() => {
+          /* mantém o atendimento atual; o próximo ciclo tenta novamente */
+        });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [id]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -322,10 +337,12 @@ export default function AdminPacientePage() {
       const r = await resendTypebotLink(id);
       if (r.sent) {
         showToast('Link do Typebot enviado por WhatsApp.');
-      } else {
+      } else if (r.link) {
         setCopyLabel(r.link);
         navigator.clipboard?.writeText(r.link).catch(() => undefined);
-        showToast('WhatsApp não configurado — link copiado para área de transferência.');
+        showToast('Envio por WhatsApp indisponível — link copiado para área de transferência.');
+      } else {
+        showToast('Link do Typebot não disponível. Verifique a configuração do Typebot.');
       }
     } catch {
       showToast('Erro ao reenviar link.');
