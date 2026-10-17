@@ -11,8 +11,14 @@ const path = require('path');
 const routesPath = path.join(__dirname, '..', 'src', 'routes', 'admin.routes.js');
 const { tryRegeneratePaymentLink } = require(routesPath);
 
+// tryRegeneratePaymentLink só checa Boolean(process.env.STRIPE_SECRET_KEY) —
+// qualquer valor truthy serve pra simular "Stripe configurado" neste teste.
+// Deliberadamente NUNCA usa um valor com o formato real de chave da Stripe
+// (prefixo de chave secreta de teste/produção), pra não disparar o scanner
+// de segredo do CI (scripts/check-ci-secrets.js) com um falso positivo.
 const ORIGINAL_STRIPE_KEY = process.env.STRIPE_SECRET_KEY;
-process.env.STRIPE_SECRET_KEY = 'sk_test_fake_for_offline_test';
+const FAKE_STRIPE_CONFIGURED_VALUE = 'stripe-configured-placeholder-for-offline-test';
+process.env.STRIPE_SECRET_KEY = FAKE_STRIPE_CONFIGURED_VALUE;
 
 const results = {};
 
@@ -42,7 +48,7 @@ async function main() {
     const r = await tryRegeneratePaymentLink(baseAtendimento());
     assert.equal(r.cannotVerify, true);
     assert.equal(r.regenerated, false);
-    process.env.STRIPE_SECRET_KEY = 'sk_test_fake_for_offline_test';
+    process.env.STRIPE_SECRET_KEY = FAKE_STRIPE_CONFIGURED_VALUE;
     results.semStripeConfiguradaCannotVerifyNuncaChamaStripe = 'ok';
   }
 
