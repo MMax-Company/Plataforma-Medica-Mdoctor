@@ -13,12 +13,25 @@ const MIGRATIONS = [
   '20260528_receitas_anteriores_bucket.sql',
   '20260529_clinical_receipt_status_flow.sql',
   '20260530_webhook_events_idempotency.sql',
-  '20260601_doctor_prescreve_production_official.sql',
-  '20260601_receitas_memed_compat.sql',
-  '20260601_entregas_receita_compat.sql',
+  '20260601120000_doctor_prescreve_production_official.sql',
+  '20260601120001_entregas_receita_compat.sql',
+  '20260601120002_receitas_memed_compat.sql',
   '20260602_fechamento_stripe_payments_idempotency.sql',
   '20260603_audit_logs_staging_align.sql',
-  '20260607_patient_outcomes.sql'
+  '20260607_patient_outcomes.sql',
+  '20260703120000_consolidacao_indices_fk_ativos.sql',
+  '20260703120001_consolidacao_rls_indices.sql',
+  '20260715_whatsapp_sessions_bsuid.sql',
+  '20260716233000_whatsapp_typebot_bridge.sql',
+  '20260716235500_clinical_rejection_whatsapp_outbox.sql',
+  '20260718120000_whatsapp_sessions_provider_default_meta.sql',
+  '20260721000000_clinical_approval_whatsapp_outbox.sql',
+  '20260721010000_prescriptions_provider_id_unique.sql',
+  '20260721020000_patient_outcomes_official_variable_names.sql',
+  '20260727030000_appointments_numero_curto.sql',
+  '20260802163000_create_decisoes_log_medicos.sql',
+  '20261010120000_support_chat_v1.sql',
+  '20261010234311_support_chat_patient_id_index.sql'
 ];
 
 const RAILWAY_PROJECT = process.env.RAILWAY_PROJECT_ID || 'bed0e3b3-fa4b-4bc2-a7fb-dcabca09cd9b';
