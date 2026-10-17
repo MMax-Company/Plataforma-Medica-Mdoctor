@@ -586,10 +586,21 @@ export default function AdminDashboardPage() {
                             />
                           </defs>
                           <text>
+                            {/* textLength + lengthAdjust fixam o MESMO comprimento
+                                visual para os 8 rótulos, independente do número de
+                                caracteres — sem isso, "Espera Atendimento Médico"
+                                (25 caracteres) ocupava quase o dobro do arco de
+                                "Triagem Clínica" (15), deixando os círculos
+                                visualmente desalinhados/assimétricos entre si. Não
+                                abrevia nada — o texto completo continua, só
+                                compacta/expande glifos e espaçamento para caber no
+                                mesmo comprimento. */}
                             <textPath
                               href={`#time-label-path-${key}`}
                               startOffset="50%"
                               textAnchor="middle"
+                              textLength="82"
+                              lengthAdjust="spacingAndGlyphs"
                             >
                               {TIME_METRIC_LABELS[key]}
                             </textPath>

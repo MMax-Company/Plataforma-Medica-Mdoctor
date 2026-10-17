@@ -3791,6 +3791,13 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   .admin-dashboard__time-zone {
     min-width: 0;
     overflow: hidden;
+    /* A section tem border-radius (herdado de ".admin-dashboard__main-grid >
+       section") + este overflow:hidden, mas não tinha padding — o
+       cabeçalho "INDICADORES DE TEMPO MÉDIO" começava flush no canto
+       superior esquerdo e a curva do border-radius cortava a primeira
+       letra ("I"). Padding suficiente pra limpar a curva, sem mexer na
+       posição/ordem do bloco no grid. */
+    padding: 10px 14px 6px;
   }
 
   .admin-dashboard__support-cell {
@@ -4624,14 +4631,15 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     transform: translateY(-2px);
   }
 
+  /* Um só font-size para os 8 — antes havia uma exceção manual (7px) só
+     para espera_medica/suporte_administrativo, porque sem textLength no
+     <textPath> (ver page.tsx) o rótulo mais longo ("Espera Atendimento
+     Médico") não cabia no mesmo espaço dos outros. Com textLength fixo,
+     todos os 8 ocupam o mesmo comprimento de arco — a exceção por métrica
+     deixou de ser necessária. */
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label-arc text {
     font-size: 8px;
     font-weight: 900;
     letter-spacing: 0;
-  }
-
-  .admin-dashboard .admin-dashboard__time-tile[data-metric='espera_medica'] > .admin-dashboard__time-label-arc text,
-  .admin-dashboard .admin-dashboard__time-tile[data-metric='suporte_administrativo'] > .admin-dashboard__time-label-arc text {
-    font-size: 7px;
   }
 }
