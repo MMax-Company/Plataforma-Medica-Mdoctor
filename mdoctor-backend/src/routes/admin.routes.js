@@ -265,9 +265,6 @@ async function computeTempos(atendimentos) {
   // Etapas adicionais reconstruídas de appointment_status_history + timestamps
   // já gravados (auditoria 07/09/2026) — sem estimativa.
   const pagamentoFilaValues = [];
-  const envioReceitaAnteriorValues = [];
-  const geracaoReceitaValues = [];
-  const receitaProntaEntregaValues = [];
 
   for (const { atendimento: a, eventos, etapas } of comEventosMedicos) {
     const c = a.dados_clinicos || {};
@@ -311,24 +308,6 @@ async function computeTempos(atendimentos) {
       const v = minutesBetween(pagoEm, etapas.filaEm);
       if (v !== null) pagamentoFilaValues.push(v);
     }
-
-    // Envio da receita anterior pelo paciente: awaiting_prescription_upload → waiting.
-    if (etapas.aguardandoUploadEm && etapas.filaEm) {
-      const v = minutesBetween(etapas.aguardandoUploadEm, etapas.filaEm);
-      if (v !== null) envioReceitaAnteriorValues.push(v);
-    }
-
-    // Geração da receita na Memed: receita_em_edicao → receita_emitida.
-    if (etapas.receitaEmEdicaoEm && etapas.receitaEmitidaEm) {
-      const v = minutesBetween(etapas.receitaEmEdicaoEm, etapas.receitaEmitidaEm);
-      if (v !== null) geracaoReceitaValues.push(v);
-    }
-
-    // Receita pronta até entrega ao paciente: ready → delivered.
-    if (etapas.receitaProntaEm && etapas.entregueEm) {
-      const v = minutesBetween(etapas.receitaProntaEm, etapas.entregueEm);
-      if (v !== null) receitaProntaEntregaValues.push(v);
-    }
   }
 
   return {
@@ -343,20 +322,14 @@ async function computeTempos(atendimentos) {
       triagem: triagemValues.length,
       espera_medica: esperaMedicaValues.length,
       avaliacao: avaliacaoValues.length,
-      geracao_receita: geracaoReceitaValues.length,
       emissao_receita: emissaoReceitaValues.length,
-      receita_pronta_entrega: receitaProntaEntregaValues.length,
-      envio_receita_anterior: envioReceitaAnteriorValues.length,
       jornada_completa: jornadaCompletaValues.length,
     },
     pagamento_fila: formatMinutes(average(pagamentoFilaValues)),
     triagem: formatMinutes(average(triagemValues)),
     espera_medica: formatMinutes(average(esperaMedicaValues)),
     avaliacao: formatMinutes(average(avaliacaoValues)),
-    geracao_receita: formatMinutes(average(geracaoReceitaValues)),
     emissao_receita: formatMinutes(average(emissaoReceitaValues)),
-    receita_pronta_entrega: formatMinutes(average(receitaProntaEntregaValues)),
-    envio_receita_anterior: formatMinutes(average(envioReceitaAnteriorValues)),
     jornada_completa: formatMinutes(average(jornadaCompletaValues)),
     suporte_administrativo: null,
     suporte_medico: null,
