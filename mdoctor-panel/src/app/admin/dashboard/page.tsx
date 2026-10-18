@@ -618,7 +618,7 @@ export default function AdminDashboardPage() {
                 <p className="admin-dashboard__time-heading">
                   Indicadores de tempo médio
                   <span className="admin-dashboard__time-heading-note">
-                    · cada indicador mostra a própria amostra de atendimentos reais
+                    · média móvel dos últimos {data.tempos.periodo_dias || 30} dias · cada indicador usa sua própria amostra real
                   </span>
                 </p>
                 <div className="admin-dashboard__time" aria-label="Indicadores de tempo médio">
