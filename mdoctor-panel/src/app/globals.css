@@ -4509,12 +4509,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   overflow: hidden;
   border: 1px solid #b8cdf2;
   border-radius: 50%;
   background: linear-gradient(160deg, #f8fbff 0%, #e4eeff 100%);
-  padding: 8px 5px;
+  padding: 10px 8px;
   text-align: center;
   box-shadow: 0 3px 9px rgba(21, 87, 255, 0.11), inset 0 0 0 4px rgba(255, 255, 255, 0.55);
 }
@@ -4533,7 +4533,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard .admin-dashboard__time-tile > span {
   position: relative;
   display: block;
-  width: 100%;
+  width: 78%;
   min-width: 0;
   margin: 0;
   flex: none;
@@ -4554,11 +4554,12 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  bottom: 14%;
-  width: auto;
+  position: relative;
+  display: flex;
+  width: 78%;
+  min-height: 2.25em;
+  align-items: center;
+  justify-content: center;
   color: #13233d;
   font-size: 8px;
   font-weight: 800;
@@ -4611,29 +4612,31 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     width: 98%;
     min-width: 0;
     justify-self: center;
-    padding: 12px 4px 17px;
+    gap: clamp(3px, 0.34vw, 6px);
+    padding: clamp(10px, 0.85vw, 14px) clamp(5px, 0.55vw, 9px);
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-icon {
-    margin-bottom: 5px;
-    font-size: 18px;
+    width: 76%;
+    margin: 0;
+    font-size: clamp(16px, 1.15vw, 19px);
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    max-width: 88%;
+    width: 82%;
+    max-width: 82%;
     overflow: hidden;
-    font-size: clamp(15px, 1.35vw, 21px);
+    font-size: clamp(14px, 1.18vw, 19px);
     font-weight: 900;
-    line-height: 1;
+    line-height: 1.02;
     text-overflow: clip;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-    left: 12%;
-    right: 12%;
-    bottom: 13%;
-    font-size: clamp(7px, 0.62vw, 9px);
+    width: 78%;
+    min-height: 3.05em;
+    font-size: clamp(7px, 0.58vw, 8.6px);
     font-weight: 900;
-    line-height: 1.02;
+    line-height: 1.03;
   }
 }
