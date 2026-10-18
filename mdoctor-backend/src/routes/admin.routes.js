@@ -23,6 +23,10 @@ const { notifyAdminAlert } = require('../services/admin-alert.service');
 const supportChatStore = require('../store/support-chat.store');
 const { getSessionByPhone } = require('../store/whatsapp-sessions.store');
 const { createPaymentLinkForSession } = require('../services/typebot-payment-link.service');
+const {
+  MANUAL_CANCEL_REASONS,
+  cancelAwaitingPrescription,
+} = require('../services/prescription-pending.service');
 
 const router = express.Router();
 
@@ -747,6 +751,61 @@ router.patch(
       res.json({ success: true, atendimento: updated });
     } catch (err) {
       res.status(500).json({ success: false, error: err.message || 'Erro ao resolver observação' });
+    }
+  },
+);
+
+// ─── OPERATIONAL: Cancel awaiting previous prescription ──────────────────────
+
+router.post(
+  '/atendimentos/:id/cancel-pending-prescription',
+  requireAuth,
+  requireRole(...ADMIN_ROLES),
+  async (req, res) => {
+    try {
+      const reasonCode = String(req.body?.reason_code || '').trim();
+      const detail = String(req.body?.detail || '').trim();
+      const reasonLabel = MANUAL_CANCEL_REASONS[reasonCode];
+
+      if (!reasonLabel) {
+        return res.status(400).json({
+          success: false,
+          error: 'Motivo de cancelamento inválido',
+          allowed_reasons: MANUAL_CANCEL_REASONS,
+        });
+      }
+      if (reasonCode === 'outro' && !detail) {
+        return res.status(400).json({
+          success: false,
+          error: 'Detalhe é obrigatório quando o motivo for Outro',
+        });
+      }
+
+      const result = await cancelAwaitingPrescription({
+        atendimentoId: req.params.id,
+        actor: req.user.name || req.user.username || req.user.sub || 'admin',
+        source: 'manual_admin',
+        reasonCode,
+        reasonLabel,
+        detail: detail || null,
+      });
+
+      return res.json({
+        success: true,
+        atendimento: result.atendimento,
+        cancellation: result.cancellation,
+        refund: result.estorno
+          ? {
+              status: result.estorno.status || null,
+              refund_id: result.estorno.refund_id || null,
+            }
+          : null,
+      });
+    } catch (err) {
+      return res.status(err.statusCode || 500).json({
+        success: false,
+        error: err.message || 'Erro ao cancelar pendência',
+      });
     }
   },
 );
