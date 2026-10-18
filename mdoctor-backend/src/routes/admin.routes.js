@@ -181,9 +181,32 @@ function formatMinutes(minutes) {
   return rest ? `${hours}h ${rest}min` : `${hours}h`;
 }
 
+const TIME_METRIC_WINDOW_DAYS = 30;
+const TIME_METRIC_WINDOW_MS = TIME_METRIC_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+function resolveTimeMetricWindow(nowInput = new Date()) {
+  const now = nowInput instanceof Date ? new Date(nowInput.getTime()) : new Date(nowInput);
+  const nowMs = now.getTime();
+  if (!Number.isFinite(nowMs)) throw new Error('Referência de tempo inválida para indicadores');
+  return {
+    now,
+    nowMs,
+    cutoffMs: nowMs - TIME_METRIC_WINDOW_MS,
+  };
+}
+
+function timestampInMetricWindow(timestamp, window) {
+  if (!timestamp) return false;
+  const ts = new Date(timestamp).getTime();
+  return Number.isFinite(ts) && ts >= window.cutoffMs && ts <= window.nowMs;
+}
+
 // Indicadores de tempo médio: correlacionam timestamps já gravados pelo
 // fluxo real (nada aqui é inventado), sobre atendimentos concluídos
-// (status "delivered" ou "rejected").
+// (status "delivered" ou "rejected"). Cada métrica usa uma JANELA MÓVEL
+// de 30 dias baseada no timestamp que encerra aquela etapa (fila, atendimento,
+// decisão, entrega ou resolução). Assim a média mantém contexto histórico
+// recente e não zera diariamente; dados anteriores seguem preservados.
 //
 // Fontes usadas por indicador:
 //   - Triagem clínica: dados_clinicos.jornada.triagem_iniciada_em (resposta
@@ -271,7 +294,7 @@ async function findEtapasStatusHistory(atendimentoId) {
 // isso é uma função à parte, não reaproveita o loop de computeTempos.
 // Nunca lança: qualquer falha ao consultar o Supabase (ex.: tabela ainda não
 // migrada) devolve amostra 0 / null, nunca derruba o resto do dashboard.
-async function computeSuporteAdministrativoTempo() {
+async function computeSuporteAdministrativoTempo(window) {
   try {
     const conversations = await supportChatStore.listAllConversations();
     const values = [];
@@ -280,6 +303,10 @@ async function computeSuporteAdministrativoTempo() {
       const messages = await supportChatStore.listMessages(conversation.id);
       const firstOutbound = messages.find((m) => m.direction === 'outbound');
       if (!firstOutbound || !conversation.created_at) continue;
+      // Janela móvel de 30 dias usa o FIM do intervalo (primeira resposta):
+      // um atendimento respondido há mais de 30 dias sai automaticamente da
+      // média; nenhum histórico é apagado.
+      if (!timestampInMetricWindow(firstOutbound.created_at, window)) continue;
       const v = minutesBetween(conversation.created_at, firstOutbound.created_at);
       if (v !== null) values.push(v);
     }
@@ -290,7 +317,8 @@ async function computeSuporteAdministrativoTempo() {
   }
 }
 
-async function computeTempos(atendimentos) {
+async function computeTempos(atendimentos, options = {}) {
+  const window = resolveTimeMetricWindow(options.now || new Date());
   // Tickets de Suporte Geral via WhatsApp (isSupportQueue) nunca passam pelo
   // pipeline triagem → fila médica → avaliação → emissão — não são
   // atendimentos clínicos, então ficam fora da amostra destes indicadores.
@@ -330,43 +358,49 @@ async function computeTempos(atendimentos) {
     const aprovadoEm = eventos.aprovadoEm || c.clinical_audit?.approvedAt || null;
     const jornada = c.jornada || {};
 
-    if (jornada.triagem_iniciada_em) {
+    if (jornada.triagem_iniciada_em && timestampInMetricWindow(a.criado_em, window)) {
       const triagem = minutesBetween(jornada.triagem_iniciada_em, a.criado_em);
       if (triagem !== null) triagemValues.push(triagem);
     }
 
-    if (atendidoEm) {
+    if (atendidoEm && timestampInMetricWindow(atendidoEm, window)) {
       const espera = minutesBetween(a.criado_em, atendidoEm);
       if (espera !== null) esperaMedicaValues.push(espera);
-
-      if (decisaoEm) {
-        const avaliacao = minutesBetween(atendidoEm, decisaoEm);
-        if (avaliacao !== null) avaliacaoValues.push(avaliacao);
-      }
     }
 
-    if (a.status === STATUS.DELIVERED && aprovadoEm) {
-      const entregaEm = c.entrega_receita?.sent_at || c.historico_receita?.ultimo_envio_em || null;
-      if (entregaEm) {
-        const emissao = minutesBetween(aprovadoEm, entregaEm);
-        if (emissao !== null) emissaoReceitaValues.push(emissao);
-      }
+    if (atendidoEm && decisaoEm && timestampInMetricWindow(decisaoEm, window)) {
+      const avaliacao = minutesBetween(atendidoEm, decisaoEm);
+      if (avaliacao !== null) avaliacaoValues.push(avaliacao);
     }
 
     const entregaEm = c.entrega_receita?.sent_at || c.historico_receita?.ultimo_envio_em || null;
-    if (a.status === STATUS.DELIVERED && jornada.primeiro_oi_em && entregaEm) {
+    if (a.status === STATUS.DELIVERED && aprovadoEm && entregaEm && timestampInMetricWindow(entregaEm, window)) {
+      const emissao = minutesBetween(aprovadoEm, entregaEm);
+      if (emissao !== null) emissaoReceitaValues.push(emissao);
+    }
+
+    if (
+      a.status === STATUS.DELIVERED &&
+      jornada.primeiro_oi_em &&
+      entregaEm &&
+      timestampInMetricWindow(entregaEm, window)
+    ) {
       const jornadaCompleta = minutesBetween(jornada.primeiro_oi_em, entregaEm);
       if (jornadaCompleta !== null) jornadaCompletaValues.push(jornadaCompleta);
     }
 
-    if (c.medical_support_requested_at && c.medical_support_resolved_at) {
+    if (
+      c.medical_support_requested_at &&
+      c.medical_support_resolved_at &&
+      timestampInMetricWindow(c.medical_support_resolved_at, window)
+    ) {
       const suporteMedico = minutesBetween(c.medical_support_requested_at, c.medical_support_resolved_at);
       if (suporteMedico !== null) suporteMedicoValues.push(suporteMedico);
     }
 
     // Pagamento confirmado → entrada na fila médica.
     const pagoEm = c.stripe_paid_at || c.stripe_payment?.confirmed_at || null;
-    if (pagoEm && etapas.filaEm) {
+    if (pagoEm && etapas.filaEm && timestampInMetricWindow(etapas.filaEm, window)) {
       const v = minutesBetween(pagoEm, etapas.filaEm);
       if (v !== null) pagamentoFilaValues.push(v);
     }
@@ -374,9 +408,12 @@ async function computeTempos(atendimentos) {
 
   // Fonte de dados separada (support_conversations/support_chat_messages) —
   // roda em paralelo ao loop acima, nunca bloqueado por ele.
-  const suporteAdministrativo = await computeSuporteAdministrativoTempo();
+  const suporteAdministrativo = await computeSuporteAdministrativoTempo(window);
 
   return {
+    periodo_dias: TIME_METRIC_WINDOW_DAYS,
+    janela_inicio: new Date(window.cutoffMs).toISOString(),
+    janela_fim: window.now.toISOString(),
     // Amostra do cabeçalho: só atendimentos com jornada completa (marcadores
     // primeiro_oi_em + entrega_receita.sent_at) E receita entregue (status
     // delivered) — mesmo critério de jornadaCompletaValues acima. Rejeitados
