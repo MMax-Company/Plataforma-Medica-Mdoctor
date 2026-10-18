@@ -174,11 +174,18 @@ function average(values) {
 
 function formatMinutes(minutes) {
   if (minutes === null) return null;
-  if (minutes > 0 && minutes < 1) return '< 1 min';
-  if (minutes < 60) return `${Math.round(minutes)} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = Math.round(minutes % 60);
-  return rest ? `${hours}h ${rest}min` : `${hours}h`;
+  const totalSeconds = Math.max(0, Math.round(minutes * 60));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (totalMinutes < 60) {
+    return `${totalMinutes}m ${String(seconds).padStart(2, '0')}s`;
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutesRest = totalMinutes % 60;
+  return `${hours}h ${String(minutesRest).padStart(2, '0')}m`;
 }
 
 const TIME_METRIC_WINDOW_DAYS = 30;
