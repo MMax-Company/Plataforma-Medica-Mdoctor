@@ -171,7 +171,7 @@ async function testComputeTemposComJornada() {
     }
   ];
 
-  const tempos = await admin.computeTempos(atendimentos);
+  const tempos = await admin.computeTempos(atendimentos, { now: '2026-07-18T12:00:00.000Z' });
 
   // Triagem clínica: clique "Vamos começar" 10:02 -> criado_em 10:15 = 13 min.
   assert.equal(tempos.triagem, '13 min');
