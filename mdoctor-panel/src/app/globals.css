@@ -4540,17 +4540,26 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-  color: #13233d;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.1;
+  position: absolute;
+  left: 50%;
+  top: 39%;
+  width: 84%;
+  max-width: 84%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  color: #0f2f5f;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
   white-space: nowrap;
+  letter-spacing: -0.015em;
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
   position: absolute;
   left: 50%;
-  bottom: 14%;
+  bottom: 12%;
   display: block;
   width: 78%;
   min-height: 2.25em;
@@ -4614,18 +4623,24 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-value {
-    width: 82%;
-    max-width: 82%;
+    left: 50%;
+    top: 38%;
+    width: 86%;
+    max-width: 86%;
+    margin: 0;
+    transform: translate(-50%, -50%);
     overflow: hidden;
-    font-size: clamp(14px, 1.18vw, 19px);
-    font-weight: 900;
-    line-height: 1.02;
+    font-size: clamp(17px, 1.48vw, 22px);
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
     text-overflow: clip;
+    letter-spacing: -0.018em;
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
     left: 50%;
-    bottom: 14%;
+    bottom: 12%;
     width: 78%;
     min-height: 3.05em;
     margin: 0;
