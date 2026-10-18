@@ -265,7 +265,7 @@ const bodyColumns: Array<{
 // outbound) e "Suporte médico" (medical_support_requested_at até
 // medical_support_resolved_at) seguem o mesmo princípio — sem amostra
 // suficiente (ninguém respondeu/resolveu ainda), o backend devolve null e a
-// UI mostra "—" em vez de um número fabricado.
+// UI deixa a área do valor vazia em vez de exibir traço ou número fabricado.
 const TIME_METRIC_KEYS = [
   'pagamento_fila',
   'triagem',
