@@ -38,6 +38,8 @@ export type AdminAtendimento = {
     entrega_receita?: { channel?: string; status?: string; sent_at?: string };
     motivo_rejeicao?: { code?: string; label?: string; detail?: string | null; rejected_at?: string } | null;
     support_sub_status?: string | null;
+    support_closed_at?: string | null;
+    support_closed_by?: string | null;
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
@@ -89,6 +91,7 @@ export type AdminDashboard = {
   };
   financeiro: {
     atendimentos_pagos: number;
+    atendimentos_sem_valor_registrado: number;
     valor_unitario_centavos: number;
     valor_unitario_label: string;
     receita_total_centavos: number;
@@ -156,7 +159,7 @@ export async function resolveAdminNote(
 
 export async function resendTypebotLink(
   id: string,
-): Promise<{ success: boolean; link: string; sent: boolean; phone: string | null }> {
+): Promise<{ success: boolean; link: string | null; sent: boolean; phone: string | null }> {
   return apiClient.post(
     `/api/admin/atendimentos/${id}/resend-typebot`,
     {},
@@ -168,6 +171,9 @@ export async function resendPaymentLink(id: string): Promise<{
   success: boolean;
   link: string | null;
   sent: boolean;
+  alreadyPaid?: boolean;
+  regenerated?: boolean;
+  cannotVerify?: boolean;
   phone: string | null;
   pagamento_status: string;
 }> {

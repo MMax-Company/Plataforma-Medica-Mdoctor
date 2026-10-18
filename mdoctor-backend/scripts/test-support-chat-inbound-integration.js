@@ -25,12 +25,27 @@ const base = path.join(__dirname, '..', 'src', 'services', 'whatsapp-support.ser
 const resolveFrom = (p) => path.join(path.dirname(base), p);
 
 let atendimentos = [];
+let nextAtendimentoId = 1;
 stub(resolveFrom('../store/atendimentos.store'), {
   STATUS: { WAITING: 'waiting', EM_ATENDIMENTO: 'em_atendimento', REJECTED: 'rejected' },
-  createAtendimento: async (row) => ({ id: 'atd-mock', ...row }),
+  // Agora um fake mínimo de verdade (cria/busca/atualiza no array
+  // compartilhado), não só um registro solto — necessário para os cenários
+  // 8+ (fechar pelo painel e confirmar reabertura), que dependem de
+  // getAtendimento/updateAtendimentoStatus refletirem no mesmo estado que
+  // listAtendimentos (e portanto findOpenSupportByPhone) lê depois.
+  createAtendimento: async (row) => {
+    const created = { id: `atd-mock-${nextAtendimentoId++}`, ...row };
+    atendimentos.push(created);
+    return created;
+  },
   listAtendimentos: async () => atendimentos,
-  getAtendimento: async () => null,
-  updateAtendimentoStatus: async () => ({})
+  getAtendimento: async (id) => atendimentos.find((a) => a.id === id) || null,
+  updateAtendimentoStatus: async (id, status, patch = {}) => {
+    const existing = atendimentos.find((a) => a.id === id);
+    if (!existing) return null;
+    Object.assign(existing, patch, { status });
+    return existing;
+  }
 });
 stub(resolveFrom('../store/audit.store'), { createAuditLog: async () => {} });
 stub(resolveFrom('./clinical-persistence.service'), { recordSupportTicket: async () => {} });
@@ -191,7 +206,8 @@ async function main() {
   //    invisível para o administrador até lá (achado de revisão, 17/10/2026).
   {
     assert.equal(ensureConversationCalls.length, 1, 'abrir um ticket de suporte novo deveria chamar ensureConversation exatamente uma vez');
-    assert.equal(ensureConversationCalls[0].appointmentId, 'atd-mock');
+    assert.equal(atendimentos.length, 1, 'deveria ter criado exatamente 1 atendimento novo');
+    assert.equal(ensureConversationCalls[0].appointmentId, atendimentos[0].id);
     results.aberturaDeTicketNovoChamaEnsureConversationComAppointmentIdCorreto = 'ok';
   }
 
@@ -218,6 +234,84 @@ async function main() {
     } finally {
       require.cache[require.resolve(resolveFrom('./support-chat.service'))] = originalModule;
     }
+  }
+
+  // 8) closeSupportEntryByAppointmentId fecha de verdade um ticket aberto:
+  //    status -> REJECTED, support_sub_status -> CLOSED_ADMIN, e a partir daí
+  //    findOpenSupportByPhone()/getPatientSupportContext() não encontram
+  //    mais esse atendimento para o telefone do paciente.
+  {
+    seedActiveSupportTicket('waiting');
+    const result = await support.closeSupportEntryByAppointmentId({ appointmentId: ATENDIMENTO_ID, actorId: 'admin-fechou' });
+    assert.equal(result.closed, true);
+    assert.equal(result.atendimento.status, 'rejected');
+    assert.equal(result.atendimento.dados_clinicos.support_sub_status, support.SUPPORT_SUB.CLOSED_ADMIN);
+    assert.equal(result.atendimento.dados_clinicos.support_closed_by, 'admin-fechou');
+
+    const stillOpen = await support.findOpenSupportByPhone(SUPPORT_PHONE);
+    assert.equal(stillOpen, null, 'depois de fechado pelo painel, o ticket não pode mais aparecer como aberto');
+    const ctx = await support.getPatientSupportContext(SUPPORT_PHONE);
+    assert.equal(ctx, null, 'getPatientSupportContext também não deve mais encontrar o ticket fechado');
+    results.closeSupportEntryByAppointmentIdFechaTicketEParaDeSerEncontradoComoAberto = 'ok';
+  }
+
+  // 9) Idempotente: chamar de novo no mesmo atendimento já fechado é um
+  //    no-op (não sobrescreve support_closed_by nem gera novo evento).
+  {
+    const result = await support.closeSupportEntryByAppointmentId({ appointmentId: ATENDIMENTO_ID, actorId: 'admin-outro' });
+    assert.equal(result.closed, false);
+    assert.equal(result.reason, 'already_closed');
+    const atendimento = atendimentos.find((a) => a.id === ATENDIMENTO_ID);
+    assert.equal(atendimento.dados_clinicos.support_closed_by, 'admin-fechou', 'segunda chamada não deve sobrescrever quem fechou primeiro');
+    results.closeSupportEntryByAppointmentIdEhIdempotenteEmTicketJaFechado = 'ok';
+  }
+
+  // 10) Guards: appointmentId inexistente e atendimento que não é de
+  //     suporte nunca são fechados por engano.
+  {
+    const notFound = await support.closeSupportEntryByAppointmentId({ appointmentId: 'atd-nao-existe', actorId: 'admin' });
+    assert.equal(notFound.closed, false);
+    assert.equal(notFound.reason, 'not_found');
+
+    atendimentos.push({
+      id: 'atd-clinico-001',
+      status: 'waiting',
+      paciente_telefone: '5511977770077',
+      dados_clinicos: { queue_type: 'clinical' }
+    });
+    const notSupport = await support.closeSupportEntryByAppointmentId({ appointmentId: 'atd-clinico-001', actorId: 'admin' });
+    assert.equal(notSupport.closed, false);
+    assert.equal(notSupport.reason, 'not_support_queue');
+    results.closeSupportEntryByAppointmentIdNuncaFechaInexistenteOuNaoSuporte = 'ok';
+  }
+
+  // 11) Reabertura: depois do fechamento pelo painel, a PRÓXIMA mensagem do
+  //     mesmo telefone não é mais capturada pelo ticket antigo (cai no fluxo
+  //     normal de saudação/menu) — e se o paciente pedir suporte de novo,
+  //     nasce um atendimento/conversation NOVOS (appointment_id diferente),
+  //     nunca uma tentativa de reabrir o antigo.
+  {
+    seedActiveSupportTicket('waiting');
+    await support.closeSupportEntryByAppointmentId({ appointmentId: ATENDIMENTO_ID, actorId: 'admin-fechou-2' });
+
+    recordInboundCalls = [];
+    const afterClose = await support.resolveMetaInboundRouting({
+      phone: SUPPORT_PHONE,
+      text: 'alguém aí ainda?',
+      messageId: 'wamid-pos-fechamento-001'
+    });
+    assert.notEqual(afterClose.reply, support.SUPPORT_WAITING_TEXT, 'mensagem após fechamento pelo painel não pode mais cair no ticket antigo');
+    assert.equal(recordInboundCalls.length, 0, 'ticket fechado não deve mais capturar inbound como se estivesse ativo');
+
+    ensureConversationCalls = [];
+    const reopenResult = await support.resolveMetaInboundRouting({ phone: SUPPORT_PHONE, text: '2', messageId: 'wamid-pos-fechamento-002' });
+    assert.equal(reopenResult.action, 'reply');
+    const openAgain = await support.findOpenSupportByPhone(SUPPORT_PHONE);
+    assert.ok(openAgain, 'pedir suporte de novo deveria criar um atendimento novo e aberto');
+    assert.notEqual(openAgain.id, ATENDIMENTO_ID, 'reabertura deve criar um atendimento NOVO, nunca reaproveitar o id do antigo (fechado)');
+    assert.equal(ensureConversationCalls.length, 1);
+    assert.equal(ensureConversationCalls[0].appointmentId, openAgain.id);
+    results.reaberturaAposFechamentoPeloPainelCriaAtendimentoEConversationNovos = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));

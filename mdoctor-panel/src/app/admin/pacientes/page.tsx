@@ -27,7 +27,8 @@ function statusLabel(s: string) {
   if (['waiting', 'queue', 'fila', 'triaged'].includes(v)) return 'Aguardando';
   if (v === 'awaiting_prescription_upload') return 'Aguardando receita';
   if (['em_atendimento', 'under_review', 'approved'].includes(v)) return 'Em atendimento';
-  if (['receita_emitida', 'memed_processing', 'awaiting_validation', 'receita_em_edicao'].includes(v)) return 'Receita emitida';
+  if (v === 'receita_em_edicao') return 'Receita em edição';
+  if (['receita_emitida', 'memed_processing', 'awaiting_validation'].includes(v)) return 'Receita emitida';
   if (['ready', 'validated', 'aprovado'].includes(v)) return 'Receita pronta';
   if (['delivered', 'finished'].includes(v)) return 'Entregue';
   if (['rejected', 'recusado', 'cancelado'].includes(v)) return 'Recusado';
@@ -57,6 +58,15 @@ function isInFlow(a: AdminAtendimento) {
   return ['em_atendimento', 'under_review', 'approved', 'receita_em_edicao', 'receita_emitida', 'memed_processing', 'awaiting_validation'].includes(v);
 }
 
+function isAdministrativePending(a: AdminAtendimento) {
+  const notes = a.dados_clinicos?.observacoes_admin || [];
+  return (
+    notes.some((n) => !n.resolvido) ||
+    (a.status || '').toLowerCase() === 'awaiting_prescription_upload' ||
+    (isWaiting(a) && !isPaid(a))
+  );
+}
+
 function isReady(a: AdminAtendimento) {
   const v = (a.status || '').toLowerCase();
   return ['ready', 'validated', 'aprovado'].includes(v);
@@ -69,12 +79,7 @@ function applyFilter(items: AdminAtendimento[], filter: string): AdminAtendiment
   if (filter === 'pronto_avaliacao') return items.filter((a) => isWaiting(a) && isPaid(a));
   if (filter === 'em_atendimento') return items.filter(isInFlow);
   if (filter === 'receitas_prontas') return items.filter(isReady);
-  if (filter === 'pendencias_admin') {
-    return items.filter((a) => {
-      const notes = a.dados_clinicos?.observacoes_admin || [];
-      return notes.some((n) => !n.resolvido);
-    });
-  }
+  if (filter === 'pendencias_admin') return items.filter(isAdministrativePending);
   return items;
 }
 
@@ -119,6 +124,20 @@ function PacientesContent() {
       })
       .finally(() => setLoading(false));
   }, [router]);
+
+  // Mantém a Relação de Pacientes alinhada ao dashboard operacional sem
+  // exigir recarregar a página. Falha transitória preserva a lista atual.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      fetchAdminAtendimentos()
+        .then((r) => setAtendimentos(r.atendimentos || []))
+        .catch(() => {
+          /* mantém a lista anterior; o próximo ciclo tenta novamente */
+        });
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const filtered = useMemo(() => {
     let list = applyFilter(atendimentos, filter);
