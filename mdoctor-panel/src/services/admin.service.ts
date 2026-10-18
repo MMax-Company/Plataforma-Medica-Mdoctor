@@ -49,6 +49,16 @@ export type AdminAtendimento = {
       rejectedBy?: string | null;
       rejectedAt?: string | null;
     } | null;
+    administrative_cancellation?: {
+      source?: string;
+      reason_code?: string;
+      reason_label?: string;
+      detail?: string | null;
+      canceled_at?: string;
+      canceled_by?: string;
+      refund_status?: string | null;
+      refund_id?: string | null;
+    } | null;
   };
 };
 
@@ -161,6 +171,29 @@ export async function resolveAdminNote(
   return apiClient.patch(
     `/api/admin/atendimentos/${atendimentoId}/notes/${noteId}/resolve`,
     {},
+    { headers: authHeaders() },
+  );
+}
+
+export type PendingPrescriptionCancelReason =
+  | 'envio_nao_confirmado'
+  | 'solicitacao_paciente'
+  | 'solicitacao_administrador'
+  | 'outro';
+
+export async function cancelPendingPrescription(
+  id: string,
+  reasonCode: PendingPrescriptionCancelReason,
+  detail?: string,
+): Promise<{
+  success: boolean;
+  atendimento: AdminAtendimento;
+  cancellation: Record<string, unknown>;
+  refund: { status: string | null; refund_id: string | null } | null;
+}> {
+  return apiClient.post(
+    `/api/admin/atendimentos/${id}/cancel-pending-prescription`,
+    { reason_code: reasonCode, detail: detail || null },
     { headers: authHeaders() },
   );
 }

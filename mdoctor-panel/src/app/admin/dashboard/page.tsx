@@ -9,6 +9,8 @@ import {
   fetchAdminAtendimentos,
   fetchSupportConversations,
   resolveAdminNote,
+  cancelPendingPrescription,
+  type PendingPrescriptionCancelReason,
   type AdminAtendimento,
   type AdminDashboard,
   type SupportConversation,
@@ -367,12 +369,14 @@ function PatientRow({
   item,
   onVerJornada,
   onResolveNote,
+  onCancelPending,
   resolvingNoteId,
 }: {
   column: BodyColumnKey;
   item: AdminAtendimento;
   onVerJornada: () => void;
   onResolveNote: (atendimentoId: string, noteId: string) => void;
+  onCancelPending: (item: AdminAtendimento) => void;
   resolvingNoteId: string | null;
 }) {
   const verJornadaBtn = (
@@ -427,18 +431,28 @@ function PatientRow({
             <span className="min-w-[90px] flex-1 truncate text-[10.5px] text-[#5B6475]" title={administrativePendingReason(item)}>
               {administrativePendingReason(item)}
             </span>
-            {note ? (
-              <div className="w-[84px] shrink-0">
+            <div className="flex shrink-0 items-center gap-1">
+              {note && (
                 <button
                   type="button"
                   disabled={resolving}
                   onClick={() => onResolveNote(item.id, note.id)}
-                  className="w-full rounded-[7px] border-2 border-[#B45309] bg-white px-2 py-1 text-[9.5px] font-bold text-[#B45309] hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-[7px] border border-[#B45309] bg-white px-2 py-1 text-[9px] font-semibold text-[#B45309] hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {resolving ? 'Resolvendo...' : 'Resolver'}
                 </button>
-              </div>
-            ) : verJornadaBtn}
+              )}
+              {(item.status || '').toLowerCase() === 'awaiting_prescription_upload' && (
+                <button
+                  type="button"
+                  onClick={() => onCancelPending(item)}
+                  className="rounded-[7px] border border-red-300 bg-white px-2 py-1 text-[9px] font-semibold text-red-700 hover:bg-red-50"
+                >
+                  Cancelar
+                </button>
+              )}
+              {!note && (item.status || '').toLowerCase() !== 'awaiting_prescription_upload' && verJornadaBtn}
+            </div>
           </>
         );
       })()}
@@ -455,6 +469,11 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [resolvingNoteId, setResolvingNoteId] = useState<string | null>(null);
   const [isPendingDrawerOpen, setPendingDrawerOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<AdminAtendimento | null>(null);
+  const [cancelReason, setCancelReason] = useState<PendingPrescriptionCancelReason>('envio_nao_confirmado');
+  const [cancelDetail, setCancelDetail] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   async function refreshAtendimentos() {
     try {
@@ -483,6 +502,26 @@ export default function AdminDashboardPage() {
       /* best-effort — usuário pode tentar de novo */
     } finally {
       setResolvingNoteId(null);
+    }
+  }
+
+  async function handleCancelPending() {
+    if (!cancelTarget) return;
+    if (cancelReason === 'outro' && !cancelDetail.trim()) {
+      setCancelError('Informe o motivo em “Outro”.');
+      return;
+    }
+    setCancelLoading(true);
+    setCancelError(null);
+    try {
+      await cancelPendingPrescription(cancelTarget.id, cancelReason, cancelDetail.trim());
+      setCancelTarget(null);
+      setCancelDetail('');
+      await Promise.all([refreshAtendimentos(), refreshDashboard()]);
+    } catch (e: unknown) {
+      setCancelError(e instanceof Error ? e.message : 'Erro ao cancelar pendência.');
+    } finally {
+      setCancelLoading(false);
     }
   }
 
@@ -732,6 +771,7 @@ export default function AdminDashboardPage() {
                             item={item}
                             onVerJornada={() => router.push(`/admin/paciente/${item.id}`)}
                             onResolveNote={handleResolveNote}
+                            onCancelPending={setCancelTarget}
                             resolvingNoteId={resolvingNoteId}
                           />
                         ))
@@ -749,6 +789,67 @@ export default function AdminDashboardPage() {
         )}
       </div>
 
+      {cancelTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1220]/45 px-4">
+          <div className="w-full max-w-[420px] rounded-[14px] border border-slate-200 bg-white p-4 shadow-2xl">
+            <h3 className="text-[14px] font-bold text-[#071B3A]">Cancelar pendência administrativa</h3>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {shortId(cancelTarget)} · aguardando receita anterior
+            </p>
+
+            <label className="mt-4 block text-[11px] font-semibold text-slate-700">Motivo</label>
+            <select
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value as PendingPrescriptionCancelReason)}
+              className="mt-1 w-full rounded-[8px] border border-slate-300 bg-white px-3 py-2 text-[12px]"
+            >
+              <option value="envio_nao_confirmado">Envio não confirmado</option>
+              <option value="solicitacao_paciente">Solicitação do paciente</option>
+              <option value="solicitacao_administrador">Solicitação do administrador</option>
+              <option value="outro">Outro</option>
+            </select>
+
+            {cancelReason === 'outro' && (
+              <textarea
+                value={cancelDetail}
+                onChange={(e) => setCancelDetail(e.target.value)}
+                placeholder="Descreva o motivo"
+                className="mt-2 min-h-[76px] w-full resize-none rounded-[8px] border border-slate-300 px-3 py-2 text-[12px]"
+              />
+            )}
+
+            <p className="mt-3 text-[10px] leading-4 text-slate-500">
+              O atendimento será encerrado e permanecerá no histórico. Se houver pagamento confirmado,
+              o backend solicitará o estorno pelo vínculo Stripe registrado.
+            </p>
+            {cancelError && <p className="mt-2 text-[10px] text-red-600">{cancelError}</p>}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={cancelLoading}
+                onClick={() => {
+                  setCancelTarget(null);
+                  setCancelError(null);
+                  setCancelDetail('');
+                }}
+                className="rounded-[8px] border border-slate-300 px-3 py-2 text-[11px] font-semibold text-slate-600"
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                disabled={cancelLoading}
+                onClick={() => void handleCancelPending()}
+                className="rounded-[8px] bg-red-600 px-3 py-2 text-[11px] font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {cancelLoading ? 'Cancelando...' : 'Confirmar cancelamento'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <PendenciasDrawer
         isOpen={isPendingDrawerOpen}
         onClose={() => setPendingDrawerOpen(false)}
@@ -762,6 +863,7 @@ export default function AdminDashboardPage() {
               item={item}
               onVerJornada={() => router.push(`/admin/paciente/${item.id}`)}
               onResolveNote={handleResolveNote}
+              onCancelPending={setCancelTarget}
               resolvingNoteId={resolvingNoteId}
             />
           ))
