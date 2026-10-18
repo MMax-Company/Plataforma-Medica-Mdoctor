@@ -152,7 +152,7 @@ async function testComputeTemposComJornada() {
           triagem_iniciada_em: '2026-07-01T10:02:00.000Z',
           pos_entrega_enviada_em: '2026-07-01T10:40:00.000Z'
         },
-        stripe_paid_at: '2026-07-01T10:13:00.000Z',
+        stripe_paid_at: '2026-07-01T10:12:55.000Z',
         clinical_audit: { approvedAt: '2026-07-01T10:25:00.000Z' },
         entrega_receita: { sent_at: '2026-07-01T10:35:00.000Z' }
       }
@@ -205,7 +205,7 @@ async function testComputeTemposComJornada() {
   // desativados (não retornados mais por computeTempos) — pagamento_fila
   // continua usando a mesma consulta a appointment_status_history e segue
   // testado normalmente.
-  assert.equal(tempos.pagamento_fila, '2m 00s', 'stripe_paid_at 10:13 -> waiting 10:15');
+  assert.equal(tempos.pagamento_fila, '2m 05s', 'stripe_paid_at 10:12:55 -> waiting 10:15');
   assert.equal(tempos.amostra_por_indicador.pagamento_fila, 1);
   results.computeTemposEtapasStatusHistory = 'ok';
 
