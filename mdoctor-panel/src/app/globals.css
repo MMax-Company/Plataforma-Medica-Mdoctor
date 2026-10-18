@@ -4548,12 +4548,14 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 }
 
 .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
-  position: relative;
-  display: flex;
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  display: block;
   width: 78%;
   min-height: 2.25em;
-  align-items: center;
-  justify-content: center;
+  margin: 0;
+  transform: translateX(-50%);
   color: #13233d;
   font-size: 8px;
   font-weight: 800;
@@ -4622,10 +4624,15 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   }
 
   .admin-dashboard .admin-dashboard__time-tile > .admin-dashboard__time-label {
+    left: 50%;
+    bottom: 14%;
     width: 78%;
     min-height: 3.05em;
+    margin: 0;
+    transform: translateX(-50%);
     font-size: clamp(7px, 0.58vw, 8.6px);
     font-weight: 900;
     line-height: 1.03;
+    text-align: center;
   }
 }
