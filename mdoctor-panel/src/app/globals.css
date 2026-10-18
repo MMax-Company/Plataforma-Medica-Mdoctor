@@ -3322,8 +3322,27 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 .admin-dashboard__time > div {
   min-height: 62px;
   border-radius: 11px;
-  border-color: rgba(203, 213, 225, 0.78);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.025);
+  border-color: rgba(203, 213, 225, 0.82);
+  box-shadow:
+    0 4px 12px rgba(15, 23, 42, 0.055),
+    0 1px 2px rgba(15, 23, 42, 0.025);
+  transition:
+    transform 170ms ease,
+    box-shadow 170ms ease,
+    border-color 170ms ease,
+    filter 170ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-dashboard__summary > button:hover,
+  .admin-dashboard__finance > div:hover {
+    transform: translateY(-2px);
+    border-color: rgba(148, 163, 184, 0.66);
+    box-shadow:
+      0 9px 20px rgba(15, 23, 42, 0.085),
+      0 2px 4px rgba(15, 23, 42, 0.03);
+    filter: saturate(1.025) brightness(1.01);
+  }
 }
 
 /* Relação de Pacientes — usa a mesma composição do Painel Administrativo. */
@@ -3671,10 +3690,29 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
 
 .admin-dashboard__main-grid > section,
 .admin-dashboard__main-grid .admin-dashboard-chat-card {
-  border-color: #e2e8f0;
+  border-color: #dbe5f0;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 5px 18px rgba(15, 23, 42, 0.045);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 7px 22px rgba(15, 23, 42, 0.075),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-dashboard__main-grid > section:hover,
+  .admin-dashboard__main-grid .admin-dashboard-chat-card:hover {
+    transform: translateY(-2px);
+    border-color: #cddbeb;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow:
+      0 12px 30px rgba(15, 23, 42, 0.1),
+      0 2px 5px rgba(15, 23, 42, 0.045);
+  }
 }
 
 /* Colunas 1 e 2 (Pacientes Aprovados / Rejeitados) — altura TOTAL fixa e
@@ -4514,7 +4552,27 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   background: linear-gradient(160deg, #f8fbff 0%, #e4eeff 100%);
   padding: 10px 8px;
   text-align: center;
-  box-shadow: 0 3px 9px rgba(21, 87, 255, 0.11), inset 0 0 0 4px rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 5px 14px rgba(21, 87, 255, 0.12),
+    0 1px 3px rgba(15, 23, 42, 0.045),
+    inset 0 0 0 4px rgba(255, 255, 255, 0.6);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .admin-dashboard__time > .admin-dashboard__time-tile:hover {
+    transform: translateY(-2px);
+    border-color: #9ebcf0;
+    background: linear-gradient(160deg, #fbfdff 0%, #e8f1ff 100%);
+    box-shadow:
+      0 10px 22px rgba(21, 87, 255, 0.16),
+      0 2px 5px rgba(15, 23, 42, 0.045),
+      inset 0 0 0 4px rgba(255, 255, 255, 0.66);
+  }
 }
 
 /* Arco idêntico em todos os círculos: decoração, sem codificar duração. */
@@ -4548,7 +4606,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   margin: 0;
   transform: translate(-50%, -50%);
   color: #0f2f5f;
-  font-size: 18px;
+  font-size: 16.5px;
   font-weight: 700;
   line-height: 1;
   text-align: center;
@@ -4566,7 +4624,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   margin: 0;
   transform: translateX(-50%);
   color: #13233d;
-  font-size: 8px;
+  font-size: 7.6px;
   font-weight: 400;
   line-height: 1.08;
   text-align: center;
@@ -4630,7 +4688,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     margin: 0;
     transform: translate(-50%, -50%);
     overflow: hidden;
-    font-size: clamp(17px, 1.48vw, 22px);
+    font-size: clamp(16px, 1.32vw, 20px);
     font-weight: 700;
     line-height: 1;
     text-align: center;
@@ -4645,7 +4703,7 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     min-height: 3.05em;
     margin: 0;
     transform: translateX(-50%);
-    font-size: clamp(7px, 0.58vw, 8.6px);
+    font-size: clamp(6.8px, 0.54vw, 8.2px);
     font-weight: 400;
     line-height: 1.08;
     text-align: center;
