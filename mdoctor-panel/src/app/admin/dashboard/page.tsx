@@ -277,6 +277,21 @@ const TIME_METRIC_KEYS = [
   'jornada_completa',
 ] as const;
 
+const STAGING_TIME_PREVIEW_VALUES: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
+  pagamento_fila: '2m 05s',
+  triagem: '1h 30m',
+  espera_medica: '23m 55s',
+  avaliacao: '45s',
+  emissao_receita: '8m 12s',
+  suporte_administrativo: '16m 40s',
+  suporte_medico: '5m 09s',
+  jornada_completa: '41m 08s',
+};
+
+const IS_STAGING_PREVIEW =
+  process.env.NEXT_PUBLIC_APP_ENV === 'staging' &&
+  process.env.NEXT_PUBLIC_STAGING_BUILD_MARKER === 'true';
+
 const TIME_METRIC_LABELS: Record<(typeof TIME_METRIC_KEYS)[number], string> = {
   pagamento_fila: 'Fila Pagamento',
   triagem: 'Triagem Clínica',
@@ -631,15 +646,23 @@ export default function AdminDashboardPage() {
                       sampleCount === undefined
                         ? undefined
                         : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
+                    const isStagingPreview = IS_STAGING_PREVIEW && !data.tempos[key];
+                    const displayValue = data.tempos[key] || (isStagingPreview ? STAGING_TIME_PREVIEW_VALUES[key] : '');
+                    const accessibleSuffix = isStagingPreview
+                      ? ' · valor demonstrativo somente para validação visual do staging'
+                      : sampleLabel
+                        ? ` · ${sampleLabel}`
+                        : '';
                     return (
                       <div
                         key={key}
                         className="admin-dashboard__time-tile"
                         data-metric={key}
-                        title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] || 'sem amostra'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
-                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] || 'sem amostra'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        data-staging-preview={isStagingPreview ? 'true' : undefined}
+                        title={`${TIME_METRIC_LABELS[key]}: ${displayValue || 'sem amostra'}${accessibleSuffix}`}
+                        aria-label={`${TIME_METRIC_LABELS[key]}: ${displayValue || 'sem amostra'}${accessibleSuffix}`}
                       >
-                        <span className="admin-dashboard__time-value">{data.tempos[key] || ''}</span>
+                        <span className="admin-dashboard__time-value">{displayValue}</span>
                         <span className="admin-dashboard__time-label">
                           {TIME_METRIC_LABELS[key]}
                         </span>
