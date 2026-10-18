@@ -38,6 +38,9 @@ stub(resolveFrom('../config/supabase'), {
 const { computeTempos } = require(routesPath);
 const supportChatStore = require(resolveFrom('../store/support-chat.store'));
 
+const TEST_NOW = '2026-10-18T12:00:00.000Z';
+const computeTemposFixed = (atendimentos) => computeTempos(atendimentos, { now: TEST_NOW });
+
 const results = {};
 
 function baseAtendimento(overrides = {}) {
@@ -60,7 +63,7 @@ async function main() {
         medical_support_resolved_at: '2026-10-01T12:30:00.000Z'
       }
     });
-    const tempos = await computeTempos([a]);
+    const tempos = await computeTemposFixed([a]);
     assert.equal(tempos.suporte_medico, '30 min');
     assert.equal(tempos.amostra_por_indicador.suporte_medico, 1);
     results.suporteMedicoComCicloCompletoEntraNaAmostraComValorCorreto = 'ok';
@@ -72,7 +75,7 @@ async function main() {
     const a = baseAtendimento({
       dados_clinicos: { medical_support_requested_at: '2026-10-01T12:00:00.000Z' }
     });
-    const tempos = await computeTempos([a]);
+    const tempos = await computeTemposFixed([a]);
     assert.equal(tempos.suporte_medico, null);
     assert.equal(tempos.amostra_por_indicador.suporte_medico, 0);
     results.suporteMedicoSemResolvedAtNuncaInventaUmFim = 'ok';
@@ -81,7 +84,7 @@ async function main() {
   // 3) suporte_medico: nenhum atendimento com os marcadores -> null, amostra
   //    0 — nunca um valor fabricado por falta de dado.
   {
-    const tempos = await computeTempos([baseAtendimento()]);
+    const tempos = await computeTemposFixed([baseAtendimento()]);
     assert.equal(tempos.suporte_medico, null);
     assert.equal(tempos.amostra_por_indicador.suporte_medico, 0);
     results.suporteMedicoSemNenhumMarcoRetornaNullSemInventar = 'ok';
@@ -111,7 +114,7 @@ async function main() {
     const allOutbound = fakeDb.rows('support_chat_messages').filter((m) => m.conversation_id === conversation.id && m.direction === 'outbound');
     allOutbound[allOutbound.length - 1].created_at = '2026-10-01T10:00:00.000Z';
 
-    const tempos = await computeTempos([]);
+    const tempos = await computeTemposFixed([]);
     assert.equal(tempos.suporte_administrativo, '15 min');
     assert.equal(tempos.amostra_por_indicador.suporte_administrativo, 1);
     results.suporteAdministrativoUsaAPrimeiraRespostaNaoAUltima = 'ok';
@@ -121,11 +124,11 @@ async function main() {
   //    de fora da amostra — nunca inventa um "fim" para quem ainda não foi
   //    atendido.
   {
-    const before = (await computeTempos([])).amostra_por_indicador.suporte_administrativo;
+    const before = (await computeTemposFixed([])).amostra_por_indicador.suporte_administrativo;
     const { conversation } = await supportChatStore.ensureConversationForAppointment({ appointmentId: 'appt-adm-sem-resposta', patientId: 'pat-adm-2' });
     await supportChatStore.recordMessage({ conversationId: conversation.id, direction: 'inbound', body: 'oi, alguém aí?', sender: 'patient' });
 
-    const tempos = await computeTempos([]);
+    const tempos = await computeTemposFixed([]);
     assert.equal(tempos.amostra_por_indicador.suporte_administrativo, before, 'conversation sem outbound não deve entrar na amostra');
     results.suporteAdministrativoSemRespostaNuncaEntraNaAmostra = 'ok';
   }
@@ -139,7 +142,7 @@ async function main() {
       throw new Error('falha simulada ao consultar support_conversations');
     };
     try {
-      const tempos = await computeTempos([baseAtendimento()]);
+      const tempos = await computeTemposFixed([baseAtendimento()]);
       assert.equal(tempos.suporte_administrativo, null);
       assert.equal(tempos.amostra_por_indicador.suporte_administrativo, 0);
       assert.ok(tempos.pagamento_fila !== undefined, 'resto do objeto tempos deve continuar presente mesmo com essa falha');

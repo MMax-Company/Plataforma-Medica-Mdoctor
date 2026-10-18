@@ -168,10 +168,25 @@ async function testComputeTemposComJornada() {
         clinical_audit: { approvedAt: '2026-07-01T09:10:00.000Z' },
         entrega_receita: { sent_at: '2026-07-01T09:15:00.000Z' }
       }
+    },
+    {
+      // Ciclo completo, mas com fim fora da janela móvel de 30 dias. Deve
+      // continuar preservado no histórico e NÃO contaminar a média atual.
+      id: 'at-antigo-fora-janela',
+      status: 'delivered',
+      criado_em: '2026-05-01T10:15:00.000Z',
+      dados_clinicos: {
+        jornada: {
+          primeiro_oi_em: '2026-05-01T10:00:00.000Z',
+          triagem_iniciada_em: '2026-05-01T10:02:00.000Z'
+        },
+        clinical_audit: { approvedAt: '2026-05-01T10:20:00.000Z' },
+        entrega_receita: { sent_at: '2026-05-01T10:35:00.000Z' }
+      }
     }
   ];
 
-  const tempos = await admin.computeTempos(atendimentos);
+  const tempos = await admin.computeTempos(atendimentos, { now: '2026-07-18T12:00:00.000Z' });
 
   // Triagem clínica: clique "Vamos começar" 10:02 -> criado_em 10:15 = 13 min.
   assert.equal(tempos.triagem, '13 min');
@@ -181,7 +196,8 @@ async function testComputeTemposComJornada() {
   assert.equal(tempos.jornada_completa, '35 min');
   assert.equal(tempos.amostra_por_indicador.triagem, 1, 'só o atendimento com marcador entra na amostra');
   assert.equal(tempos.amostra_por_indicador.jornada_completa, 1);
-  assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue');
+  assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue dentro de 30 dias');
+  assert.equal(tempos.periodo_dias, 30, 'janela dos indicadores deve permanecer em 30 dias');
   results.computeTemposLeJornadaCorretamente = 'ok';
 
   // Etapas reconstruídas de appointment_status_history (+ stripe_paid_at).

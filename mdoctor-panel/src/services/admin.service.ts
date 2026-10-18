@@ -103,6 +103,9 @@ export type AdminDashboard = {
     receita_total_label: string;
   };
   tempos: {
+    periodo_dias: number;
+    janela_inicio: string;
+    janela_fim: string;
     amostra: number;
     amostra_por_indicador?: Partial<Record<string, number>>;
     pagamento_fila: string | null;
