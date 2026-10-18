@@ -64,7 +64,7 @@ async function main() {
       }
     });
     const tempos = await computeTemposFixed([a]);
-    assert.equal(tempos.suporte_medico, '30 min');
+    assert.equal(tempos.suporte_medico, '30m 00s');
     assert.equal(tempos.amostra_por_indicador.suporte_medico, 1);
     results.suporteMedicoComCicloCompletoEntraNaAmostraComValorCorreto = 'ok';
   }

@@ -4558,8 +4558,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
   transform: translateX(-50%);
   color: #13233d;
   font-size: 8px;
-  font-weight: 800;
-  line-height: 1.05;
+  font-weight: 400;
+  line-height: 1.08;
   text-align: center;
   white-space: normal;
   overflow-wrap: normal;
@@ -4631,8 +4631,8 @@ body[data-dp-memed-open='1'] .medical-workflow-root {
     margin: 0;
     transform: translateX(-50%);
     font-size: clamp(7px, 0.58vw, 8.6px);
-    font-weight: 900;
-    line-height: 1.03;
+    font-weight: 400;
+    line-height: 1.08;
     text-align: center;
   }
 }
