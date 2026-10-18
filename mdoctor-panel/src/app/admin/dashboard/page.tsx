@@ -636,10 +636,10 @@ export default function AdminDashboardPage() {
                         key={key}
                         className="admin-dashboard__time-tile"
                         data-metric={key}
-                        title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
-                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] ?? '—'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        title={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] || 'sem amostra'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
+                        aria-label={`${TIME_METRIC_LABELS[key]}: ${data.tempos[key] || 'sem amostra'}${sampleLabel ? ` · ${sampleLabel}` : ''}`}
                       >
-                        <span className="admin-dashboard__time-value">{data.tempos[key] ?? '—'}</span>
+                        <span className="admin-dashboard__time-value">{data.tempos[key] || ''}</span>
                         <span className="admin-dashboard__time-label">
                           {TIME_METRIC_LABELS[key]}
                         </span>
