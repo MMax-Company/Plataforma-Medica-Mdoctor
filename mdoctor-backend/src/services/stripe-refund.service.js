@@ -92,7 +92,14 @@ async function resolvePaymentIntentId({ stripe, atendimento, requestedPaymentInt
 // automática da triagem, abandono e erro técnico nunca chegam aqui (só o
 // POST /:id/clinical/reject chama). Idempotente em dois níveis: o estado
 // `estorno` já persistido no atendimento e a idempotency key da API Stripe.
-async function refundRejectedAtendimento({ atendimento, requestedPaymentIntent = null, doctorId = null, correlationId = null }) {
+async function refundRejectedAtendimento({
+  atendimento,
+  requestedPaymentIntent = null,
+  doctorId = null,
+  correlationId = null,
+  refundReason = 'reprovacao_medica',
+  idempotencyScope = 'clinical-reject-refund',
+}) {
   const atendimentoId = atendimento?.id || null;
   const existing = atendimento?.dados_clinicos?.estorno || null;
 
@@ -140,11 +147,11 @@ async function refundRejectedAtendimento({ atendimento, requestedPaymentIntent =
         reason: 'requested_by_customer',
         metadata: {
           atendimento_id: String(atendimentoId || ''),
-          motivo: 'reprovacao_medica',
+          motivo: refundReason,
           correlation_id: String(correlationId || '')
         }
       },
-      { idempotencyKey: `clinical-reject-refund:${atendimentoId}:${base.attempt}` }
+      { idempotencyKey: `${idempotencyScope}:${atendimentoId}:${base.attempt}` }
     );
 
     const estorno = {
