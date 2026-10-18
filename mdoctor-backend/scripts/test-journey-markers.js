@@ -189,11 +189,11 @@ async function testComputeTemposComJornada() {
   const tempos = await admin.computeTempos(atendimentos, { now: '2026-07-18T12:00:00.000Z' });
 
   // Triagem clínica: clique "Vamos começar" 10:02 -> criado_em 10:15 = 13 min.
-  assert.equal(tempos.triagem, '13 min');
+  assert.equal(tempos.triagem, '13m 00s');
   // Avaliação real: clique "Atender" 10:20 -> decisão 10:20:22; não arredonda para zero.
-  assert.equal(tempos.avaliacao, '< 1 min');
+  assert.equal(tempos.avaliacao, '22s');
   // Jornada completa: primeiro Oi 10:00 -> envio da receita/opção 3 às 10:35 = 35 min.
-  assert.equal(tempos.jornada_completa, '35 min');
+  assert.equal(tempos.jornada_completa, '35m 00s');
   assert.equal(tempos.amostra_por_indicador.triagem, 1, 'só o atendimento com marcador entra na amostra');
   assert.equal(tempos.amostra_por_indicador.jornada_completa, 1);
   assert.equal(tempos.amostra, 1, 'amostra do cabeçalho só conta jornada completa + receita entregue dentro de 30 dias');
@@ -205,7 +205,7 @@ async function testComputeTemposComJornada() {
   // desativados (não retornados mais por computeTempos) — pagamento_fila
   // continua usando a mesma consulta a appointment_status_history e segue
   // testado normalmente.
-  assert.equal(tempos.pagamento_fila, '2 min', 'stripe_paid_at 10:13 -> waiting 10:15');
+  assert.equal(tempos.pagamento_fila, '2m 00s', 'stripe_paid_at 10:13 -> waiting 10:15');
   assert.equal(tempos.amostra_por_indicador.pagamento_fila, 1);
   results.computeTemposEtapasStatusHistory = 'ok';
 
