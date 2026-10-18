@@ -88,6 +88,48 @@ function isRejected(a: AdminAtendimento) {
   return ['rejected', 'recusado', 'cancelado'].includes(v);
 }
 
+const ADMIN_OPERATION_TIME_ZONE = 'America/Sao_Paulo';
+
+function operationalDateKey(value?: string | Date | null): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ADMIN_OPERATION_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return year && month && day ? `${year}-${month}-${day}` : null;
+}
+
+function approvedDecisionAt(a: AdminAtendimento): string | null {
+  return a.dados_clinicos?.clinical_audit?.approvedAt || null;
+}
+
+function rejectedDecisionAt(a: AdminAtendimento): string | null {
+  return (
+    a.dados_clinicos?.clinical_audit?.rejectedAt ||
+    a.dados_clinicos?.motivo_rejeicao?.rejected_at ||
+    null
+  );
+}
+
+function isDecisionFromOperationalDay(
+  a: AdminAtendimento,
+  column: 'approved' | 'rejected',
+  operationalDay: string | null,
+) {
+  if (!operationalDay) return false;
+  const decidedAt = column === 'approved' ? approvedDecisionAt(a) : rejectedDecisionAt(a);
+  return operationalDateKey(decidedAt) === operationalDay;
+}
+
 function firstPendingAdminNote(a: AdminAtendimento) {
   return (a.dados_clinicos?.observacoes_admin || []).find((n) => !n.resolvido) || null;
 }
@@ -486,15 +528,28 @@ export default function AdminDashboardPage() {
     // colunas administrativas enquanto aguardam resposta — reaparecem quando
     // o médico resolve ou devolve ao suporte.
     const visiveis = atendimentos.filter((a) => a.dados_clinicos?.queue_type !== 'medical_support');
+
+    // "Aprovados" e "Rejeitados" são colunas OPERACIONAIS DO DIA, não arquivo
+    // histórico. A decisão clínica continua preservada no atendimento e segue
+    // acessível em "Relação de Pacientes"; aqui mostramos somente decisões cuja
+    // data real (approvedAt/rejectedAt) pertence ao dia corrente em São Paulo.
+    // O polling de 30s acima força a virada automaticamente após 00:00, sem
+    // apagar nenhum registro do banco.
+    const operationalDay = operationalDateKey(new Date());
+
     const base = bodyColumns.reduce<Record<BodyColumnKey, AdminAtendimento[]>>(
       (acc, column) => {
-        acc[column.key] = visiveis.filter(column.match);
+        acc[column.key] = visiveis.filter(
+          (a) =>
+            column.match(a) &&
+            isDecisionFromOperationalDay(a, column.key as 'approved' | 'rejected', operationalDay),
+        );
         return acc;
       },
       { approved: [], rejected: [], pending: [] },
     );
-    // Pendências administrativas: não faz mais parte do grid de 3 colunas,
-    // mas continua sendo calculada aqui — agora alimenta o drawer.
+    // Pendências administrativas são fila aberta e NÃO zeram na virada do dia:
+    // permanecem até resolução, independentemente da data de abertura.
     base.pending = visiveis.filter(isAdministrativePending);
     return base;
   }, [atendimentos]);

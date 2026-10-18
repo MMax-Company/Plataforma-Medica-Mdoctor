@@ -43,7 +43,12 @@ export type AdminAtendimento = {
     queue_type?: string | null;
     medical_support_reason?: string | null;
     medical_support_requested_at?: string | null;
-    clinical_audit?: { approvedBy?: string | null; rejectedBy?: string | null } | null;
+    clinical_audit?: {
+      approvedBy?: string | null;
+      approvedAt?: string | null;
+      rejectedBy?: string | null;
+      rejectedAt?: string | null;
+    } | null;
   };
 };
 
