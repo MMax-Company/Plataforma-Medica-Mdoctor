@@ -183,52 +183,61 @@ function PacientesContent() {
         onOpenMedicalRecord={() => router.push('/admin/dashboard')}
         onLogout={handleLogout}
       />
-      <div className="admin-patients__content space-y-4 p-4 sm:p-6">
+      <div className="admin-patients__content p-4 sm:p-6">
         {error && (
-          <div className="rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="admin-patients__error rounded-[14px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
             {error}
           </div>
         )}
 
-        {/* Filters */}
-        <div className="admin-patients__filters flex flex-wrap gap-3">
-          <TextInput
-            placeholder="Buscar por nome, telefone, doença..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm"
-          />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="h-11 rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-sm text-[#1E1E1E] outline-none focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF]"
-          >
-            {Object.entries(FILTER_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-          {(search || filter !== 'all') && (
-            <button
-              type="button"
-              onClick={() => { setSearch(''); setFilter('all'); }}
-              className="h-11 rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-sm font-bold text-[#5B6475] hover:bg-[#F8FAFC]"
-            >
-              Limpar
-            </button>
-          )}
-        </div>
+        <section className="admin-patients__workspace" aria-label="Consulta de pacientes">
+          <div className="admin-patients__toolbar">
+            <div className="admin-patients__filters">
+              <TextInput
+                placeholder="Buscar por nome, telefone, doença..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="admin-patients__search max-w-sm"
+              />
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="admin-patients__filter-select h-11 rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-sm text-[#1E1E1E] outline-none focus:border-[#1557FF] focus:ring-4 focus:ring-[#EEF4FF]"
+              >
+                {Object.entries(FILTER_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              {(search || filter !== 'all') && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setFilter('all'); }}
+                  className="admin-patients__clear h-11 rounded-[14px] border border-[#E5EAF2] bg-white px-4 text-sm font-bold text-[#5B6475] hover:bg-[#F8FAFC]"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState
-            title="Nenhum paciente encontrado"
-            description="Ajuste o filtro ou a busca para encontrar atendimentos."
-          />
-        ) : (
-          <Card className="admin-patients__table-card overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="admin-patients__table w-full min-w-[1120px] text-sm">
+            <div className="admin-patients__result-count" aria-live="polite">
+              <strong>{filtered.length}</strong>
+              <span>{filtered.length === 1 ? 'resultado' : 'resultados'}</span>
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="admin-patients__empty">
+              <EmptyState
+                title="Nenhum paciente encontrado"
+                description="Ajuste o filtro ou a busca para encontrar atendimentos."
+              />
+            </div>
+          ) : (
+            <Card className="admin-patients__table-card">
+              <div className="admin-patients__table-scroll">
+                <table className="admin-patients__table w-full min-w-[1120px] text-sm">
                 <thead>
                   <tr className="border-b border-[#E5EAF2] bg-[#F8FAFC] text-xs font-black text-[#5B6475]">
                     <th className="px-4 py-3 text-left">Nome</th>
@@ -250,7 +259,7 @@ function PacientesContent() {
                     return (
                       <tr
                         key={a.id}
-                        className="border-b border-[#E5EAF2] last:border-0 hover:bg-[#F8FAFC]"
+                        className="admin-patients__row border-b border-[#E5EAF2] last:border-0"
                       >
                         <td className="admin-patients__name px-4 py-3 font-bold text-[#1E1E1E]">
                           {a.paciente_nome}
@@ -281,7 +290,7 @@ function PacientesContent() {
                           <button
                             type="button"
                             onClick={() => router.push(`/admin/paciente/${a.id}`)}
-                            className="rounded-[12px] border border-[#E5EAF2] bg-white px-3 py-1.5 text-xs font-bold text-[#1557FF] hover:bg-[#EEF4FF]"
+                            className="admin-patients__journey-button rounded-[12px] border border-[#E5EAF2] bg-white px-3 py-1.5 text-xs font-bold text-[#1557FF]"
                           >
                             Ver jornada
                           </button>
@@ -290,10 +299,11 @@ function PacientesContent() {
                     );
                   })}
                 </tbody>
-              </table>
-            </div>
-          </Card>
-        )}
+                </table>
+              </div>
+            </Card>
+          )}
+        </section>
       </div>
     </main>
   );
