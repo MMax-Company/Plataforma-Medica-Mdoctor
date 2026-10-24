@@ -686,7 +686,7 @@ export default function AdminDashboardPage() {
                         ? undefined
                         : `${sampleCount} atend.${sampleCount === 0 ? ' — sem dados ainda' : ''}`;
                     const isStagingPreview = IS_STAGING_PREVIEW && !data.tempos[key];
-                    const displayValue = data.tempos[key] || (isStagingPreview ? STAGING_TIME_PREVIEW_VALUES[key] : '');
+                    const displayValue = data.tempos[key] || (isStagingPreview ? STAGING_TIME_PREVIEW_VALUES[key] : '—');
                     const accessibleSuffix = isStagingPreview
                       ? ' · valor demonstrativo somente para validação visual do staging'
                       : sampleLabel
