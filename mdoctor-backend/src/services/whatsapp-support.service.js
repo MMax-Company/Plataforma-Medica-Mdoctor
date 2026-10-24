@@ -817,7 +817,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   }
 
   try {
-    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false });
+    const surveyResult = await handleSurveyInbound({ phone, text, sendOutbound: false, messageId });
     if (surveyResult.handled) {
       return { handled: true, action: 'reply', reply: surveyResult.reply };
     }

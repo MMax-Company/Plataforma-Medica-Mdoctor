@@ -70,6 +70,27 @@ stub(resolveFrom('../store/audit.store'), { createAuditLog: async () => {} });
 stub(resolveFrom('./clinical-persistence.service'), { recordSupportTicket: async () => {} });
 stub(resolveFrom('./admin-alert.service'), { notifyAdminAlert: () => {} });
 
+// whatsapp-sessions.store: fake mínimo (mesmo padrão de
+// test-support-chat-inbound-integration.js) — necessário pra exercitar
+// resolveMetaInboundRouting() de verdade (opções "2"/"3" reais, não só
+// createWhatsAppSupportEntry isolado). post-delivery-survey.service NÃO é
+// mockado aqui (handleSurveyInbound é real) — isSurveyEnabled() sem
+// POST_DELIVERY_SURVEY_ENABLED retorna false e curto-circuita antes de
+// tocar qualquer store, então é seguro deixar real sem stub adicional.
+const sessionsByPhone = new Map();
+stub(resolveFrom('../store/whatsapp-sessions.store'), {
+  getActiveSurveySession: () => null,
+  getSessionByPhone: async (phone) => sessionsByPhone.get(phone) || null,
+  upsertSessionMetadata: async ({ phone, metadataPatch = {} }) => {
+    const existing = sessionsByPhone.get(phone) || { id: `sess-${phone}`, typebot_session_id: null, metadata: {} };
+    const merged = { ...existing, metadata: { ...(existing.metadata || {}), ...metadataPatch } };
+    sessionsByPhone.set(phone, merged);
+    return merged;
+  },
+  clearTypebotSession: async () => {},
+  clearSurveySession: async () => {}
+});
+
 const support = require(supportServicePath);
 const supportChatStore = require(resolveFrom('../store/support-chat.store'));
 
@@ -238,15 +259,285 @@ async function main() {
       support.createWhatsAppSupportEntry({ phone: '5511977770044', text: '2', messageId: 'wamid-concorrente-a' }),
       support.createWhatsAppSupportEntry({ phone: '5511977770044', text: '2', messageId: 'wamid-concorrente-b' })
     ]);
-    // Pelo menos um dos dois registrou normalmente; nenhum dos dois perdeu a
-    // própria mensagem que o criou.
+    // findOpenSupportByPhone() NÃO é uma claim atômica — não há lock/
+    // constraint única em appointments.paciente_telefone impedindo duas
+    // criações concorrentes pro mesmo telefone quando nenhuma delas ainda
+    // commitou no momento em que a outra checou. Documentamos o
+    // comportamento real, sem fingir uma garantia que não existe: pode
+    // nascer 1 OU 2 atendimentos (risco pré-existente, não introduzido nem
+    // corrigido por este PR — ver relatório). O que ESTE fix garante,
+    // independente de 1 ou 2 terem nascido, é que nenhum dos inbounds reais
+    // se perde nem corrompe silenciosamente.
+    const createdCount = [r1, r2].filter((r) => !r.duplicate).length;
+    assert.ok(createdCount === 1 || createdCount === 2, `esperado 1 ou 2 atendimentos criados na corrida, obteve ${createdCount}`);
     for (const r of [r1, r2]) {
       if (r.duplicate) continue;
       const conv = await supportChatStore.getConversationByAppointmentId(r.atendimento.id);
       const msgs = await supportChatStore.listMessages(conv.id);
-      assert.ok(msgs.length >= 1, 'nenhum inbound concorrente pode ser perdido silenciosamente');
+      assert.equal(msgs.length, 1, 'nenhum inbound concorrente pode ser perdido nem duplicado dentro do seu próprio atendimento');
+      assert.equal(msgs[0].direction, 'inbound');
     }
-    results.criacaoConcorrenteNuncaPerdeNenhumDosDoisInboundsSemCorrupcao = 'ok';
+    results[`criacaoConcorrentePreservaTodosOsInboundsReais_${createdCount}AtendimentoCriados`] = 'ok (comportamento real documentado, não uma garantia de deduplicação atômica)';
+  }
+
+  // =====================================================================
+  // CENÁRIOS A-G — pedido explícito de 24/10/2026: validar separadamente
+  // os DOIS caminhos reais de abertura (opção "2" no início do chatbot, e
+  // opção "3" pós-entrega da receita), através do ponto de entrada público
+  // real (resolveMetaInboundRouting), não só da função interna
+  // createWhatsAppSupportEntry — mesma garantia, mas testada a partir de
+  // onde o webhook da Meta realmente entra.
+  // =====================================================================
+
+  // A) Opção "2" no início do chatbot: paciente sem sessão prévia, sem
+  //    Typebot ativo, sem ticket de suporte aberto, sem pendência de
+  //    rejeição — envia "2" e cai no menu inicial de fato (branch final de
+  //    resolveMetaInboundRouting, textNorm === '2', sem nenhum estado
+  //    especial de sessão). A PRÓPRIA mensagem "2" deve ficar persistida.
+  {
+    atendimentos = [];
+    sessionsByPhone.clear();
+    const phone = '5511977770050';
+    const providerMessageId = 'wamid-opcao2-inicial-A';
+    const result = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: providerMessageId });
+    assert.equal(result.action, 'reply');
+    assert.equal(atendimentos.length, 1, 'opção 2 inicial deve criar exatamente 1 atendimento de suporte');
+
+    const conversation = await supportChatStore.getConversationByAppointmentId(atendimentos[0].id);
+    assert.ok(conversation, 'conversation deveria existir');
+    const messages = await supportChatStore.listMessages(conversation.id);
+    assert.equal(messages.length, 1, 'message_count deve ser 1');
+    assert.equal(messages.filter((m) => m.direction === 'inbound').length, 1, 'inbound_count deve ser 1');
+    assert.equal(messages[0].body, '2');
+    assert.equal(messages[0].direction, 'inbound');
+    assert.equal(messages[0].sender, 'patient');
+    assert.equal(messages[0].provider_message_id, providerMessageId, 'provider_message_id deve ser preservado');
+    assert.ok(conversation.last_inbound_at, 'last_inbound_at deve estar preenchido');
+    assert.ok(conversation.last_message_at, 'last_message_at deve estar preenchido');
+
+    const { getMessagingWindowStatus } = require(resolveFrom('./support-chat.service'));
+    const windowStatus = getMessagingWindowStatus(conversation);
+    assert.equal(windowStatus.withinWindow, true, 'janela de 24h deve estar aberta imediatamente após a opção 2');
+
+    results.A_opcao2InicialPersisteOPrimeiroInboundComJanelaAberta = 'ok';
+  }
+
+  // C) Retry da opção "2" com o MESMO provider_message_id: não pode
+  //    duplicar mensagem, nem criar segundo ticket/conversation, nem
+  //    alterar timestamps.
+  {
+    const phone = '5511977770050'; // mesmo telefone do cenário A — ticket já aberto
+    const providerMessageId = 'wamid-opcao2-inicial-A'; // mesmo provider_message_id
+    const conversationBefore = await supportChatStore.getConversationByAppointmentId(atendimentos[0].id);
+    const lastInboundBefore = conversationBefore.last_inbound_at;
+
+    const retry = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: providerMessageId });
+    assert.equal(retry.action, 'reply');
+    assert.equal(atendimentos.length, 1, 'retry não pode criar um segundo atendimento/ticket');
+
+    const conversationAfter = await supportChatStore.getConversationByAppointmentId(atendimentos[0].id);
+    assert.equal(conversationAfter.id, conversationBefore.id, 'retry não pode criar uma segunda conversation');
+    const messages = await supportChatStore.listMessages(conversationAfter.id);
+    assert.equal(messages.length, 1, 'retry não pode duplicar a mensagem');
+    assert.equal(conversationAfter.last_inbound_at, lastInboundBefore, 'retry não pode alterar last_inbound_at');
+
+    results.C_retryDaOpcao2ComMesmoProviderMessageIdEhIdempotente = 'ok';
+  }
+
+  // Appointment da opção 2 (telefone 050) precisa sobreviver aos próximos
+  // `atendimentos = []` (cada bloco B/F reseta o fake pra isolar seu próprio
+  // telefone) — capturado aqui, antes do reset, pra reuso em G.
+  const appointmentIdOpcao2 = atendimentos[0].id;
+
+  // B) Opção "3" pós-entrega da receita: diagSession.metadata.
+  //    post_delivery_support_available = true (gravado por
+  //    triggerPostDeliverySurvey quando uma receita é entregue via
+  //    WhatsApp — ver comentário original em whatsapp-support.service.js).
+  //    Esse foi o caminho que falhou no teste real de produção
+  //    (appointment_id 131513b8...).
+  let appointmentIdOpcao3;
+  {
+    atendimentos = [];
+    const phone = '5511977770051';
+    const providerMessageId = 'wamid-opcao3-posentrega-B';
+    const sessionWithPostDelivery = {
+      id: 'sess-pos-entrega-B',
+      typebot_session_id: null,
+      metadata: { post_delivery_support_available: true }
+    };
+
+    const result = await support.resolveMetaInboundRouting({
+      phone,
+      text: '3',
+      session: sessionWithPostDelivery,
+      messageId: providerMessageId
+    });
+    assert.equal(result.action, 'reply');
+    assert.equal(atendimentos.length, 1, 'opção 3 pós-entrega deve criar exatamente 1 atendimento de suporte');
+    appointmentIdOpcao3 = atendimentos[0].id;
+
+    const conversation = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    assert.ok(conversation, 'conversation deveria existir');
+    const messages = await supportChatStore.listMessages(conversation.id);
+    assert.equal(messages.length, 1, 'message_count deve ser 1');
+    assert.equal(messages.filter((m) => m.direction === 'inbound').length, 1, 'inbound_count deve ser 1');
+    assert.equal(messages[0].body, '3');
+    assert.equal(messages[0].direction, 'inbound');
+    assert.equal(messages[0].sender, 'patient');
+    assert.equal(messages[0].provider_message_id, providerMessageId, 'provider_message_id deve ser preservado');
+    assert.ok(conversation.last_inbound_at, 'last_inbound_at deve estar preenchido');
+    assert.ok(conversation.last_message_at, 'last_message_at deve estar preenchido');
+
+    const { getMessagingWindowStatus } = require(resolveFrom('./support-chat.service'));
+    const windowStatus = getMessagingWindowStatus(conversation);
+    assert.equal(windowStatus.withinWindow, true, 'janela de 24h deve estar aberta imediatamente após a opção 3 — o caminho que falhou em produção');
+
+    results.B_opcao3PosEntregaPersisteOPrimeiroInboundComJanelaAberta_caminhoQueFalhouEmProducao = 'ok';
+  }
+
+  // E) Inbound SUBSEQUENTE após a abertura via opção "3": mensagem seguinte
+  //    do paciente continua sendo registrada normalmente, somando ao
+  //    histórico (não substituindo), e os timestamps avançam. Roda ANTES de
+  //    D de propósito: D fecha o ticket como efeito colateral real (ver
+  //    comentário em D), então a mensagem subsequente só faz sentido com o
+  //    ticket ainda aberto.
+  {
+    const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const lastInboundBefore = conversationBefore.last_inbound_at;
+    await new Promise((r) => setTimeout(r, 5));
+
+    const result = await support.resolveMetaInboundRouting({
+      phone: '5511977770051',
+      text: 'ainda preciso de ajuda',
+      session: { id: 'sess-pos-entrega-B', typebot_session_id: null, metadata: {} },
+      messageId: 'wamid-opcao3-subsequente-E'
+    });
+    assert.equal(result.action, 'reply');
+
+    const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const messages = await supportChatStore.listMessages(conversationAfter.id);
+    assert.equal(messages.length, 2, 'segunda mensagem real deve somar ao histórico');
+    assert.equal(messages.filter((m) => m.direction === 'inbound').length, 2);
+    assert.notEqual(conversationAfter.last_inbound_at, lastInboundBefore, 'last_inbound_at deve avançar');
+    results.E_inboundSubsequenteAposAberturaContinuaRegistrandoEAvancandoTimestamps = 'ok';
+  }
+
+  // D) Retry da opção "3" com o MESMO provider_message_id. GARANTIA QUE
+  //    ESTE PR DÁ (idêntica à do cenário C): a mensagem em si NUNCA duplica
+  //    — nem segundo atendimento, nem segunda conversation, nem segunda
+  //    linha em support_chat_messages, nem novo last_inbound_at.
+  //
+  //    ACHADO REAL, SEPARADO, PRÉ-EXISTENTE (não introduzido nem corrigido
+  //    por este PR — fora do escopo de "gravar o primeiro inbound"): "3" é
+  //    overload. No menu pós-entrega ele significa "falar com o suporte"
+  //    (abre o ticket). Mas dentro de um ticket já aberto/em atendimento,
+  //    EXPLICIT_SUPPORT_COMMANDS trata "3" como "iniciar chatbot novamente"
+  //    (handleSupportQueueInput, whatsapp-support.service.js linha ~721) —
+  //    e ESSE caminho primeiro FECHA o ticket (closeWhatsAppSupportEntry)
+  //    antes de devolver action:'typebot_clean'. Como um retry de webhook
+  //    reenvia o texto "3" idêntico, e na 2ª entrega o ticket já existe
+  //    (sub_status=WAITING), resolveMetaInboundRouting cai no branch de
+  //    ticket aberto e entende o "3" retransmitido como pedido de reiniciar
+  //    o chatbot — fechando o próprio ticket que a 1ª entrega acabou de
+  //    abrir. O paciente não pediu isso; é colisão de significado do mesmo
+  //    dígito em dois contextos. Documentado explicitamente — ver relatório
+  //    final — como risco real a avaliar separadamente, não corrigido aqui.
+  {
+    const providerMessageId = 'wamid-opcao3-posentrega-B';
+    const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const lastInboundBefore = conversationBefore.last_inbound_at;
+    const messagesBefore = await supportChatStore.listMessages(conversationBefore.id);
+
+    const retry = await support.resolveMetaInboundRouting({
+      phone: '5511977770051',
+      text: '3',
+      session: { id: 'sess-pos-entrega-B', typebot_session_id: null, metadata: {} },
+      messageId: providerMessageId
+    });
+
+    assert.equal(atendimentos.length, 1, 'retry não pode criar um segundo atendimento/ticket');
+    const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    assert.equal(conversationAfter.id, conversationBefore.id, 'retry não pode criar uma segunda conversation');
+    const messagesAfter = await supportChatStore.listMessages(conversationAfter.id);
+    assert.equal(messagesAfter.length, messagesBefore.length, 'retry não pode duplicar nem adicionar mensagem nova — mesmo provider_message_id');
+    assert.equal(conversationAfter.last_inbound_at, lastInboundBefore, 'retry não pode alterar last_inbound_at (nenhum inbound NOVO foi gravado)');
+
+    // Achado documentado acima: o retry fecha o ticket (comportamento real,
+    // não efeito deste PR). Confirmamos que é exatamente isso que acontece,
+    // em vez de deixar o teste silenciosamente assumir idempotência total.
+    assert.equal(retry.action, 'typebot_clean', 'achado real: retry de "3" com ticket já aberto é interpretado como "reiniciar chatbot" e fecha o ticket — ver comentário acima');
+    const atendimentoAposRetry = atendimentos.find((a) => a.id === appointmentIdOpcao3);
+    assert.equal(atendimentoAposRetry.dados_clinicos?.support_sub_status, 'closed_by_patient', 'confirma o achado: o ticket é fechado como efeito colateral do retry');
+
+    results.D_retryDaOpcao3_inboundNaoDuplica_masFechaOTicketAchadoRealDocumentado = 'ok';
+  }
+
+  // F) Fechamento (pelo painel) e nova abertura: a conversation fechada
+  //    nunca reaparece como aberta, e pedir suporte de novo cria um
+  //    atendimento/conversation NOVOS — histórico anterior preservado.
+  //    Telefone isolado (052), para não herdar o fechamento já provocado
+  //    pelo retry do cenário D no telefone 051.
+  {
+    atendimentos = [];
+    const phone = '5511977770052';
+    const firstOpen = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: 'wamid-F-abertura-inicial' });
+    assert.equal(firstOpen.action, 'reply');
+    assert.equal(atendimentos.length, 1);
+    const closedAppointmentId = atendimentos[0].id;
+
+    // Fechamento pelo painel: o admin encerra a CONVERSATION (support-chat.
+    // service.close), que por sua vez sincroniza o ticket legado — direção
+    // oposta à da opção 3/retry acima (ali o ticket legado fecha primeiro e
+    // sincroniza a conversation; aqui a conversation fecha primeiro e
+    // sincroniza o ticket legado). Ver comentário de close() em
+    // support-chat.service.js.
+    const conversationToClose = await supportChatStore.getConversationByAppointmentId(closedAppointmentId);
+    const serviceForClose = require(resolveFrom('./support-chat.service'));
+    // close() exige locked_by === actorId (closeConversation em
+    // support-chat.store.js) — o atendente precisa ter reivindicado a
+    // conversation antes de poder encerrá-la, mesma regra do painel real.
+    await serviceForClose.claim({ conversationId: conversationToClose.id, actorId: 'admin-teste-F' });
+    const closeResult = await serviceForClose.close({ conversationId: conversationToClose.id, actorId: 'admin-teste-F' });
+    assert.equal(closeResult.closed, true);
+
+    const closedConversation = await supportChatStore.getConversationByAppointmentId(closedAppointmentId);
+    assert.equal(closedConversation.status, 'closed');
+    const historicoAnterior = await supportChatStore.listMessages(closedConversation.id);
+    assert.equal(historicoAnterior.length, 1, 'histórico da conversation fechada deve ser preservado, não apagado');
+
+    const reopenResult = await support.resolveMetaInboundRouting({
+      phone,
+      text: '2',
+      messageId: 'wamid-reabertura-F'
+    });
+    assert.equal(reopenResult.action, 'reply');
+    const openAgain = await support.findOpenSupportByPhone(phone);
+    assert.ok(openAgain, 'reabertura deveria criar um atendimento novo e aberto');
+    assert.notEqual(openAgain.id, closedAppointmentId, 'reabertura deve criar um atendimento NOVO, nunca reaproveitar o fechado');
+
+    const newConversation = await supportChatStore.getConversationByAppointmentId(openAgain.id);
+    assert.notEqual(newConversation.id, closedConversation.id, 'reabertura deve criar uma conversation NOVA');
+    const newMessages = await supportChatStore.listMessages(newConversation.id);
+    assert.equal(newMessages.length, 1, 'conversation nova deve ter só a mensagem que a reabriu — não herda o histórico antigo');
+    assert.equal(newMessages[0].provider_message_id, 'wamid-reabertura-F');
+
+    // Reconfirma que o histórico antigo continua intacto após a reabertura.
+    const historicoAposReabertura = await supportChatStore.listMessages(closedConversation.id);
+    assert.equal(historicoAposReabertura.length, 1);
+
+    results.F_fechamentoENovaAberturaCriaConversationNovaEPreservaHistoricoAnterior = 'ok';
+  }
+
+  // G) Janela de 24h aberta após AMBAS as opções: já verificado
+  //    individualmente em A e B (withinWindow === true logo após cada
+  //    abertura) — reconfirmação explícita aqui, lendo o estado real
+  //    persistido no banco fake para a conversation da opção 2 (telefone
+  //    050, nunca fechada por nenhum cenário posterior).
+  {
+    const { getMessagingWindowStatus } = require(resolveFrom('./support-chat.service'));
+    const conversationOpcao2 = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao2);
+    assert.equal(getMessagingWindowStatus(conversationOpcao2).withinWindow, true, 'janela da conversation da opção 2 (telefone 050) continua aberta');
+    results.G_janelaDe24hConfirmadaAbertaLendoEstadoRealPersistido_opcao2 = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));

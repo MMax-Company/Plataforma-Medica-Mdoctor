@@ -704,7 +704,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
           phone: identity?.phone,
           text,
           correlationId: messageId,
-          sendOutbound: false
+          sendOutbound: false,
+          messageId
         });
         if (surveyResult.reply) {
           const sent = await provider.sendTextMessage({

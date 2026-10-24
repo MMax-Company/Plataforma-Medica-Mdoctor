@@ -220,7 +220,7 @@ async function triggerPostDeliverySurvey({ attendanceId, patientId, phone, corre
   return { triggered: true, outcome, sendResult };
 }
 
-async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound', sendOutbound = true }) {
+async function handleSurveyInbound({ phone, text, correlationId = 'survey-inbound', sendOutbound = true, messageId = null }) {
   if (!isSurveyEnabled()) {
     return { handled: false, reason: 'survey_disabled' };
   }
@@ -283,7 +283,7 @@ async function handleSurveyInbound({ phone, text, correlationId = 'survey-inboun
     await clearSurveySession(digits);
     // eslint-disable-next-line global-require
     const { createWhatsAppSupportEntry } = require('./whatsapp-support.service');
-    const supportResult = await createWhatsAppSupportEntry({ phone: digits, correlationId });
+    const supportResult = await createWhatsAppSupportEntry({ phone: digits, correlationId, text, messageId });
     if (sendOutbound) {
       await sendSurveyWhatsApp({
         phone: digits,
