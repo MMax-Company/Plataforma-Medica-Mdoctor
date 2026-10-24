@@ -168,6 +168,7 @@
     "test:admin-dashboard-financeiro": "node scripts/test-admin-dashboard-financeiro.js",
     "test:admin-dashboard-resend-payment": "node scripts/test-admin-dashboard-resend-payment.js",
     "test:support-chat-send": "node scripts/test-support-chat-send.js",
+    "test:support-chat-legacy-inactivity-sync": "node scripts/test-support-chat-legacy-inactivity-sync.js",
     "test:guard-shared-environment": "node scripts/test-guard-shared-environment-unit.js"
   },
   "nodemonConfig": {

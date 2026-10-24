@@ -116,6 +116,32 @@ async function close({ conversationId, actorId }) {
   return result;
 }
 
+// Direção OPOSTA de close() acima: o ticket legado já fechou por um caminho
+// que não passa pelo botão "Encerrar atendimento" (inatividade via
+// closeInactiveSessions, ou o próprio paciente encerrando pelo WhatsApp com
+// "0"/"ENCERRAR" — ver whatsapp-support.service.js) e a support_conversation
+// correspondente precisa acompanhar, senão fica uma conversa "fantasma"
+// mostrando status aberto na fila do painel mesmo com o ticket legado já
+// encerrado (achado de auditoria em produção, 24/10/2026 — uma conversation
+// real ficou presa em "awaiting_patient" depois do ticket legado fechar por
+// inatividade). Nunca lança: best-effort, chamado de dentro de
+// whatsapp-support.service.js logo após o próprio fechamento do ticket
+// legado, e uma falha aqui não pode desfazer esse fechamento nem impedir o
+// restante do fluxo. Idempotente — ver closeConversationByAppointmentId.
+async function syncLegacyClosedConversation({ appointmentId, closedBy, reason }) {
+  try {
+    return await store.closeConversationByAppointmentId({ appointmentId, closedBy, reason });
+  } catch (error) {
+    logger.warn('support_chat_legacy_inactivity_close_sync_failed', {
+      appointmentId,
+      closedBy,
+      reason,
+      error: error?.message || String(error)
+    });
+    return { closed: false, reason: 'sync_error' };
+  }
+}
+
 // Estado da janela de mensagem livre da Meta (24h desde a última mensagem
 // do PACIENTE) — leitura pura, não envia nada. Usado pela UI para mostrar o
 // prazo/bloquear o campo de texto, e reservado para o futuro endpoint de
@@ -400,6 +426,7 @@ module.exports = {
   claim,
   release,
   close,
+  syncLegacyClosedConversation,
   heartbeat,
   getMessagingWindowStatus,
   recordInboundMessage,
