@@ -298,6 +298,62 @@ async function closeConversation({ conversationId, actorId }) {
   return { closed: false, conversation: await getConversationById(conversationId) };
 }
 
+// Fechamento iniciado pelo SISTEMA (sincronização a partir do ticket legado
+// — inatividade ou encerramento pelo próprio paciente via WhatsApp, ver
+// whatsapp-support.service.js), não pelo atendente via "Encerrar
+// atendimento". Por isso, diferente de closeConversation() acima, não exige
+// `locked_by === actorId`: o ticket legado já fechou sem que ninguém
+// precisasse estar com o lock desta conversation (pode não haver lock, ou
+// haver um lock expirado de um atendente que nunca respondeu). Libera
+// qualquer lock (expirado ou não) como parte do mesmo update — a conversa
+// deixa de existir como "aberta" para qualquer atendente.
+// Idempotente: conversation já fechada (por qualquer caminho) é um no-op.
+async function closeConversationByAppointmentId({ appointmentId, closedBy, reason }) {
+  if (!appointmentId || !closedBy) {
+    const error = new Error('appointmentId e closedBy são obrigatórios');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const conversation = await getConversationByAppointmentId(appointmentId);
+  if (!conversation) return { closed: false, reason: 'conversation_not_found' };
+  if (conversation.status === CONVERSATION_STATUS.CLOSED) {
+    return { closed: false, reason: 'already_closed', conversation };
+  }
+
+  const nowIso = new Date().toISOString();
+  const rows = await dbQuery('encerrar support_conversation por sincronização do ticket legado', async (supabase) =>
+    supabase
+      .from(T.SUPPORT_CONVERSATIONS)
+      .update({
+        status: CONVERSATION_STATUS.CLOSED,
+        closed_at: nowIso,
+        closed_by: closedBy,
+        locked_by: null,
+        locked_at: null,
+        lock_expires_at: null,
+        updated_at: nowIso
+      })
+      .eq('id', conversation.id)
+      .neq('status', CONVERSATION_STATUS.CLOSED)
+      .select('*')
+  );
+
+  if (Array.isArray(rows) && rows.length === 1) {
+    await recordEventSafe({
+      conversationId: conversation.id,
+      eventType: CONVERSATION_EVENT_TYPES.CLOSED,
+      actor: closedBy,
+      payload: reason ? { reason } : {}
+    });
+    return { closed: true, conversation: rows[0] };
+  }
+
+  // Corrida: fechada por outro caminho entre o SELECT e o UPDATE acima —
+  // idempotente, não é um erro.
+  return { closed: false, reason: 'already_closed', conversation: await getConversationById(conversation.id) };
+}
+
 async function findMessageByProviderId({ conversationId, providerMessageId }) {
   if (!conversationId || !providerMessageId) return null;
   const data = await dbQuery('buscar support_chat_message por provider_message_id', async (supabase) =>
@@ -588,6 +644,7 @@ module.exports = {
   releaseConversation,
   heartbeatConversation,
   closeConversation,
+  closeConversationByAppointmentId,
   findMessageByProviderId,
   findMessageByClientId,
   recordMessage,

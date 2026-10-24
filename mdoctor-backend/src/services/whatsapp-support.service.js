@@ -187,6 +187,26 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
   };
 }
 
+// Chama support-chat.service.syncLegacyClosedConversation() depois que o
+// ticket legado já fechou por um caminho que não passa pelo botão "Encerrar
+// atendimento" do painel (inatividade, ou o próprio paciente via WhatsApp —
+// ver os 3 pontos de chamada abaixo). syncLegacyClosedConversation() já
+// nunca lança por dentro (ver support-chat.service.js), mas o require()
+// tardio em si pode falhar (módulo quebrado) — isolado aqui, numa função só,
+// pra garantir que isso NUNCA impede o fechamento do ticket legado em si,
+// que já aconteceu antes desta chamada.
+async function syncLegacyClosedConversationSafe(params) {
+  try {
+    // eslint-disable-next-line global-require
+    await require('./support-chat.service').syncLegacyClosedConversation(params);
+  } catch (error) {
+    logger.warn('support_chat_conversation_close_sync_failed', {
+      ...params,
+      error: error?.message || String(error)
+    });
+  }
+}
+
 async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
   const digits = normalizePhone(phone);
   const existing = await findOpenSupportByPhone(digits);
@@ -215,6 +235,12 @@ async function closeWhatsAppSupportEntry({ phone, correlationId, requestId }) {
       correlationId: correlationId || null,
       phone: digits.replace(/\d(?=\d{4})/g, '*')
     }
+  });
+
+  await syncLegacyClosedConversationSafe({
+    appointmentId: existing.id,
+    closedBy: 'patient',
+    reason: 'legacy_closed_by_patient'
   });
 
   return {
@@ -441,6 +467,11 @@ async function respondToFinalization(phone, choice) {
       entity_type: 'whatsapp_support', entity_id: match.id,
       action: 'support_closed_by_patient', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
+    });
+    await syncLegacyClosedConversationSafe({
+      appointmentId: match.id,
+      closedBy: 'patient',
+      reason: 'legacy_closed_by_patient'
     });
     return {
       handled: true, action: 'reply', sub_status: SUPPORT_SUB.CLOSED_PATIENT,
@@ -1103,6 +1134,11 @@ async function closeInactiveSessions() {
         entity_type: 'whatsapp_support', entity_id: item.id,
         action: 'support_closed_inactive', actor: 'system',
         payload: { atendimento_id: item.id }
+      });
+      await syncLegacyClosedConversationSafe({
+        appointmentId: item.id,
+        closedBy: 'system',
+        reason: 'legacy_inactivity_timeout'
       });
       closed++;
     } catch (e) {

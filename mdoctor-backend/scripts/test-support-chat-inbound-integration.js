@@ -61,15 +61,18 @@ stub(resolveFrom('../store/whatsapp-sessions.store'), {
     const merged = { ...existing, metadata: { ...(existing.metadata || {}), ...metadataPatch } };
     sessionsByPhone.set(phone, merged);
     return merged;
-  }
+  },
+  clearTypebotSession: async () => {}
 });
 
-// support-chat.service stubado — controla o que recordInboundMessage e
-// ensureConversation fazem, sem tocar em store/constants reais (já cobertos
-// nos outros testes).
+// support-chat.service stubado — controla o que recordInboundMessage,
+// ensureConversation e syncLegacyClosedConversation fazem, sem tocar em
+// store/constants reais (já cobertos nos outros testes).
 let recordInboundCalls = [];
 let recordInboundBehavior = async () => ({ recorded: true, duplicate: false, conversationId: 'conv-mock' });
 let ensureConversationCalls = [];
+let syncLegacyClosedCalls = [];
+let syncLegacyClosedBehavior = async () => ({ closed: true, conversation: { id: 'conv-mock' } });
 stub(resolveFrom('./support-chat.service'), {
   recordInboundMessage: async (args) => {
     recordInboundCalls.push(args);
@@ -78,6 +81,10 @@ stub(resolveFrom('./support-chat.service'), {
   ensureConversation: async (args) => {
     ensureConversationCalls.push(args);
     return { recorded: true, created: true, conversationId: 'conv-mock' };
+  },
+  syncLegacyClosedConversation: async (args) => {
+    syncLegacyClosedCalls.push(args);
+    return syncLegacyClosedBehavior(args);
   }
 });
 
@@ -312,6 +319,148 @@ async function main() {
     assert.equal(ensureConversationCalls.length, 1);
     assert.equal(ensureConversationCalls[0].appointmentId, openAgain.id);
     results.reaberturaAposFechamentoPeloPainelCriaAtendimentoEConversationNovos = 'ok';
+  }
+
+  // 12) Correção de 24/10/2026 — fechamento do ticket legado por
+  //     INATIVIDADE (closeInactiveSessions, tick de 5min) chama
+  //     syncLegacyClosedConversation com appointmentId/closedBy/reason
+  //     corretos. Achado real em produção: sem isso, a support_conversation
+  //     ficava presa em "awaiting_patient" depois do ticket legado fechar.
+  {
+    atendimentos = [{
+      id: 'atd-expirado-inatividade',
+      status: 'waiting',
+      paciente_telefone: '5511977770020',
+      condicao: 'suporte_whatsapp',
+      criado_em: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+      dados_clinicos: {
+        queue_type: 'support',
+        whatsapp_support: true,
+        support_sub_status: support.SUPPORT_SUB.WAITING,
+        opened_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+      }
+    }];
+    syncLegacyClosedCalls = [];
+    const closedCount = await support.closeInactiveSessions();
+    assert.equal(closedCount, 1);
+    assert.equal(atendimentos[0].dados_clinicos.support_sub_status, support.SUPPORT_SUB.INACTIVE);
+    assert.equal(syncLegacyClosedCalls.length, 1, 'fechamento por inatividade deve sincronizar a support_conversation exatamente uma vez');
+    assert.equal(syncLegacyClosedCalls[0].appointmentId, 'atd-expirado-inatividade');
+    assert.equal(syncLegacyClosedCalls[0].closedBy, 'system');
+    assert.equal(syncLegacyClosedCalls[0].reason, 'legacy_inactivity_timeout');
+    results.fechamentoPorInatividadeChamaSyncComParametrosCorretos = 'ok';
+  }
+
+  // 13) Falha na sincronização durante o fechamento por inatividade nunca
+  //     impede o fechamento do ticket legado em si (best-effort) — mesma
+  //     garantia já validada para recordInboundMessage/ensureConversation.
+  {
+    atendimentos = [{
+      id: 'atd-expirado-falha-sync',
+      status: 'waiting',
+      paciente_telefone: '5511977770021',
+      condicao: 'suporte_whatsapp',
+      criado_em: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+      dados_clinicos: {
+        queue_type: 'support',
+        whatsapp_support: true,
+        support_sub_status: support.SUPPORT_SUB.WAITING,
+        opened_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+      }
+    }];
+    syncLegacyClosedBehavior = async () => { throw new Error('falha simulada ao sincronizar a conversation'); };
+    try {
+      const closedCount = await support.closeInactiveSessions();
+      assert.equal(closedCount, 1, 'falha na sincronização não pode impedir o fechamento do ticket legado');
+      assert.equal(atendimentos[0].dados_clinicos.support_sub_status, support.SUPPORT_SUB.INACTIVE);
+      results.falhaNaSincronizacaoNuncaImpedeOFechamentoDoTicketLegadoPorInatividade = 'ok';
+    } finally {
+      syncLegacyClosedBehavior = async () => ({ closed: true, conversation: { id: 'conv-mock' } });
+    }
+  }
+
+  // 14) Encerramento pelo PACIENTE via WhatsApp ("0"/"ENCERRAR") também
+  //     chama a sincronização, com closedBy: 'patient' — mesmo mecanismo,
+  //     ator diferente.
+  {
+    seedActiveSupportTicket('waiting');
+    syncLegacyClosedCalls = [];
+    const result = await support.closeWhatsAppSupportEntry({ phone: SUPPORT_PHONE });
+    assert.equal(result.closed, true);
+    assert.equal(syncLegacyClosedCalls.length, 1);
+    assert.equal(syncLegacyClosedCalls[0].appointmentId, ATENDIMENTO_ID);
+    assert.equal(syncLegacyClosedCalls[0].closedBy, 'patient');
+    assert.equal(syncLegacyClosedCalls[0].reason, 'legacy_closed_by_patient');
+    results.encerramentoPeloPacienteViaWhatsappChamaSyncComClosedByPatient = 'ok';
+  }
+
+  // 15) Encerramento pela opção "1" do menu pós-atendimento
+  //     (respondToFinalization) também sincroniza — terceiro ponto onde o
+  //     ticket legado fecha fora do botão "Encerrar atendimento" do painel.
+  {
+    const phone = '5511977770022';
+    atendimentos = [{
+      id: 'atd-decisao-encerrar',
+      status: 'waiting',
+      paciente_telefone: phone,
+      condicao: 'suporte_whatsapp',
+      dados_clinicos: {
+        queue_type: 'support',
+        whatsapp_support: true,
+        support_sub_status: support.SUPPORT_SUB.AWAITING_DECISION
+      }
+    }];
+    sessionsByPhone.set(phone, { id: `sess-${phone}`, typebot_session_id: null, metadata: {} });
+    syncLegacyClosedCalls = [];
+    const result = await support.respondToFinalization(phone, '1');
+    assert.equal(result.handled, true);
+    assert.equal(result.sub_status, support.SUPPORT_SUB.CLOSED_PATIENT);
+    assert.equal(syncLegacyClosedCalls.length, 1);
+    assert.equal(syncLegacyClosedCalls[0].appointmentId, 'atd-decisao-encerrar');
+    assert.equal(syncLegacyClosedCalls[0].closedBy, 'patient');
+    assert.equal(syncLegacyClosedCalls[0].reason, 'legacy_closed_by_patient');
+    results.encerramentoPelaOpcao1DoMenuPosAtendimentoTambemSincroniza = 'ok';
+  }
+
+  // 16) Reabertura após fechamento por INATIVIDADE (não pelo painel, como
+  //     no cenário 11): a próxima mensagem do paciente não cai mais no
+  //     ticket fechado, e pedir suporte de novo cria um atendimento NOVO —
+  //     mesma garantia de C, pelo caminho de fechamento automático.
+  {
+    atendimentos = [{
+      id: 'atd-expirado-reabertura',
+      status: 'waiting',
+      paciente_telefone: '5511977770023',
+      condicao: 'suporte_whatsapp',
+      criado_em: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+      dados_clinicos: {
+        queue_type: 'support',
+        whatsapp_support: true,
+        support_sub_status: support.SUPPORT_SUB.WAITING,
+        opened_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+      }
+    }];
+    sessionsByPhone.set('5511977770023', { id: 'sess-5511977770023', typebot_session_id: null, metadata: {} });
+    await support.closeInactiveSessions();
+
+    recordInboundCalls = [];
+    const afterClose = await support.resolveMetaInboundRouting({
+      phone: '5511977770023',
+      text: 'alguém aí ainda?',
+      messageId: 'wamid-pos-inatividade-001'
+    });
+    assert.notEqual(afterClose.reply, support.SUPPORT_WAITING_TEXT, 'mensagem após fechamento por inatividade não pode mais cair no ticket antigo');
+    assert.equal(recordInboundCalls.length, 0);
+
+    ensureConversationCalls = [];
+    const reopenResult = await support.resolveMetaInboundRouting({ phone: '5511977770023', text: '2', messageId: 'wamid-pos-inatividade-002' });
+    assert.equal(reopenResult.action, 'reply');
+    const openAgain = await support.findOpenSupportByPhone('5511977770023');
+    assert.ok(openAgain, 'pedir suporte de novo deveria criar um atendimento novo e aberto');
+    assert.notEqual(openAgain.id, 'atd-expirado-reabertura', 'reabertura deve criar um atendimento NOVO, nunca reaproveitar o id do antigo (fechado por inatividade)');
+    assert.equal(ensureConversationCalls.length, 1);
+    assert.equal(ensureConversationCalls[0].appointmentId, openAgain.id);
+    results.reaberturaAposFechamentoPorInatividadeCriaAtendimentoEConversationNovos = 'ok';
   }
 
   console.log(JSON.stringify(results, null, 2));
