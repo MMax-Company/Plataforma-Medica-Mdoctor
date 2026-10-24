@@ -1051,7 +1051,8 @@ function createTypebotWhatsAppBridge(deps = {}) {
           phone: identity?.phone,
           expectedInputId,
           text,
-          correlationId: messageId
+          correlationId: messageId,
+          messageId
         });
         if (supportChoice?.action === 'clear_session' && currentSession?.id) {
           await resetTypebotSession({ sessionId: currentSession.id });

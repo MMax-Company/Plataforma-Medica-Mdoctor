@@ -191,53 +191,55 @@ async function main() {
     }
   }
 
-  // 5) Fora do ramo de suporte (sem ticket ativo), recordInboundMessage
-  //    nunca é chamado — a integração é restrita ao ramo existente, não
-  //    captura toda mensagem do WhatsApp. A mesma mensagem ("2", sem ticket
-  //    prévio) ABRE um novo ticket de suporte — ver cenário 6 a seguir para
-  //    a asserção de que isso chama ensureConversation.
+  // 5) Fora do ramo de suporte (sem ticket ativo), a mensagem NÃO é
+  //    capturada pelo branch de "ticket já ativo" (cenários 1-4) — mas, como
+  //    ela mesma ABRE um ticket novo, createWhatsAppSupportEntry grava essa
+  //    MESMA mensagem como inbound diretamente (achado real de produção,
+  //    24/10/2026, appointment_id 131513b8...: antes desta correção, essa
+  //    primeira mensagem nunca era persistida — a conversation nascia com 0
+  //    mensagens, last_inbound_at nulo, "Nenhuma mensagem ainda" no painel,
+  //    e a janela de 24h aparecia fechada mesmo o paciente tendo acabado de
+  //    escrever). recordInboundMessage() substitui o antigo ensureConversation()
+  //    isolado — mesma função já usada pra mensagens em ticket já ativo, sem
+  //    criar um segundo mecanismo de captura.
   {
     atendimentos = [];
     sessionsByPhone.set('5511977770099', { id: 'sess-sem-suporte', typebot_session_id: null, metadata: {} });
     recordInboundCalls = [];
     const result = await support.resolveMetaInboundRouting({ phone: '5511977770099', text: '2', messageId: 'wamid-real-005' });
     assert.equal(result.action, 'reply');
-    assert.equal(recordInboundCalls.length, 0, 'fora do ramo de suporte ativo, recordInboundMessage não deve ser chamado');
-    results.foraDoRamoDeSuporteNuncaChamaRecordInboundMessage = 'ok';
-  }
-
-  // 6) Abertura de um ticket de suporte NOVO (createWhatsAppSupportEntry,
-  //    disparada pelo cenário 5 acima, mensagem "2" sem ticket ativo) chama
-  //    ensureConversation com o appointmentId do ticket recém-criado — sem
-  //    isso, a conversation só nasceria na 2ª mensagem do paciente e ficaria
-  //    invisível para o administrador até lá (achado de revisão, 17/10/2026).
-  {
-    assert.equal(ensureConversationCalls.length, 1, 'abrir um ticket de suporte novo deveria chamar ensureConversation exatamente uma vez');
     assert.equal(atendimentos.length, 1, 'deveria ter criado exatamente 1 atendimento novo');
-    assert.equal(ensureConversationCalls[0].appointmentId, atendimentos[0].id);
-    results.aberturaDeTicketNovoChamaEnsureConversationComAppointmentIdCorreto = 'ok';
+    assert.equal(recordInboundCalls.length, 1, 'a própria mensagem que abre o ticket deve ser gravada como inbound — achado real de produção');
+    assert.equal(recordInboundCalls[0].appointmentId, atendimentos[0].id);
+    assert.equal(recordInboundCalls[0].body, '2');
+    assert.equal(recordInboundCalls[0].providerMessageId, 'wamid-real-005', 'provider_message_id da mensagem que abriu o ticket deve ser preservado');
+    assert.equal(recordInboundCalls[0].sender, 'patient');
+    results.primeiraMensagemQueAbreUmTicketNovoEhGravadaComoInboundComProviderMessageIdCorreto = 'ok';
   }
 
-  // 7) Falha (síncrona ou assíncrona) em ensureConversation nunca propaga —
-  //    a resposta ao paciente que está abrindo o ticket continua a mesma.
+  // 6) Falha (síncrona ou assíncrona) em recordInboundMessage durante a
+  //    ABERTURA do ticket nunca propaga — a resposta ao paciente continua a
+  //    mesma (mesma garantia já validada pros cenários 1-4, agora também no
+  //    caminho de criação).
   {
     atendimentos = [];
     sessionsByPhone.set('5511977770088', { id: 'sess-sem-suporte-2', typebot_session_id: null, metadata: {} });
     const originalModule = require.cache[require.resolve(resolveFrom('./support-chat.service'))];
     stub(resolveFrom('./support-chat.service'), {
-      recordInboundMessage: async (args) => {
-        recordInboundCalls.push(args);
-        return recordInboundBehavior(args);
+      recordInboundMessage: async () => {
+        throw new Error('falha simulada ao gravar a mensagem que abre o ticket');
       },
-      ensureConversation: async () => {
-        throw new Error('falha simulada ao garantir a conversation na abertura do ticket');
+      ensureConversation: async (args) => {
+        ensureConversationCalls.push(args);
+        return { recorded: true, created: true, conversationId: 'conv-mock' };
       }
     });
     try {
       const result = await support.resolveMetaInboundRouting({ phone: '5511977770088', text: '2', messageId: 'wamid-real-006' });
       assert.equal(result.action, 'reply');
-      assert.ok(result.reply, 'abertura do ticket deve continuar respondendo normalmente mesmo com falha em ensureConversation');
-      results.falhaEmEnsureConversationNuncaQuebraAAberturaDoTicket = 'ok';
+      assert.ok(result.reply, 'abertura do ticket deve continuar respondendo normalmente mesmo com falha ao gravar o primeiro inbound');
+      assert.equal(atendimentos.length, 1, 'ticket deve ser criado mesmo com a falha na gravação da mensagem');
+      results.falhaAoGravarOPrimeiroInboundNuncaQuebraAAberturaDoTicket = 'ok';
     } finally {
       require.cache[require.resolve(resolveFrom('./support-chat.service'))] = originalModule;
     }
@@ -310,14 +312,14 @@ async function main() {
     assert.notEqual(afterClose.reply, support.SUPPORT_WAITING_TEXT, 'mensagem após fechamento pelo painel não pode mais cair no ticket antigo');
     assert.equal(recordInboundCalls.length, 0, 'ticket fechado não deve mais capturar inbound como se estivesse ativo');
 
-    ensureConversationCalls = [];
+    recordInboundCalls = [];
     const reopenResult = await support.resolveMetaInboundRouting({ phone: SUPPORT_PHONE, text: '2', messageId: 'wamid-pos-fechamento-002' });
     assert.equal(reopenResult.action, 'reply');
     const openAgain = await support.findOpenSupportByPhone(SUPPORT_PHONE);
     assert.ok(openAgain, 'pedir suporte de novo deveria criar um atendimento novo e aberto');
     assert.notEqual(openAgain.id, ATENDIMENTO_ID, 'reabertura deve criar um atendimento NOVO, nunca reaproveitar o id do antigo (fechado)');
-    assert.equal(ensureConversationCalls.length, 1);
-    assert.equal(ensureConversationCalls[0].appointmentId, openAgain.id);
+    assert.equal(recordInboundCalls.length, 1, 'a mensagem que reabre o suporte também deve ser gravada como inbound na conversation nova');
+    assert.equal(recordInboundCalls[0].appointmentId, openAgain.id);
     results.reaberturaAposFechamentoPeloPainelCriaAtendimentoEConversationNovos = 'ok';
   }
 
@@ -452,14 +454,14 @@ async function main() {
     assert.notEqual(afterClose.reply, support.SUPPORT_WAITING_TEXT, 'mensagem após fechamento por inatividade não pode mais cair no ticket antigo');
     assert.equal(recordInboundCalls.length, 0);
 
-    ensureConversationCalls = [];
+    recordInboundCalls = [];
     const reopenResult = await support.resolveMetaInboundRouting({ phone: '5511977770023', text: '2', messageId: 'wamid-pos-inatividade-002' });
     assert.equal(reopenResult.action, 'reply');
     const openAgain = await support.findOpenSupportByPhone('5511977770023');
     assert.ok(openAgain, 'pedir suporte de novo deveria criar um atendimento novo e aberto');
     assert.notEqual(openAgain.id, 'atd-expirado-reabertura', 'reabertura deve criar um atendimento NOVO, nunca reaproveitar o id do antigo (fechado por inatividade)');
-    assert.equal(ensureConversationCalls.length, 1);
-    assert.equal(ensureConversationCalls[0].appointmentId, openAgain.id);
+    assert.equal(recordInboundCalls.length, 1, 'a mensagem que reabre o suporte também deve ser gravada como inbound na conversation nova');
+    assert.equal(recordInboundCalls[0].appointmentId, openAgain.id);
     results.reaberturaAposFechamentoPorInatividadeCriaAtendimentoEConversationNovos = 'ok';
   }
 

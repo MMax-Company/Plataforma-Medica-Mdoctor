@@ -96,7 +96,7 @@ async function findOpenSupportByPhone(phone) {
   );
 }
 
-async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey, requestId }) {
+async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey, requestId, text = null, messageId = null }) {
   const digits = normalizePhone(phone);
   if (!digits) {
     const error = new Error('telefone obrigatório');
@@ -172,12 +172,27 @@ async function createWhatsAppSupportEntry({ phone, correlationId, idempotencyKey
   // SUPPORT_CHAT_CAPTURE_ENABLED, nunca lança, nunca bloqueia a resposta ao
   // paciente (mesma postura defensiva do ponto de integração de inbound,
   // logo abaixo neste arquivo).
+  //
+  // Achado real em produção (24/10/2026, appointment_id 131513b8...): a
+  // PRÓPRIA mensagem que disparou a abertura do suporte (ex.: "2") nunca
+  // era gravada como inbound — só ensureConversation() rodava aqui, nunca
+  // recordInboundMessage(). A conversation nascia com 0 mensagens,
+  // last_inbound_at nulo, e a janela de 24h aparecia fechada mesmo o
+  // paciente tendo acabado de escrever. recordInboundMessage() já garante a
+  // conversation internamente (mesma chamada store.ensureConversationFor
+  // Appointment que ensureConversation fazia) e grava a mensagem na mesma
+  // operação — substitui o ensureConversation() isolado, sem criar um
+  // segundo caminho de gravação.
   try {
     // eslint-disable-next-line global-require
-    const { ensureConversation } = require('./support-chat.service');
-    await ensureConversation({ appointmentId: atendimento.id });
+    await require('./support-chat.service').recordInboundMessage({
+      appointmentId: atendimento.id,
+      body: text || '',
+      providerMessageId: messageId,
+      sender: 'patient'
+    });
   } catch (e) {
-    logger.warn('support_chat_ensure_conversation_integration_failed', { error: e.message });
+    logger.warn('support_chat_first_inbound_record_failed', { appointmentId: atendimento.id, error: e.message });
   }
 
   return {
@@ -509,7 +524,7 @@ async function respondToFinalization(phone, choice) {
   };
 }
 
-async function handleRejectionResponse({ phone, text }) {
+async function handleRejectionResponse({ phone, text, messageId = null }) {
   const digits = normalizePhone(phone);
   if (!digits) return { handled: false };
 
@@ -554,7 +569,7 @@ async function handleRejectionResponse({ phone, text }) {
       action: 'rejection_converted_to_support', actor: 'n8n',
       payload: { phone: digits.replace(/\d(?=\d{4})/g, '*') }
     });
-    const supportResult = await createWhatsAppSupportEntry({ phone: digits });
+    const supportResult = await createWhatsAppSupportEntry({ phone: digits, text, messageId });
     return { handled: true, reply: supportResult.reply };
   }
 
@@ -663,10 +678,10 @@ function matchesTypebotChoice(text, ...labels) {
   return labels.some((label) => norm === String(label).toLowerCase());
 }
 
-async function handleTypebotSupportChoice({ phone, expectedInputId, text, correlationId }) {
+async function handleTypebotSupportChoice({ phone, expectedInputId, text, correlationId, messageId = null }) {
   if (expectedInputId === POST_ATTENDANCE_CHOICE_INPUT_ID) {
     if (matchesTypebotChoice(text, 'Falar com o suporte', 'item_pos_suporte')) {
-      const result = await createWhatsAppSupportEntry({ phone, correlationId });
+      const result = await createWhatsAppSupportEntry({ phone, correlationId, text, messageId });
       return { action: 'support_created', duplicate: result.duplicate };
     }
     if (matchesTypebotChoice(text, 'Encerrar atendimento', 'item_pos_encerrar')) {
@@ -853,7 +868,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
       await upsertSessionMetadata({ phone: digits, metadataPatch: { whatsapp_menu_state: null } }).catch((e) => {
         logger.warn('meta_inbound_menu_state_clear_failed', { error: e.message });
       });
-      const result = await createWhatsAppSupportEntry({ phone });
+      const result = await createWhatsAppSupportEntry({ phone, text, messageId });
       return { handled: true, action: 'reply', reply: result.reply };
     }
     // Escolha inválida: mantém o estado de menu ativo e reapresenta o menu,
@@ -977,7 +992,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   // resto do estado do Typebot em qualquer reset de sessão (ver
   // TYPEBOT_METADATA_KEYS em whatsapp-sessions.store.js).
   if (textNorm === '3' && diagSession?.metadata?.post_delivery_support_available) {
-    const result = await createWhatsAppSupportEntry({ phone });
+    const result = await createWhatsAppSupportEntry({ phone, text, messageId });
     return { handled: true, action: 'reply', reply: result.reply };
   }
 
@@ -994,7 +1009,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
       return { handled: true, action: 'typebot_clean' };
     }
     if (textNorm === '2') {
-      const result = await createWhatsAppSupportEntry({ phone });
+      const result = await createWhatsAppSupportEntry({ phone, text, messageId });
       return { handled: true, action: 'reply', reply: result.reply };
     }
   }
@@ -1004,7 +1019,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   }
 
   try {
-    const rejResult = await handleRejectionResponse({ phone, text });
+    const rejResult = await handleRejectionResponse({ phone, text, messageId });
     if (rejResult.handled) {
       return { handled: true, action: 'reply', reply: rejResult.reply };
     }
@@ -1016,7 +1031,7 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     return { handled: true, action: 'typebot_clean' };
   }
   if (textNorm === '2') {
-    const result = await createWhatsAppSupportEntry({ phone });
+    const result = await createWhatsAppSupportEntry({ phone, text, messageId });
     return { handled: true, action: 'reply', reply: result.reply };
   }
 
@@ -1076,7 +1091,7 @@ async function processIncomingMessage({ phone, text }) {
     return { reply: `✅ Para iniciar sua avaliação de renovação de receita, acesse:\n\n${TYPEBOT_URL}\n\nSiga as instruções e preencha suas informações. Um médico irá analisar e emitir sua receita em breve.` };
   }
   if (textNorm === '2') {
-    const result = await createWhatsAppSupportEntry({ phone });
+    const result = await createWhatsAppSupportEntry({ phone, text });
     return { reply: result.reply };
   }
   return { reply: MENU_TEXT };
