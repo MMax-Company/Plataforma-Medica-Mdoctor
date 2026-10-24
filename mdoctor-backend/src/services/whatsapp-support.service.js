@@ -935,30 +935,41 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
       }
     }
 
-    // Base do TTL de 24h de em_atendimento (closeInactiveSessions, abaixo):
-    // toda interação real do paciente com o ticket atualiza este marcador.
-    // Best-effort — não bloqueia a resposta se falhar.
-    touchSupportInteraction(ctx.atendimento_id);
-
     // Chat Administrativo de Suporte V1 (etapa funcional, 10/10/2026):
     // único ponto de integração do inbound real com o módulo novo
     // (support-chat.service.js / tabelas support_conversations/
     // support_chat_messages). Atrás de SUPPORT_CHAT_CAPTURE_ENABLED
     // (desligada por padrão) — com a flag off, recordInboundMessage
     // retorna no primeiro if sem tocar o banco, e o fluxo abaixo roda
-    // exatamente como antes. Com a flag on, só GRAVA a mensagem; nunca
-    // decide a resposta ao paciente nem troca o retorno desta função —
-    // handleSupportQueueInput continua sendo a única fonte da resposta.
-    // require() tardio (padrão já usado neste arquivo, ver
-    // typebot-prescription-upload.service) evita qualquer acoplamento no
-    // topo do módulo; o try/catch é defesa extra além do próprio
-    // recordInboundMessage, que já nunca lança — uma falha aqui (de
-    // require, de rede, do banco) nunca pode interromper o suporte via
-    // WhatsApp, só é registrada em log estruturado.
+    // exatamente como antes. Com a flag on, GRAVA a mensagem e também serve
+    // de corte de idempotência de EFEITO DE NEGÓCIO, não só de persistência
+    // (revisão de 24/10/2026, antes do merge do PR #101): um retry do
+    // MESMO webhook Meta (mesmo provider_message_id) reenvia o texto
+    // idêntico da mensagem que abriu o ticket (ex.: "3"/"2") — sem este
+    // corte, a 2ª entrega encontra o ticket JÁ aberto e
+    // handleSupportQueueInput() reinterpretaria esse mesmo texto como um
+    // COMANDO NOVO do menu de ticket aberto (ex.: EXPLICIT_SUPPORT_COMMANDS
+    // trata "3" como "reiniciar chatbot" e fecha o ticket que a 1ª entrega
+    // acabou de criar — achado real de revisão). recordMessage() já é
+    // idempotente por (conversation_id, provider_message_id) — reusamos
+    // esse MESMO mecanismo (nenhum dedup paralelo) só olhando o campo
+    // `duplicate` do retorno. Dedup é só por provider_message_id, nunca por
+    // texto: uma mensagem nova de verdade com texto igual mas messageId
+    // diferente não é afetada, segue o fluxo normal abaixo. Posicionado
+    // ANTES de touchSupportInteraction propositalmente: um retry
+    // reconhecido como duplicate não deve avançar NENHUM estado, nem o
+    // marcador de TTL de inatividade. require() tardio (padrão já usado
+    // neste arquivo) evita qualquer acoplamento no topo do módulo; o
+    // try/catch é defesa extra além do próprio recordInboundMessage, que já
+    // nunca lança — uma falha aqui (de require, de rede, do banco) nunca
+    // pode interromper o suporte via WhatsApp, só é registrada em log
+    // estruturado, e o fluxo segue como se a flag estivesse desligada
+    // (sem bloqueio nem reinterpretação).
+    let inboundRecord = { recorded: false, duplicate: false };
     try {
       // eslint-disable-next-line global-require
       const { recordInboundMessage } = require('./support-chat.service');
-      await recordInboundMessage({
+      inboundRecord = await recordInboundMessage({
         appointmentId: ctx?.atendimento_id || null,
         body: text,
         providerMessageId: messageId,
@@ -967,6 +978,22 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     } catch (e) {
       logger.warn('support_chat_inbound_integration_failed', { error: e.message });
     }
+
+    if (inboundRecord.recorded && inboundRecord.duplicate) {
+      logger.info('whatsapp_support_retry_noop', {
+        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+        messageId,
+        supportSubStatus: sub
+      });
+      return { handled: true, action: 'noop', duplicate: true };
+    }
+
+    // Base do TTL de 24h de em_atendimento (closeInactiveSessions, abaixo):
+    // toda interação real do paciente com o ticket atualiza este marcador.
+    // Best-effort — não bloqueia a resposta se falhar. Só roda para
+    // mensagem NOVA de verdade (não retry) — ver corte acima.
+    touchSupportInteraction(ctx.atendimento_id);
+
     return handleSupportQueueInput({ phone, textNorm });
   }
 

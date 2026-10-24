@@ -322,26 +322,35 @@ async function main() {
     results.A_opcao2InicialPersisteOPrimeiroInboundComJanelaAberta = 'ok';
   }
 
-  // C) Retry da opção "2" com o MESMO provider_message_id: não pode
-  //    duplicar mensagem, nem criar segundo ticket/conversation, nem
-  //    alterar timestamps.
+  // C) Retry da opção "2" com o MESMO provider_message_id: NO-OP INTEGRAL —
+  //    não pode duplicar mensagem, nem criar segundo ticket/conversation,
+  //    nem alterar timestamps, nem executar handleSupportQueueInput (a
+  //    resposta nem pode ser recalculada; o retorno precisa se identificar
+  //    como duplicate).
   {
     const phone = '5511977770050'; // mesmo telefone do cenário A — ticket já aberto
     const providerMessageId = 'wamid-opcao2-inicial-A'; // mesmo provider_message_id
     const conversationBefore = await supportChatStore.getConversationByAppointmentId(atendimentos[0].id);
+    const atendimentoBefore = atendimentos.find((a) => a.id === atendimentos[0].id);
     const lastInboundBefore = conversationBefore.last_inbound_at;
+    const subStatusBefore = atendimentoBefore.dados_clinicos?.support_sub_status;
 
     const retry = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: providerMessageId });
-    assert.equal(retry.action, 'reply');
+    assert.equal(retry.duplicate, true, 'retry precisa se identificar como duplicate');
+    assert.equal(retry.action, 'noop', 'retry não pode executar handleSupportQueueInput nem recalcular resposta');
     assert.equal(atendimentos.length, 1, 'retry não pode criar um segundo atendimento/ticket');
 
     const conversationAfter = await supportChatStore.getConversationByAppointmentId(atendimentos[0].id);
     assert.equal(conversationAfter.id, conversationBefore.id, 'retry não pode criar uma segunda conversation');
+    assert.equal(conversationAfter.status, conversationBefore.status, 'retry não pode avançar status da conversation');
     const messages = await supportChatStore.listMessages(conversationAfter.id);
     assert.equal(messages.length, 1, 'retry não pode duplicar a mensagem');
     assert.equal(conversationAfter.last_inbound_at, lastInboundBefore, 'retry não pode alterar last_inbound_at');
+    assert.equal(conversationAfter.last_message_at, conversationBefore.last_message_at, 'retry não pode alterar last_message_at');
+    const atendimentoAfter = atendimentos.find((a) => a.id === atendimentoBefore.id);
+    assert.equal(atendimentoAfter.dados_clinicos?.support_sub_status, subStatusBefore, 'retry não pode mudar support_sub_status nem fechar o ticket');
 
-    results.C_retryDaOpcao2ComMesmoProviderMessageIdEhIdempotente = 'ok';
+    results.C_retryDaOpcao2ComMesmoProviderMessageIdEhNoOpIntegral = 'ok';
   }
 
   // Appointment da opção 2 (telefone 050) precisa sobreviver aos próximos
@@ -422,31 +431,39 @@ async function main() {
     results.E_inboundSubsequenteAposAberturaContinuaRegistrandoEAvancandoTimestamps = 'ok';
   }
 
-  // D) Retry da opção "3" com o MESMO provider_message_id. GARANTIA QUE
-  //    ESTE PR DÁ (idêntica à do cenário C): a mensagem em si NUNCA duplica
-  //    — nem segundo atendimento, nem segunda conversation, nem segunda
-  //    linha em support_chat_messages, nem novo last_inbound_at.
+  // D) Retry da opção "3" com o MESMO provider_message_id, DEPOIS que o
+  //    estado já mudou (ticket passou de inexistente para WAITING — este é
+  //    exatamente o "RETRY APÓS ESTADO MUDAR", o cenário crítico da
+  //    correção de 24/10/2026, revisão pós-PR #101).
   //
-  //    ACHADO REAL, SEPARADO, PRÉ-EXISTENTE (não introduzido nem corrigido
-  //    por este PR — fora do escopo de "gravar o primeiro inbound"): "3" é
-  //    overload. No menu pós-entrega ele significa "falar com o suporte"
+  //    CAUSA TÉCNICA EXATA DA COLISÃO DO "3" (corrigida nesta revisão): "3"
+  //    é overload. No menu pós-entrega ele significa "falar com o suporte"
   //    (abre o ticket). Mas dentro de um ticket já aberto/em atendimento,
   //    EXPLICIT_SUPPORT_COMMANDS trata "3" como "iniciar chatbot novamente"
-  //    (handleSupportQueueInput, whatsapp-support.service.js linha ~721) —
-  //    e ESSE caminho primeiro FECHA o ticket (closeWhatsAppSupportEntry)
-  //    antes de devolver action:'typebot_clean'. Como um retry de webhook
-  //    reenvia o texto "3" idêntico, e na 2ª entrega o ticket já existe
-  //    (sub_status=WAITING), resolveMetaInboundRouting cai no branch de
-  //    ticket aberto e entende o "3" retransmitido como pedido de reiniciar
-  //    o chatbot — fechando o próprio ticket que a 1ª entrega acabou de
-  //    abrir. O paciente não pediu isso; é colisão de significado do mesmo
-  //    dígito em dois contextos. Documentado explicitamente — ver relatório
-  //    final — como risco real a avaliar separadamente, não corrigido aqui.
+  //    (handleSupportQueueInput, whatsapp-support.service.js ~linha 721).
+  //    Antes da correção, a 2ª entrega do MESMO webhook via
+  //    resolveMetaInboundRouting via o ticket JÁ aberto e reinterpretava o
+  //    "3" retransmitido pelo NOVO estado — handleSupportQueueInput()
+  //    fechava o próprio ticket que a 1ª entrega acabou de criar. O ponto
+  //    exato onde isso era reinterpretado: a chamada a
+  //    handleSupportQueueInput({phone, textNorm}) dentro do bloco
+  //    `sub === WAITING || EM_ATENDIMENTO`, que rodava incondicionalmente
+  //    depois de recordInboundMessage — sem nunca checar se aquele
+  //    provider_message_id específico já tinha sido processado. A correção
+  //    move esse corte para ANTES de handleSupportQueueInput (e antes de
+  //    touchSupportInteraction): se recordInboundMessage() já vê esse
+  //    provider_message_id como duplicate dentro da conversation, a função
+  //    retorna { action: 'noop', duplicate: true } imediatamente — nenhum
+  //    comando é reinterpretado, nenhum estado avança.
   {
     const providerMessageId = 'wamid-opcao3-posentrega-B';
     const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const atendimentoBefore = atendimentos.find((a) => a.id === appointmentIdOpcao3);
     const lastInboundBefore = conversationBefore.last_inbound_at;
+    const lastMessageBefore = conversationBefore.last_message_at;
     const messagesBefore = await supportChatStore.listMessages(conversationBefore.id);
+    const subStatusBefore = atendimentoBefore.dados_clinicos?.support_sub_status;
+    const statusBefore = atendimentoBefore.status;
 
     const retry = await support.resolveMetaInboundRouting({
       phone: '5511977770051',
@@ -455,28 +472,99 @@ async function main() {
       messageId: providerMessageId
     });
 
+    // NO-OP INTEGRAL: nem persistência, nem efeito de negócio.
+    assert.equal(retry.duplicate, true, 'retry precisa se identificar como duplicate');
+    assert.equal(retry.action, 'noop', 'retry não pode executar handleSupportQueueInput nem reinterpretar o texto pelo novo estado');
     assert.equal(atendimentos.length, 1, 'retry não pode criar um segundo atendimento/ticket');
+
     const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
     assert.equal(conversationAfter.id, conversationBefore.id, 'retry não pode criar uma segunda conversation');
     const messagesAfter = await supportChatStore.listMessages(conversationAfter.id);
     assert.equal(messagesAfter.length, messagesBefore.length, 'retry não pode duplicar nem adicionar mensagem nova — mesmo provider_message_id');
-    assert.equal(conversationAfter.last_inbound_at, lastInboundBefore, 'retry não pode alterar last_inbound_at (nenhum inbound NOVO foi gravado)');
+    assert.equal(conversationAfter.last_inbound_at, lastInboundBefore, 'retry não pode alterar last_inbound_at');
+    assert.equal(conversationAfter.last_message_at, lastMessageBefore, 'retry não pode alterar last_message_at');
+    assert.equal(conversationAfter.status, conversationBefore.status, 'retry não pode avançar status da conversation');
 
-    // Achado documentado acima: o retry fecha o ticket (comportamento real,
-    // não efeito deste PR). Confirmamos que é exatamente isso que acontece,
-    // em vez de deixar o teste silenciosamente assumir idempotência total.
-    assert.equal(retry.action, 'typebot_clean', 'achado real: retry de "3" com ticket já aberto é interpretado como "reiniciar chatbot" e fecha o ticket — ver comentário acima');
-    const atendimentoAposRetry = atendimentos.find((a) => a.id === appointmentIdOpcao3);
-    assert.equal(atendimentoAposRetry.dados_clinicos?.support_sub_status, 'closed_by_patient', 'confirma o achado: o ticket é fechado como efeito colateral do retry');
+    const atendimentoAfter = atendimentos.find((a) => a.id === appointmentIdOpcao3);
+    assert.equal(atendimentoAfter.status, statusBefore, 'retry não pode mudar status do atendimento (não pode fechar)');
+    assert.equal(atendimentoAfter.dados_clinicos?.support_sub_status, subStatusBefore, 'retry não pode mudar support_sub_status');
+    assert.equal(atendimentoAfter.dados_clinicos?.support_closed_at, undefined, 'retry não pode gravar closed_at — ticket não foi fechado');
+    assert.equal(atendimentoAfter.dados_clinicos?.support_closed_by, undefined, 'retry não pode gravar closed_by — ticket não foi fechado');
 
-    results.D_retryDaOpcao3_inboundNaoDuplica_masFechaOTicketAchadoRealDocumentado = 'ok';
+    results.D_retryDaOpcao3AposEstadoMudarEhNoOpIntegral_naoFechaMaisOTicket = 'ok';
+  }
+
+  // D2) Mesma garantia, explicitamente para a opção "2" (pedido explícito:
+  //     "o mesmo princípio deve valer para a opção 2 inicial") — telefone
+  //     isolado (053), ticket aberto e depois retry do MESMO
+  //     provider_message_id.
+  {
+    // NÃO reseta `atendimentos` aqui — é o array compartilhado do fake, e os
+    // cenários B/D/D3 (telefone 051) ainda dependem dele mais abaixo neste
+    // mesmo arquivo. Isola este cenário só por contagem antes/depois e por
+    // telefone (053) exclusivo.
+    const countBefore = atendimentos.length;
+    const phone = '5511977770053';
+    const providerMessageId = 'wamid-opcao2-D2';
+    const first = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: providerMessageId });
+    assert.equal(first.action, 'reply');
+    assert.equal(atendimentos.length, countBefore + 1);
+    const appointmentId = atendimentos[atendimentos.length - 1].id;
+
+    const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentId);
+    const retry = await support.resolveMetaInboundRouting({ phone, text: '2', messageId: providerMessageId });
+    assert.equal(retry.duplicate, true);
+    assert.equal(retry.action, 'noop');
+    assert.equal(atendimentos.length, countBefore + 1, 'retry da opção 2 não pode criar um segundo atendimento');
+
+    const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentId);
+    assert.equal(conversationAfter.id, conversationBefore.id);
+    const messages = await supportChatStore.listMessages(conversationAfter.id);
+    assert.equal(messages.length, 1, 'retry da opção 2 não pode duplicar a mensagem');
+    assert.equal(conversationAfter.last_inbound_at, conversationBefore.last_inbound_at);
+
+    results.D2_retryDaOpcao2AposTicketAbertoEhNoOpIntegral = 'ok';
+  }
+
+  // D3) Controle negativo obrigatório: mesmo TEXTO ("3"), mas
+  //     provider_message_id DIFERENTE — é uma mensagem NOVA de verdade
+  //     (ex.: paciente manda "3" de novo, now within the open ticket, para
+  //     pedir suporte outra vez) e PRECISA ser processada normalmente, não
+  //     bloqueada. Dedup é só por provider_message_id, nunca por texto.
+  {
+    const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const messagesBefore = await supportChatStore.listMessages(conversationBefore.id);
+
+    const result = await support.resolveMetaInboundRouting({
+      phone: '5511977770051',
+      text: '3',
+      session: { id: 'sess-pos-entrega-B', typebot_session_id: null, metadata: {} },
+      messageId: 'wamid-opcao3-messageId-diferente-D3'
+    });
+
+    // Dentro do ticket já aberto, "3" é EXPLICIT_SUPPORT_COMMAND e
+    // handleSupportQueueInput interpreta como "reiniciar chatbot" — esse É
+    // o comportamento correto para uma mensagem NOVA (não é o bug; o bug
+    // era reinterpretar o MESMO evento já processado). Ou seja, mesmo
+    // texto + messageId novo segue o fluxo normal do contexto atual, sem
+    // ser bloqueado pelo corte de idempotência.
+    assert.notEqual(result.duplicate, true, 'mensagem com messageId novo não pode ser tratada como duplicate');
+    assert.equal(result.action, 'typebot_clean', 'mensagem nova de verdade segue a interpretação normal do contexto atual (não é bloqueada)');
+
+    const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
+    const messagesAfter = await supportChatStore.listMessages(conversationAfter.id);
+    assert.equal(messagesAfter.length, messagesBefore.length + 1, 'messageId novo precisa ser gravado como inbound novo, não bloqueado');
+    assert.equal(messagesAfter[messagesAfter.length - 1].provider_message_id, 'wamid-opcao3-messageId-diferente-D3');
+
+    results.D3_mesmoTextoComMessageIdDiferenteContinuaSendoProcessado = 'ok';
   }
 
   // F) Fechamento (pelo painel) e nova abertura: a conversation fechada
   //    nunca reaparece como aberta, e pedir suporte de novo cria um
   //    atendimento/conversation NOVOS — histórico anterior preservado.
-  //    Telefone isolado (052), para não herdar o fechamento já provocado
-  //    pelo retry do cenário D no telefone 051.
+  //    Telefone isolado (052), só para manter este cenário independente dos
+  //    anteriores (o ticket do telefone 051 agora permanece ABERTO depois
+  //    de D/D3, já que o retry deixou de fechá-lo).
   {
     atendimentos = [];
     const phone = '5511977770052';
