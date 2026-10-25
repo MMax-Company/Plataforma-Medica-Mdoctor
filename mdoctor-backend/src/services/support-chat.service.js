@@ -168,6 +168,7 @@ async function recordInboundMessage({
   body = '',
   providerMessageId = null,
   sender = 'patient',
+  media = null,
   metadata = {}
 }) {
   if (!isCaptureAvailable()) {
@@ -187,6 +188,7 @@ async function recordInboundMessage({
       body,
       sender,
       providerMessageId,
+      media,
       metadata
     });
     return { recorded: true, duplicate: result.duplicate, conversationId: conversation.id, message: result.message };

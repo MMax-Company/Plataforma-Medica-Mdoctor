@@ -149,6 +149,32 @@ async function recordSupportTicket({ patientId, appointmentId, phone, subject, m
   );
 }
 
+// Fecha o support_ticket legado (tabela support_tickets — separada de
+// appointments e de support_conversations) quando o Chat Administrativo de
+// Suporte encerra o atendimento (closeSupportEntryByAppointmentId em
+// whatsapp-support.service.js). Achado real (25/10/2026): recordSupportTicket
+// só grava na ABERTURA — nunca existiu um caminho que fechasse essa linha, então
+// support_tickets.status ficava "open"/closed_at nulo para sempre, mesmo com o
+// appointment e a support_conversation já encerrados. Idempotente por
+// appointment_id + status: só atualiza a linha que ainda está "open"; uma
+// segunda chamada no mesmo appointment_id não encontra nenhuma linha "open"
+// pra atualizar e retorna {closed:false}, sem sobrescrever closed_at.
+async function closeSupportTicketByAppointmentId(appointmentId) {
+  if (!appointmentId) return { closed: false, reason: 'missing_appointment_id' };
+  const rows = await dbQuery('fechar support_ticket', async (supabase) =>
+    supabase
+      .from(T.SUPPORT_TICKETS)
+      .update({ status: 'closed', closed_at: new Date().toISOString() })
+      .eq('appointment_id', appointmentId)
+      .eq('status', 'open')
+      .select('*')
+  );
+  if (Array.isArray(rows) && rows.length >= 1) {
+    return { closed: true, ticket: rows[0] };
+  }
+  return { closed: false, reason: 'not_found_or_already_closed' };
+}
+
 async function recordWhatsappMessage({
   appointmentId = null,
   phone,
@@ -261,6 +287,7 @@ module.exports = {
   recordMedicalEligibility,
   recordMedicalRecord,
   recordSupportTicket,
+  closeSupportTicketByAppointmentId,
   recordTriageSession,
   recordTypebotSession,
   recordWhatsappMessage

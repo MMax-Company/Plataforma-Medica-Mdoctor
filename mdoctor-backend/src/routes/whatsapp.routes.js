@@ -24,7 +24,8 @@ const {
   createWhatsAppSupportEntry,
   closeWhatsAppSupportEntry,
   processIncomingMessage,
-  WELCOME_CHOICE_INPUT_ID
+  WELCOME_CHOICE_INPUT_ID,
+  routeIncomingMediaToActiveSupport
 } = require('../services/whatsapp-support.service');
 const { extractMetaIdentifiers, extractStatusErrors } = require('../services/whatsapp-meta-identity.service');
 const { upsertSessionIdentity, getSessionByPhone, clearJourneyMarkers, clearTypebotSession } = require('../store/whatsapp-sessions.store');
@@ -475,6 +476,28 @@ router.post('/webhook', async (req, res) => {
                       continue;
                     }
                     try {
+                      // Suporte ativo tem prioridade sobre o fluxo clínico de upload
+                      // (mesmo princípio já aplicado ao roteamento de texto — PR #102):
+                      // achado real de 25/10/2026, imagem/documento enviados durante um
+                      // atendimento de suporte caíam direto no ramo "sem upload_session"
+                      // abaixo (whatsapp_business_media_skipped_no_upload_session) e eram
+                      // descartados — nunca chegavam ao Chat Administrativo. Sem suporte
+                      // ativo, o fluxo abaixo (findPendingUploadContext/
+                      // ingestWhatsAppPrescriptionMedia) continua exatamente como antes.
+                      const mediaRouting = await routeIncomingMediaToActiveSupport({
+                        phone: identity.phone,
+                        messageId: msg.id,
+                        mediaType: msg.type,
+                        mediaId: mediaPayload.mediaId,
+                        mimeType: mediaPayload.mimeType,
+                        filename: mediaPayload.filename
+                      });
+                      if (mediaRouting.routedToSupport) {
+                        logger.info('whatsapp_business_media_routed_to_support_chat', { messageId: msg.id, duplicate: Boolean(mediaRouting.duplicate) });
+                        await finishMetaMessage({ messageId: msg.id, status: 'processed' }).catch(() => {});
+                        continue;
+                      }
+
                       const pendingUpload = await findPendingUploadContext(identity.phone, { whatsappSession });
                       if (!pendingUpload) {
                         logger.warn('whatsapp_business_media_skipped_no_upload_session', { messageId: msg.id });
