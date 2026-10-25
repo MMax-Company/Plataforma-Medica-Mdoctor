@@ -164,9 +164,15 @@ async function main() {
       session: sessionsByPhone.get(phone)
     });
 
+    // Revisão de 24/10/2026: suporte CONTINUA dono da resposta (não vai pro
+    // Typebot — handled:true, nunca action:'typebot') mas uma mensagem
+    // genérica ("Vamos começar" aqui não é comando explícito de suporte)
+    // não dispara mais a mensagem automática de espera a cada mensagem —
+    // vira noop (já persistida, Chat Administrativo responde). O que esta
+    // regressão protege (suporte mais recente não perde a prioridade pro
+    // Typebot) continua garantido por result.handled/action abaixo.
     assert.equal(result.handled, true);
-    assert.equal(result.action, 'reply');
-    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT, 'suporte mais recente que a sessão Typebot deve manter a prioridade de sempre');
+    assert.equal(result.action, 'noop', 'suporte mais recente que a sessão Typebot deve manter a prioridade — mensagem genérica vira noop, não repete aviso de espera');
     results.suporteAtualMaisRecenteMantemPrioridade = 'ok';
   }
 
@@ -247,16 +253,22 @@ async function main() {
       session: sessionsByPhone.get(phone)
     });
 
+    // Mesma observação da "Inverso 1": o ticket continua interceptando
+    // (handled:true, nunca redirecionado ao Typebot) — só a mensagem
+    // automática repetitiva de espera é que não dispara mais pra mensagem
+    // genérica (revisão de 24/10/2026).
     assert.equal(result.handled, true);
-    assert.equal(result.action, 'reply');
-    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT, 'sem o marcador novo, o ticket deve continuar interceptando (comportamento anterior preservado)');
+    assert.equal(result.action, 'noop', 'sem o marcador novo, o ticket deve continuar interceptando (comportamento anterior preservado) — mensagem genérica vira noop');
     results.semMarcadorNovoMantemComportamentoConservador = 'ok';
   }
 
-  // ── Inverso 5: awaiting_menu_choice (7a94d2b) continua acima de tudo ────
+  // ── Inverso 5: awaiting_menu_choice SEM suporte ativo continua acima de
+  //    uma sessão Typebot velha/sem fluxo ativo (intenção original de
+  //    7a94d2b, incidente 09/08/2026: "e-mail" + "oi" + "1") — sem ticket de
+  //    suporte aberto, que é a diferença da Inverso 5b abaixo ───────────────
   {
     const phone = '5511985480014';
-    atendimentos = [buildOldSupportTicket(phone)];
+    atendimentos = []; // sem ticket de suporte — cenário original do incidente
     sessionsByPhone.set(phone, {
       id: 'sess-menu',
       typebot_session_id: null,
@@ -266,9 +278,37 @@ async function main() {
 
     const result = await support.resolveMetaInboundRouting({ phone, text: '1', session: sessionsByPhone.get(phone) });
 
-    assert.equal(result.action, 'typebot_clean', 'awaiting_menu_choice deve continuar acima de qualquer ticket de suporte, corrigido/residual ou não');
+    assert.equal(result.action, 'typebot_clean', 'awaiting_menu_choice deve continuar acima de uma sessão Typebot velha, sem ticket de suporte');
     assert.equal(createdSupportTickets, ticketsBefore);
-    results.awaitingMenuChoiceContinuaAcimaDeTudo = 'ok';
+    results.awaitingMenuChoiceContinuaAcimaDeSessaoResidual = 'ok';
+  }
+
+  // ── Inverso 5b: revisão de 24/10/2026 — suporte REALMENTE ativo
+  //    (WAITING/EM_ATENDIMENTO) tem prioridade até sobre awaiting_menu_choice.
+  //    Combinação só pode surgir de um leftover (saudação setou o estado
+  //    ANTES de um ticket existir, por outro caminho); com suporte ativo de
+  //    verdade, "1" tem que significar AGUARDAR (comando explícito do
+  //    suporte), nunca reiniciar o Typebot — exatamente a prioridade pedida
+  //    na revisão ("suporte ativo deve ser dono da conversa", acima de
+  //    "menu inicial"). awaiting_menu_choice permanece SEM EFEITO enquanto
+  //    durar o suporte — só volta a valer depois que o ticket fechar.
+  {
+    const phone = '5511985480016';
+    atendimentos = [buildOldSupportTicket(phone)]; // ticket em_atendimento, realmente ativo
+    sessionsByPhone.set(phone, {
+      id: 'sess-menu-com-suporte',
+      typebot_session_id: null,
+      metadata: { whatsapp_menu_state: support.MENU_STATE_AWAITING_CHOICE }
+    });
+    const ticketsBefore = createdSupportTickets;
+
+    const result = await support.resolveMetaInboundRouting({ phone, text: '1', session: sessionsByPhone.get(phone) });
+
+    assert.equal(result.handled, true);
+    assert.equal(result.action, 'reply');
+    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT, 'com suporte realmente ativo, "1" é AGUARDAR (comando do suporte), não reinicia o Typebot mesmo com awaiting_menu_choice presente');
+    assert.equal(createdSupportTickets, ticketsBefore, 'não pode criar ticket novo');
+    results.suporteAtivoTemPrioridadeSobreAwaitingMenuChoice = 'ok';
   }
 
   // ── Regressão: sem ticket nenhum, sessão Typebot ativa continua indo para

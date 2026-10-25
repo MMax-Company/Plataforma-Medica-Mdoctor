@@ -725,9 +725,16 @@ async function handleSupportQueueInput({ phone, textNorm }) {
   if (textNorm === '1' || textNorm === 'AGUARDAR' || textNorm === 'AGUARDAR ATENDIMENTO') {
     return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
   }
-  // Qualquer outra mensagem (incluindo números como "2", "5"...) apenas
-  // reapresenta o aviso de espera — nunca inicia triagem/Typebot.
-  return { handled: true, action: 'reply', reply: SUPPORT_WAITING_TEXT };
+  // Qualquer outra mensagem (saudação, pergunta, "oi bom dia", etc.) é
+  // conversa humana normal com o suporte já aberto — revisão de 24/10/2026,
+  // bug real de produção: antes, QUALQUER mensagem sem comando reconhecido
+  // (inclusive uma simples continuação da conversa) reapresentava o aviso
+  // de espera a cada mensagem nova, criando repetição/looping desnecessário
+  // ("Seu atendimento foi encaminhado..." repetido sem fim). A mensagem já
+  // foi persistida por quem chamou esta função (resolveMetaInboundRouting,
+  // antes de chegar aqui) — o Chat Administrativo é quem responde a partir
+  // daqui, não precisa de nenhuma resposta automática repetitiva.
+  return { handled: true, action: 'noop' };
 }
 
 async function resolveMetaInboundRouting({ phone, text, session = null, messageId = null }) {
@@ -796,10 +803,122 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     }
   }
 
+  const textNorm = normalizeMenuText(text);
+  const diagSession = resolvedSession || session;
+
+  // PRIORIDADE DE ROTEAMENTO (revisão de 24/10/2026) — bug real de produção:
+  // paciente com ticket de suporte WAITING/EM_ATENDIMENTO mandou "Oi"/"Olá"
+  // e o bloco `if (greeting)` (abaixo) reapresentou o menu inicial, roubando
+  // a conversa do suporte e "reiniciando" o chatbot do ponto de vista do
+  // paciente. Causa raiz: SUPORTE ATIVO era checado bem mais abaixo (depois
+  // de greeting/survey/menu_state), então uma saudação nunca chegava a ver
+  // que havia um ticket aberto. Ordem final de propriedade da conversa:
+  // 1) Typebot ativo legítimo (acima, inalterado) — nunca sequestrado por
+  //    ticket residual (ticketIsResidual, abaixo, preserva o caso de
+  //    19/08/2026: ticket mais antigo que a sessão Typebot atual não tem
+  //    prioridade).
+  // 2) SUPORTE ATIVO (aqui, novo lugar) — dono da conversa enquanto
+  //    sub-status for WAITING/EM_ATENDIMENTO E o ticket não for residual:
+  //    toda mensagem (inclusive saudação) só é persistida como inbound;
+  //    somente EXPLICIT_SUPPORT_COMMANDS (0/ENCERRAR/3/CHATBOT/1/AGUARDAR)
+  //    mudam o fluxo; nenhuma saudação reabre o menu nem o Typebot.
+  // 3) Saudação/survey/menu inicial (abaixo) — só quando não há suporte
+  //    ativo com prioridade.
+  // 4) AWAITING_DECISION/sessão Typebot residual/stale (mais abaixo,
+  //    inalterados) — continuam na mesma posição relativa de antes.
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+  logger.info('typebot_routing_support_context_diagnostic', {
+    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+    textNorm,
+    supportSubStatus: sub
+  });
+
+  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
+    // Comandos explícitos de gestão do suporte sempre pertencem ao suporte,
+    // não importa se existe uma sessão Typebot mais recente — são ações
+    // inequívocas do paciente sobre o próprio ticket (ver
+    // handleSupportQueueInput, mesmos valores aceitos ali).
+    const isExplicitSupportCommand = EXPLICIT_SUPPORT_COMMANDS.has(textNorm);
+
+    if (!isExplicitSupportCommand) {
+      // GAP corrigido em 19/08/2026: um ticket de suporte residual (aberto/
+      // atendido antes do início da sessão Typebot clínica ATUAL) não pode
+      // sequestrar respostas destinadas a essa sessão — ver
+      // docs/PROJECT_MEMORY.md seção 11. Comparamos qual dos dois é mais
+      // recente: ticket sem timestamp OU mais antigo que o início da sessão
+      // Typebot atual perde a prioridade (tratado como residual); ticket
+      // igual ou mais recente (suporte realmente atual/intencional) mantém a
+      // prioridade de sempre, sem nenhuma mudança de comportamento.
+      const activeFlow = isActiveTypebotFlow(diagSession);
+      const typebotStartedAt = diagSession?.metadata?.typebot_session_started_at || null;
+      const ticketFreshAt = ctx.support_started_at || ctx.opened_at || null;
+      const ticketIsResidual =
+        activeFlow && typebotStartedAt && (!ticketFreshAt || new Date(typebotStartedAt) > new Date(ticketFreshAt));
+
+      logger.info('whatsapp_support_freshness_diagnostic', {
+        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+        supportSubStatus: sub,
+        activeFlow,
+        typebotStartedAt,
+        ticketFreshAt,
+        ticketIsResidual
+      });
+
+      if (ticketIsResidual) {
+        return { handled: false, action: 'typebot' };
+      }
+    }
+
+    // Chat Administrativo de Suporte V1 / idempotência de efeito de negócio
+    // (ver comentário histórico completo na versão anterior desta função,
+    // antes de 24/10/2026) — grava a mensagem (ou detecta retry duplicate)
+    // ANTES de qualquer decisão de fluxo. Atrás de SUPPORT_CHAT_CAPTURE_ENABLED;
+    // com a flag off, recordInboundMessage retorna {recorded:false} sem tocar
+    // o banco e o fluxo abaixo roda normalmente.
+    let inboundRecord = { recorded: false, duplicate: false };
+    try {
+      // eslint-disable-next-line global-require
+      const { recordInboundMessage } = require('./support-chat.service');
+      inboundRecord = await recordInboundMessage({
+        appointmentId: ctx?.atendimento_id || null,
+        body: text,
+        providerMessageId: messageId,
+        sender: 'patient'
+      });
+    } catch (e) {
+      logger.warn('support_chat_inbound_integration_failed', { error: e.message });
+    }
+
+    if (inboundRecord.recorded && inboundRecord.duplicate) {
+      logger.info('whatsapp_support_retry_noop', {
+        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
+        messageId,
+        supportSubStatus: sub
+      });
+      return { handled: true, action: 'noop', duplicate: true };
+    }
+
+    // Base do TTL de 24h de em_atendimento (closeInactiveSessions, abaixo):
+    // toda interação real do paciente com o ticket atualiza este marcador.
+    // Best-effort — não bloqueia a resposta se falhar. Só roda para
+    // mensagem NOVA de verdade (não retry) — ver corte acima.
+    touchSupportInteraction(ctx.atendimento_id);
+
+    // Qualquer mensagem (explícita ou não) é decidida por
+    // handleSupportQueueInput: comandos reconhecidos mudam o fluxo
+    // (encerrar/reiniciar chatbot/aguardar); qualquer outra mensagem —
+    // inclusive saudação — vira noop (já persistida acima, o Chat
+    // Administrativo é quem responde, sem resposta automática repetitiva).
+    return handleSupportQueueInput({ phone, textNorm });
+  }
+
   // Saudação ("Oi", "Olá") sempre reapresenta o menu, sem retomar survey nem
-  // sessão clínica pendente. Se havia um survey ativo (ex.: paciente ignorou
-  // o convite pós-entrega e agora manda "Oi" dias depois), é encerrado aqui
-  // — o atendimento já foi concluído e a nova interação deve partir do zero.
+  // sessão clínica pendente. Só chega aqui quando NÃO há suporte ativo com
+  // prioridade (ver bloco acima). Se havia um survey ativo (ex.: paciente
+  // ignorou o convite pós-entrega e agora manda "Oi" dias depois), é
+  // encerrado aqui — o atendimento já foi concluído e a nova interação deve
+  // partir do zero.
   if (greeting) {
     try {
       if (getActiveSurveySession(resolvedSession)?.step) {
@@ -846,9 +965,8 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
   // Ver finalizeSupportAttendance/respondToFinalization, que agora também
   // limpam esse marcador — esta reordenação é a segunda camada de defesa,
   // cobrindo qualquer ticket que já estivesse aguardando decisão antes
-  // desta correção.
-  const textNorm = normalizeMenuText(text);
-  const diagSession = resolvedSession || session;
+  // desta correção. (textNorm/diagSession/ctx/sub já computados acima, no
+  // bloco de SUPORTE ATIVO — reusados aqui, sem recomputar.)
 
   // Estado explícito "aguardando escolha do menu inicial" (gravado quando a
   // saudação apresentou o menu, ver isGreetingText acima) tem prioridade
@@ -876,14 +994,6 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     return { handled: true, action: 'reply', reply: MENU_TEXT, cta: MENU_CTA };
   }
 
-  const ctx = await getPatientSupportContext(phone);
-  const sub = ctx?.support_sub_status || null;
-  logger.info('typebot_routing_support_context_diagnostic', {
-    phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
-    textNorm,
-    supportSubStatus: sub
-  });
-
   if (sub === SUPPORT_SUB.AWAITING_DECISION) {
     if (textNorm === '1' || textNorm === '2') {
       const result = await respondToFinalization(phone, textNorm);
@@ -899,103 +1009,9 @@ async function resolveMetaInboundRouting({ phone, text, session = null, messageI
     };
   }
 
-  if (sub === SUPPORT_SUB.WAITING || sub === SUPPORT_SUB.EM_ATENDIMENTO) {
-    // Comandos explícitos de gestão do suporte sempre pertencem ao suporte,
-    // não importa se existe uma sessão Typebot mais recente — são ações
-    // inequívocas do paciente sobre o próprio ticket (ver
-    // handleSupportQueueInput, mesmos valores aceitos ali).
-    const isExplicitSupportCommand = EXPLICIT_SUPPORT_COMMANDS.has(textNorm);
-
-    if (!isExplicitSupportCommand) {
-      // GAP corrigido em 19/08/2026: um ticket de suporte residual (aberto/
-      // atendido antes do início da sessão Typebot clínica ATUAL) não pode
-      // sequestrar respostas destinadas a essa sessão — ver
-      // docs/PROJECT_MEMORY.md seção 11. Comparamos qual dos dois é mais
-      // recente: ticket sem timestamp OU mais antigo que o início da sessão
-      // Typebot atual perde a prioridade (tratado como residual); ticket
-      // igual ou mais recente (suporte realmente atual/intencional) mantém a
-      // prioridade de sempre, sem nenhuma mudança de comportamento.
-      const activeFlow = isActiveTypebotFlow(diagSession);
-      const typebotStartedAt = diagSession?.metadata?.typebot_session_started_at || null;
-      const ticketFreshAt = ctx.support_started_at || ctx.opened_at || null;
-      const ticketIsResidual =
-        activeFlow && typebotStartedAt && (!ticketFreshAt || new Date(typebotStartedAt) > new Date(ticketFreshAt));
-
-      logger.info('whatsapp_support_freshness_diagnostic', {
-        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
-        supportSubStatus: sub,
-        activeFlow,
-        typebotStartedAt,
-        ticketFreshAt,
-        ticketIsResidual
-      });
-
-      if (ticketIsResidual) {
-        return { handled: false, action: 'typebot' };
-      }
-    }
-
-    // Chat Administrativo de Suporte V1 (etapa funcional, 10/10/2026):
-    // único ponto de integração do inbound real com o módulo novo
-    // (support-chat.service.js / tabelas support_conversations/
-    // support_chat_messages). Atrás de SUPPORT_CHAT_CAPTURE_ENABLED
-    // (desligada por padrão) — com a flag off, recordInboundMessage
-    // retorna no primeiro if sem tocar o banco, e o fluxo abaixo roda
-    // exatamente como antes. Com a flag on, GRAVA a mensagem e também serve
-    // de corte de idempotência de EFEITO DE NEGÓCIO, não só de persistência
-    // (revisão de 24/10/2026, antes do merge do PR #101): um retry do
-    // MESMO webhook Meta (mesmo provider_message_id) reenvia o texto
-    // idêntico da mensagem que abriu o ticket (ex.: "3"/"2") — sem este
-    // corte, a 2ª entrega encontra o ticket JÁ aberto e
-    // handleSupportQueueInput() reinterpretaria esse mesmo texto como um
-    // COMANDO NOVO do menu de ticket aberto (ex.: EXPLICIT_SUPPORT_COMMANDS
-    // trata "3" como "reiniciar chatbot" e fecha o ticket que a 1ª entrega
-    // acabou de criar — achado real de revisão). recordMessage() já é
-    // idempotente por (conversation_id, provider_message_id) — reusamos
-    // esse MESMO mecanismo (nenhum dedup paralelo) só olhando o campo
-    // `duplicate` do retorno. Dedup é só por provider_message_id, nunca por
-    // texto: uma mensagem nova de verdade com texto igual mas messageId
-    // diferente não é afetada, segue o fluxo normal abaixo. Posicionado
-    // ANTES de touchSupportInteraction propositalmente: um retry
-    // reconhecido como duplicate não deve avançar NENHUM estado, nem o
-    // marcador de TTL de inatividade. require() tardio (padrão já usado
-    // neste arquivo) evita qualquer acoplamento no topo do módulo; o
-    // try/catch é defesa extra além do próprio recordInboundMessage, que já
-    // nunca lança — uma falha aqui (de require, de rede, do banco) nunca
-    // pode interromper o suporte via WhatsApp, só é registrada em log
-    // estruturado, e o fluxo segue como se a flag estivesse desligada
-    // (sem bloqueio nem reinterpretação).
-    let inboundRecord = { recorded: false, duplicate: false };
-    try {
-      // eslint-disable-next-line global-require
-      const { recordInboundMessage } = require('./support-chat.service');
-      inboundRecord = await recordInboundMessage({
-        appointmentId: ctx?.atendimento_id || null,
-        body: text,
-        providerMessageId: messageId,
-        sender: 'patient'
-      });
-    } catch (e) {
-      logger.warn('support_chat_inbound_integration_failed', { error: e.message });
-    }
-
-    if (inboundRecord.recorded && inboundRecord.duplicate) {
-      logger.info('whatsapp_support_retry_noop', {
-        phone: digits ? digits.replace(/\d(?=\d{4})/g, '*') : null,
-        messageId,
-        supportSubStatus: sub
-      });
-      return { handled: true, action: 'noop', duplicate: true };
-    }
-
-    // Base do TTL de 24h de em_atendimento (closeInactiveSessions, abaixo):
-    // toda interação real do paciente com o ticket atualiza este marcador.
-    // Best-effort — não bloqueia a resposta se falhar. Só roda para
-    // mensagem NOVA de verdade (não retry) — ver corte acima.
-    touchSupportInteraction(ctx.atendimento_id);
-
-    return handleSupportQueueInput({ phone, textNorm });
-  }
+  // sub === WAITING/EM_ATENDIMENTO já foi tratado e retornado no bloco de
+  // SUPORTE ATIVO, acima — se chegamos aqui, sub é AWAITING_DECISION (já
+  // tratado também), CLOSED_*/CONVERTED/INACTIVE, ou não há ticket.
 
   // DIAGNÓSTICO TEMPORÁRIO (pedido: investigar travamento pós-saudação) —
   // remover após confirmar a causa. Não altera nenhuma decisão de roteamento,
