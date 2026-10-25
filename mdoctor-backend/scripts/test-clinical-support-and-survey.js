@@ -69,18 +69,24 @@ async function testSupportFlow() {
   assert.equal(atendimentos.filter((a) => a.paciente_telefone === phone).length, 1);
   results.opcao2SemSessaoCriaTicketUnico = 'ok';
 
-  // 2) "2" de novo (ticket já aberto) reutiliza o MESMO ticket — não cria outro.
+  // 2) "2" de novo (ticket já aberto) reutiliza o MESMO ticket — não cria
+  //    outro. Revisão de 24/10/2026: "2" não é comando explícito de gestão
+  //    do suporte (só 0/ENCERRAR/3/CHATBOT/1/AGUARDAR são) — com suporte
+  //    ativo, vira mensagem comum, persistida, sem resposta automática
+  //    repetitiva (noop), nunca mais um segundo ticket.
   const r2 = await support.resolveMetaInboundRouting({ phone, text: '2', session });
-  assert.equal(r2.action, 'reply');
+  assert.equal(r2.action, 'noop', 'suporte ativo: "2" não é comando explícito, não repete aviso de espera');
   assert.equal(atendimentos.filter((a) => a.paciente_telefone === phone).length, 1, 'não cria segundo ticket');
   results.ticketReutilizadoNaoDuplicado = 'ok';
 
   // 3) Mensagem numérica não reconhecida (ex.: "5") durante suporte nunca
-  //    inicia Typebot nem mostra o menu — só reapresenta o aviso de espera.
+  //    inicia Typebot nem mostra o menu. Revisão de 24/10/2026: também não
+  //    repete mais o aviso de espera a cada mensagem — vira noop (já
+  //    persistida), nunca o MENU_TEXT nem o SUPPORT_WAITING_TEXT repetido.
   const r3 = await support.resolveMetaInboundRouting({ phone, text: '5', session });
-  assert.equal(r3.action, 'reply');
+  assert.equal(r3.action, 'noop');
   assert.notEqual(r3.reply, support.MENU_TEXT, 'menu não aparece durante suporte ativo');
-  assert.equal(r3.reply, support.SUPPORT_WAITING_TEXT);
+  assert.notEqual(r3.reply, support.SUPPORT_WAITING_TEXT, 'aviso de espera não repete pra mensagem comum durante suporte ativo');
   results.mensagemNumericaNaoIniciaTriagemNemMostraMenu = 'ok';
 
   // 4) "ENCERRAR" fecha o suporte, mensagem única e exata, SEM o menu anexado

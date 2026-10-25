@@ -116,8 +116,11 @@ const results = {};
 async function main() {
   // 1) Mensagem de suporte ativo chama recordInboundMessage com os
   //    parâmetros certos (appointmentId do ticket, body = texto original,
-  //    providerMessageId = messageId, sender: 'patient') — e a resposta ao
-  //    paciente continua exatamente a mesma (SUPPORT_WAITING_TEXT).
+  //    providerMessageId = messageId, sender: 'patient'). Revisão de
+  //    24/10/2026 (bug real de produção, ownership do suporte ativo):
+  //    mensagem comum (não é comando explícito) não repete mais
+  //    SUPPORT_WAITING_TEXT — vira noop, já persistida, sem resposta
+  //    automática repetitiva.
   {
     seedActiveSupportTicket('waiting');
     recordInboundCalls = [];
@@ -126,8 +129,8 @@ async function main() {
       text: 'minha receita não chegou',
       messageId: 'wamid-real-001'
     });
-    assert.equal(result.action, 'reply');
-    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT);
+    assert.equal(result.action, 'noop', 'mensagem comum durante suporte ativo não repete aviso automático');
+    assert.equal(result.reply, undefined);
     assert.equal(recordInboundCalls.length, 1, 'recordInboundMessage deve ser chamado exatamente uma vez');
     assert.equal(recordInboundCalls[0].appointmentId, ATENDIMENTO_ID);
     assert.equal(recordInboundCalls[0].body, 'minha receita não chegou');
@@ -146,7 +149,7 @@ async function main() {
       text: 'alguém aí?',
       messageId: 'wamid-real-002'
     });
-    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT);
+    assert.equal(result.action, 'noop');
     assert.equal(recordInboundCalls.length, 1);
     assert.equal(recordInboundCalls[0].appointmentId, ATENDIMENTO_ID);
     results.inboundTambemCapturadoEmEmAtendimento = 'ok';
@@ -162,8 +165,7 @@ async function main() {
       text: 'teste com falha assíncrona',
       messageId: 'wamid-real-003'
     });
-    assert.equal(result.action, 'reply');
-    assert.equal(result.reply, support.SUPPORT_WAITING_TEXT, 'resposta ao paciente deve ser idêntica mesmo com falha na gravação do chat');
+    assert.equal(result.action, 'noop', 'resposta ao paciente deve seguir o fluxo normal (noop) mesmo com falha na gravação do chat');
     results.falhaAssincronaNoRegistroNaoQuebraRespostaAoPaciente = 'ok';
   }
 
@@ -182,8 +184,7 @@ async function main() {
         text: 'teste com falha síncrona',
         messageId: 'wamid-real-004'
       });
-      assert.equal(result.action, 'reply');
-      assert.equal(result.reply, support.SUPPORT_WAITING_TEXT, 'resposta ao paciente deve ser idêntica mesmo com falha síncrona no require/chamada');
+      assert.equal(result.action, 'noop', 'resposta ao paciente deve seguir o fluxo normal (noop) mesmo com falha síncrona no require/chamada');
       results.falhaSincronaNoRegistroNaoQuebraRespostaAoPaciente = 'ok';
     } finally {
       require.cache[require.resolve(resolveFrom('./support-chat.service'))] = originalModule;

@@ -407,9 +407,11 @@ async function main() {
   // E) Inbound SUBSEQUENTE após a abertura via opção "3": mensagem seguinte
   //    do paciente continua sendo registrada normalmente, somando ao
   //    histórico (não substituindo), e os timestamps avançam. Roda ANTES de
-  //    D de propósito: D fecha o ticket como efeito colateral real (ver
-  //    comentário em D), então a mensagem subsequente só faz sentido com o
-  //    ticket ainda aberto.
+  //    D por isolamento (D é o teste de retry, independente). Revisão de
+  //    24/10/2026 (bug real de produção, PR de ownership): mensagem comum
+  //    durante suporte ativo não dispara mais SUPPORT_WAITING_TEXT a cada
+  //    mensagem — vira noop (já persistida acima; conversa é chat humano a
+  //    partir daqui).
   {
     const conversationBefore = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
     const lastInboundBefore = conversationBefore.last_inbound_at;
@@ -421,7 +423,7 @@ async function main() {
       session: { id: 'sess-pos-entrega-B', typebot_session_id: null, metadata: {} },
       messageId: 'wamid-opcao3-subsequente-E'
     });
-    assert.equal(result.action, 'reply');
+    assert.equal(result.action, 'noop', 'mensagem comum durante suporte ativo não repete aviso automático');
 
     const conversationAfter = await supportChatStore.getConversationByAppointmentId(appointmentIdOpcao3);
     const messages = await supportChatStore.listMessages(conversationAfter.id);
