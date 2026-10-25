@@ -698,6 +698,32 @@ function createTypebotWhatsAppBridge(deps = {}) {
         };
       }
 
+      // Chat de suporte humano: resolveMetaInboundRouting() já persistiu a
+      // mensagem inbound e decidiu explicitamente que nenhum bot deve
+      // responder. "handled + noop" é terminal — se o bridge continuar,
+      // ele cai no fluxo normal abaixo e pode chamar startChat/continueChat,
+      // iniciando o Typebot no meio de um ticket de suporte ativo (incidente
+      // real de produção em 24/10/2026). Marcar o receipt Meta como processado
+      // e retornar aqui preserva idempotência e impede qualquer efeito
+      // posterior (survey, reset de sessão ou runtime Typebot).
+      if (routing?.handled && routing.action === 'noop') {
+        const providerMessageIds = [];
+        logger.info('whatsapp_inbound_noop_observability', {
+          messageId,
+          routeAction: routing.action,
+          duplicate: Boolean(routing.duplicate),
+          responsesSent: 0
+        });
+        await finish({ messageId, status: 'processed', providerMessageIds });
+        return {
+          duplicate: Boolean(routing.duplicate),
+          responsesSent: 0,
+          sessionId: currentSession?.typebot_session_id || null,
+          sessionIdReused: Boolean(currentSession?.typebot_session_id),
+          noopHandled: true
+        };
+      }
+
       if (getActiveSurveySession(currentSession)?.step) {
         const { handleSurveyInbound } = require('./post-delivery-survey.service');
         const surveyResult = await handleSurveyInbound({
