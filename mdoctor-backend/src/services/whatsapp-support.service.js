@@ -1,6 +1,6 @@
 const { STATUS, createAtendimento, listAtendimentos, getAtendimento, updateAtendimentoStatus } = require('../store/atendimentos.store');
 const { createAuditLog } = require('../store/audit.store');
-const { recordSupportTicket } = require('./clinical-persistence.service');
+const { recordSupportTicket, closeSupportTicketByAppointmentId } = require('./clinical-persistence.service');
 const { isSupportQueue, QUEUE_TYPE_SUPPORT } = require('../constants/whatsapp-queue');
 const { notifyAdminAlert } = require('./admin-alert.service');
 const logger = require('../config/logger');
@@ -313,6 +313,18 @@ async function closeSupportEntryByAppointmentId({ appointmentId, actorId = null 
       phone: atendimento.paciente_telefone ? normalizePhone(atendimento.paciente_telefone).replace(/\d(?=\d{4})/g, '*') : null
     }
   });
+
+  // Fecha também o support_ticket legado (tabela separada, só gravada na
+  // abertura via recordSupportTicket) — achado real de 25/10/2026: sem isso,
+  // support_tickets.status ficava "open" para sempre mesmo com o appointment
+  // e a support_conversation já encerrados pelo painel. Best-effort: nunca
+  // pode impedir o fechamento do ticket/conversation em si, já concluído
+  // acima — mesma postura defensiva de syncLegacyClosedConversationSafe.
+  try {
+    await closeSupportTicketByAppointmentId(atendimento.id);
+  } catch (e) {
+    logger.warn('support_ticket_legacy_close_failed', { appointmentId: atendimento.id, error: e.message });
+  }
 
   return { closed: true, atendimento: updated };
 }
@@ -735,6 +747,43 @@ async function handleSupportQueueInput({ phone, textNorm }) {
   // antes de chegar aqui) — o Chat Administrativo é quem responde a partir
   // daqui, não precisa de nenhuma resposta automática repetitiva.
   return { handled: true, action: 'noop' };
+}
+
+// Mídia (imagem/documento) recebida enquanto há suporte WAITING/EM_ATENDIMENTO
+// aberto pertence à support_conversation, não ao fluxo clínico de upload de
+// receita — achado real de 25/10/2026: whatsapp.routes.js descartava toda
+// mídia sem upload_session clínica pendente (whatsapp_business_media_skipped_
+// no_upload_session), mesmo com suporte ativo. Mesmo princípio já aplicado ao
+// texto (PR #102, resolveMetaInboundRouting): suporte ativo é dono da
+// conversa. Extraída como função isolada (chamada por whatsapp.routes.js
+// ANTES de findPendingUploadContext) só para ficar testável sem precisar
+// simular o webhook Express inteiro — nenhuma lógica nova além do que o
+// caller faria inline. Nunca inicia Typebot nem responde automaticamente;
+// quem chamou decide o que fazer quando routedToSupport é false (fluxo
+// clínico atual, inalterado).
+async function routeIncomingMediaToActiveSupport({ phone, messageId, mediaType, mediaId, mimeType, filename }) {
+  const ctx = await getPatientSupportContext(phone);
+  const sub = ctx?.support_sub_status || null;
+  if (sub !== SUPPORT_SUB.WAITING && sub !== SUPPORT_SUB.EM_ATENDIMENTO) {
+    return { routedToSupport: false };
+  }
+
+  let inboundRecord = { recorded: false };
+  try {
+    // eslint-disable-next-line global-require
+    const { recordInboundMessage } = require('./support-chat.service');
+    inboundRecord = await recordInboundMessage({
+      appointmentId: ctx?.atendimento_id || null,
+      body: '',
+      providerMessageId: messageId,
+      sender: 'patient',
+      media: { type: mediaType, mediaId, mimeType, filename }
+    });
+  } catch (e) {
+    logger.warn('support_chat_media_record_failed', { messageId, error: e.message });
+  }
+
+  return { routedToSupport: true, recorded: inboundRecord.recorded, duplicate: inboundRecord.duplicate };
 }
 
 async function resolveMetaInboundRouting({ phone, text, session = null, messageId = null }) {
@@ -1233,6 +1282,7 @@ module.exports = {
   getPatientSupportContext,
   respondToFinalization,
   resolveMetaInboundRouting,
+  routeIncomingMediaToActiveSupport,
   handleTypebotSupportChoice,
   processIncomingMessage,
   closeInactiveSessions

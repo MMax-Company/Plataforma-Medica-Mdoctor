@@ -166,6 +166,7 @@
     "test:support-chat-inbound-integration": "node scripts/test-support-chat-inbound-integration.js",
     "test:support-chat-first-inbound": "node scripts/test-support-chat-first-inbound.js",
     "test:support-chat-ownership": "node scripts/test-support-chat-ownership.js",
+    "test:support-chat-ticket-close-and-media": "node scripts/test-support-chat-ticket-close-and-media.js",
     "test:support-chat-bridge-noop": "node scripts/test-support-chat-bridge-noop.js",
     "test:admin-dashboard-suporte-tempos": "node scripts/test-admin-dashboard-suporte-tempos.js",
     "test:admin-dashboard-financeiro": "node scripts/test-admin-dashboard-financeiro.js",
