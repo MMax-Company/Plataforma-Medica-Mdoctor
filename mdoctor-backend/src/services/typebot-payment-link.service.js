@@ -98,11 +98,10 @@ async function createCheckoutSession(stripe, { token, typebotSessionId, identity
   return stripe.checkout.sessions.create({
     mode: 'payment',
     locale: 'pt-BR',
-    // Pix + cartão (cartão continua primeiro na lista/UI padrão da Stripe).
-    // Mesmo valor, mesmo checkout, mesmo webhook checkout.session.completed
-    // e mesma verificação de amount_total/currency — nenhuma lógica de
-    // confirmação nova para Pix.
-    payment_method_types: PAYMENT_METHOD_TYPES,
+    // Stripe usa métodos dinâmicos definidos no Dashboard. Restringimos
+    // os métodos elegíveis a cartão e Pix, sem alterar valor ou sessão.
+    // Confirmação de Pix ocorre somente após pagamento efetivo no webhook.
+    allowed_payment_method_types: PAYMENT_METHOD_TYPES,
     payment_method_options: {
       pix: { expires_after_seconds: PIX_EXPIRES_AFTER_SECONDS }
     },
