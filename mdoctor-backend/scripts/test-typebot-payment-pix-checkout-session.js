@@ -93,7 +93,7 @@ async function main() {
     assert.equal(sessionsCreateCalls.length, 1);
     const params = sessionsCreateCalls[0];
 
-    assert.deepEqual(params.payment_method_types, ['card', 'pix'], 'cartão e Pix habilitados simultaneamente, cartão primeiro');
+    assert.deepEqual(params.allowed_payment_method_types, ['card', 'pix'], 'cartão e Pix habilitados simultaneamente, cartão primeiro');
     assert(params.payment_method_options, 'payment_method_options presente');
     assert(params.payment_method_options.pix, 'opções de Pix presentes');
     assert.equal(params.payment_method_options.pix.expires_after_seconds, 1800, 'Pix expira em exatamente 30 minutos (1800s)');
@@ -148,7 +148,7 @@ async function main() {
     assert.equal(result.ok, true);
     assert.equal(sessionsCreateCalls.length, 1, 'reabertura cria uma nova Checkout Session quando a anterior não está mais aberta');
     const params = sessionsCreateCalls[0];
-    assert.deepEqual(params.payment_method_types, ['card', 'pix'], 'reabertura também mantém cartão+Pix');
+    assert.deepEqual(params.allowed_payment_method_types, ['card', 'pix'], 'reabertura também mantém cartão+Pix');
     assert.equal(params.payment_method_options.pix.expires_after_seconds, 1800, 'reabertura também mantém a expiração de 30 min do Pix');
 
     results.reaberturaDeCheckoutTambemMantemCartaoEPix = 'ok';
@@ -165,8 +165,8 @@ async function main() {
       runtimeOptions: {},
       existingSession: null
     });
-    assert.equal(sessionsCreateCalls[0].payment_method_types[0], 'card', 'cartão continua sendo o primeiro método exibido');
-    assert.equal(sessionsCreateCalls[0].payment_method_types[1], 'pix');
+    assert.equal(sessionsCreateCalls[0].allowed_payment_method_types[0], 'card', 'cartão continua sendo o primeiro método exibido');
+    assert.equal(sessionsCreateCalls[0].allowed_payment_method_types[1], 'pix');
     results.cartaoContinuaComoPrimeiroMetodoNaLista = 'ok';
   }
 
