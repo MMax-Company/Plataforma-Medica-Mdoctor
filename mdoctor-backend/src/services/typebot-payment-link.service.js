@@ -967,24 +967,37 @@ async function redeliverPendingPaymentMessages(token, deps = {}) {
   const claimed = await claimRedelivery(session);
   if (!claimed) return { ok: false, code: 'REDELIVERY_IN_PROGRESS' };
 
+  // A persistencia usa a sessao como snapshot. Sem refletir o claim nela,
+  // os updates intermediarios apagariam redelivery_claimed=true e outra
+  // execucao poderia reivindicar o mesmo envio enquanto ele ainda ocorre.
+  // Nao alterar o objeto do chamador; manter o claim em todos os patches
+  // ate a liberacao explicita no final.
+  const claimedSession = {
+    ...session,
+    metadata: {
+      ...(session.metadata || {}),
+      typebot_payment: { ...payment, redelivery_claimed: true }
+    }
+  };
+
   const correlationId = payment.delivery_correlation_id
     || `typebot-payment-${payment.checkout_session_id || payment.token}`;
   try {
-    const persistDeliveries = (list) => persistPayment(session, {
+    const persistDeliveries = (list) => persistPayment(claimedSession, {
       message_deliveries: list,
       delivery_failed: list.some((d) => d.status !== 'sent')
     });
     const { providerMessageIds, deliveryFailed } = await deliverTrackedPaymentOutputs({
       session, correlationId, provider, deliveries, persistDeliveries
     });
-    await persistPayment(session, {
+    await persistPayment(claimedSession, {
       message_deliveries: deliveries,
       delivery_failed: deliveryFailed,
       redelivery_claimed: false
     }).catch(() => {});
     return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
   } catch (deliveryError) {
-    await persistPayment(session, { redelivery_claimed: false }).catch(() => {});
+    await persistPayment(claimedSession, { redelivery_claimed: false }).catch(() => {});
     logger.warn('typebot_payment_redelivery_failed', {
       phase: 'redeliver_pending_outputs',
       correlationId,
