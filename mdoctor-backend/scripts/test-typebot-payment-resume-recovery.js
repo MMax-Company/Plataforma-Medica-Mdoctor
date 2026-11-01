@@ -521,27 +521,77 @@ async function main() {
     results.reentregaWebhookNaoDuplicaMensagemConfirmada = 'ok';
   }
 
-  // 12) Falha na persistência do controle de envio: não prossegue com
-  //     envio inseguro — o provider nunca é chamado.
+  // 12a) Falha de persistência ANTES do envio, com duas mensagens
+  //      pendentes: não envia a mensagem corrente, interrompe o LOTE
+  //      inteiro (a segunda mensagem nem é tentada), relata
+  //      persistenceFailed (nunca entrega concluída), e NÃO libera
+  //      redelivery_claimed — fica retido para reconciliação operacional.
   {
     const session = makeSession({
       flow_resumed: true,
       delivery_failed: true,
       delivery_correlation_id: 'typebot-payment-cs_test_recovery',
-      message_deliveries: [makeDeliveryEntry({ status: 'failed_safe_to_retry' })]
+      message_deliveries: [
+        makeDeliveryEntry({ index: 0, key: 'typebot-payment-cs_test_recovery:0', status: 'failed_safe_to_retry' }),
+        makeDeliveryEntry({ index: 1, key: 'typebot-payment-cs_test_recovery:1', status: 'failed_safe_to_retry' })
+      ]
     });
     const sent = [];
+    const persistedPatches = [];
     const result = await redeliverPendingPaymentMessages('tok-recovery', {
       session,
       claimRedeliveryAttempt: async () => true,
       provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-unsafe' }; } },
-      persistPaymentRecord: async () => { throw new Error('Supabase indisponível'); },
+      persistPaymentRecord: async (s, patch) => { persistedPatches.push(patch); throw new Error('Supabase indisponível'); },
       createIntegrationError: async () => {}
     });
-    assert.equal(result.ok, true);
-    assert.equal(result.responsesSent, 0);
-    assert.equal(sent.length, 0, 'sem conseguir registrar a tentativa, o envio não é feito');
-    results.falhaDePersistenciaNaoEnviaDeFormaInsegura = 'ok';
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'DELIVERY_PERSISTENCE_FAILED');
+    assert.equal(result.persistenceFailed, true);
+    assert.equal(sent.length, 0, 'sem conseguir registrar a tentativa, nenhum envio é feito');
+    assert.equal(persistedPatches.some((p) => p.redelivery_claimed === false), false, 'claim nunca é liberado quando a persistência falha');
+    results.falhaDePersistenciaAntesDoEnvioInterrompeLoteERetemClaim = 'ok';
+  }
+
+  // 12b) Falha de persistência DEPOIS do envio, com duas mensagens
+  //      pendentes: a primeira é enviada (provider chamado uma vez), mas
+  //      a gravação do resultado falha — interrompe o lote imediatamente,
+  //      a segunda mensagem nunca é tentada, e o claim também não é
+  //      liberado.
+  {
+    const session = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: [
+        makeDeliveryEntry({ index: 0, key: 'typebot-payment-cs_test_recovery:0', status: 'failed_safe_to_retry' }),
+        makeDeliveryEntry({ index: 1, key: 'typebot-payment-cs_test_recovery:1', status: 'failed_safe_to_retry' })
+      ]
+    });
+    const sent = [];
+    const persistedPatches = [];
+    let persistCalls = 0;
+    const result = await redeliverPendingPaymentMessages('tok-recovery', {
+      session,
+      claimRedeliveryAttempt: async () => true,
+      provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-sent-but-unrecorded' }; } },
+      persistPaymentRecord: async (s, patch) => {
+        persistCalls += 1;
+        persistedPatches.push(patch);
+        // 1ª chamada (antes do envio do item 0) ok; 2ª chamada (depois do
+        // envio do item 0) falha — simula gravação indisponível só após
+        // o envio já ter ocorrido.
+        if (persistCalls === 2) throw new Error('Supabase indisponível após envio');
+        return patch;
+      },
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'DELIVERY_PERSISTENCE_FAILED');
+    assert.equal(result.persistenceFailed, true);
+    assert.equal(sent.length, 1, 'a mensagem já enviada não é reenviada, e a segunda mensagem nunca chega a ser tentada');
+    assert.equal(persistedPatches.some((p) => p.redelivery_claimed === false), false, 'claim nunca é liberado quando a persistência pós-envio falha');
+    results.falhaDePersistenciaDepoisDoEnvioInterrompeLoteERetemClaim = 'ok';
   }
 
   // 13) Estados financeiros e de retomada preservados durante toda a

@@ -645,6 +645,11 @@ async function deliverTrackedPaymentOutputs({ session, correlationId, provider, 
   const requiresWhatsappEnabledGate = provider === metaProvider;
   const sendableStatuses = ['pending', 'failed_safe_to_retry'];
   const providerMessageIds = [];
+  // Falha ao gravar o controle de envio (não a entrega em si) é um
+  // problema diferente e mais grave: não conseguimos confiar no nosso
+  // próprio rastreamento por mensagem. Interrompe o lote inteiro (não só
+  // o item atual) e nunca é relatado como entrega concluída.
+  let persistenceFailed = false;
 
   for (const entry of deliveries) {
     if (entry.status === 'sent') {
@@ -672,18 +677,21 @@ async function deliverTrackedPaymentOutputs({ session, correlationId, provider, 
       // Persistência ANTES do envio: se não conseguirmos registrar que a
       // tentativa está em curso, não é seguro prosseguir com o envio —
       // um processo interrompido depois do envio sem isso gravado não
-      // saberia, numa reentrega, que a mensagem pode já ter saído.
+      // saberia, numa reentrega, que a mensagem pode já ter saído. Não
+      // envia esta mensagem e interrompe o lote: se o controle de envio
+      // não está confiável para este item, não está para os seguintes.
       await persistDeliveries(deliveries);
     } catch (persistError) {
       entry.status = previousStatus;
       entry.attempts -= 1;
+      persistenceFailed = true;
       logger.warn('typebot_payment_message_persist_before_send_failed', {
         phase: 'deliver_after_resume',
         correlationId,
         key: entry.key,
         error: String(persistError?.message || persistError)
       });
-      continue;
+      break;
     }
 
     if (entry.output.kind === 'image') {
@@ -715,18 +723,30 @@ async function deliverTrackedPaymentOutputs({ session, correlationId, provider, 
       }
     }
     entry.updatedAt = new Date().toISOString();
-    await persistDeliveries(deliveries).catch((persistError) => {
+    try {
+      await persistDeliveries(deliveries);
+    } catch (persistError) {
+      // Falha ao gravar DEPOIS do envio: a mensagem pode já ter saído,
+      // mas o último estado confiável em banco continua 'sending' (a
+      // gravação ANTES do envio, essa sim bem-sucedida) — sendableStatuses
+      // já exclui 'sending' do reenvio automático, então nenhum código
+      // extra é necessário para bloquear isso. Interrompe o lote
+      // imediatamente: sem conseguir gravar, não há como confiar no
+      // estado de nenhuma mensagem seguinte.
+      persistenceFailed = true;
       logger.warn('typebot_payment_message_persist_after_send_failed', {
         phase: 'deliver_after_resume',
         correlationId,
         key: entry.key,
+        resolvedStatus: entry.status,
         error: String(persistError?.message || persistError)
       });
-    });
+      break;
+    }
   }
 
   const deliveryFailed = deliveries.some((d) => d.status !== 'sent');
-  return { providerMessageIds, deliveryFailed };
+  return { providerMessageIds, deliveryFailed, persistenceFailed };
 }
 
 // O texto introdutório (valor, condições, aviso de continuidade automática)
@@ -905,19 +925,22 @@ async function completePaymentByToken(token, deps = {}) {
     delivery_correlation_id: correlationId,
     delivery_failed: list.some((d) => d.status !== 'sent')
   });
-  const { providerMessageIds, deliveryFailed } = await deliverTrackedPaymentOutputs({
+  const { providerMessageIds, deliveryFailed, persistenceFailed } = await deliverTrackedPaymentOutputs({
     session, correlationId, provider, deliveries, persistDeliveries
   });
   if (deliveryFailed) {
     logger.warn('typebot_payment_delivery_failed', {
       phase: 'deliver_after_resume',
       correlationId,
+      persistenceFailed,
       pending: deliveries.filter((d) => d.status !== 'sent').map((d) => ({ index: d.index, status: d.status }))
     });
     await logError({
       integration: 'typebot_payment_link',
       correlationId,
-      error: new Error('Entrega WhatsApp pós-pagamento incompleta'),
+      error: new Error(persistenceFailed
+        ? 'Falha ao gravar controle de envio WhatsApp pós-pagamento'
+        : 'Entrega WhatsApp pós-pagamento incompleta'),
       request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'deliver_after_resume' }
     }).catch(() => {});
   }
@@ -928,7 +951,11 @@ async function completePaymentByToken(token, deps = {}) {
     metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
   }).catch(() => {});
 
-  return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
+  // persistenceFailed nunca é relatado como entrega integralmente
+  // concluída (deliveryFailed já cobre isso, pois pelo menos uma mensagem
+  // não chegou a 'sent') — pagamento confirmado e flow_resumed não são
+  // alterados por essa falha em nenhum caso.
+  return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed, persistenceFailed };
 }
 
 // Reenvio controlado de mensagens WhatsApp pós-pagamento que ainda não
@@ -987,9 +1014,24 @@ async function redeliverPendingPaymentMessages(token, deps = {}) {
       message_deliveries: list,
       delivery_failed: list.some((d) => d.status !== 'sent')
     });
-    const { providerMessageIds, deliveryFailed } = await deliverTrackedPaymentOutputs({
+    const { providerMessageIds, deliveryFailed, persistenceFailed } = await deliverTrackedPaymentOutputs({
       session, correlationId, provider, deliveries, persistDeliveries
     });
+
+    if (persistenceFailed) {
+      // Não é seguro liberar redelivery_claimed: não temos confiança no
+      // estado persistido de cada mensagem (a própria gravação do
+      // controle de envio falhou). Mantém o claim tomado — nenhum novo
+      // reenvio automático pode começar enquanto isso não for resolvido
+      // por reconciliação operacional. Pagamento confirmado e
+      // flow_resumed não são alterados.
+      logger.warn('typebot_payment_redelivery_persistence_failed', {
+        phase: 'redeliver_pending_outputs',
+        correlationId
+      });
+      return { ok: false, code: 'DELIVERY_PERSISTENCE_FAILED', deliveryFailed, persistenceFailed: true };
+    }
+
     await persistPayment(claimedSession, {
       message_deliveries: deliveries,
       delivery_failed: deliveryFailed,
