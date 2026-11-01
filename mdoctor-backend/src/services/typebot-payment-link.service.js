@@ -516,7 +516,26 @@ async function applyCheckoutWebhook(event, deps = {}) {
 
 async function sendTypebotOutputs({ session, outputs, correlationId, provider }) {
   const providerMessageIds = [];
+  // Respeita a condição do ambiente: em staging (WHATSAPP_ENABLED=false),
+  // a mesma guarda já usada na rota inbound (whatsapp.routes.js) também
+  // precisa valer aqui — achado real na homologação do Pix (31/10/2026):
+  // a retomada pós-pagamento chamava a Meta Graph API mesmo com o
+  // WhatsApp de staging desativado, porque esta função não verificava a
+  // flag. Em produção (WHATSAPP_ENABLED=true) o comportamento não muda.
+  // A guarda só vale para o provider real (metaProvider, o default de
+  // produção/staging) — um provider injetado explicitamente (testes,
+  // outro canal) significa que o chamador já decidiu o destino do envio,
+  // então a flag de ambiente do WhatsApp não se aplica a ele.
+  const requiresWhatsappEnabledGate = provider === metaProvider;
   for (const output of outputs) {
+    if (requiresWhatsappEnabledGate && process.env.WHATSAPP_ENABLED !== 'true') {
+      logger.warn('typebot_bridge_output_skipped_whatsapp_disabled', {
+        phase: 'resume_after_payment',
+        correlationId,
+        kind: output.kind
+      });
+      continue;
+    }
     const common = {
       to: session.phone,
       bsuid: session.bsuid,
@@ -654,18 +673,44 @@ async function completePaymentByToken(token, deps = {}) {
       }
     }
 
-    const providerMessageIds = await sendTypebotOutputs({
-      session,
-      outputs: convertResponse(typebot),
-      correlationId,
-      provider
-    });
+    // A retomada em si (continueChat, acima) já teve sucesso aqui — o
+    // atendimento está confirmado e pago. A entrega da resposta ao
+    // paciente via WhatsApp é tratada separadamente e NÃO reverte
+    // flow_resumed nem relança: falha de entrega (ex.: token Meta
+    // expirado/inválido, achado real na homologação do Pix de 31/10/2026)
+    // é um problema de comunicação, não de pagamento ou de retomada —
+    // revertê-la faria o Stripe reentregar o webhook e chamar continueChat
+    // de novo contra uma sessão do Typebot que já avançou de estado.
+    let providerMessageIds = [];
+    let deliveryFailed = false;
+    try {
+      providerMessageIds = await sendTypebotOutputs({
+        session,
+        outputs: convertResponse(typebot),
+        correlationId,
+        provider
+      });
+    } catch (deliveryError) {
+      deliveryFailed = true;
+      logger.warn('typebot_payment_delivery_failed', {
+        phase: 'deliver_after_resume',
+        correlationId,
+        code: deliveryError?.code || null,
+        error: String(deliveryError?.message || deliveryError)
+      });
+      await logError({
+        integration: 'typebot_payment_link',
+        correlationId,
+        error: deliveryError,
+        request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'deliver_after_resume' }
+      }).catch(() => {});
+    }
     await persistSession({
       phone: session.phone,
       bsuid: session.bsuid,
       metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
     }).catch(() => {});
-    return { ok: true, responsesSent: providerMessageIds.length };
+    return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
   } catch (error) {
     await revertFlowResume(session);
     await logError({

@@ -384,7 +384,8 @@ async function handleTypebotPaymentWebhook(event) {
           success: true,
           typebot_payment: true,
           duplicate: Boolean(result.alreadyCompleted),
-          responsesSent: result.responsesSent ?? 0
+          responsesSent: result.responsesSent ?? 0,
+          deliveryFailed: Boolean(result.deliveryFailed)
         }
       };
     } catch (error) {
