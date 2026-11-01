@@ -612,8 +612,9 @@ async function completePaymentByToken(token, deps = {}) {
   const persistSession = deps.upsertSessionIdentity || upsertSessionIdentity;
   const logError = deps.createIntegrationError || createIntegrationError;
   const claimFlowResume = deps.claimFlowResume || claimPaymentFlowResume;
+  const persistPayment = deps.persistPaymentRecord || persistPaymentRecord;
   const revertFlowResume = deps.revertFlowResume || (async (currentSession) => {
-    await persistPaymentRecord(currentSession, { flow_resumed: false });
+    await persistPayment(currentSession, { flow_resumed: false });
   });
   const refreshStatus = deps.refreshPaymentStatus || refreshPaymentStatus;
 
@@ -638,19 +639,63 @@ async function completePaymentByToken(token, deps = {}) {
   if (!claimed) return { ok: true, alreadyCompleted: true };
 
   const correlationId = `typebot-payment-${payment.checkout_session_id || payment.token}`;
+
+  // Ponto de não retorno: continueChat é a ÚNICA chamada que pode
+  // legitimamente desfazer a reivindicação de retomada (flow_resumed) —
+  // é o único passo em que sabemos, com certeza razoável, se o Typebot
+  // recebeu ou não a retomada. Tudo o que vem depois (contexto de upload,
+  // persistência auxiliar, entrega WhatsApp) é recuperável e nunca pode
+  // provocar uma segunda chamada de continueChat numa sessão que já
+  // avançou de estado (risco real identificado na revisão da etapa 3/6).
+  let typebot;
   try {
-    const typebot = await callTypebot(
+    typebot = await callTypebot(
       `/sessions/${encodeURIComponent(payment.typebot_session_id)}/continueChat`,
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
     );
+  } catch (error) {
+    // TYPEBOT_TIMEOUT (typebot-whatsapp.bridge.js) é uma resposta AMBÍGUA:
+    // a requisição foi enviada e o Typebot pode já ter processado a
+    // retomada antes do nosso lado desistir de esperar — não dá para
+    // saber. Desfazer flow_resumed aqui arriscaria uma segunda retomada
+    // real do Typebot numa reentrega do webhook. Em vez disso, preserva a
+    // reivindicação (nenhuma nova retomada é permitida) e marca para
+    // reconciliação operacional. Qualquer outro código (TYPEBOT_FETCH_FAILED,
+    // TYPEBOT_NOT_CONFIGURED, TYPEBOT_RUNTIME_ERROR) é uma falha CLARA — o
+    // Typebot nunca recebeu ou respondeu de forma definitiva — e é seguro
+    // desfazer para permitir uma nova tentativa.
+    const ambiguous = error?.code === 'TYPEBOT_TIMEOUT';
+    if (ambiguous) {
+      await persistPayment(session, {
+        continue_chat_ambiguous: true,
+        continue_chat_ambiguous_at: new Date().toISOString()
+      }).catch(() => {});
+    } else {
+      await revertFlowResume(session);
+    }
+    await logError({
+      integration: 'typebot_payment_link',
+      correlationId,
+      error,
+      request: {
+        token_suffix: String(token).slice(-8),
+        checkout_session_id: payment.checkout_session_id,
+        phase: ambiguous ? 'continue_chat_ambiguous' : 'continue_chat_failed'
+      }
+    }).catch(() => {});
+    throw error;
+  }
 
-    // O Typebot já envia o texto de pagamento confirmado/orientação (grupo
-    // "Aguardando envio da receita") — enviar PAYMENT_CONFIRMED_MESSAGE aqui
-    // duplicava essa mensagem. Antes de entregar a resposta do Typebot ao
-    // paciente, se o próximo passo já for a etapa de upload da receita
-    // (decisão do webhook de triagem, não alterada aqui), grava
-    // atomicamente o contexto de upload na sessão — fecha a janela em que a
-    // mídia podia chegar antes desse estado existir.
+  // --- A partir daqui a retomada é definitiva; nada abaixo reverte. ---
+
+  // O Typebot já envia o texto de pagamento confirmado/orientação (grupo
+  // "Aguardando envio da receita") — enviar PAYMENT_CONFIRMED_MESSAGE aqui
+  // duplicava essa mensagem. Antes de entregar a resposta do Typebot ao
+  // paciente, se o próximo passo já for a etapa de upload da receita
+  // (decisão do webhook de triagem, não alterada aqui), grava
+  // atomicamente o contexto de upload na sessão. Falha aqui é recuperável
+  // (ex.: lookup indisponível) e só é registrada — nunca desfaz a retomada.
+  try {
     const uploadHelpers = deps.uploadHelpers || require('./typebot-prescription-upload.service');
     if (uploadHelpers.responseLooksLikeUploadStage(typebot, typebot.input?.id)) {
       let uploadContext = await uploadHelpers.findUploadContextForPhone(session.phone);
@@ -672,54 +717,116 @@ async function completePaymentByToken(token, deps = {}) {
         });
       }
     }
-
-    // A retomada em si (continueChat, acima) já teve sucesso aqui — o
-    // atendimento está confirmado e pago. A entrega da resposta ao
-    // paciente via WhatsApp é tratada separadamente e NÃO reverte
-    // flow_resumed nem relança: falha de entrega (ex.: token Meta
-    // expirado/inválido, achado real na homologação do Pix de 31/10/2026)
-    // é um problema de comunicação, não de pagamento ou de retomada —
-    // revertê-la faria o Stripe reentregar o webhook e chamar continueChat
-    // de novo contra uma sessão do Typebot que já avançou de estado.
-    let providerMessageIds = [];
-    let deliveryFailed = false;
-    try {
-      providerMessageIds = await sendTypebotOutputs({
-        session,
-        outputs: convertResponse(typebot),
-        correlationId,
-        provider
-      });
-    } catch (deliveryError) {
-      deliveryFailed = true;
-      logger.warn('typebot_payment_delivery_failed', {
-        phase: 'deliver_after_resume',
-        correlationId,
-        code: deliveryError?.code || null,
-        error: String(deliveryError?.message || deliveryError)
-      });
-      await logError({
-        integration: 'typebot_payment_link',
-        correlationId,
-        error: deliveryError,
-        request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'deliver_after_resume' }
-      }).catch(() => {});
-    }
-    await persistSession({
-      phone: session.phone,
-      bsuid: session.bsuid,
-      metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
-    }).catch(() => {});
-    return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
-  } catch (error) {
-    await revertFlowResume(session);
+  } catch (uploadContextError) {
+    logger.warn('typebot_payment_upload_context_failed', {
+      phase: 'post_resume_upload_context',
+      correlationId,
+      code: uploadContextError?.code || null,
+      error: String(uploadContextError?.message || uploadContextError)
+    });
     await logError({
       integration: 'typebot_payment_link',
       correlationId,
-      error,
-      request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'continue_after_payment' }
+      error: uploadContextError,
+      request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'post_resume_upload_context' }
     }).catch(() => {});
-    throw error;
+  }
+
+  // A entrega da resposta ao paciente via WhatsApp também é recuperável e
+  // NÃO reverte flow_resumed nem relança: falha de entrega (ex.: token
+  // Meta expirado/inválido, achado real na homologação do Pix de
+  // 31/10/2026) é um problema de comunicação, não de pagamento ou de
+  // retomada. Os outputs são guardados para reenvio controlado depois
+  // (redeliverPendingPaymentMessages) — nunca chamando continueChat de novo.
+  const outputs = convertResponse(typebot);
+  let providerMessageIds = [];
+  let deliveryFailed = false;
+  try {
+    providerMessageIds = await sendTypebotOutputs({ session, outputs, correlationId, provider });
+  } catch (deliveryError) {
+    deliveryFailed = true;
+    logger.warn('typebot_payment_delivery_failed', {
+      phase: 'deliver_after_resume',
+      correlationId,
+      code: deliveryError?.code || null,
+      error: String(deliveryError?.message || deliveryError)
+    });
+    await logError({
+      integration: 'typebot_payment_link',
+      correlationId,
+      error: deliveryError,
+      request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'deliver_after_resume' }
+    }).catch(() => {});
+  }
+
+  await persistPayment(session, deliveryFailed
+    ? {
+        delivery_failed: true,
+        delivery_failed_at: new Date().toISOString(),
+        pending_outputs: outputs,
+        pending_outputs_correlation_id: correlationId
+      }
+    : { delivery_failed: false, pending_outputs: null }
+  ).catch(() => {});
+
+  await persistSession({
+    phone: session.phone,
+    bsuid: session.bsuid,
+    metadataPatch: { typebot_expected_input_id: typebot.input?.id || null }
+  }).catch(() => {});
+
+  return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
+}
+
+// Reenvio controlado de uma entrega WhatsApp que falhou após a retomada já
+// confirmada (ver completePaymentByToken) — nunca chama continueChat de
+// novo (a sessão do Typebot já avançou), nunca cria uma nova cobrança, e
+// reaproveita o mesmo correlationId/outputs da tentativa original: o
+// idempotencyKey de cada output deriva dele, então a Meta não duplica
+// mensagens já entregues na tentativa anterior. Solução mínima para
+// recuperação operacional — sem módulo administrativo novo; chamável por
+// um script de operação ou por uma rotina futura de retry.
+async function redeliverPendingPaymentMessages(token, deps = {}) {
+  const provider = deps.provider || metaProvider;
+  const logError = deps.createIntegrationError || createIntegrationError;
+  const persistPayment = deps.persistPaymentRecord || persistPaymentRecord;
+  const session = deps.session || (await findSessionByPaymentToken(token));
+  const payment = paymentFromSession(session);
+  if (!payment) return { ok: false, code: 'NOT_FOUND' };
+  if (!payment.flow_resumed) return { ok: false, code: 'NOT_RESUMED' };
+  if (!payment.delivery_failed || !Array.isArray(payment.pending_outputs) || !payment.pending_outputs.length) {
+    return { ok: true, nothingToRedeliver: true };
+  }
+
+  const correlationId = payment.pending_outputs_correlation_id
+    || `typebot-payment-${payment.checkout_session_id || payment.token}`;
+  try {
+    const providerMessageIds = await sendTypebotOutputs({
+      session,
+      outputs: payment.pending_outputs,
+      correlationId,
+      provider
+    });
+    await persistPayment(session, {
+      delivery_failed: false,
+      pending_outputs: null,
+      delivery_recovered_at: new Date().toISOString()
+    });
+    return { ok: true, responsesSent: providerMessageIds.length };
+  } catch (deliveryError) {
+    logger.warn('typebot_payment_redelivery_failed', {
+      phase: 'redeliver_pending_outputs',
+      correlationId,
+      code: deliveryError?.code || null,
+      error: String(deliveryError?.message || deliveryError)
+    });
+    await logError({
+      integration: 'typebot_payment_link',
+      correlationId,
+      error: deliveryError,
+      request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'redeliver_pending_outputs' }
+    }).catch(() => {});
+    return { ok: false, code: 'DELIVERY_FAILED', error: deliveryError.message };
   }
 }
 
@@ -810,6 +917,7 @@ module.exports = {
   handlePaymentChoice,
   isPaymentStageInput,
   paymentFromSession,
+  redeliverPendingPaymentMessages,
   refreshPaymentStatus,
   resolveCheckoutRedirect,
   resolveConfirmedWhatsAppPayment,
