@@ -548,6 +548,7 @@ async function main() {
     assert.equal(result.ok, false);
     assert.equal(result.code, 'DELIVERY_PERSISTENCE_FAILED');
     assert.equal(result.persistenceFailed, true);
+    assert.equal(result.deliveryFailed, true, 'falha de persistencia implica falha de entrega');
     assert.equal(sent.length, 0, 'sem conseguir registrar a tentativa, nenhum envio é feito');
     assert.equal(persistedPatches.some((p) => p.redelivery_claimed === false), false, 'claim nunca é liberado quando a persistência falha');
     results.falhaDePersistenciaAntesDoEnvioInterrompeLoteERetemClaim = 'ok';
@@ -589,6 +590,7 @@ async function main() {
     assert.equal(result.ok, false);
     assert.equal(result.code, 'DELIVERY_PERSISTENCE_FAILED');
     assert.equal(result.persistenceFailed, true);
+    assert.equal(result.deliveryFailed, true, 'falha de persistencia implica falha de entrega');
     assert.equal(sent.length, 1, 'a mensagem já enviada não é reenviada, e a segunda mensagem nunca chega a ser tentada');
     assert.equal(persistedPatches.some((p) => p.redelivery_claimed === false), false, 'claim nunca é liberado quando a persistência pós-envio falha');
     results.falhaDePersistenciaDepoisDoEnvioInterrompeLoteERetemClaim = 'ok';
