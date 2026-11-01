@@ -173,15 +173,14 @@ async function main() {
     results.reentregaRepetidaDoWebhookNaoDuplicaRetomada = 'ok';
   }
 
-  // 4a) Falha CLARA antes da confirmação de continueChat (Typebot nunca
-  //     recebeu/respondeu de forma definitiva): reverte e permite nova
-  //     tentativa seguramente.
+  // 4a) Falha local comprovada ANTES de enviar a requisicao:
+  //     configuracao ausente reverte e permite nova tentativa.
   {
     const session = makeSession();
     const tracker = makeClaimTracker();
     let revertCalls = 0;
-    const err = new Error('Falha de rede na chamada ao Typebot');
-    err.code = 'TYPEBOT_FETCH_FAILED';
+    const err = new Error('TYPEBOT_VIEWER_URL nao configurada');
+    err.code = 'TYPEBOT_NOT_CONFIGURED';
     const deps = {
       refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
       claimFlowResume: tracker.claimFlowResume,
@@ -190,7 +189,7 @@ async function main() {
       upsertSessionIdentity: async () => {},
       createIntegrationError: async () => {}
     };
-    await assert.rejects(() => completePaymentByToken('tok-recovery', { session, ...deps }), /Falha de rede/);
+    await assert.rejects(() => completePaymentByToken('tok-recovery', { session, ...deps }), /nao configurada/);
     assert.equal(revertCalls, 1, 'falha clara desfaz a reivindicação');
 
     // Nova tentativa (ex.: reentrega do webhook) agora é permitida.
@@ -243,6 +242,35 @@ async function main() {
     assert.equal(typebotCalls.length, 0, 'estado ambíguo nunca permite uma segunda retomada automática');
     results.respostaAmbiguaNaoRevertEMasImpedeSegundaRetomada = 'ok';
   }
+
+  // 5) Erro de transporte, erro HTTP 5xx e erros desconhecidos sao ambiguos:
+  //    o servidor pode ter processado continueChat antes de falhar.
+  for (const code of ['TYPEBOT_FETCH_FAILED', 'TYPEBOT_RUNTIME_ERROR', 'UNEXPECTED_ERROR']) {
+    const session = makeSession();
+    const tracker = makeClaimTracker();
+    const persisted = [];
+    let revertCalls = 0;
+    let calls = 0;
+    const error = Object.assign(new Error('falha potencialmente pos-envio'), { code, status: 503 });
+    const deps = {
+      refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
+      claimFlowResume: tracker.claimFlowResume,
+      revertFlowResume: async () => { revertCalls++; tracker.state.resumed = false; },
+      persistPaymentRecord: async (_s, patch) => { persisted.push(patch); },
+      callTypebot: async () => { calls++; throw error; },
+      upsertSessionIdentity: async () => {},
+      createIntegrationError: async () => {}
+    };
+    await assert.rejects(() => completePaymentByToken('tok-recovery', { session, ...deps }), /pos-envio/);
+    assert.equal(revertCalls, 0, code + ': claim nao deve ser revertido');
+    assert(persisted.some(p => p.continue_chat_ambiguous === true), code + ': reconciliacao obrigatoria');
+    const retry = await completePaymentByToken('tok-recovery', {
+      session, ...deps, callTypebot: async () => { calls++; return { input: {}, messages: [] }; }
+    });
+    assert.equal(retry.alreadyCompleted, true, code + ': nao retomar automaticamente');
+    assert.equal(calls, 1, code + ': exatamente uma chamada');
+  }
+  results.falhasDeRedeEHttpNaoDuplicamRetomada = 'ok';
 
   console.log(JSON.stringify(results, null, 2));
 }
