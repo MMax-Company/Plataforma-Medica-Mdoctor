@@ -654,17 +654,14 @@ async function completePaymentByToken(token, deps = {}) {
       { message: { type: 'text', text: PAYMENT_SUCCESS_REPLY, metadata: { replyId: correlationId } } }
     );
   } catch (error) {
-    // TYPEBOT_TIMEOUT (typebot-whatsapp.bridge.js) é uma resposta AMBÍGUA:
-    // a requisição foi enviada e o Typebot pode já ter processado a
-    // retomada antes do nosso lado desistir de esperar — não dá para
-    // saber. Desfazer flow_resumed aqui arriscaria uma segunda retomada
-    // real do Typebot numa reentrega do webhook. Em vez disso, preserva a
-    // reivindicação (nenhuma nova retomada é permitida) e marca para
-    // reconciliação operacional. Qualquer outro código (TYPEBOT_FETCH_FAILED,
-    // TYPEBOT_NOT_CONFIGURED, TYPEBOT_RUNTIME_ERROR) é uma falha CLARA — o
-    // Typebot nunca recebeu ou respondeu de forma definitiva — e é seguro
-    // desfazer para permitir uma nova tentativa.
-    const ambiguous = error?.code === 'TYPEBOT_TIMEOUT';
+    // Falhas de transporte, timeout e HTTP nao provam ausencia de efeito:
+    // o Typebot pode ter avancado antes da conexao cair ou de retornar 5xx.
+    // Para evitar uma segunda retomada, mantenha o claim e exija
+    // reconciliacao operacional. Apenas a falta de configuracao local
+    // (antes de qualquer requisicao) permite reverter com seguranca.
+    // Erros desconhecidos tambem sao tratados de forma conservadora.
+    const definitelyNotSent = error?.code === 'TYPEBOT_NOT_CONFIGURED';
+    const ambiguous = !definitelyNotSent;
     if (ambiguous) {
       await persistPayment(session, {
         continue_chat_ambiguous: true,
