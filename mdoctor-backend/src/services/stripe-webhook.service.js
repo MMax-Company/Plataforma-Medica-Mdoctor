@@ -54,7 +54,7 @@ function extractAtendimentoId(event) {
 }
 
 function isPaidStripeEvent(type) {
-  return type === 'checkout.session.completed' || type === 'payment_intent.succeeded';
+  return type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded' || type === 'payment_intent.succeeded';
 }
 
 function isRefundStripeEvent(type) {
@@ -363,7 +363,7 @@ async function linkOrRecordNativeTypebotPayment({ paymentIntentId, email, amount
 async function handleTypebotPaymentWebhook(event) {
   const object = event?.data?.object || {};
 
-  if (event.type === 'checkout.session.completed') {
+  if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
     const token = String(object.metadata?.payment_token || '').trim();
     const typebotSessionId = String(object.metadata?.typebot_session_id || '').trim();
     if (!token && !typebotSessionId) return null;
@@ -384,7 +384,8 @@ async function handleTypebotPaymentWebhook(event) {
           success: true,
           typebot_payment: true,
           duplicate: Boolean(result.alreadyCompleted),
-          responsesSent: result.responsesSent ?? 0
+          responsesSent: result.responsesSent ?? 0,
+          deliveryFailed: Boolean(result.deliveryFailed)
         }
       };
     } catch (error) {

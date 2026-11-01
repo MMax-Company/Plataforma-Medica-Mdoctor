@@ -130,9 +130,7 @@ async function main() {
     });
     assert.equal(result1.ok, true);
     assert.equal(result1.alreadyCompleted, undefined);
-    assert.equal(sentMessages.length, 1, 'envia a confirmação de pagamento uma única vez');
-    assert(sentMessages[0].text.includes('Pagamento confirmado com sucesso'));
-    assert(sentMessages[0].text.includes('Agora envie sua receita médica anterior pelo WhatsApp'));
+    assert.equal(sentMessages.length, 0, 'sem mensagens de retorno do Typebot, não duplica confirmação no WhatsApp');
     assert.equal(typebotCalls.length, 1);
     assert(typebotCalls[0].path.includes('/sessions/typebot-sess-1/continueChat'), 'retoma a MESMA sessão clínica');
 
@@ -152,7 +150,7 @@ async function main() {
     });
     assert.equal(result2.ok, true);
     assert.equal(result2.alreadyCompleted, true);
-    assert.equal(sentMessages.length, 1, 'segunda tentativa não envia mensagem de novo');
+    assert.equal(sentMessages.length, 0, 'segunda tentativa não envia mensagem duplicada');
     assert.equal(typebotCalls.length, 1, 'segunda tentativa não chama o Typebot de novo (sem retomada duplicada)');
     assert.equal(resumeClaims, 2);
     results.webhookRepetidoNaoRepeteMensagemNemRetomada = 'ok';

@@ -1,0 +1,16 @@
+-- Achado real na homologação do Pix (31/10/2026, staging isolado
+-- lhzsbgsnmpkqqkdxvkue): o fluxo de pagamento WhatsApp/Typebot
+-- (applyCheckoutWebhook/recordStripePaymentEvent, typebot-payment-link.service.js)
+-- precisa reivindicar o event.id do Stripe ANTES de existir um atendimento
+-- (o atendimento só nasce depois, pelo webhook de triagem) — o mesmo padrão
+-- "payment órfão" já usado por linkOrRecordNativeTypebotPayment
+-- (stripe-webhook.service.js), cujo comentário já assumia
+-- "appointment_id null, já suportado por recordStripePaymentEvent".
+-- Essa suposição nunca foi verdadeira no schema real: payments.appointment_id
+-- continuava "not null" desde a migration oficial
+-- (20260601120000_doctor_prescreve_production_official.sql), nunca testada
+-- contra Supabase real (só mocks offline). Confirmado em staging isolado via
+-- erro real do Postgres: "null value in column \"appointment_id\" of
+-- relation \"payments\" violates not-null constraint" em toda tentativa de
+-- entrega do webhook checkout.session.completed.
+alter table public.payments alter column appointment_id drop not null;
