@@ -745,7 +745,7 @@ async function deliverTrackedPaymentOutputs({ session, correlationId, provider, 
     }
   }
 
-  const deliveryFailed = deliveries.some((d) => d.status !== 'sent');
+  const deliveryFailed = persistenceFailed || deliveries.some((d) => d.status !== 'sent');
   return { providerMessageIds, deliveryFailed, persistenceFailed };
 }
 
