@@ -462,19 +462,26 @@ async function main() {
       return true;
     };
     const sent = [];
+    const persistedClaimStates = [];
+    const checkedPersist = async (s, patch) => {
+      const claimed = s.metadata?.typebot_payment?.redelivery_claimed;
+      persistedClaimStates.push({ claimed, release: patch.redelivery_claimed === false });
+      assert.equal(claimed, true, 'updates devem preservar o claim obtido no banco');
+      return patch;
+    };
     const [first, second] = await Promise.all([
       redeliverPendingPaymentMessages('tok-recovery', {
         session,
         claimRedeliveryAttempt,
         provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-concurrent-1' }; } },
-        persistPaymentRecord: async (s, patch) => patch,
+        persistPaymentRecord: checkedPersist,
         createIntegrationError: async () => {}
       }),
       redeliverPendingPaymentMessages('tok-recovery', {
         session,
         claimRedeliveryAttempt,
         provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-concurrent-2' }; } },
-        persistPaymentRecord: async (s, patch) => patch,
+        persistPaymentRecord: checkedPersist,
         createIntegrationError: async () => {}
       })
     ]);
@@ -484,6 +491,8 @@ async function main() {
     assert.equal(winners.length, 1, 'exatamente uma tentativa concorrente reivindica o envio');
     assert.equal(losers.length, 1, 'a outra é recusada por reenvio já em andamento');
     assert.equal(sent.length, 1, 'a mensagem é enviada exatamente uma vez entre as duas tentativas');
+    assert(persistedClaimStates.some(x => x.claimed && !x.release), 'claim mantido durante persistencia intermediaria');
+    assert.equal(persistedClaimStates.filter(x => x.release).length, 1, 'claim liberado somente ao finalizar');
     results.tentativasConcorrentesSomenteUmaReivindica = 'ok';
   }
 
