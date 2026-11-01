@@ -318,6 +318,29 @@ async function claimPaymentFlowResume(session, patch) {
   return Array.isArray(rows) && rows.length === 1;
 }
 
+// Reivindicação atômica do reenvio controlado (mesmo mecanismo de
+// claimPaymentFlowResume: UPDATE condicional via .or(), só uma chamada
+// concorrente "ganha"). Impede que duas execuções de
+// redeliverPendingPaymentMessages para o MESMO pagamento tentem enviar as
+// mesmas mensagens pendentes ao mesmo tempo.
+async function claimRedeliveryAttempt(session) {
+  const current = paymentFromSession(session);
+  if (current?.redelivery_claimed) return false;
+  const metadata = {
+    ...(session.metadata || {}),
+    typebot_payment: normalizePaymentRecord({ ...current, redelivery_claimed: true, redelivery_claimed_at: new Date().toISOString() })
+  };
+  const rows = await dbQuery('reivindicar reenvio de mensagens pós-pagamento', async (supabase) =>
+    supabase
+      .from(T.WHATSAPP_SESSIONS)
+      .update({ metadata, updated_at: new Date().toISOString() })
+      .eq('id', session.id)
+      .or('metadata->typebot_payment->>redelivery_claimed.is.null,metadata->typebot_payment->>redelivery_claimed.eq.false')
+      .select('id')
+  );
+  return Array.isArray(rows) && rows.length === 1;
+}
+
 async function revertPaymentToPending(session) {
   await persistPaymentRecord(session, { payment_status: 'pending', status: 'pending' });
 }
@@ -514,6 +537,34 @@ async function applyCheckoutWebhook(event, deps = {}) {
   return { ok: true, token: payment.token, session, justPaid: true };
 }
 
+// Envia um único output (um item do array de outputs do Typebot) e devolve
+// o resultado do provider — extraído de sendTypebotOutputs para ser
+// reutilizado pela entrega com rastreamento por mensagem
+// (deliverTrackedPaymentOutputs), sem duplicar o despacho por tipo.
+async function sendSingleTypebotOutput({ session, output, correlationId, provider, idempotencyKey }) {
+  const common = { to: session.phone, bsuid: session.bsuid, correlationId, idempotencyKey };
+  if (output.kind === 'image') {
+    // Passthrough de imagem do Typebot (display-only): não altera pagamento,
+    // Checkout nem valores. Falha na imagem é registrada e ignorada.
+    try {
+      return await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
+    } catch (error) {
+      logger.warn('typebot_bridge_image_failed', {
+        phase: 'resume_after_payment',
+        correlationId,
+        imageUrl: output.url,
+        code: error?.code || null,
+        error: String(error?.message || error)
+      });
+      return null;
+    }
+  }
+  if (output.kind === 'buttons') return provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
+  if (output.kind === 'list') return provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
+  if (output.kind === 'cta_url') return provider.sendCtaUrlMessage({ ...common, body: output.body, displayText: output.displayText, url: output.url });
+  return provider.sendTextMessage({ ...common, text: output.text });
+}
+
 async function sendTypebotOutputs({ session, outputs, correlationId, provider }) {
   const providerMessageIds = [];
   // Respeita a condição do ambiente: em staging (WHATSAPP_ENABLED=false),
@@ -527,7 +578,11 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
   // outro canal) significa que o chamador já decidiu o destino do envio,
   // então a flag de ambiente do WhatsApp não se aplica a ele.
   const requiresWhatsappEnabledGate = provider === metaProvider;
-  for (const output of outputs) {
+  // Índice no array (posição estável do output), não o tamanho do
+  // acumulador de sucesso — uma imagem sem providerMessageId (falha
+  // tolerada) não pode deslocar o idempotencyKey das mensagens seguintes.
+  for (let i = 0; i < outputs.length; i += 1) {
+    const output = outputs[i];
     if (requiresWhatsappEnabledGate && process.env.WHATSAPP_ENABLED !== 'true') {
       logger.warn('typebot_bridge_output_skipped_whatsapp_disabled', {
         phase: 'resume_after_payment',
@@ -536,36 +591,142 @@ async function sendTypebotOutputs({ session, outputs, correlationId, provider })
       });
       continue;
     }
-    const common = {
-      to: session.phone,
-      bsuid: session.bsuid,
-      correlationId,
-      idempotencyKey: `${correlationId}:${providerMessageIds.length}`
-    };
-    let sent;
-    if (output.kind === 'image') {
-      // Passthrough de imagem do Typebot (display-only): não altera pagamento,
-      // Checkout nem valores. Falha na imagem é registrada e ignorada.
-      try {
-        sent = await provider.sendImageMessage({ ...common, imageUrl: output.url, caption: output.caption });
-      } catch (error) {
-        logger.warn('typebot_bridge_image_failed', {
-          phase: 'resume_after_payment',
-          correlationId,
-          imageUrl: output.url,
-          code: error?.code || null,
-          error: String(error?.message || error)
-        });
-        sent = null;
-      }
-    }
-    else if (output.kind === 'buttons') sent = await provider.sendButtonMessage({ ...common, body: output.body, buttons: output.choices });
-    else if (output.kind === 'list') sent = await provider.sendListMessage({ ...common, body: output.body, button: output.button, rows: output.choices });
-    else if (output.kind === 'cta_url') sent = await provider.sendCtaUrlMessage({ ...common, body: output.body, displayText: output.displayText, url: output.url });
-    else sent = await provider.sendTextMessage({ ...common, text: output.text });
+    const sent = await sendSingleTypebotOutput({ session, output, correlationId, provider, idempotencyKey: `${correlationId}:${i}` });
     if (sent?.providerMessageId) providerMessageIds.push(sent.providerMessageId);
   }
   return providerMessageIds;
+}
+
+// A Meta Cloud API não documenta deduplicação garantida por
+// Idempotency-Key no endpoint de envio — não presumir isso (achado da
+// revisão da etapa 3/6, ponto 2). A classificação abaixo decide, por
+// mensagem, se é seguro reenviar automaticamente:
+// - PROVIDER_NOT_CONFIGURED: a chamada nunca saiu do nosso processo —
+//   comprovadamente não enviada, seguro reenviar.
+// - error.providerStatus numérico: a Meta respondeu de forma síncrona
+//   com um erro (ex.: 401/403/429) — rejeição explícita, nunca chegou a
+//   ser aceita/enfileirada, seguro reenviar.
+// - PROVIDER_TIMEOUT ou qualquer erro não reconhecido: ambíguo — a Meta
+//   pode ter aceitado a mensagem antes da nossa falha em obter a
+//   resposta. Nunca reenviar automaticamente; exige reconciliação.
+function classifyMetaSendFailure(error) {
+  if (error?.code === 'PROVIDER_NOT_CONFIGURED') return 'failed_safe_to_retry';
+  if (typeof error?.providerStatus === 'number') return 'failed_safe_to_retry';
+  return 'unknown';
+}
+
+// Estado inicial de rastreamento por mensagem — identidade estável
+// (índice/posição no conjunto de outputs do pagamento, não um contador
+// de sucesso), vinculada ao pagamento via correlationId.
+function buildInitialMessageDeliveries(outputs, correlationId) {
+  return outputs.map((output, index) => ({
+    index,
+    output,
+    key: `${correlationId}:${index}`,
+    status: 'pending',
+    providerMessageId: null,
+    attempts: 0,
+    lastError: null,
+    updatedAt: new Date().toISOString()
+  }));
+}
+
+// Entrega com rastreamento por mensagem — usada tanto na primeira
+// tentativa (completePaymentByToken) quanto no reenvio controlado
+// (redeliverPendingPaymentMessages). Cada mensagem tem seu próprio estado
+// persistido ANTES e DEPOIS da tentativa de envio (preferencialmente a
+// mesma estrutura de typebot_payment já usada pelo resto do fluxo, sem
+// tabela/migration nova): uma mensagem já confirmada (`sent`) nunca é
+// reenviada só porque outra do mesmo pagamento falhou; uma mensagem com
+// resultado ambíguo (`unknown`) ou uma tentativa anterior interrompida
+// (`sending`) nunca é reenviada automaticamente — fica para reconciliação
+// operacional. Nunca lança: cada envio individual é isolado em try/catch.
+async function deliverTrackedPaymentOutputs({ session, correlationId, provider, deliveries, persistDeliveries }) {
+  const requiresWhatsappEnabledGate = provider === metaProvider;
+  const sendableStatuses = ['pending', 'failed_safe_to_retry'];
+  const providerMessageIds = [];
+
+  for (const entry of deliveries) {
+    if (entry.status === 'sent') {
+      if (entry.providerMessageId) providerMessageIds.push(entry.providerMessageId);
+      continue;
+    }
+    if (!sendableStatuses.includes(entry.status)) {
+      // 'sending' interrompido ou 'unknown': nunca reenviar automaticamente.
+      continue;
+    }
+    if (requiresWhatsappEnabledGate && process.env.WHATSAPP_ENABLED !== 'true') {
+      logger.warn('typebot_bridge_output_skipped_whatsapp_disabled', {
+        phase: 'resume_after_payment',
+        correlationId,
+        kind: entry.output.kind
+      });
+      continue;
+    }
+
+    const previousStatus = entry.status;
+    entry.status = 'sending';
+    entry.attempts += 1;
+    entry.updatedAt = new Date().toISOString();
+    try {
+      // Persistência ANTES do envio: se não conseguirmos registrar que a
+      // tentativa está em curso, não é seguro prosseguir com o envio —
+      // um processo interrompido depois do envio sem isso gravado não
+      // saberia, numa reentrega, que a mensagem pode já ter saído.
+      await persistDeliveries(deliveries);
+    } catch (persistError) {
+      entry.status = previousStatus;
+      entry.attempts -= 1;
+      logger.warn('typebot_payment_message_persist_before_send_failed', {
+        phase: 'deliver_after_resume',
+        correlationId,
+        key: entry.key,
+        error: String(persistError?.message || persistError)
+      });
+      continue;
+    }
+
+    if (entry.output.kind === 'image') {
+      // Passthrough display-only (achado 09/08/2026): sempre tratado como
+      // concluído, nunca fica pendente de reconciliação/reenvio.
+      const sent = await sendSingleTypebotOutput({ session, output: entry.output, correlationId, provider, idempotencyKey: entry.key });
+      entry.status = 'sent';
+      entry.providerMessageId = sent?.providerMessageId || null;
+      entry.lastError = null;
+    } else {
+      try {
+        const sent = await sendSingleTypebotOutput({ session, output: entry.output, correlationId, provider, idempotencyKey: entry.key });
+        entry.status = 'sent';
+        entry.providerMessageId = sent?.providerMessageId || null;
+        entry.lastError = null;
+        if (entry.providerMessageId) providerMessageIds.push(entry.providerMessageId);
+      } catch (error) {
+        entry.status = classifyMetaSendFailure(error);
+        entry.lastError = String(error?.message || error);
+        logger.warn('typebot_payment_message_send_failed', {
+          phase: 'deliver_after_resume',
+          correlationId,
+          key: entry.key,
+          kind: entry.output.kind,
+          resolvedStatus: entry.status,
+          code: error?.code || null,
+          error: entry.lastError
+        });
+      }
+    }
+    entry.updatedAt = new Date().toISOString();
+    await persistDeliveries(deliveries).catch((persistError) => {
+      logger.warn('typebot_payment_message_persist_after_send_failed', {
+        phase: 'deliver_after_resume',
+        correlationId,
+        key: entry.key,
+        error: String(persistError?.message || persistError)
+      });
+    });
+  }
+
+  const deliveryFailed = deliveries.some((d) => d.status !== 'sent');
+  return { providerMessageIds, deliveryFailed };
 }
 
 // O texto introdutório (valor, condições, aviso de continuidade automática)
@@ -733,38 +894,33 @@ async function completePaymentByToken(token, deps = {}) {
   // NÃO reverte flow_resumed nem relança: falha de entrega (ex.: token
   // Meta expirado/inválido, achado real na homologação do Pix de
   // 31/10/2026) é um problema de comunicação, não de pagamento ou de
-  // retomada. Os outputs são guardados para reenvio controlado depois
-  // (redeliverPendingPaymentMessages) — nunca chamando continueChat de novo.
+  // retomada. Cada mensagem tem seu próprio estado rastreado (ver
+  // deliverTrackedPaymentOutputs) para reenvio controlado depois
+  // (redeliverPendingPaymentMessages) sem nunca chamar continueChat de novo
+  // e sem presumir deduplicação garantida pela Meta.
   const outputs = convertResponse(typebot);
-  let providerMessageIds = [];
-  let deliveryFailed = false;
-  try {
-    providerMessageIds = await sendTypebotOutputs({ session, outputs, correlationId, provider });
-  } catch (deliveryError) {
-    deliveryFailed = true;
+  const deliveries = buildInitialMessageDeliveries(outputs, correlationId);
+  const persistDeliveries = (list) => persistPayment(session, {
+    message_deliveries: list,
+    delivery_correlation_id: correlationId,
+    delivery_failed: list.some((d) => d.status !== 'sent')
+  });
+  const { providerMessageIds, deliveryFailed } = await deliverTrackedPaymentOutputs({
+    session, correlationId, provider, deliveries, persistDeliveries
+  });
+  if (deliveryFailed) {
     logger.warn('typebot_payment_delivery_failed', {
       phase: 'deliver_after_resume',
       correlationId,
-      code: deliveryError?.code || null,
-      error: String(deliveryError?.message || deliveryError)
+      pending: deliveries.filter((d) => d.status !== 'sent').map((d) => ({ index: d.index, status: d.status }))
     });
     await logError({
       integration: 'typebot_payment_link',
       correlationId,
-      error: deliveryError,
+      error: new Error('Entrega WhatsApp pós-pagamento incompleta'),
       request: { token_suffix: String(token).slice(-8), checkout_session_id: payment.checkout_session_id, phase: 'deliver_after_resume' }
     }).catch(() => {});
   }
-
-  await persistPayment(session, deliveryFailed
-    ? {
-        delivery_failed: true,
-        delivery_failed_at: new Date().toISOString(),
-        pending_outputs: outputs,
-        pending_outputs_correlation_id: correlationId
-      }
-    : { delivery_failed: false, pending_outputs: null }
-  ).catch(() => {});
 
   await persistSession({
     phone: session.phone,
@@ -775,42 +931,60 @@ async function completePaymentByToken(token, deps = {}) {
   return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
 }
 
-// Reenvio controlado de uma entrega WhatsApp que falhou após a retomada já
-// confirmada (ver completePaymentByToken) — nunca chama continueChat de
-// novo (a sessão do Typebot já avançou), nunca cria uma nova cobrança, e
-// reaproveita o mesmo correlationId/outputs da tentativa original: o
-// idempotencyKey de cada output deriva dele, então a Meta não duplica
-// mensagens já entregues na tentativa anterior. Solução mínima para
-// recuperação operacional — sem módulo administrativo novo; chamável por
+// Reenvio controlado de mensagens WhatsApp pós-pagamento que ainda não
+// foram confirmadas como entregues (ver completePaymentByToken /
+// deliverTrackedPaymentOutputs) — nunca chama continueChat de novo (a
+// sessão do Typebot já avançou), nunca cria uma nova cobrança, e nunca
+// reenvia uma mensagem já marcada como `sent`. Trabalha pelo estado
+// individual de cada output (não pela lista inteira): uma mensagem
+// confirmada não é repetida só porque outra do mesmo pagamento falhou, e
+// mensagens com resultado ambíguo (`unknown`) ou com uma tentativa
+// anterior interrompida (`sending`) nunca são reenviadas automaticamente —
+// ficam para reconciliação operacional. Não presume que a Meta garanta
+// deduplicação por Idempotency-Key (achado da revisão da etapa 3/6, ponto
+// 2); a prova de "já enviado" é o nosso próprio estado persistido, nunca
+// um reenvio "exatamente uma vez" prometido pelo provider. Protegido
+// contra execuções concorrentes pelo mesmo claim atômico usado em
+// claimPaymentFlowResume. Solução mínima para recuperação operacional —
+// sem módulo administrativo novo, sem tabela/migration nova; chamável por
 // um script de operação ou por uma rotina futura de retry.
 async function redeliverPendingPaymentMessages(token, deps = {}) {
   const provider = deps.provider || metaProvider;
   const logError = deps.createIntegrationError || createIntegrationError;
   const persistPayment = deps.persistPaymentRecord || persistPaymentRecord;
+  const claimRedelivery = deps.claimRedeliveryAttempt || claimRedeliveryAttempt;
   const session = deps.session || (await findSessionByPaymentToken(token));
   const payment = paymentFromSession(session);
   if (!payment) return { ok: false, code: 'NOT_FOUND' };
   if (!payment.flow_resumed) return { ok: false, code: 'NOT_RESUMED' };
-  if (!payment.delivery_failed || !Array.isArray(payment.pending_outputs) || !payment.pending_outputs.length) {
+
+  const deliveries = Array.isArray(payment.message_deliveries) ? payment.message_deliveries : null;
+  const sendableStatuses = ['pending', 'failed_safe_to_retry'];
+  if (!deliveries || !deliveries.length || !deliveries.some((d) => sendableStatuses.includes(d.status))) {
     return { ok: true, nothingToRedeliver: true };
   }
 
-  const correlationId = payment.pending_outputs_correlation_id
+  const claimed = await claimRedelivery(session);
+  if (!claimed) return { ok: false, code: 'REDELIVERY_IN_PROGRESS' };
+
+  const correlationId = payment.delivery_correlation_id
     || `typebot-payment-${payment.checkout_session_id || payment.token}`;
   try {
-    const providerMessageIds = await sendTypebotOutputs({
-      session,
-      outputs: payment.pending_outputs,
-      correlationId,
-      provider
+    const persistDeliveries = (list) => persistPayment(session, {
+      message_deliveries: list,
+      delivery_failed: list.some((d) => d.status !== 'sent')
+    });
+    const { providerMessageIds, deliveryFailed } = await deliverTrackedPaymentOutputs({
+      session, correlationId, provider, deliveries, persistDeliveries
     });
     await persistPayment(session, {
-      delivery_failed: false,
-      pending_outputs: null,
-      delivery_recovered_at: new Date().toISOString()
-    });
-    return { ok: true, responsesSent: providerMessageIds.length };
+      message_deliveries: deliveries,
+      delivery_failed: deliveryFailed,
+      redelivery_claimed: false
+    }).catch(() => {});
+    return { ok: true, responsesSent: providerMessageIds.length, deliveryFailed };
   } catch (deliveryError) {
+    await persistPayment(session, { redelivery_claimed: false }).catch(() => {});
     logger.warn('typebot_payment_redelivery_failed', {
       phase: 'redeliver_pending_outputs',
       correlationId,

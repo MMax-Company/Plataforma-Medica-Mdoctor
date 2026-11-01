@@ -90,9 +90,10 @@ async function main() {
     results.continueChatSucessoComFalhaPosteriorNaoRetomaDeNovo = 'ok';
   }
 
-  // 2) Falha de entrega pela Meta: pagamento e retomada preservados,
-  //    deliveryFailed registrado com os outputs pendentes, e reenvio
-  //    controlado depois entrega sem chamar continueChat de novo.
+  // 2) Falha de entrega pela Meta (rejeição HTTP síncrona, ex.: token
+  //     expirado/inválido — classificada failed_safe_to_retry): pagamento e
+  //     retomada preservados, estado por mensagem persistido, e reenvio
+  //     controlado depois entrega sem chamar continueChat de novo.
   {
     const session = makeSession();
     const tracker = makeClaimTracker();
@@ -109,7 +110,10 @@ async function main() {
         return { input: { id: 'grp_final' }, messages: [{ type: 'text', content: { plainText: 'Seu atendimento foi enviado para avaliação médica.' } }] };
       },
       convertTypebotResponse: (typebot) => (typebot.messages || []).map((m) => ({ kind: 'text', text: m.content.plainText })),
-      provider: { sendTextMessage: async () => { const e = new Error('Authentication Error'); e.code = 190; throw e; } },
+      // providerStatus presente = a Meta respondeu de forma síncrona com
+      // rejeição (ex.: 401 por token expirado) — comprovadamente não
+      // aceita/enfileirada, portanto failed_safe_to_retry, não ambígua.
+      provider: { sendTextMessage: async () => { const e = new Error('Authentication Error'); e.code = 190; e.providerStatus = 401; throw e; } },
       upsertSessionIdentity: async () => {},
       createIntegrationError: async () => {}
     };
@@ -121,20 +125,23 @@ async function main() {
     assert.equal(revertCalls, 0, 'falha de entrega não desfaz a retomada');
     assert(persistedPatch, 'estado de entrega falhada deve ser persistido');
     assert.equal(persistedPatch.delivery_failed, true);
-    assert.equal(Array.isArray(persistedPatch.pending_outputs), true);
-    assert.equal(persistedPatch.pending_outputs.length, 1);
+    assert.equal(Array.isArray(persistedPatch.message_deliveries), true);
+    assert.equal(persistedPatch.message_deliveries.length, 1);
+    assert.equal(persistedPatch.message_deliveries[0].status, 'failed_safe_to_retry', 'rejeição HTTP síncrona da Meta é comprovadamente não enviada');
+    assert.equal(persistedPatch.message_deliveries[0].providerMessageId, null);
 
-    // Reenvio controlado: usa os outputs pendentes, nunca chama continueChat.
+    // Reenvio controlado: usa os registros pendentes, nunca chama continueChat.
     const redeliverySession = makeSession({
       flow_resumed: true,
       delivery_failed: true,
-      pending_outputs: persistedPatch.pending_outputs,
-      pending_outputs_correlation_id: persistedPatch.pending_outputs_correlation_id
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: persistedPatch.message_deliveries
     });
     const sentOnRedelivery = [];
     let redeliveryPersisted = null;
     const redeliverResult = await redeliverPendingPaymentMessages('tok-recovery', {
       session: redeliverySession,
+      claimRedeliveryAttempt: async () => true,
       provider: { sendTextMessage: async (payload) => { sentOnRedelivery.push(payload); return { providerMessageId: 'm-redelivery-1' }; } },
       persistPaymentRecord: async (s, patch) => { redeliveryPersisted = patch; return patch; },
       createIntegrationError: async () => {}
@@ -142,8 +149,9 @@ async function main() {
     assert.equal(redeliverResult.ok, true);
     assert.equal(redeliverResult.responsesSent, 1);
     assert.equal(sentOnRedelivery.length, 1);
-    assert.equal(sentOnRedelivery[0].idempotencyKey, `${persistedPatch.pending_outputs_correlation_id}:0`, 'reenvio usa a MESMA idempotencyKey da tentativa original — Meta não duplica entrega já confirmada');
+    assert.equal(sentOnRedelivery[0].idempotencyKey, persistedPatch.message_deliveries[0].key);
     assert.equal(redeliveryPersisted.delivery_failed, false);
+    assert.equal(redeliveryPersisted.message_deliveries[0].status, 'sent');
     assert.equal(typebotCalls.length, 1, 'reenvio nunca chama continueChat de novo — sessão já retomada é preservada');
     results.falhaDeEntregaPreservaPagamentoERetomadaEPermiteReenvio = 'ok';
   }
@@ -271,6 +279,289 @@ async function main() {
     assert.equal(calls, 1, code + ': exatamente uma chamada');
   }
   results.falhasDeRedeEHttpNaoDuplicamRetomada = 'ok';
+
+  // --- Ponto 2 da revisão da etapa 3/6: rastreamento por mensagem e ---
+  // --- reenvio controlado (a Meta não garante dedup por Idempotency-Key) ---
+
+  function makeDeliveryEntry(overrides = {}) {
+    return {
+      index: 0,
+      output: { kind: 'text', text: 'Seu atendimento foi enviado para avaliação médica.' },
+      key: 'typebot-payment-cs_test_recovery:0',
+      status: 'pending',
+      providerMessageId: null,
+      attempts: 0,
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+      ...overrides
+    };
+  }
+
+  // 6) Envio já confirmado com providerMessageId: reenvio bloqueado.
+  {
+    const session = makeSession({
+      flow_resumed: true,
+      delivery_failed: false,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: [makeDeliveryEntry({ status: 'sent', providerMessageId: 'm-already-sent', attempts: 1 })]
+    });
+    const sent = [];
+    const result = await redeliverPendingPaymentMessages('tok-recovery', {
+      session,
+      provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-should-not-happen' }; } },
+      persistPaymentRecord: async (s, patch) => patch,
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.nothingToRedeliver, true, 'nada elegível quando a única mensagem já está sent');
+    assert.equal(sent.length, 0, 'mensagem confirmada nunca é reenviada');
+    results.envioConfirmadoBloqueiaReenvio = 'ok';
+  }
+
+  // 7) Falha comprovadamente anterior ao envio (failed_safe_to_retry):
+  //    reenvio permitido e mensagem passa a sent.
+  {
+    const session = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: [makeDeliveryEntry({ status: 'failed_safe_to_retry', lastError: 'Falha Meta WhatsApp Cloud API sendMessage (401)' })]
+    });
+    const sent = [];
+    let persisted = null;
+    const result = await redeliverPendingPaymentMessages('tok-recovery', {
+      session,
+      claimRedeliveryAttempt: async () => true,
+      provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-recovered-1' }; } },
+      persistPaymentRecord: async (s, patch) => { persisted = patch; return patch; },
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.responsesSent, 1);
+    assert.equal(sent.length, 1, 'falha comprovadamente anterior ao envio permite reenvio');
+    assert.equal(persisted.message_deliveries[0].status, 'sent');
+    assert.equal(persisted.message_deliveries[0].providerMessageId, 'm-recovered-1');
+    results.falhaClaraAntesDoEnvioPermiteReenvio = 'ok';
+  }
+
+  // 8) Timeout após possível aceitação pela Meta (ambíguo, sem HTTP status
+  //    de rejeição): reenvio automático bloqueado, mesmo após reentrega.
+  {
+    const session = makeSession();
+    const tracker = makeClaimTracker();
+    let persistedPatch = null;
+    const timeoutError = Object.assign(new Error('Timeout na chamada Meta WhatsApp Cloud API'), { code: 'PROVIDER_TIMEOUT' });
+    const result = await completePaymentByToken('tok-recovery', {
+      session,
+      refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
+      claimFlowResume: tracker.claimFlowResume,
+      persistPaymentRecord: async (s, patch) => { persistedPatch = patch; return patch; },
+      callTypebot: async () => ({ input: { id: 'grp_final' }, messages: [{ type: 'text', content: { plainText: 'Pagamento confirmado.' } }] }),
+      convertTypebotResponse: (typebot) => (typebot.messages || []).map((m) => ({ kind: 'text', text: m.content.plainText })),
+      provider: { sendTextMessage: async () => { throw timeoutError; } },
+      upsertSessionIdentity: async () => {},
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.deliveryFailed, true);
+    assert.equal(persistedPatch.message_deliveries[0].status, 'unknown', 'timeout sem rejeição HTTP explícita é ambíguo');
+
+    const redeliverySession = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: persistedPatch.message_deliveries
+    });
+    const sentOnRedelivery = [];
+    const redeliverResult = await redeliverPendingPaymentMessages('tok-recovery', {
+      session: redeliverySession,
+      provider: { sendTextMessage: async (p) => { sentOnRedelivery.push(p); return { providerMessageId: 'm-x' }; } },
+      persistPaymentRecord: async (s, patch) => patch,
+      createIntegrationError: async () => {}
+    });
+    assert.equal(redeliverResult.ok, true);
+    assert.equal(redeliverResult.nothingToRedeliver, true, 'resultado ambíguo nunca é reenviado automaticamente');
+    assert.equal(sentOnRedelivery.length, 0);
+    results.timeoutAmbiguoBloqueiaReenvioAutomatico = 'ok';
+  }
+
+  // 9) Dois outputs no mesmo pagamento: um confirmado, outro não enviado —
+  //    o reenvio recupera SOMENTE o segundo, sem repetir o primeiro.
+  {
+    const session = makeSession();
+    const tracker = makeClaimTracker();
+    let persistedPatch = null;
+    const sentFirstAttempt = [];
+    const httpRejection = Object.assign(new Error('Falha Meta WhatsApp Cloud API sendMessage (401)'), { code: 131042, providerStatus: 401 });
+    const result = await completePaymentByToken('tok-recovery', {
+      session,
+      refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
+      claimFlowResume: tracker.claimFlowResume,
+      persistPaymentRecord: async (s, patch) => { persistedPatch = patch; return patch; },
+      callTypebot: async () => ({
+        input: { id: 'grp_final' },
+        messages: [
+          { type: 'text', content: { plainText: 'Pagamento confirmado.' } },
+          { type: 'text', content: { plainText: 'Aguarde o contato do médico.' } }
+        ]
+      }),
+      convertTypebotResponse: (typebot) => (typebot.messages || []).map((m) => ({ kind: 'text', text: m.content.plainText })),
+      provider: {
+        sendTextMessage: async (p) => {
+          sentFirstAttempt.push(p);
+          if (sentFirstAttempt.length === 1) return { providerMessageId: 'm-first-ok' };
+          throw httpRejection;
+        }
+      },
+      upsertSessionIdentity: async () => {},
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.deliveryFailed, true);
+    assert.equal(persistedPatch.message_deliveries.length, 2);
+    assert.equal(persistedPatch.message_deliveries[0].status, 'sent');
+    assert.equal(persistedPatch.message_deliveries[1].status, 'failed_safe_to_retry');
+
+    const redeliverySession = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: persistedPatch.message_deliveries
+    });
+    const sentOnRedelivery = [];
+    let redeliveryPersisted = null;
+    const redeliverResult = await redeliverPendingPaymentMessages('tok-recovery', {
+      session: redeliverySession,
+      claimRedeliveryAttempt: async () => true,
+      provider: { sendTextMessage: async (p) => { sentOnRedelivery.push(p); return { providerMessageId: 'm-second-recovered' }; } },
+      persistPaymentRecord: async (s, patch) => { redeliveryPersisted = patch; return patch; },
+      createIntegrationError: async () => {}
+    });
+    assert.equal(redeliverResult.ok, true);
+    assert.equal(sentOnRedelivery.length, 1, 'somente a mensagem não enviada é reenviada');
+    assert.equal(sentOnRedelivery[0].idempotencyKey, persistedPatch.message_deliveries[1].key);
+    assert.equal(redeliveryPersisted.message_deliveries[0].status, 'sent');
+    assert.equal(redeliveryPersisted.message_deliveries[0].providerMessageId, 'm-first-ok', 'a mensagem já confirmada não é alterada');
+    assert.equal(redeliveryPersisted.message_deliveries[1].status, 'sent');
+    results.recuperaSomenteMensagemNaoEnviada = 'ok';
+  }
+
+  // 10) Duas tentativas concorrentes de reenvio para o MESMO pagamento:
+  //     somente uma consegue reivindicar o envio.
+  {
+    const session = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: [makeDeliveryEntry({ status: 'failed_safe_to_retry' })]
+    });
+    let redeliveryClaimed = false;
+    const claimRedeliveryAttempt = async () => {
+      if (redeliveryClaimed) return false;
+      redeliveryClaimed = true;
+      return true;
+    };
+    const sent = [];
+    const [first, second] = await Promise.all([
+      redeliverPendingPaymentMessages('tok-recovery', {
+        session,
+        claimRedeliveryAttempt,
+        provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-concurrent-1' }; } },
+        persistPaymentRecord: async (s, patch) => patch,
+        createIntegrationError: async () => {}
+      }),
+      redeliverPendingPaymentMessages('tok-recovery', {
+        session,
+        claimRedeliveryAttempt,
+        provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-concurrent-2' }; } },
+        persistPaymentRecord: async (s, patch) => patch,
+        createIntegrationError: async () => {}
+      })
+    ]);
+    const outcomes = [first, second];
+    const winners = outcomes.filter((r) => r.ok && r.responsesSent === 1);
+    const losers = outcomes.filter((r) => !r.ok && r.code === 'REDELIVERY_IN_PROGRESS');
+    assert.equal(winners.length, 1, 'exatamente uma tentativa concorrente reivindica o envio');
+    assert.equal(losers.length, 1, 'a outra é recusada por reenvio já em andamento');
+    assert.equal(sent.length, 1, 'a mensagem é enviada exatamente uma vez entre as duas tentativas');
+    results.tentativasConcorrentesSomenteUmaReivindica = 'ok';
+  }
+
+  // 11) Reentrega do webhook Stripe (camada completa, com entrega real
+  //     simulada): a segunda entrega não duplica nenhuma mensagem já
+  //     confirmada — o claim de flow_resumed impede até chegar à entrega.
+  {
+    const session = makeSession();
+    const tracker = makeClaimTracker();
+    const sent = [];
+    const deps = {
+      refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
+      claimFlowResume: tracker.claimFlowResume,
+      persistPaymentRecord: async (s, patch) => patch,
+      callTypebot: async () => ({ input: { id: 'grp_final' }, messages: [{ type: 'text', content: { plainText: 'Pagamento confirmado.' } }] }),
+      convertTypebotResponse: (typebot) => (typebot.messages || []).map((m) => ({ kind: 'text', text: m.content.plainText })),
+      provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: `m-${sent.length}` }; } },
+      upsertSessionIdentity: async () => {},
+      createIntegrationError: async () => {}
+    };
+    const first = await completePaymentByToken('tok-recovery', { session, ...deps });
+    const second = await completePaymentByToken('tok-recovery', { session, ...deps });
+    assert.equal(first.responsesSent, 1);
+    assert.equal(second.alreadyCompleted, true);
+    assert.equal(sent.length, 1, 'reentrega do webhook não duplica mensagem já confirmada');
+    results.reentregaWebhookNaoDuplicaMensagemConfirmada = 'ok';
+  }
+
+  // 12) Falha na persistência do controle de envio: não prossegue com
+  //     envio inseguro — o provider nunca é chamado.
+  {
+    const session = makeSession({
+      flow_resumed: true,
+      delivery_failed: true,
+      delivery_correlation_id: 'typebot-payment-cs_test_recovery',
+      message_deliveries: [makeDeliveryEntry({ status: 'failed_safe_to_retry' })]
+    });
+    const sent = [];
+    const result = await redeliverPendingPaymentMessages('tok-recovery', {
+      session,
+      claimRedeliveryAttempt: async () => true,
+      provider: { sendTextMessage: async (p) => { sent.push(p); return { providerMessageId: 'm-unsafe' }; } },
+      persistPaymentRecord: async () => { throw new Error('Supabase indisponível'); },
+      createIntegrationError: async () => {}
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.responsesSent, 0);
+    assert.equal(sent.length, 0, 'sem conseguir registrar a tentativa, o envio não é feito');
+    results.falhaDePersistenciaNaoEnviaDeFormaInsegura = 'ok';
+  }
+
+  // 13) Estados financeiros e de retomada preservados durante toda a
+  //     entrega/reenvio: nenhum patch de entrega toca payment_status,
+  //     status ou flow_resumed.
+  {
+    const session = makeSession();
+    const tracker = makeClaimTracker();
+    const allPatches = [];
+    const httpRejection = Object.assign(new Error('Falha Meta WhatsApp Cloud API sendMessage (401)'), { providerStatus: 401 });
+    await completePaymentByToken('tok-recovery', {
+      session,
+      refreshPaymentStatus: async () => ({ paymentStatus: 'paid' }),
+      claimFlowResume: tracker.claimFlowResume,
+      persistPaymentRecord: async (s, patch) => { allPatches.push(patch); return patch; },
+      callTypebot: async () => ({ input: { id: 'grp_final' }, messages: [{ type: 'text', content: { plainText: 'Pagamento confirmado.' } }] }),
+      convertTypebotResponse: (typebot) => (typebot.messages || []).map((m) => ({ kind: 'text', text: m.content.plainText })),
+      provider: { sendTextMessage: async () => { throw httpRejection; } },
+      upsertSessionIdentity: async () => {},
+      createIntegrationError: async () => {}
+    });
+    assert(allPatches.length > 0, 'a entrega persistiu pelo menos um patch');
+    for (const patch of allPatches) {
+      assert.equal('payment_status' in patch, false, 'patch de entrega nunca toca payment_status');
+      assert.equal('status' in patch, false, 'patch de entrega nunca toca status financeiro');
+      assert.equal('flow_resumed' in patch, false, 'patch de entrega nunca toca flow_resumed');
+    }
+    results.estadosFinanceirosERetomadaPreservadosDuranteEntrega = 'ok';
+  }
 
   console.log(JSON.stringify(results, null, 2));
 }
