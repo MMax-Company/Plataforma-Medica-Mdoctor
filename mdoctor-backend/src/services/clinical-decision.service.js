@@ -16,6 +16,21 @@ const {
 const CLINICAL_REJECT_WHATSAPP_MESSAGE =
   'Após avaliação médica, não foi possível emitir a receita solicitada.\n\nNossa equipe analisará as providências administrativas referentes ao pagamento.\n\nCaso precise de ajuda, digite 2 para falar com o suporte.';
 
+// Usada só quando o estorno automático foi de fato solicitado ao Stripe
+// (pendencia_pagamento.status em REFUND_REQUESTED_STATUSES) — nunca quando
+// não há pagamento confirmado ou quando o estorno caiu para tratamento
+// administrativo manual por erro.
+const CLINICAL_REJECT_WHATSAPP_MESSAGE_WITH_REFUND =
+  'Após avaliação médica, não foi possível emitir a receita solicitada.\n\nO estorno do valor pago foi iniciado automaticamente. A confirmação e o prazo para o valor aparecer no seu extrato dependem do seu banco ou operadora do cartão.\n\nCaso precise de ajuda, digite 2 para falar com o suporte.';
+
+const REFUND_REQUESTED_STATUSES = new Set(['estorno_concluido', 'estorno_iniciado']);
+
+function resolveClinicalRejectMessage(pendenciaPagamentoStatus) {
+  return REFUND_REQUESTED_STATUSES.has(pendenciaPagamentoStatus)
+    ? CLINICAL_REJECT_WHATSAPP_MESSAGE_WITH_REFUND
+    : CLINICAL_REJECT_WHATSAPP_MESSAGE;
+}
+
 const CLINICAL_APPROVE_WHATSAPP_MESSAGE = '✅ Sua solicitação foi aprovada pelo médico.';
 
 function resolveDecisionRationale(rationale, notes) {
@@ -440,7 +455,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
         const queued = await enqueueClinicalRejection({
           atendimentoId,
           phone: previous.paciente_telefone,
-          message: CLINICAL_REJECT_WHATSAPP_MESSAGE,
+          message: resolveClinicalRejectMessage(previous.dados_clinicos?.pendencia_pagamento?.status),
           doctorId: previousRejection.rejected_by || doctorId,
           correlationId
         });
@@ -595,7 +610,7 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
     dados_clinicos: mergedClinical
   });
 
-  const message = CLINICAL_REJECT_WHATSAPP_MESSAGE;
+  const message = resolveClinicalRejectMessage(pendenciaPagamento.status);
   let notification;
   if (previous.paciente_telefone) {
     const queued = await enqueueClinicalRejection({
@@ -670,6 +685,8 @@ async function rejectAtendimento(atendimentoId, body = {}, meta = {}) {
 
 module.exports = {
   CLINICAL_REJECT_WHATSAPP_MESSAGE,
+  CLINICAL_REJECT_WHATSAPP_MESSAGE_WITH_REFUND,
+  resolveClinicalRejectMessage,
   CLINICAL_APPROVE_WHATSAPP_MESSAGE,
   approveAtendimento,
   rejectAtendimento,
