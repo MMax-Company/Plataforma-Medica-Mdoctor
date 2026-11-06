@@ -25,6 +25,7 @@ function matchesFilters(row, filters) {
     if (type === 'neq') return row[col] !== val;
     if (type === 'is') return (row[col] ?? null) === val;
     if (type === 'lt') return row[col] != null && String(row[col]) < String(val);
+    if (type === 'in') return Array.isArray(val) && val.includes(row[col]);
     throw new Error(`filtro '${type}' não suportado no fake`);
   });
 }
@@ -82,6 +83,11 @@ class FakeQueryBuilder {
 
   lt(col, val) {
     this.filters.push({ type: 'lt', col, val });
+    return this;
+  }
+
+  in(col, vals) {
+    this.filters.push({ type: 'in', col, val: vals });
     return this;
   }
 

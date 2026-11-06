@@ -1044,3 +1044,51 @@ própria, 12 contagens, todas `0`):
    confirmada**.
 Nenhum outro registro (`whatsapp_sessions`, outros `patients`/
 `appointments`) foi afetado pela limpeza, nos dois casos.
+
+## 16. Autofill de CEP — causa raiz real do "pula para endereço manual" (25/10/2026)
+
+- **Investigação pedida pelo usuário:** suspeita de regressão na
+  persistência/reload de `typebot_expected_input_id` (não chegaria como
+  `blk_0oydu2f7` no turno do CEP). **Não confirmada.** Branch isolada
+  `fix/cep-expected-input-persistence-20261025` (PR #105, a partir do
+  HEAD de `main`, commit `cf10941`), sem merge/deploy.
+- Novo teste (`scripts/test-whatsapp-cep-expected-input-persistence-regression.js`)
+  roda o bridge com as dependências REAIS de persistência
+  (`upsertSessionIdentity`/`getSessionByPhone` de
+  `whatsapp-sessions.store.js`, não um mock local de sessão) sobre um
+  `FakeSupabaseClient` — cobre input anterior → Typebot retorna
+  `blk_0oydu2f7` → persistido → paciente envia CEP → reload real
+  confirma `blk_0oydu2f7` → `lookupCep` executa → sentinela → endereço
+  completo no input real; mais CEP inválido recusado e CEP não
+  localizado no caminho manual. Todos os 5 cenários passam — a
+  persistência/reload está correta em `main`. (Diferença do teste
+  existente `test-whatsapp-cep-autofill-unit.js`: aquele pré-semeia
+  `typebot_expected_input_id` e mocka `persistExpectedInput`/
+  `reloadSession` localmente, nunca exercitando o turno anterior nem o
+  round-trip real pelo store.)
+- **Causa raiz real, confirmada em logs reais de produção** (serviço
+  `web`, deployment `17244fa2`, 24/10/2026 ~21:31 UTC, telefone de
+  teste real): `whatsapp_typebot_ownership_diagnostic` confirma
+  `expectedInputId: "blk_0oydu2f7"` no turno do CEP — persistência
+  correta. Na mesma requisição, a chamada à ViaCEP
+  (`src/routes/cep.routes.js`, `lookupCep`) falhou com
+  `cep_lookup_error ... AggregateError [EHOSTUNREACH]`/`ENETUNREACH`
+  (3 tentativas, todas falha de rede imediata, ~3ms de janela total).
+  Como esse erro é absorvido por `.catch(() => null)` (comportamento
+  intencional e documentado — erro/timeout tratado igual a "não
+  localizado"), o paciente caiu direto no caminho manual
+  (próximo input = `q78qjnk6ticwkeifl7xe2rju`, mensagem "não foi
+  possível localizar automaticamente"). Mesmo efeito visível do
+  relato do usuário, causa real é falha de egress/infra para a ViaCEP
+  no momento da chamada, não bug de código no bridge/backend.
+- Esse exato padrão de erro (`EHOSTUNREACH`/`ENETUNREACH` para a
+  ViaCEP) já tinha ocorrido uma vez antes (comentário em
+  `cep.routes.js` datado de 21/08/2026, que adicionou retry de 3
+  tentativas/300ms). Em 24/10/2026 a instabilidade durou mais que a
+  janela total de retry (~1s) e todas as tentativas falharam.
+- **Nenhuma mudança de código feita** em `typebot-whatsapp.bridge.js`,
+  `whatsapp-sessions.store.js` ou `cep.routes.js` — não há causa raiz de
+  código para corrigir na hipótese original. Decisão pendente do
+  usuário: reforçar ou não a resiliência do retry da ViaCEP
+  (`CEP_LOOKUP_MAX_ATTEMPTS`/`CEP_LOOKUP_RETRY_DELAY_MS`/timeout) agora
+  que a causa real está confirmada — não implementado nesta tarefa.
